@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.10/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
@@ -180,8 +180,26 @@
   /* Scan */
   .scan-card { background: white; border-radius: 16px; padding: 12px; box-shadow: var(--sh-md); margin-bottom: 12px; border: 1px solid var(--slate-200); }
   .scan-frame { background: var(--slate-900); border-radius: 11px; aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center; color: white; overflow: hidden; margin-bottom: 10px; position: relative; }
-  #reader { width: 100% !important; }
-  #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
+  #reader, #locReader { width: 100% !important; height: 100% !important; position: relative; }
+  #reader video, #locReader video { 
+    width: 100% !important; 
+    height: 100% !important; 
+    object-fit: cover !important;
+    /* iOS Safari fixes */
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    background: #000;
+  }
+  /* hide html5-qrcode default UI clutter on small screens */
+  #reader__dashboard, #locReader__dashboard { display: none !important; }
+  #reader__scan_region, #locReader__scan_region { background: transparent !important; min-height: 0 !important; }
+  #reader__scan_region img, #locReader__scan_region img { display: none !important; }
+  /* Highlight scan area visually */
+  #reader__scan_region > div, #locReader__scan_region > div { 
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.35) !important;
+    border-radius: 12px !important;
+    border: 2px solid rgba(20,184,166,0.8) !important;
+  }
   .scan-placeholder { text-align: center; padding: 24px; }
   .scan-placeholder svg { width: 44px; height: 44px; opacity: 0.5; margin-bottom: 6px; }
   .scan-placeholder p { font-size: 12px; opacity: 0.7; }
@@ -944,6 +962,12 @@ const I18N = {
     session_default: 'ການນັບສະຕ໋ອກ',
     no_active_session: 'ບໍ່ມີຮອບການນັບ',
     scan_error: 'ບໍ່ສາມາດເປີດກ້ອງ',
+    scan_permission_denied: 'ກະລຸນາອະນຸຍາດການເຂົ້າເຖິງກ້ອງ ໃນການຕັ້ງຄ່າ Safari',
+    scan_no_camera: 'ບໍ່ພົບກ້ອງ ກະລຸນາໃຊ້ການກອກລະຫັດດ້ວຍຕົນເອງ',
+    scan_not_supported: 'ບຣາວເຊີນີ້ບໍ່ຮອງຮັບ ກະລຸນາໃຊ້ Safari ຫຼື Chrome',
+    scan_https_required: 'ຕ້ອງໃຊ້ HTTPS ເທົ່ານັ້ນ',
+    scan_in_use: 'ກ້ອງຖືກໃຊ້ໂດຍແອັບອື່ນ ກະລຸນາປິດແອັບອື່ນກ່ອນ',
+    scan_tip_ios: '💡 ບອກໃບ້: ບີບເພື່ອຊູມໃຫ້ບາໂຄດໃຫຍ່ຂຶ້ນ',
     change_zone: 'ປ່ຽນໂຊນ',
     counter_count: 'Counter ນັບ', verifier_count: 'Verifier ນັບ',
     bcs_title: 'ຈັດການລະບົບ', kpi_title: 'KPI',
@@ -1156,6 +1180,12 @@ const I18N = {
     session_default: 'การนับสต๊อค',
     no_active_session: 'ไม่มีรอบการนับ',
     scan_error: 'เปิดกล้องไม่ได้',
+    scan_permission_denied: 'กรุณาอนุญาตการเข้าถึงกล้อง ในการตั้งค่า Safari',
+    scan_no_camera: 'ไม่พบกล้อง กรุณาใช้การกรอกรหัสด้วยตัวเอง',
+    scan_not_supported: 'เบราว์เซอร์นี้ไม่รองรับ กรุณาใช้ Safari หรือ Chrome',
+    scan_https_required: 'ต้องใช้ HTTPS เท่านั้น',
+    scan_in_use: 'กล้องถูกใช้โดยแอปอื่น กรุณาปิดแอปอื่นก่อน',
+    scan_tip_ios: '💡 เคล็ดลับ: บีบเพื่อซูมให้บาร์โค้ดใหญ่ขึ้น',
     change_zone: 'เปลี่ยนโซน',
     counter_count: 'Counter นับ', verifier_count: 'Verifier นับ',
     bcs_title: 'จัดการระบบ', kpi_title: 'KPI',
@@ -1695,11 +1725,17 @@ async function scanLocCode() {
   `);
   
   setTimeout(async () => {
-    locScanner = new Html5Qrcode("locReader");
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showToast(T('scan_not_supported'), 'error');
+      stopLocScan();
+      return;
+    }
+    locScanner = new Html5Qrcode("locReader", { verbose: false });
+    const config = getScannerConfig();
     try {
       await locScanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 280, height: 160 } },
+        { facingMode: { ideal: "environment" } },
+        config,
         (decoded) => {
           stopLocScan();
           document.getElementById('locInput').value = decoded.trim().toUpperCase();
@@ -1708,8 +1744,11 @@ async function scanLocCode() {
         },
         () => {}
       );
+      fixIOSVideoElement('locReader');
     } catch (e) {
-      showToast(T('scan_error'), 'error');
+      console.error('[FS] startLocScan error:', e);
+      const errMsg = getCameraErrorMessage(e);
+      showToast(errMsg, 'error');
       stopLocScan();
     }
   }, 100);
@@ -2140,6 +2179,120 @@ function renderScanPage() {
   `;
 }
 
+// ==================== SCANNER HELPERS (iOS-friendly) ====================
+function getScannerConfig() {
+  // iOS detection: ใช้ format hints + ขนาด qrbox ที่ดี
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  
+  // formats ที่จะอ่าน — ครอบคลุมบาร์โค้ดสินค้าทั่วไป
+  const formats = (typeof Html5QrcodeSupportedFormats !== 'undefined') ? [
+    Html5QrcodeSupportedFormats.EAN_13,    // บาร์โค้ดสินค้ามาตรฐาน (most common)
+    Html5QrcodeSupportedFormats.EAN_8,
+    Html5QrcodeSupportedFormats.UPC_A,
+    Html5QrcodeSupportedFormats.UPC_E,
+    Html5QrcodeSupportedFormats.CODE_128,
+    Html5QrcodeSupportedFormats.CODE_39,
+    Html5QrcodeSupportedFormats.CODE_93,
+    Html5QrcodeSupportedFormats.ITF,
+    Html5QrcodeSupportedFormats.QR_CODE,
+    Html5QrcodeSupportedFormats.DATA_MATRIX
+  ] : undefined;
+  
+  // qrbox แบบ dynamic — ปรับตามขนาดจอจริง (ดีกว่า fixed)
+  const qrboxFunc = (viewfinderWidth, viewfinderHeight) => {
+    const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+    const w = Math.floor(minEdge * 0.85);          // กว้าง 85% ของด้านสั้น
+    const h = Math.floor(w * 0.45);                 // อัตราส่วน barcode แนวนอน
+    return { width: w, height: h };
+  };
+  
+  return {
+    fps: isIOS ? 15 : 10,                          // iOS รับ fps สูงขึ้นได้
+    qrbox: qrboxFunc,
+    aspectRatio: 1.333,                             // 4:3 standard
+    disableFlip: false,
+    formatsToSupport: formats,
+    rememberLastUsedCamera: true,
+    // experimentalFeatures: ปิด BarcodeDetector บน iOS เพราะ buggy
+    experimentalFeatures: {
+      useBarCodeDetectorIfSupported: !isIOS
+    },
+    videoConstraints: {
+      facingMode: { ideal: "environment" },
+      // iOS: ขอความละเอียดสูงขึ้นช่วยให้ decode ดีขึ้น
+      width: { ideal: 1920, min: 1280 },
+      height: { ideal: 1080, min: 720 }
+    }
+  };
+}
+
+function fixIOSVideoElement(containerId) {
+  // iOS Safari ต้องการ playsinline ไม่งั้น video จะเปิด fullscreen หรือไม่เล่น
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  setTimeout(() => {
+    const videos = container.querySelectorAll('video');
+    videos.forEach(v => {
+      v.setAttribute('playsinline', 'true');
+      v.setAttribute('webkit-playsinline', 'true');
+      v.setAttribute('muted', 'true');
+      v.muted = true;
+      v.style.objectFit = 'cover';
+      v.style.width = '100%';
+      v.style.height = '100%';
+      // บางเครื่อง iOS ต้อง play() อีกครั้งหลัง attribute
+      if (v.paused) { v.play().catch(() => {}); }
+    });
+  }, 100);
+  // retry อีกครั้งหลัง 500ms เพื่อ safety
+  setTimeout(() => {
+    const videos = container.querySelectorAll('video');
+    videos.forEach(v => {
+      v.setAttribute('playsinline', 'true');
+      v.setAttribute('webkit-playsinline', 'true');
+      if (v.paused) { v.play().catch(() => {}); }
+    });
+  }, 600);
+}
+
+function getCameraErrorMessage(err) {
+  const msg = (err?.message || err?.toString() || '').toLowerCase();
+  const name = (err?.name || '').toLowerCase();
+  
+  // HTTPS required
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    return T('scan_https_required');
+  }
+  
+  // Permission denied
+  if (name.includes('notallowed') || name.includes('permission') || 
+      msg.includes('permission') || msg.includes('denied') || msg.includes('notallowed')) {
+    return T('scan_permission_denied');
+  }
+  
+  // No camera found
+  if (name.includes('notfound') || msg.includes('not found') || msg.includes('no camera') ||
+      msg.includes('requested device not found')) {
+    return T('scan_no_camera');
+  }
+  
+  // Camera in use
+  if (name.includes('notreadable') || name.includes('inuse') || 
+      msg.includes('in use') || msg.includes('could not start')) {
+    return T('scan_in_use');
+  }
+  
+  // Not supported
+  if (name.includes('notsupported') || msg.includes('not supported') || 
+      msg.includes('mediadevices') || msg.includes('getusermedia')) {
+    return T('scan_not_supported');
+  }
+  
+  // Default
+  return T('scan_error');
+}
+
 async function startScan() {
   document.getElementById('scanPlaceholder').style.display = 'none';
   document.getElementById('reader').style.display = 'block';
@@ -2147,16 +2300,33 @@ async function startScan() {
   document.getElementById('stopScanBtn').style.display = 'flex';
   document.getElementById('scanFrame').classList.add('scanning');
   
-  html5QrCode = new Html5Qrcode("reader");
+  // เช็ค browser support ก่อน
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast(T('scan_not_supported'), 'error');
+    stopScan();
+    return;
+  }
+  
+  html5QrCode = new Html5Qrcode("reader", { verbose: false });
+  const config = getScannerConfig();
+  
   try {
     await html5QrCode.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 280, height: 160 } },
-      (decoded) => { stopScan(); lookupProduct(decoded); },
-      () => {}
+      { facingMode: { ideal: "environment" } },
+      config,
+      (decoded) => { 
+        beep();
+        stopScan(); 
+        lookupProduct(decoded); 
+      },
+      () => {} // ignore errors per-frame
     );
+    // Fix iOS video element after start
+    fixIOSVideoElement('reader');
   } catch (e) {
-    showToast(T('scan_error'), 'error');
+    console.error('[FS] startScan error:', e);
+    const errMsg = getCameraErrorMessage(e);
+    showToast(errMsg, 'error');
     stopScan();
   }
 }
