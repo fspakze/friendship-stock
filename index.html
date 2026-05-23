@@ -9,11 +9,6 @@
 <meta name="apple-mobile-web-app-title" content="FS Stock">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="application-name" content="FS Stock">
-<!-- Permissions Policy: required for camera in PWA mode -->
-<meta http-equiv="Permissions-Policy" content="camera=*, microphone=()">
-<meta http-equiv="Feature-Policy" content="camera *; microphone 'none'">
-<!-- Inline PWA manifest with camera permission -->
-<link rel="manifest" href='data:application/manifest+json,{"name":"Friendship Stock","short_name":"FS Stock","start_url":"./","display":"standalone","background_color":"%23ffffff","theme_color":"%230f766e","orientation":"portrait","permissions":["camera"],"icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 192 192%22%3E%3Crect width=%22192%22 height=%22192%22 fill=%22%230f766e%22 rx=%2240%22/%3E%3Ctext x=%2296%22 y=%22120%22 font-size=%2280%22 fill=%22white%22 text-anchor=%22middle%22 font-weight=%22bold%22%3EFS%3C/text%3E%3C/svg%3E","sizes":"192x192","type":"image/svg+xml","purpose":"any"}]}'>
 <title>Friendship Stock v3.2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2306,22 +2301,6 @@ async function scanLocCode() {
       return;
     }
     
-    // PWA mode: ขอ permission ก่อน
-    const pwa = isPWAMode();
-    if (pwa) {
-      log('[FS] PWA mode: requesting permission for locScanner');
-      const perm = await requestCameraPermission();
-      if (!perm.granted) {
-        stopLocScan();
-        if (perm.error === 'NotAllowedError' || perm.error?.includes('NotAllowed')) {
-          showPWAPermissionHelp();
-        } else {
-          showToast(getCameraErrorMessage({ name: perm.error, message: perm.message }), 'error');
-        }
-        return;
-      }
-    }
-    
     locScanner = new Html5Qrcode("locReader", { verbose: false });
     const config = getScannerConfig();
     
@@ -2347,12 +2326,15 @@ async function scanLocCode() {
       } catch (e2) {
         console.error('[FS] startLocScan all methods failed:', e2);
         const errName = (e2?.name || '').toLowerCase();
-        if (errName.includes('notallowed') && pwa) {
+        const isPermErr = errName.includes('notallowed') || 
+                          (e2?.message || '').toLowerCase().includes('permission');
+        if (isPermErr && isPWAMode()) {
+          stopLocScan();
           showPWAPermissionHelp();
         } else {
           showToast(getCameraErrorMessage(e2), 'error');
+          stopLocScan();
         }
-        stopLocScan();
       }
     }
   }, 100);
@@ -3155,23 +3137,6 @@ async function startScan() {
     return;
   }
   
-  // PWA mode: ขอ permission แบบ explicit ก่อน (สำคัญสำหรับ iOS PWA)
-  const pwa = isPWAMode();
-  if (pwa) {
-    log('[FS] PWA mode detected, requesting camera permission explicitly');
-    const perm = await requestCameraPermission();
-    if (!perm.granted) {
-      stopScan();
-      if (perm.error === 'NotAllowedError' || perm.error?.includes('NotAllowed') || perm.error?.includes('Permission')) {
-        // Show PWA help modal
-        showPWAPermissionHelp();
-      } else {
-        showToast(getCameraErrorMessage({ name: perm.error, message: perm.message }), 'error');
-      }
-      return;
-    }
-  }
-  
   html5QrCode = new Html5Qrcode("reader", { verbose: false });
   const config = getScannerConfig();
   
@@ -3200,19 +3165,21 @@ async function startScan() {
       log('[FS] Scanner started with fallback (deviceId)');
     } catch (e2) {
       console.error('[FS] startScan all methods failed:', e2);
-      // If permission-related, show help for PWA
+      
+      // ถ้าเป็น PWA และ permission denied → แสดง help modal
       const errName = (e2?.name || '').toLowerCase();
       const errMsg = (e2?.message || '').toLowerCase();
-      if (errName.includes('notallowed') || errMsg.includes('permission') || errMsg.includes('denied')) {
-        if (pwa) {
-          showPWAPermissionHelp();
-        } else {
-          showToast(getCameraErrorMessage(e2), 'error');
-        }
+      const isPermErr = errName.includes('notallowed') || 
+                        errMsg.includes('permission') || 
+                        errMsg.includes('denied');
+      
+      if (isPermErr && isPWAMode()) {
+        stopScan();
+        showPWAPermissionHelp();
       } else {
         showToast(getCameraErrorMessage(e2), 'error');
+        stopScan();
       }
-      stopScan();
     }
   }
 }
