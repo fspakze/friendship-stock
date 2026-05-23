@@ -662,6 +662,22 @@ const I18N = {
     will_change_to: 'ຈະປຽ່ນເປັນ',
     max_percent: 'ສູງສຸດ %',
     max_value: 'ສູງສຸດ (LAK)',
+    reset_test_data: 'ລ້າງຂໍ້ມູນທົດສອບ',
+    reset_current_session_clear: 'ລ້າງການນັບໃນຮອບປັດຈຸບັນເທົ່ານັ້ນ',
+    reset_all_clear: 'ລ້າງການນັບແລະຮອບເກົ່າທັງໝົດ',
+    what_will_be_deleted: 'ສິ່ງທີ່ຈະຖືກລົບ',
+    what_will_be_kept: 'ສິ່ງທີ່ຈະຖືກເກັບໄວ້',
+    counts_current: 'ການນັບ (ຮອບປັດຈຸບັນ)',
+    counts_all: 'ການນັບທັງໝົດ',
+    sessions_old: 'ຮອບການນັບເກົ່າ',
+    products_kept: 'ສິນຄ້າ',
+    users_kept: 'ຜູ້ໃຊ້',
+    locations_kept: 'ຕຳແໜ່ງ',
+    snapshots_kept: 'POS Snapshots',
+    settings_kept: 'ການຕັ້ງຄ່າ',
+    when_to_use: 'ໃຊ້ເມື່ອໃດ',
+    use_case_test: 'ຫລັງທົດສອບ - ກ່ອນເລີ່ມນັບຈິງ',
+    use_case_full: 'ເລີ່ມໃໝ່ໝົດ - ລ້າງປະຫວັດທັງໝົດ',
     select_location_full: 'ເລືອກຕຳແໜ່ງສິນຄ້າ',
     loc_type: 'ປະເພດ',
     loc_gondola: 'Gondola',
@@ -833,6 +849,22 @@ const I18N = {
     will_change_to: 'จะเปลี่ยนเป็น',
     max_percent: 'สูงสุด %',
     max_value: 'สูงสุด (LAK)',
+    reset_test_data: 'ล้างข้อมูลทดสอบ',
+    reset_current_session_clear: 'ล้างการนับในรอบปัจจุบันเท่านั้น',
+    reset_all_clear: 'ล้างการนับและรอบเก่าทั้งหมด',
+    what_will_be_deleted: 'สิ่งที่จะถูกลบ',
+    what_will_be_kept: 'สิ่งที่จะถูกเก็บไว้',
+    counts_current: 'การนับ (รอบปัจจุบัน)',
+    counts_all: 'การนับทั้งหมด',
+    sessions_old: 'รอบการนับเก่า',
+    products_kept: 'สินค้า',
+    users_kept: 'ผู้ใช้',
+    locations_kept: 'ตำแหน่ง',
+    snapshots_kept: 'POS Snapshots',
+    settings_kept: 'การตั้งค่า',
+    when_to_use: 'ใช้เมื่อไหร่',
+    use_case_test: 'หลังทดสอบ - ก่อนเริ่มนับจริง',
+    use_case_full: 'เริ่มใหม่หมด - ล้างประวัติทั้งหมด',
     select_location_full: 'เลือกตำแหน่งสินค้า',
     loc_type: 'ประเภท',
     loc_gondola: 'Gondola',
@@ -4628,21 +4660,47 @@ function renderSettingsPage() {
         </div>
       </div>
       
-      <!-- Option 1: Reset Session -->
-      <div style="background:var(--amber-100);border:1px solid var(--amber-400);border-radius:10px;padding:11px;margin-bottom:9px;">
-        <div style="font-weight:700;font-size:12px;color:#92400e;margin-bottom:3px;">${T('reset_session_only')}</div>
-        <div style="font-size:10px;color:#78350f;margin-bottom:8px;line-height:1.4;">${T('reset_session_desc')}</div>
-        <button class="btn btn-amber" onclick="openResetModal('session')" style="font-size:12px;padding:9px;">
-          ${T('reset_session_only')}
+      <!-- Option 1: Reset Session (สำหรับทดสอบ - แนะนำ!) -->
+      <div style="background:var(--amber-100);border:2px solid var(--amber-500);border-radius:10px;padding:11px;margin-bottom:9px;position:relative;">
+        <div style="position:absolute;top:-9px;left:11px;background:var(--emerald-500);color:white;padding:2px 9px;border-radius:5px;font-size:9px;font-weight:700;letter-spacing:0.5px;">
+          ⭐ ${T('use_case_test')}
+        </div>
+        <div style="font-weight:700;font-size:13px;color:#92400e;margin-top:5px;margin-bottom:5px;">
+          🟠 ${T('reset_test_data')}
+        </div>
+        <div style="font-size:11px;color:#78350f;margin-bottom:8px;line-height:1.5;font-weight:600;">
+          ${T('reset_current_session_clear')}
+        </div>
+        <div style="background:white;border-radius:6px;padding:7px;margin-bottom:8px;font-size:10px;">
+          <div style="color:var(--rose-500);font-weight:700;margin-bottom:3px;">❌ ${T('what_will_be_deleted')}:</div>
+          <div style="color:var(--slate-700);line-height:1.6;">• ${T('counts_current')}<br>• Expiry/Damage Log (รอบนี้)<br>• New SKU Log (รอบนี้)</div>
+          <div style="color:var(--emerald-500);font-weight:700;margin-top:5px;margin-bottom:3px;">✅ ${T('what_will_be_kept')}:</div>
+          <div style="color:var(--slate-700);line-height:1.6;">• ${T('products_kept')} • ${T('users_kept')} • ${T('locations_kept')}<br>• ${T('snapshots_kept')} • รอบเก่า • Settings</div>
+        </div>
+        <button class="btn" onclick="openResetModal('session')" style="background:var(--amber-500);color:white;font-size:12px;padding:10px;width:100%;font-weight:700;">
+          🟠 ${T('reset_session_only')}
         </button>
       </div>
       
-      <!-- Option 2: Reset All -->
-      <div style="background:var(--rose-100);border:1px solid var(--rose-500);border-radius:10px;padding:11px;">
-        <div style="font-weight:700;font-size:12px;color:var(--rose-500);margin-bottom:3px;">${T('reset_all')}</div>
-        <div style="font-size:10px;color:#9f1239;margin-bottom:8px;line-height:1.4;">${T('reset_all_desc')}</div>
-        <button class="btn btn-danger" onclick="openResetModal('all')" style="font-size:12px;padding:9px;">
-          ${T('reset_all')}
+      <!-- Option 2: Reset All (ระวัง!) -->
+      <div style="background:var(--rose-100);border:2px solid var(--rose-500);border-radius:10px;padding:11px;position:relative;">
+        <div style="position:absolute;top:-9px;left:11px;background:var(--rose-500);color:white;padding:2px 9px;border-radius:5px;font-size:9px;font-weight:700;letter-spacing:0.5px;">
+          ⚠️ ${T('use_case_full')}
+        </div>
+        <div style="font-weight:700;font-size:13px;color:var(--rose-500);margin-top:5px;margin-bottom:5px;">
+          🔴 ${T('reset_all')}
+        </div>
+        <div style="font-size:11px;color:#9f1239;margin-bottom:8px;line-height:1.5;font-weight:600;">
+          ${T('reset_all_clear')}
+        </div>
+        <div style="background:white;border-radius:6px;padding:7px;margin-bottom:8px;font-size:10px;">
+          <div style="color:var(--rose-500);font-weight:700;margin-bottom:3px;">❌ ${T('what_will_be_deleted')}:</div>
+          <div style="color:var(--slate-700);line-height:1.6;">• ${T('counts_all')}<br>• ${T('sessions_old')}<br>• Expiry/Damage Log<br>• New SKU Log</div>
+          <div style="color:var(--emerald-500);font-weight:700;margin-top:5px;margin-bottom:3px;">✅ ${T('what_will_be_kept')}:</div>
+          <div style="color:var(--slate-700);line-height:1.6;">• ${T('products_kept')} • ${T('users_kept')} • ${T('locations_kept')}<br>• ${T('snapshots_kept')} • Settings</div>
+        </div>
+        <button class="btn btn-danger" onclick="openResetModal('all')" style="font-size:12px;padding:10px;width:100%;font-weight:700;">
+          🔴 ${T('reset_all')}
         </button>
       </div>
     </div>
