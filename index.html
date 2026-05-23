@@ -10,6 +10,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
@@ -3077,15 +3079,80 @@ async function showSnapshotHistory() {
   `);
 }
 
-// ==================== EXPORT EXCEL ====================
+// ==================== EXPORT EXCEL (with ExcelJS - Full Formatting) ====================
+const XL_COLORS = {
+  teal: '0F766E', tealLight: 'CCFBF1',
+  amber: 'F59E0B', amberLight: 'FEF3C7',
+  rose: 'F43F5E', roseLight: 'FFE4E6',
+  emerald: '10B981', emeraldLight: 'D1FAE5',
+  violet: '7C3AED', violetLight: 'EDE9FE',
+  sky: '0284C7', skyLight: 'E0F2FE',
+  slate900: '0F172A', slate700: '334155', slate500: '64748B',
+  slate200: 'E2E8F0', slate100: 'F1F5F9'
+};
+
+function xlStyleHeader(cell, color = 'teal') {
+  cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + XL_COLORS[color] } };
+  cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  cell.border = {
+    left: { style: 'thin', color: { argb: 'FF' + XL_COLORS.slate200 } },
+    right: { style: 'thin', color: { argb: 'FF' + XL_COLORS.slate200 } },
+    top: { style: 'thin', color: { argb: 'FF' + XL_COLORS.slate200 } },
+    bottom: { style: 'thin', color: { argb: 'FF' + XL_COLORS.slate200 } }
+  };
+}
+
+function xlStyleData(cell, opts = {}) {
+  cell.font = { name: 'Calibri', size: opts.size || 10, bold: opts.bold || false, color: { argb: 'FF' + (opts.color || XL_COLORS.slate900) } };
+  cell.alignment = { horizontal: opts.align || 'left', vertical: 'middle', wrapText: true };
+  cell.border = {
+    left: { style: 'thin', color: { argb: 'FF' + XL_COLORS.slate200 } },
+    right: { style: 'thin', color: { argb: 'FF' + XL_COLORS.slate200 } },
+    top: { style: 'thin', color: { argb: 'FF' + XL_COLORS.slate200 } },
+    bottom: { style: 'thin', color: { argb: 'FF' + XL_COLORS.slate200 } }
+  };
+  if (opts.fill) {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + XL_COLORS[opts.fill] } };
+  }
+}
+
+function xlStyleTitle(cell, color = 'teal', size = 18) {
+  cell.font = { name: 'Calibri', size: size, bold: true, color: { argb: 'FF' + XL_COLORS[color] } };
+  cell.alignment = { horizontal: 'left', vertical: 'middle' };
+}
+
+function xlStyleSection(cell, color = 'violet') {
+  cell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + XL_COLORS[color] } };
+  cell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+}
+
+function xlStyleKpiValue(cell, color = 'teal') {
+  cell.font = { name: 'Calibri', size: 22, bold: true, color: { argb: 'FF' + XL_COLORS[color] } };
+  cell.alignment = { horizontal: 'center', vertical: 'middle' };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + XL_COLORS[color + 'Light'] } };
+}
+
+function xlStyleKpiLabel(cell, color = 'teal') {
+  cell.font = { name: 'Calibri', size: 9, color: { argb: 'FF' + XL_COLORS.slate500 } };
+  cell.alignment = { horizontal: 'center', vertical: 'middle' };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + XL_COLORS[color + 'Light'] } };
+}
+
 async function exportToExcel(mode = 'full') {
   if (!session) {
     showToast(T('locked_session'), 'error');
     return;
   }
   
+  if (typeof ExcelJS === 'undefined') {
+    showToast('ExcelJS not loaded - please refresh page', 'error');
+    return;
+  }
+  
   showToast(T('exporting'), '');
-  log('Exporting Excel, mode:', mode);
+  log('Exporting Excel with formatting, mode:', mode);
   
   try {
     // Load all data
@@ -3113,233 +3180,58 @@ async function exportToExcel(mode = 'full') {
     const expiries = expiryRes.data || [];
     const newSkus = newSkuRes.data || [];
     
-    log('Loaded for export:', { counts: counts.length, gondolas: gondolas.length, expiries: expiries.length, newSkus: newSkus.length });
+    log('Loaded for export:', { counts: counts.length, gondolas: gondolas.length });
     
     // Create workbook
-    const wb = XLSX.utils.book_new();
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Friendship Stock System';
+    wb.created = new Date();
     
     // ============ SHEET 1: SUMMARY ============
     if (mode === 'full') {
-      const summaryData = buildSummaryData(counts, gondolas);
-      const wsSum = XLSX.utils.aoa_to_sheet(summaryData);
-      wsSum['!cols'] = [{wch:20}, {wch:18}, {wch:18}, {wch:18}, {wch:18}, {wch:18}, {wch:18}, {wch:18}];
-      XLSX.utils.book_append_sheet(wb, wsSum, 'Summary');
+      buildSummarySheet(wb, counts, gondolas);
     }
     
     // ============ SHEET 2: COUNTS DETAIL ============
     if (mode === 'full' || mode === 'counts') {
-      const countsData = [
-        ['Count ID', 'Counted At', 'User', 'Role', 'Location', 'Zone', 'Barcode', 'Product Name', 
-         'Unit Price (K)', 'POS Qty', 'Counted Qty', 'Unit', 'Diff', 'Var Level', 'Workflow', 'Note']
-      ];
-      counts.forEach(c => {
-        const p = c.products || {};
-        const u = c.users || {};
-        countsData.push([
-          c.id?.substring(0, 8),
-          c.counted_at ? new Date(c.counted_at).toLocaleString('en-GB') : '',
-          u.full_name || u.username || '',
-          c.count_role || '',
-          c.location_code || c.gondola_code || '',
-          c.zone_id || '',
-          p.barcode || '',
-          (lang === 'lo' ? p.name_lo : p.name_th) || p.name_th || p.name_lo || '',
-          p.sell_price || 0,
-          c.pos_qty_snapshot || 0,
-          c.counted_qty || 0,
-          p.unit_th || p.unit_lo || 'pcs',
-          c.diff || 0,
-          c.variance_level || '',
-          c.workflow_status || '',
-          c.note || ''
-        ]);
-      });
-      const wsCounts = XLSX.utils.aoa_to_sheet(countsData);
-      wsCounts['!cols'] = [{wch:10},{wch:18},{wch:14},{wch:11},{wch:10},{wch:7},{wch:16},{wch:32},
-                          {wch:12},{wch:9},{wch:11},{wch:8},{wch:10},{wch:11},{wch:13},{wch:28}];
-      wsCounts['!freeze'] = { xSplit: 0, ySplit: 1 };
-      XLSX.utils.book_append_sheet(wb, wsCounts, 'Counts Detail');
+      buildCountsSheet(wb, counts);
     }
     
     // ============ SHEET 3: VARIANCE ANALYSIS ============
     if (mode === 'full' || mode === 'variance') {
-      const varData = [
-        ['Priority', 'Location', 'Barcode', 'Product Name', 'POS Qty', 'Counted Qty', 
-         'Diff', 'Diff %', 'Value Impact (K)', 'Var Level', 'Action']
-      ];
-      // Sort by variance level desc
-      const sorted = [...counts].filter(c => (c.variance_level || 0) >= 2)
-        .sort((a, b) => (b.variance_level || 0) - (a.variance_level || 0));
-      
-      sorted.forEach(c => {
-        const p = c.products || {};
-        const lv = c.variance_level || 1;
-        const priority = lv === 4 ? '🔴 HIGH' : lv === 3 ? '🟠 MED' : '🟡 LOW';
-        const action = lv === 4 ? 'Investigate' : lv === 3 ? 'Recount' : 'Explain';
-        const pctDiff = c.pos_qty_snapshot > 0 ? (c.diff || 0) / c.pos_qty_snapshot : 0;
-        const valueImpact = (c.diff || 0) * (p.sell_price || 0);
-        
-        varData.push([
-          priority,
-          c.location_code || c.gondola_code || '',
-          p.barcode || '',
-          (lang === 'lo' ? p.name_lo : p.name_th) || '',
-          c.pos_qty_snapshot || 0,
-          c.counted_qty || 0,
-          c.diff || 0,
-          pctDiff,
-          valueImpact,
-          lv,
-          action
-        ]);
-      });
-      const wsVar = XLSX.utils.aoa_to_sheet(varData);
-      wsVar['!cols'] = [{wch:10},{wch:11},{wch:16},{wch:30},{wch:9},{wch:11},{wch:10},{wch:9},{wch:14},{wch:10},{wch:28}];
-      XLSX.utils.book_append_sheet(wb, wsVar, 'Variance Analysis');
+      buildVarianceSheet(wb, counts);
     }
     
     // ============ SHEET 4: GONDOLA PROGRESS ============
     if (mode === 'full') {
-      const gondData = [
-        ['Location', 'Type', 'Zone', 'Gondola #', 'Status', 'Counter', 'Counter Qty', 
-         'Verifier', 'Verifier Qty', 'Time (min)', 'Opened', 'Completed']
-      ];
-      gondolas.forEach(g => {
-        gondData.push([
-          g.location_code || '',
-          g.location_type || '',
-          g.zone_code || '',
-          g.gondola_no || '',
-          g.status || '',
-          g.counter_name || '',
-          g.counter_count || 0,
-          g.verifier_name || '',
-          g.verifier_count || 0,
-          Math.round(g.counter_minutes || 0),
-          g.opened_at ? new Date(g.opened_at).toLocaleString('en-GB') : '',
-          g.completed_at ? new Date(g.completed_at).toLocaleString('en-GB') : ''
-        ]);
-      });
-      const wsGond = XLSX.utils.aoa_to_sheet(gondData);
-      wsGond['!cols'] = [{wch:10},{wch:13},{wch:6},{wch:9},{wch:18},{wch:13},{wch:11},{wch:13},{wch:11},{wch:9},{wch:18},{wch:18}];
-      XLSX.utils.book_append_sheet(wb, wsGond, 'Gondola Progress');
+      buildGondolaSheet(wb, gondolas);
     }
     
     // ============ SHEET 5: COUNTER PERFORMANCE ============
     if (mode === 'full') {
-      const perfMap = {};
-      counts.forEach(c => {
-        const u = c.users || {};
-        const key = u.full_name || u.username || 'Unknown';
-        if (!perfMap[key]) {
-          perfMap[key] = { 
-            name: key, role: c.count_role, skus: 0, items: 0, 
-            locations: new Set(), l1: 0, issues: 0 
-          };
-        }
-        perfMap[key].skus++;
-        perfMap[key].items += c.counted_qty || 0;
-        if (c.location_code || c.gondola_code) {
-          perfMap[key].locations.add(c.location_code || c.gondola_code);
-        }
-        if (c.variance_level === 1) perfMap[key].l1++;
-        if ((c.variance_level || 0) >= 2) perfMap[key].issues++;
-      });
-      
-      const perfData = [
-        ['User', 'Role', 'SKUs Counted', 'Total Items', 'Locations', 'L1 Counts', 'Issues (L2-L4)', 'Accuracy %']
-      ];
-      Object.values(perfMap).forEach(p => {
-        perfData.push([
-          p.name, p.role, p.skus, p.items, p.locations.size, p.l1, p.issues,
-          p.skus > 0 ? (p.l1 / p.skus) : 0
-        ]);
-      });
-      const wsPerf = XLSX.utils.aoa_to_sheet(perfData);
-      wsPerf['!cols'] = [{wch:14},{wch:11},{wch:13},{wch:12},{wch:11},{wch:11},{wch:14},{wch:12}];
-      XLSX.utils.book_append_sheet(wb, wsPerf, 'Counter Performance');
+      buildPerformanceSheet(wb, counts);
     }
     
     // ============ SHEET 6: TIEBREAKER LOG ============
     if (mode === 'full') {
-      // Get tiebreaker data from view
       const { data: tbData } = await sb.from('v_needs_tiebreaker').select('*').eq('session_id', session.id);
-      const tbItems = tbData || [];
-      
-      const tbSheet = [
-        ['Location', 'Barcode', 'Product Name', 'Counter', 'Counter Qty', 
-         'Verifier', 'Verifier Qty', 'Diff', 'Value Diff (K)', 'Status']
-      ];
-      tbItems.forEach(t => {
-        tbSheet.push([
-          t.location_code || '',
-          t.barcode || '',
-          (lang === 'lo' ? t.name_lo : t.name_th) || '',
-          t.counter_name || '',
-          t.counter_qty || 0,
-          t.verifier_name || '',
-          t.verifier_qty || 0,
-          t.cv_diff || 0,
-          t.cv_value_diff || 0,
-          'Needs CTL Decision'
-        ]);
-      });
-      const wsTb = XLSX.utils.aoa_to_sheet(tbSheet);
-      wsTb['!cols'] = [{wch:11},{wch:16},{wch:28},{wch:12},{wch:11},{wch:12},{wch:11},{wch:8},{wch:14},{wch:20}];
-      XLSX.utils.book_append_sheet(wb, wsTb, 'Tiebreaker Log');
+      buildTiebreakerSheet(wb, tbData || []);
     }
     
     // ============ SHEET 7: EXPIRY & NEW SKU ============
     if (mode === 'full') {
-      const expData = [
-        ['EXPIRY / DAMAGED ITEMS', '', '', '', '', '', '', ''],
-        ['Date', 'Location', 'Barcode', 'Product', 'Type', 'Quantity', 'Value (K)', 'Description']
-      ];
-      expiries.forEach(e => {
-        const p = e.products || {};
-        expData.push([
-          e.created_at ? new Date(e.created_at).toLocaleDateString('en-GB') : '',
-          e.gondola_code || e.location_code || '',
-          p.barcode || '',
-          (lang === 'lo' ? p.name_lo : p.name_th) || '',
-          e.item_type || '',
-          e.quantity || 0,
-          (e.quantity || 0) * (p.sell_price || 0),
-          e.damage_description || ''
-        ]);
-      });
-      
-      // Spacer
-      expData.push([]);
-      expData.push([]);
-      expData.push(['NEW SKU (Items not in system)', '', '', '', '', '', '', '']);
-      expData.push(['Date', 'Location', 'Barcode', 'Product Name', 'Quantity', 'Est. Price (K)', 'Total Value', 'Reported By']);
-      newSkus.forEach(n => {
-        const u = n.users || {};
-        expData.push([
-          n.created_at ? new Date(n.created_at).toLocaleDateString('en-GB') : '',
-          n.location_code || '',
-          n.barcode || '',
-          n.product_name || '',
-          n.quantity || 0,
-          n.estimated_price || 0,
-          (n.quantity || 0) * (n.estimated_price || 0),
-          u.full_name || ''
-        ]);
-      });
-      
-      const wsExp = XLSX.utils.aoa_to_sheet(expData);
-      wsExp['!cols'] = [{wch:12},{wch:11},{wch:16},{wch:28},{wch:11},{wch:14},{wch:14},{wch:18}];
-      XLSX.utils.book_append_sheet(wb, wsExp, 'Expiry & New SKU');
+      buildExpirySheet(wb, expiries, newSkus);
     }
     
-    // Generate filename
+    // Save
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    
     const dateStr = new Date().toISOString().slice(0, 10);
     const sessionLabel = (session.session_name || 'Session').replace(/[^a-zA-Z0-9-]/g, '_').substring(0, 30);
     const filename = `Stock-Count-Report-${sessionLabel}-${dateStr}.xlsx`;
     
-    // Download
-    XLSX.writeFile(wb, filename);
+    saveAs(blob, filename);
     
     showToast(`✅ ${T('export_success')}: ${filename}`, 'success');
     log('Export complete:', filename);
@@ -3350,63 +3242,584 @@ async function exportToExcel(mode = 'full') {
   }
 }
 
-function buildSummaryData(counts, gondolas) {
+function buildSummarySheet(wb, counts, gondolas) {
+  const ws = wb.addWorksheet('Summary', { views: [{ showGridLines: false }] });
+  
+  // Title
+  ws.mergeCells('A1:H1');
+  ws.getCell('A1').value = 'STOCK COUNT REPORT';
+  xlStyleTitle(ws.getCell('A1'), 'teal', 22);
+  ws.getRow(1).height = 32;
+  
+  ws.mergeCells('A2:H2');
+  ws.getCell('A2').value = 'Friendship Supermart - Pakse, Laos';
+  ws.getCell('A2').font = { name: 'Calibri', size: 12, italic: true, color: { argb: 'FF' + XL_COLORS.slate500 } };
+  
+  // Metadata
+  const meta = [
+    ['Report Date:', new Date().toLocaleString('en-GB')],
+    ['Session Name:', session.session_name || ''],
+    ['Branch:', branch?.name_th || branch?.name_lo || 'PAKSE'],
+    ['Reported By:', user.full_name || ''],
+    ['Phase:', session.phase || 'active'],
+  ];
+  meta.forEach(([label, val], idx) => {
+    const row = 4 + idx;
+    ws.getCell(`A${row}`).value = label;
+    ws.getCell(`A${row}`).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF' + XL_COLORS.slate700 } };
+    ws.getCell(`A${row}`).alignment = { horizontal: 'right' };
+    ws.mergeCells(`B${row}:D${row}`);
+    ws.getCell(`B${row}`).value = val;
+    ws.getCell(`B${row}`).font = { name: 'Calibri', size: 10, color: { argb: 'FF' + XL_COLORS.slate900 } };
+  });
+  
+  // KPI Section
+  ws.mergeCells('A10:H10');
+  ws.getCell('A10').value = '  KEY PERFORMANCE INDICATORS';
+  xlStyleSection(ws.getCell('A10'), 'teal');
+  ws.getRow(10).height = 22;
+  
+  // Calculate KPIs
   const totalSkus = counts.length;
   const totalItems = counts.reduce((s, c) => s + (c.counted_qty || 0), 0);
   const l1Count = counts.filter(c => c.variance_level === 1).length;
   const accuracy = totalSkus > 0 ? (l1Count / totalSkus) : 0;
-  
   let shrinkage = 0;
   counts.forEach(c => {
-    if ((c.diff || 0) < 0) {
-      shrinkage += Math.abs(c.diff) * (c.products?.sell_price || 0);
+    if ((c.diff || 0) < 0) shrinkage += Math.abs(c.diff) * (c.products?.sell_price || 0);
+  });
+  
+  // 4 KPI cards
+  const kpis = [
+    { label: 'Total SKUs Counted', value: totalSkus, color: 'teal', fmt: '#,##0' },
+    { label: 'Total Items', value: totalItems, color: 'sky', fmt: '#,##0' },
+    { label: 'Accuracy', value: accuracy, color: 'emerald', fmt: '0.0%' },
+    { label: 'Shrinkage Value', value: shrinkage, color: 'rose', fmt: '#,##0" K"' },
+  ];
+  
+  kpis.forEach((kpi, i) => {
+    const startCol = i * 2 + 2; // B, D, F, H
+    const colStart = String.fromCharCode(64 + startCol);
+    const colEnd = String.fromCharCode(64 + startCol + 1);
+    
+    ws.mergeCells(`${colStart}12:${colEnd}12`);
+    ws.getCell(`${colStart}12`).value = kpi.value;
+    ws.getCell(`${colStart}12`).numFmt = kpi.fmt;
+    xlStyleKpiValue(ws.getCell(`${colStart}12`), kpi.color);
+    
+    ws.mergeCells(`${colStart}13:${colEnd}13`);
+    ws.getCell(`${colStart}13`).value = kpi.label;
+    xlStyleKpiLabel(ws.getCell(`${colStart}13`), kpi.color);
+  });
+  
+  ws.getRow(12).height = 42;
+  ws.getRow(13).height = 20;
+  
+  // Variance Breakdown
+  ws.mergeCells('A15:H15');
+  ws.getCell('A15').value = '  VARIANCE BREAKDOWN';
+  xlStyleSection(ws.getCell('A15'), 'amber');
+  ws.getRow(15).height = 22;
+  
+  ['Level', 'Description', 'Count', '%', 'Action Required'].forEach((h, i) => {
+    const cell = ws.getCell(17, i + 1);
+    cell.value = h;
+    xlStyleHeader(cell, 'slate500');
+  });
+  if (true) { ws.mergeCells('E17:H17'); }
+  ws.getRow(17).height = 22;
+  
+  const variances = [
+    ['L1', 'Auto Adjust (<2% & <5K)', counts.filter(c => c.variance_level === 1).length, 'emerald', 'Approve automatically'],
+    ['L2', 'Explain (2-5% or 5-50K)', counts.filter(c => c.variance_level === 2).length, 'amber', 'Manager must add explanation'],
+    ['L3', 'Mandatory Recount (>5% or >50K)', counts.filter(c => c.variance_level === 3).length, 'rose', 'Re-count required'],
+    ['L4', 'Investigation (>10% or >200K)', counts.filter(c => c.variance_level === 4).length, 'rose', 'Escalate to investigation'],
+  ];
+  
+  variances.forEach((v, idx) => {
+    const r = 18 + idx;
+    ws.getCell(`A${r}`).value = v[0];
+    ws.getCell(`B${r}`).value = v[1];
+    ws.getCell(`C${r}`).value = v[2];
+    ws.getCell(`D${r}`).value = totalSkus > 0 ? v[2] / totalSkus : 0;
+    ws.mergeCells(`E${r}:H${r}`);
+    ws.getCell(`E${r}`).value = v[4];
+    
+    xlStyleData(ws.getCell(`A${r}`), { align: 'center', bold: true, color: v[3], fill: v[3] + 'Light', size: 11 });
+    xlStyleData(ws.getCell(`B${r}`));
+    xlStyleData(ws.getCell(`C${r}`), { align: 'center' });
+    xlStyleData(ws.getCell(`D${r}`), { align: 'center' });
+    xlStyleData(ws.getCell(`E${r}`));
+    ws.getCell(`D${r}`).numFmt = '0.0%';
+  });
+  
+  // Gondola Progress
+  ws.mergeCells('A23:H23');
+  ws.getCell('A23').value = '  GONDOLA PROGRESS';
+  xlStyleSection(ws.getCell('A23'), 'violet');
+  ws.getRow(23).height = 22;
+  
+  ['Status', 'Description', 'Count', '%'].forEach((h, i) => {
+    const cell = ws.getCell(25, i + 1);
+    cell.value = h;
+    xlStyleHeader(cell, 'slate500');
+  });
+  ws.getRow(25).height = 22;
+  
+  const gondoTotal = gondolas.length;
+  const gondoStats = [
+    ['Completed', 'Done & Verified', gondolas.filter(g => g.status === 'completed').length, 'emerald'],
+    ['In Progress', 'Counting/Verifying', gondolas.filter(g => ['counting', 'verifying', 'tiebreaker'].includes(g.status)).length, 'teal'],
+    ['Waiting', 'Waiting for next step', gondolas.filter(g => ['counted', 'open_for_verify', 'verified', 'tiebreaker_needed'].includes(g.status)).length, 'amber'],
+    ['Not Started', 'Closed/Not opened', gondolas.filter(g => ['closed', 'open_for_counting'].includes(g.status)).length, 'slate500'],
+  ];
+  
+  gondoStats.forEach((g, idx) => {
+    const r = 26 + idx;
+    ws.getCell(`A${r}`).value = g[0];
+    ws.getCell(`B${r}`).value = g[1];
+    ws.getCell(`C${r}`).value = g[2];
+    ws.getCell(`D${r}`).value = gondoTotal > 0 ? g[2] / gondoTotal : 0;
+    
+    const lightFill = g[3] === 'slate500' ? 'slate100' : g[3] + 'Light';
+    xlStyleData(ws.getCell(`A${r}`), { align: 'center', bold: true, color: g[3], fill: lightFill, size: 11 });
+    xlStyleData(ws.getCell(`B${r}`));
+    xlStyleData(ws.getCell(`C${r}`), { align: 'center' });
+    xlStyleData(ws.getCell(`D${r}`), { align: 'center' });
+    ws.getCell(`D${r}`).numFmt = '0.0%';
+  });
+  
+  // Notes
+  ws.getCell('A31').value = 'Notes:';
+  ws.getCell('A31').font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF' + XL_COLORS.slate700 } };
+  ['• L1 (Auto): Approved without action',
+   '• L2 (Explain): Manager adds note',
+   '• L3 (Recount): New count required',
+   '• L4 (Investigate): Escalate to head office'].forEach((note, i) => {
+    const r = 32 + i;
+    ws.mergeCells(`A${r}:H${r}`);
+    ws.getCell(`A${r}`).value = note;
+    ws.getCell(`A${r}`).font = { name: 'Calibri', size: 9, color: { argb: 'FF' + XL_COLORS.slate500 } };
+  });
+  
+  // Column widths
+  ws.getColumn('A').width = 18;
+  ['B','C','D','E','F','G','H'].forEach(c => ws.getColumn(c).width = 16);
+}
+
+function buildCountsSheet(wb, counts) {
+  const ws = wb.addWorksheet('Counts Detail', { views: [{ showGridLines: false, state: 'frozen', ySplit: 3 }] });
+  
+  ws.mergeCells('A1:P1');
+  ws.getCell('A1').value = 'STOCK COUNTS - DETAILED LIST';
+  xlStyleTitle(ws.getCell('A1'), 'teal', 16);
+  ws.getRow(1).height = 28;
+  
+  const headers = [
+    'Count ID', 'Counted At', 'User', 'Role', 'Location', 'Zone', 'Barcode', 'Product Name',
+    'Unit Price (K)', 'POS Qty', 'Counted Qty', 'Unit', 'Diff', 'Var Level', 'Workflow', 'Note'
+  ];
+  headers.forEach((h, i) => {
+    const cell = ws.getCell(3, i + 1);
+    cell.value = h;
+    xlStyleHeader(cell, 'teal');
+  });
+  ws.getRow(3).height = 32;
+  
+  counts.forEach((c, idx) => {
+    const r = 4 + idx;
+    const p = c.products || {};
+    const u = c.users || {};
+    const name = (lang === 'lo' ? p.name_lo : p.name_th) || p.name_th || p.name_lo || '';
+    
+    const row = [
+      c.id?.substring(0, 8) || '',
+      c.counted_at ? new Date(c.counted_at).toLocaleString('en-GB') : '',
+      u.full_name || u.username || '',
+      c.count_role || '',
+      c.location_code || c.gondola_code || '',
+      c.zone_id || '',
+      p.barcode || '',
+      name,
+      p.sell_price || 0,
+      c.pos_qty_snapshot || 0,
+      c.counted_qty || 0,
+      p.unit_th || p.unit_lo || 'pcs',
+      c.diff || 0,
+      c.variance_level || '',
+      c.workflow_status || '',
+      c.note || ''
+    ];
+    
+    row.forEach((val, i) => {
+      const cell = ws.getCell(r, i + 1);
+      cell.value = val;
+      const col = i + 1;
+      const align = [4, 6, 12, 14, 15].includes(col) ? 'center' : ([9, 10, 11, 13].includes(col) ? 'right' : 'left');
+      xlStyleData(cell, { align, size: 9 });
+    });
+    
+    // Number formats
+    ws.getCell(r, 9).numFmt = '#,##0';
+    ws.getCell(r, 10).numFmt = '#,##0';
+    ws.getCell(r, 11).numFmt = '#,##0';
+    ws.getCell(r, 13).numFmt = '#,##0;[Red](#,##0);"-"';
+    
+    // Color-code Diff
+    const diff = c.diff || 0;
+    if (diff < 0) ws.getCell(r, 13).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + XL_COLORS.roseLight } };
+    else if (diff > 0) ws.getCell(r, 13).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + XL_COLORS.amberLight } };
+    else ws.getCell(r, 13).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + XL_COLORS.emeraldLight } };
+    
+    // Color-code Variance Level
+    const lv = c.variance_level || 0;
+    if (lv >= 3) ws.getCell(r, 14).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + XL_COLORS.roseLight } };
+    else if (lv === 2) ws.getCell(r, 14).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + XL_COLORS.amberLight } };
+    else if (lv === 1) ws.getCell(r, 14).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + XL_COLORS.emeraldLight } };
+  });
+  
+  // Column widths
+  const widths = [10, 18, 14, 11, 10, 7, 16, 32, 12, 9, 11, 8, 10, 11, 13, 28];
+  widths.forEach((w, i) => ws.getColumn(i + 1).width = w);
+  
+  // Auto filter
+  if (counts.length > 0) {
+    ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: 16 } };
+  }
+}
+
+function buildVarianceSheet(wb, counts) {
+  const ws = wb.addWorksheet('Variance Analysis', { views: [{ showGridLines: false, state: 'frozen', ySplit: 4 }] });
+  
+  ws.mergeCells('A1:K1');
+  ws.getCell('A1').value = 'VARIANCE ANALYSIS - Items Requiring Attention';
+  xlStyleTitle(ws.getCell('A1'), 'rose', 16);
+  
+  ws.mergeCells('A2:K2');
+  ws.getCell('A2').value = 'Sorted by Variance Level (highest first) | Filter L3-L4 for critical items';
+  ws.getCell('A2').font = { name: 'Calibri', size: 11, italic: true, color: { argb: 'FF' + XL_COLORS.slate500 } };
+  
+  const headers = ['Priority', 'Location', 'Barcode', 'Product Name', 'POS Qty', 'Counted Qty', 'Diff', 'Diff %', 'Value Impact (K)', 'Var Level', 'Action'];
+  headers.forEach((h, i) => {
+    const cell = ws.getCell(4, i + 1);
+    cell.value = h;
+    xlStyleHeader(cell, 'rose');
+  });
+  ws.getRow(4).height = 32;
+  
+  const sorted = [...counts].filter(c => (c.variance_level || 0) >= 2)
+    .sort((a, b) => (b.variance_level || 0) - (a.variance_level || 0));
+  
+  sorted.forEach((c, idx) => {
+    const r = 5 + idx;
+    const p = c.products || {};
+    const lv = c.variance_level || 1;
+    const priority = lv === 4 ? '🔴 HIGH' : lv === 3 ? '🟠 MED' : '🟡 LOW';
+    const action = lv === 4 ? 'Investigate' : lv === 3 ? 'Recount' : 'Explain';
+    const pctDiff = c.pos_qty_snapshot > 0 ? (c.diff || 0) / c.pos_qty_snapshot : 0;
+    const valueImpact = (c.diff || 0) * (p.sell_price || 0);
+    
+    const row = [
+      priority, c.location_code || c.gondola_code || '', p.barcode || '',
+      (lang === 'lo' ? p.name_lo : p.name_th) || '',
+      c.pos_qty_snapshot || 0, c.counted_qty || 0, c.diff || 0,
+      pctDiff, valueImpact, lv, action
+    ];
+    
+    row.forEach((val, i) => {
+      const cell = ws.getCell(r, i + 1);
+      cell.value = val;
+      const col = i + 1;
+      const align = [1, 10].includes(col) ? 'center' : ([5, 6, 7, 8, 9].includes(col) ? 'right' : 'left');
+      const fill = lv === 4 ? 'roseLight' : lv === 3 ? 'amberLight' : 'tealLight';
+      xlStyleData(cell, { align, size: 9, fill: col === 1 ? fill : null });
+    });
+    
+    ws.getCell(r, 7).numFmt = '#,##0;[Red](#,##0)';
+    ws.getCell(r, 8).numFmt = '0.0%';
+    ws.getCell(r, 9).numFmt = '#,##0" K"';
+  });
+  
+  const widths = [10, 11, 16, 30, 9, 11, 10, 9, 14, 10, 28];
+  widths.forEach((w, i) => ws.getColumn(i + 1).width = w);
+  
+  if (sorted.length > 0) {
+    ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: 11 } };
+  }
+}
+
+function buildGondolaSheet(wb, gondolas) {
+  const ws = wb.addWorksheet('Gondola Progress', { views: [{ showGridLines: false, state: 'frozen', ySplit: 7 }] });
+  
+  ws.mergeCells('A1:L1');
+  ws.getCell('A1').value = 'GONDOLA WORKFLOW PROGRESS';
+  xlStyleTitle(ws.getCell('A1'), 'violet', 16);
+  
+  ws.mergeCells('A2:L2');
+  ws.getCell('A2').value = 'Status of each location being counted';
+  ws.getCell('A2').font = { name: 'Calibri', size: 11, italic: true, color: { argb: 'FF' + XL_COLORS.slate500 } };
+  
+  // Stats
+  const total = gondolas.length;
+  const completed = gondolas.filter(g => g.status === 'completed').length;
+  const inProgress = gondolas.filter(g => ['counting', 'verifying'].includes(g.status)).length;
+  
+  [
+    ['A4', 'Total Locations:', total],
+    ['C4', 'Completed:', completed],
+    ['E4', 'In Progress:', inProgress],
+    ['G4', 'Pending:', total - completed - inProgress]
+  ].forEach(([cellRef, label, val]) => {
+    const labelCell = ws.getCell(cellRef);
+    const valCell = ws.getCell(cellRef.replace(/[A-Z]/, c => String.fromCharCode(c.charCodeAt(0) + 1)));
+    labelCell.value = label;
+    labelCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF' + XL_COLORS.slate700 } };
+    labelCell.alignment = { horizontal: 'right' };
+    valCell.value = val;
+    valCell.font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF' + XL_COLORS.violet } };
+    valCell.alignment = { horizontal: 'center' };
+  });
+  
+  const headers = ['Location', 'Type', 'Zone', 'Gondola #', 'Status', 'Counter', 'Counter Qty', 'Verifier', 'Verifier Qty', 'Time (min)', 'Opened', 'Completed'];
+  headers.forEach((h, i) => {
+    const cell = ws.getCell(7, i + 1);
+    cell.value = h;
+    xlStyleHeader(cell, 'violet');
+  });
+  ws.getRow(7).height = 32;
+  
+  gondolas.forEach((g, idx) => {
+    const r = 8 + idx;
+    const row = [
+      g.location_code || '', g.location_type || '', g.zone_code || '', g.gondola_no || '',
+      g.status || '', g.counter_name || '', g.counter_count || 0,
+      g.verifier_name || '', g.verifier_count || 0, Math.round(g.counter_minutes || 0),
+      g.opened_at ? new Date(g.opened_at).toLocaleString('en-GB') : '',
+      g.completed_at ? new Date(g.completed_at).toLocaleString('en-GB') : ''
+    ];
+    
+    row.forEach((val, i) => {
+      const cell = ws.getCell(r, i + 1);
+      cell.value = val;
+      const col = i + 1;
+      const align = [1, 2, 3, 4, 5, 10].includes(col) ? 'center' : ([7, 9].includes(col) ? 'right' : 'left');
+      xlStyleData(cell, { align, size: 9 });
+    });
+    
+    // Status color
+    const statusFill = {
+      'completed': 'emeraldLight',
+      'counting': 'tealLight',
+      'verifying': 'amberLight',
+      'tiebreaker_needed': 'roseLight'
+    }[g.status];
+    if (statusFill) {
+      ws.getCell(r, 5).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + XL_COLORS[statusFill] } };
     }
   });
   
-  const varBreakdown = [1, 2, 3, 4].map(lv => ({
-    level: lv,
-    count: counts.filter(c => c.variance_level === lv).length
-  }));
+  const widths = [10, 13, 6, 9, 18, 13, 11, 13, 11, 9, 18, 18];
+  widths.forEach((w, i) => ws.getColumn(i + 1).width = w);
   
-  const gondoStatus = {
-    completed: gondolas.filter(g => g.status === 'completed').length,
-    inProgress: gondolas.filter(g => ['counting', 'verifying', 'tiebreaker'].includes(g.status)).length,
-    waiting: gondolas.filter(g => ['counted', 'open_for_verify', 'verified', 'tiebreaker_needed'].includes(g.status)).length,
-    notStarted: gondolas.filter(g => ['closed', 'open_for_counting'].includes(g.status)).length,
-  };
+  if (gondolas.length > 0) {
+    ws.autoFilter = { from: { row: 7, column: 1 }, to: { row: 7, column: 12 } };
+  }
+}
+
+function buildPerformanceSheet(wb, counts) {
+  const ws = wb.addWorksheet('Counter Performance', { views: [{ showGridLines: false, state: 'frozen', ySplit: 4 }] });
   
-  return [
-    ['STOCK COUNT REPORT', '', '', '', '', '', '', ''],
-    ['Friendship Supermart - Pakse, Laos', '', '', '', '', '', '', ''],
-    [],
-    ['Report Date:', new Date().toLocaleString('en-GB')],
-    ['Session Name:', session.session_name || ''],
-    ['Branch:', branch?.name_th || branch?.name_lo || 'PAKSE'],
-    ['Reported By:', user.full_name],
-    ['Phase:', session.phase || 'active'],
-    [],
-    ['KEY PERFORMANCE INDICATORS', '', '', '', '', '', '', ''],
-    [],
-    ['Total SKUs Counted', totalSkus, '', 'Total Items', totalItems, '', 'Accuracy', accuracy],
-    ['', '', '', '', '', '', '', ''],
-    ['Shrinkage Value (K)', shrinkage, '', 'L1 Count', l1Count, '', 'Issues (L2-L4)', totalSkus - l1Count],
-    [],
-    ['VARIANCE BREAKDOWN', '', '', '', '', '', '', ''],
-    [],
-    ['Level', 'Description', 'Count', '%', 'Action Required', '', '', ''],
-    ['L1', 'Auto Adjust (<2% & <5K)', varBreakdown[0].count, totalSkus > 0 ? varBreakdown[0].count/totalSkus : 0, 'Approve automatically'],
-    ['L2', 'Explain (2-5% or 5-50K)', varBreakdown[1].count, totalSkus > 0 ? varBreakdown[1].count/totalSkus : 0, 'Manager must add explanation'],
-    ['L3', 'Mandatory Recount (>5% or >50K)', varBreakdown[2].count, totalSkus > 0 ? varBreakdown[2].count/totalSkus : 0, 'Re-count required'],
-    ['L4', 'Investigation (>10% or >200K)', varBreakdown[3].count, totalSkus > 0 ? varBreakdown[3].count/totalSkus : 0, 'Escalate to investigation'],
-    [],
-    ['GONDOLA PROGRESS', '', '', '', '', '', '', ''],
-    [],
-    ['Status', 'Description', 'Count', '%', '', '', '', ''],
-    ['Completed', 'Done & Verified', gondoStatus.completed, gondolas.length > 0 ? gondoStatus.completed/gondolas.length : 0],
-    ['In Progress', 'Counting/Verifying', gondoStatus.inProgress, gondolas.length > 0 ? gondoStatus.inProgress/gondolas.length : 0],
-    ['Waiting', 'Waiting for next step', gondoStatus.waiting, gondolas.length > 0 ? gondoStatus.waiting/gondolas.length : 0],
-    ['Not Started', 'Closed/Not opened', gondoStatus.notStarted, gondolas.length > 0 ? gondoStatus.notStarted/gondolas.length : 0],
-  ];
+  ws.mergeCells('A1:H1');
+  ws.getCell('A1').value = 'COUNTER & VERIFIER PERFORMANCE';
+  xlStyleTitle(ws.getCell('A1'), 'sky', 16);
+  
+  ws.mergeCells('A2:H2');
+  ws.getCell('A2').value = 'Productivity & Accuracy by User';
+  ws.getCell('A2').font = { name: 'Calibri', size: 11, italic: true, color: { argb: 'FF' + XL_COLORS.slate500 } };
+  
+  const headers = ['User', 'Role', 'SKUs Counted', 'Total Items', 'Locations', 'L1 Counts', 'Issues (L2-L4)', 'Accuracy %'];
+  headers.forEach((h, i) => {
+    const cell = ws.getCell(4, i + 1);
+    cell.value = h;
+    xlStyleHeader(cell, 'sky');
+  });
+  ws.getRow(4).height = 32;
+  
+  const perfMap = {};
+  counts.forEach(c => {
+    const u = c.users || {};
+    const key = u.full_name || u.username || 'Unknown';
+    if (!perfMap[key]) {
+      perfMap[key] = { name: key, role: c.count_role, skus: 0, items: 0, locations: new Set(), l1: 0, issues: 0 };
+    }
+    perfMap[key].skus++;
+    perfMap[key].items += c.counted_qty || 0;
+    if (c.location_code || c.gondola_code) perfMap[key].locations.add(c.location_code || c.gondola_code);
+    if (c.variance_level === 1) perfMap[key].l1++;
+    if ((c.variance_level || 0) >= 2) perfMap[key].issues++;
+  });
+  
+  Object.values(perfMap).forEach((p, idx) => {
+    const r = 5 + idx;
+    const accuracy = p.skus > 0 ? (p.l1 / p.skus) : 0;
+    const row = [p.name, p.role, p.skus, p.items, p.locations.size, p.l1, p.issues, accuracy];
+    
+    row.forEach((val, i) => {
+      const cell = ws.getCell(r, i + 1);
+      cell.value = val;
+      const col = i + 1;
+      const align = [2].includes(col) ? 'center' : ([3, 4, 5, 6, 7].includes(col) ? 'right' : 'left');
+      xlStyleData(cell, { align, size: 9 });
+    });
+    
+    ws.getCell(r, 8).numFmt = '0.0%';
+    // Color accuracy
+    if (accuracy >= 0.95) ws.getCell(r, 8).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + XL_COLORS.emeraldLight } };
+    else if (accuracy < 0.90) ws.getCell(r, 8).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + XL_COLORS.roseLight } };
+  });
+  
+  const widths = [14, 11, 13, 12, 11, 11, 14, 12];
+  widths.forEach((w, i) => ws.getColumn(i + 1).width = w);
+  
+  if (Object.keys(perfMap).length > 0) {
+    ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: 8 } };
+  }
+}
+
+function buildTiebreakerSheet(wb, tbItems) {
+  const ws = wb.addWorksheet('Tiebreaker Log', { views: [{ showGridLines: false, state: 'frozen', ySplit: 4 }] });
+  
+  ws.mergeCells('A1:J1');
+  ws.getCell('A1').value = 'TIEBREAKER & DISCREPANCY LOG';
+  xlStyleTitle(ws.getCell('A1'), 'violet', 16);
+  
+  ws.mergeCells('A2:J2');
+  ws.getCell('A2').value = 'Items where Counter ≠ Verifier (resolved by CTL using 2-of-3 rule)';
+  ws.getCell('A2').font = { name: 'Calibri', size: 11, italic: true, color: { argb: 'FF' + XL_COLORS.slate500 } };
+  
+  const headers = ['Location', 'Barcode', 'Product Name', 'Counter', 'Counter Qty', 'Verifier', 'Verifier Qty', 'Diff', 'Value Diff (K)', 'Status'];
+  headers.forEach((h, i) => {
+    const cell = ws.getCell(4, i + 1);
+    cell.value = h;
+    xlStyleHeader(cell, 'violet');
+  });
+  ws.getRow(4).height = 32;
+  
+  tbItems.forEach((t, idx) => {
+    const r = 5 + idx;
+    const row = [
+      t.location_code || '', t.barcode || '',
+      (lang === 'lo' ? t.name_lo : t.name_th) || '',
+      t.counter_name || '', t.counter_qty || 0,
+      t.verifier_name || '', t.verifier_qty || 0,
+      t.cv_diff || 0, t.cv_value_diff || 0,
+      'Needs CTL Decision'
+    ];
+    
+    row.forEach((val, i) => {
+      const cell = ws.getCell(r, i + 1);
+      cell.value = val;
+      const col = i + 1;
+      const align = [1, 4, 6].includes(col) ? 'center' : ([5, 7, 8].includes(col) ? 'right' : 'left');
+      xlStyleData(cell, { align, size: 9 });
+    });
+    
+    ws.getCell(r, 8).numFmt = '#,##0;[Red](#,##0)';
+    ws.getCell(r, 9).numFmt = '#,##0" K"';
+  });
+  
+  const widths = [11, 16, 28, 12, 11, 12, 11, 8, 14, 20];
+  widths.forEach((w, i) => ws.getColumn(i + 1).width = w);
+  
+  if (tbItems.length > 0) {
+    ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: 10 } };
+  }
+}
+
+function buildExpirySheet(wb, expiries, newSkus) {
+  const ws = wb.addWorksheet('Expiry & New SKU', { views: [{ showGridLines: false }] });
+  
+  ws.mergeCells('A1:H1');
+  ws.getCell('A1').value = 'EXPIRY/DAMAGE & NEW SKU LOG';
+  xlStyleTitle(ws.getCell('A1'), 'amber', 16);
+  
+  // Section 1: Expiry
+  ws.mergeCells('A3:H3');
+  ws.getCell('A3').value = '  EXPIRY / DAMAGED ITEMS';
+  xlStyleSection(ws.getCell('A3'), 'amber');
+  ws.getRow(3).height = 22;
+  
+  ['Date', 'Location', 'Barcode', 'Product', 'Type', 'Quantity', 'Value (K)', 'Description'].forEach((h, i) => {
+    const cell = ws.getCell(5, i + 1);
+    cell.value = h;
+    xlStyleHeader(cell, 'amber');
+  });
+  ws.getRow(5).height = 30;
+  
+  expiries.forEach((e, idx) => {
+    const r = 6 + idx;
+    const p = e.products || {};
+    const row = [
+      e.created_at ? new Date(e.created_at).toLocaleDateString('en-GB') : '',
+      e.gondola_code || e.location_code || '',
+      p.barcode || '',
+      (lang === 'lo' ? p.name_lo : p.name_th) || '',
+      e.item_type || '',
+      e.quantity || 0,
+      (e.quantity || 0) * (p.sell_price || 0),
+      e.damage_description || ''
+    ];
+    row.forEach((val, i) => {
+      const cell = ws.getCell(r, i + 1);
+      cell.value = val;
+      const col = i + 1;
+      const align = [1, 2, 5].includes(col) ? 'center' : ([6, 7].includes(col) ? 'right' : 'left');
+      xlStyleData(cell, { align, size: 9 });
+    });
+    ws.getCell(r, 7).numFmt = '#,##0" K"';
+  });
+  
+  // Section 2: New SKU
+  const newSkuStart = 6 + expiries.length + 3;
+  ws.mergeCells(`A${newSkuStart}:H${newSkuStart}`);
+  ws.getCell(`A${newSkuStart}`).value = '  NEW SKU (Items not in system)';
+  xlStyleSection(ws.getCell(`A${newSkuStart}`), 'sky');
+  ws.getRow(newSkuStart).height = 22;
+  
+  const newHdrRow = newSkuStart + 2;
+  ['Date', 'Location', 'Barcode', 'Product Name', 'Quantity', 'Est. Price (K)', 'Total Value', 'Reported By'].forEach((h, i) => {
+    const cell = ws.getCell(newHdrRow, i + 1);
+    cell.value = h;
+    xlStyleHeader(cell, 'sky');
+  });
+  ws.getRow(newHdrRow).height = 30;
+  
+  newSkus.forEach((n, idx) => {
+    const r = newHdrRow + 1 + idx;
+    const u = n.users || {};
+    const row = [
+      n.created_at ? new Date(n.created_at).toLocaleDateString('en-GB') : '',
+      n.location_code || '',
+      n.barcode || '',
+      n.product_name || '',
+      n.quantity || 0,
+      n.estimated_price || 0,
+      (n.quantity || 0) * (n.estimated_price || 0),
+      u.full_name || ''
+    ];
+    row.forEach((val, i) => {
+      const cell = ws.getCell(r, i + 1);
+      cell.value = val;
+      const col = i + 1;
+      const align = [1, 2].includes(col) ? 'center' : ([5, 6, 7].includes(col) ? 'right' : 'left');
+      xlStyleData(cell, { align, size: 9 });
+    });
+    ws.getCell(r, 6).numFmt = '#,##0" K"';
+    ws.getCell(r, 7).numFmt = '#,##0" K"';
+  });
+  
+  const widths = [12, 11, 16, 28, 11, 14, 14, 18];
+  widths.forEach((w, i) => ws.getColumn(i + 1).width = w);
 }
 
 // ==================== WORKFLOW CONTROL (CTL) ====================
