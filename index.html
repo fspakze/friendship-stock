@@ -5177,24 +5177,131 @@ async function executeImport() {
   const errEl = document.getElementById('importErr');
   
   btn.disabled = true;
-  btn.innerHTML = `<span class="loader"></span> ${T('importing')}`;
   
-  log('Executing import:', _pendingImport.length, 'products');
+  const total = _pendingImport.length;
+  const BATCH_SIZE = 500; // 500 รายการ/batch (ปลอดภัยใต้ 8 วินาที timeout)
+  const totalBatches = Math.ceil(total / BATCH_SIZE);
+  
+  log('Executing import:', total, 'products in', totalBatches, 'batches');
+  
+  // Replace modal content with progress UI
+  closeModal();
+  showModal(`
+    <h3>${T('importing') || 'กำลังนำเข้า...'}</h3>
+    <p style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">
+      ${total.toLocaleString()} รายการ — แบ่ง ${totalBatches} batch
+    </p>
+    
+    <div style="background:var(--slate-100);border-radius:8px;height:24px;overflow:hidden;margin-bottom:9px;position:relative;">
+      <div id="importProgressBar" style="background:linear-gradient(90deg,var(--teal-500),var(--teal-600));height:100%;width:0%;transition:width 0.3s;border-radius:8px;"></div>
+      <div id="importProgressText" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:var(--slate-900);">0%</div>
+    </div>
+    
+    <div id="importStatusText" style="font-size:11px;color:var(--slate-600);text-align:center;margin-bottom:8px;">
+      ${T('preparing') || 'เตรียมข้อมูล...'}
+    </div>
+    
+    <!-- Stats grid -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:9px;">
+      <div style="background:var(--teal-100);padding:7px 5px;border-radius:7px;text-align:center;">
+        <div style="font-size:9px;color:var(--teal-700);text-transform:uppercase;font-weight:700;">${T('products_new') || 'New'}</div>
+        <div id="impNew" style="font-size:15px;font-weight:800;color:var(--teal-700);font-family:'Space Grotesk',monospace;">0</div>
+      </div>
+      <div style="background:var(--sky-100);padding:7px 5px;border-radius:7px;text-align:center;">
+        <div style="font-size:9px;color:var(--sky-600);text-transform:uppercase;font-weight:700;">${T('products_updated') || 'Updated'}</div>
+        <div id="impUpdated" style="font-size:15px;font-weight:800;color:var(--sky-600);font-family:'Space Grotesk',monospace;">0</div>
+      </div>
+      <div style="background:var(--amber-100);padding:7px 5px;border-radius:7px;text-align:center;">
+        <div style="font-size:9px;color:#92400e;text-transform:uppercase;font-weight:700;">Batch</div>
+        <div id="impBatch" style="font-size:15px;font-weight:800;color:#92400e;font-family:'Space Grotesk',monospace;">0/${totalBatches}</div>
+      </div>
+    </div>
+    
+    <div id="importErrDetail" style="background:var(--rose-100);color:var(--rose-500);padding:8px 11px;border-radius:7px;font-size:11px;display:none;"></div>
+  `);
+  
+  // Helper: update progress UI
+  const updateProgress = (batchIdx, stats, statusText) => {
+    const pct = Math.round((batchIdx / totalBatches) * 100);
+    const bar = document.getElementById('importProgressBar');
+    const txt = document.getElementById('importProgressText');
+    const stat = document.getElementById('importStatusText');
+    const batch = document.getElementById('impBatch');
+    const newEl = document.getElementById('impNew');
+    const updEl = document.getElementById('impUpdated');
+    if (bar) bar.style.width = pct + '%';
+    if (txt) txt.textContent = pct + '%';
+    if (stat && statusText) stat.textContent = statusText;
+    if (batch) batch.textContent = `${batchIdx}/${totalBatches}`;
+    if (newEl) newEl.textContent = stats.new.toLocaleString();
+    if (updEl) updEl.textContent = stats.updated.toLocaleString();
+  };
+  
+  const aggStats = {
+    total_processed: 0,
+    new_products: 0,
+    updated_products: 0,
+    deactivated_products: 0,
+    total_value: 0
+  };
   
   try {
-    const { data, error } = await sb.rpc('import_pos_products', {
-      p_branch_id: branch.id,
-      p_user_id: user.id,
-      p_products: _pendingImport,
-      p_snapshot_name: snapName,
-      p_session_id: session?.id || null
-    });
+    // Loop ทำ batch ทีละชุด
+    for (let i = 0; i < totalBatches; i++) {
+      const start = i * BATCH_SIZE;
+      const end = Math.min(start + BATCH_SIZE, total);
+      const chunk = _pendingImport.slice(start, end);
+      const isLast = (i === totalBatches - 1);
+      
+      updateProgress(i, aggStats, `Batch ${i + 1}/${totalBatches}: ${start.toLocaleString()}-${end.toLocaleString()}`);
+      
+      // ส่ง batch นี้ — ไม่ส่ง snapshot_name ถ้าไม่ใช่ batch สุดท้าย
+      // (snapshot จะถูกบันทึกใน batch สุดท้ายเท่านั้น)
+      const { data, error } = await sb.rpc('import_pos_products_batch', {
+        p_branch_id: branch.id,
+        p_user_id: user.id,
+        p_products: chunk,
+        p_is_last_batch: isLast,
+        p_snapshot_name: isLast ? snapName : null,
+        p_session_id: session?.id || null,
+        p_total_count: total
+      });
+      
+      if (error) {
+        // Retry ครั้งเดียว ถ้า fail
+        log('Batch', i + 1, 'failed, retrying...', error.message);
+        await new Promise(r => setTimeout(r, 1000));
+        const { data: retryData, error: retryError } = await sb.rpc('import_pos_products_batch', {
+          p_branch_id: branch.id,
+          p_user_id: user.id,
+          p_products: chunk,
+          p_is_last_batch: isLast,
+          p_snapshot_name: isLast ? snapName : null,
+          p_session_id: session?.id || null,
+          p_total_count: total
+        });
+        if (retryError) throw retryError;
+        const r = retryData || {};
+        aggStats.total_processed += (r.total_processed || 0);
+        aggStats.new_products += (r.new_products || 0);
+        aggStats.updated_products += (r.updated_products || 0);
+        aggStats.deactivated_products += (r.deactivated_products || 0);
+        aggStats.total_value += (r.total_value || 0);
+      } else {
+        const r = data || {};
+        aggStats.total_processed += (r.total_processed || 0);
+        aggStats.new_products += (r.new_products || 0);
+        aggStats.updated_products += (r.updated_products || 0);
+        aggStats.deactivated_products += (r.deactivated_products || 0);
+        aggStats.total_value += (r.total_value || 0);
+      }
+    }
     
-    if (error) throw error;
+    updateProgress(totalBatches, aggStats, 'เสร็จสิ้น!');
     
-    log('Import result:', data);
+    // รอ 500ms ให้ user เห็น 100%
+    await new Promise(r => setTimeout(r, 500));
     
-    const result = data || {};
     closeModal();
     
     // Show success summary
@@ -5209,26 +5316,26 @@ async function executeImport() {
         
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
           <div style="background:white;padding:9px;border-radius:7px;text-align:center;">
-            <div style="font-size:20px;font-weight:700;color:var(--emerald-500);">${result.total_processed || 0}</div>
+            <div style="font-size:20px;font-weight:700;color:var(--emerald-500);">${aggStats.total_processed.toLocaleString()}</div>
             <div style="font-size:10px;color:var(--slate-600);">${T('products_total')}</div>
           </div>
           <div style="background:white;padding:9px;border-radius:7px;text-align:center;">
-            <div style="font-size:20px;font-weight:700;color:var(--teal-700);">${result.new_products || 0}</div>
+            <div style="font-size:20px;font-weight:700;color:var(--teal-700);">${aggStats.new_products.toLocaleString()}</div>
             <div style="font-size:10px;color:var(--slate-600);">${T('products_new')}</div>
           </div>
           <div style="background:white;padding:9px;border-radius:7px;text-align:center;">
-            <div style="font-size:20px;font-weight:700;color:var(--sky-600);">${result.updated_products || 0}</div>
+            <div style="font-size:20px;font-weight:700;color:var(--sky-600);">${aggStats.updated_products.toLocaleString()}</div>
             <div style="font-size:10px;color:var(--slate-600);">${T('products_updated')}</div>
           </div>
           <div style="background:white;padding:9px;border-radius:7px;text-align:center;">
-            <div style="font-size:20px;font-weight:700;color:var(--rose-500);">${result.deactivated_products || 0}</div>
+            <div style="font-size:20px;font-weight:700;color:var(--rose-500);">${aggStats.deactivated_products.toLocaleString()}</div>
             <div style="font-size:10px;color:var(--slate-600);">${T('products_removed')}</div>
           </div>
         </div>
         
         <div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--slate-200);text-align:center;">
           <div style="font-size:9px;color:var(--slate-500);">Total Value</div>
-          <div style="font-size:14px;font-weight:700;color:var(--slate-900);">₭ ${(result.total_value || 0).toLocaleString()}</div>
+          <div style="font-size:14px;font-weight:700;color:var(--slate-900);">₭ ${(aggStats.total_value || 0).toLocaleString()}</div>
         </div>
       </div>
       
@@ -5241,10 +5348,13 @@ async function executeImport() {
     
   } catch (e) {
     console.error('[FS] Import error:', e);
-    errEl.textContent = e.message;
-    errEl.classList.add('show');
-    btn.disabled = false;
-    btn.innerHTML = `✅ ${T('confirm_import')}`;
+    const errDetail = document.getElementById('importErrDetail');
+    if (errDetail) {
+      errDetail.textContent = 'Error: ' + (e.message || e);
+      errDetail.style.display = 'block';
+    } else {
+      showToast('Import error: ' + (e.message || e), 'error');
+    }
   }
 }
 
