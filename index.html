@@ -1004,6 +1004,16 @@
     background: var(--violet-500);
     color: white;
   }
+  .qnav-item-active {
+    background: linear-gradient(135deg, var(--violet-100), var(--sky-100)) !important;
+    color: var(--violet-600) !important;
+    border: 2px solid var(--violet-500) !important;
+    padding: 7px 11px 7px 8px;
+  }
+  .qnav-item-active .qnav-item-count {
+    background: var(--violet-500);
+    color: white;
+  }
   
   /* Section flash highlight when jumped to */
   .fm-section.is-flashed {
@@ -1517,8 +1527,15 @@ const I18N = {
     shrinkage_pct: 'Shrinkage %', products_total: 'ສິນຄ້າທັງໝົດ',
     counted_today: 'ນັບມື້ນີ້',
     level1: 'L1 Auto', level2: 'L2 Explain', level3: 'L3 Recount', level4: 'L4 Investigate',
-    tiebreaker_title: 'ລາຍການທີ່ຕ້ອງກວດສອບໃໝ່',
+    level1_desc: 'ຄວາມຄາດເຄື່ອນ < 2% ແລະ < 30K ກີບ → ຜ່ານອັດຕະໂນມັດ',
+    level2_desc: 'ຄວາມຄາດເຄື່ອນ 2-5% ຫຼື 30K-100K ກີບ → ຕ້ອງມີຄຳອະທິບາຍ',
+    level3_desc: 'ຄວາມຄາດເຄື່ອນ > 5% ຫຼື > 100K ກີບ → ຕ້ອງນັບໃໝ່',
+    level4_desc: 'ຄວາມຄາດເຄື່ອນ > 10% ຫຼື > 300K ກີບ → ຕ້ອງສືບສວນ',
+    level1_short: 'ຜ່ານ', level2_short: 'ຄຳອະທິບາຍ', level3_short: 'ນັບໃໝ່', level4_short: 'ສືບສວນ',
+    tiebreaker_title: 'ກວດສອບໃໝ່',
     tiebreaker_subtitle: 'ນັບຄັ້ງທີ 3 ໃຊ້ກົດ 2 ໃນ 3',
+    preparing: 'ກຳລັງກຽມຂໍ້ມູນ...',
+    gondola_code: 'ລະຫັດຊັ້ນວາງ',
     quantity: 'ຈຳນວນ', description: 'ລາຍລະອຽດ', submit: 'ສົ່ງ',
     full_name: 'ຊື່ເຕັມ', role_label: 'ສິດ',
     add_user: 'ເພີ່ມຜູ້ໃຊ້', edit_user: 'ແກ້ໄຂຜູ້ໃຊ້',
@@ -1771,8 +1788,15 @@ const I18N = {
     shrinkage_pct: 'Shrinkage %', products_total: 'สินค้าทั้งหมด',
     counted_today: 'นับวันนี้',
     level1: 'L1 Auto', level2: 'L2 Explain', level3: 'L3 Recount', level4: 'L4 Investigate',
-    tiebreaker_title: 'รายการที่ต้องตรวจสอบใหม่',
+    level1_desc: 'ความคลาดเคลื่อน < 2% และ < 30K กีบ → ผ่านอัตโนมัติ',
+    level2_desc: 'ความคลาดเคลื่อน 2-5% หรือ 30K-100K กีบ → ต้องอธิบายเหตุผล',
+    level3_desc: 'ความคลาดเคลื่อน > 5% หรือ > 100K กีบ → ต้องนับใหม่',
+    level4_desc: 'ความคลาดเคลื่อน > 10% หรือ > 300K กีบ → ต้องสืบสวน',
+    level1_short: 'ผ่าน', level2_short: 'อธิบาย', level3_short: 'นับใหม่', level4_short: 'สืบสวน',
+    tiebreaker_title: 'ตรวจสอบใหม่',
     tiebreaker_subtitle: 'นับครั้งที่ 3 ใช้กฎ 2 ใน 3',
+    preparing: 'กำลังเตรียมข้อมูล...',
+    gondola_code: 'รหัสชั้นวาง',
     quantity: 'จำนวน', description: 'รายละเอียด', submit: 'ส่ง',
     full_name: 'ชื่อเต็ม', role_label: 'สิทธิ์',
     add_user: 'เพิ่มผู้ใช้', edit_user: 'แก้ไขผู้ใช้',
@@ -3029,9 +3053,13 @@ function goPage(page) {
   
   log('Going to page:', page);
   
-  // Cleanup Quick Nav when leaving floormap
-  if (page !== 'floormap' && typeof cleanupQuickNav === 'function') {
+  // Cleanup Quick Nav when leaving floormap or users
+  if (page !== 'floormap' && page !== 'users' && typeof cleanupQuickNav === 'function') {
     cleanupQuickNav();
+  }
+  // Reset branch filter when leaving users
+  if (page !== 'users') {
+    _userBranchFilter = null;
   }
   
   if (page === 'scan') {
@@ -4802,18 +4830,22 @@ function renderDashboardPage() {
     
     <div class="kpi-card kpi-good">
       <div class="kpi-header"><div class="kpi-title">${T('level1')}</div><div class="kpi-value" id="dL1">-</div></div>
+      <div style="font-size:10px;color:var(--slate-500);margin:5px 0 6px;line-height:1.4;">✅ ${T('level1_desc')}</div>
       <div class="kpi-bar"><div class="kpi-bar-fill" id="dL1Bar" style="width:0%"></div></div>
     </div>
     <div class="kpi-card kpi-warn">
       <div class="kpi-header"><div class="kpi-title">${T('level2')}</div><div class="kpi-value" id="dL2">-</div></div>
+      <div style="font-size:10px;color:var(--slate-500);margin:5px 0 6px;line-height:1.4;">📝 ${T('level2_desc')}</div>
       <div class="kpi-bar"><div class="kpi-bar-fill" id="dL2Bar" style="width:0%"></div></div>
     </div>
     <div class="kpi-card kpi-bad">
       <div class="kpi-header"><div class="kpi-title">${T('level3')}</div><div class="kpi-value" id="dL3">-</div></div>
+      <div style="font-size:10px;color:var(--slate-500);margin:5px 0 6px;line-height:1.4;">🔁 ${T('level3_desc')}</div>
       <div class="kpi-bar"><div class="kpi-bar-fill" id="dL3Bar" style="width:0%"></div></div>
     </div>
     <div class="kpi-card kpi-bad">
       <div class="kpi-header"><div class="kpi-title">${T('level4')}</div><div class="kpi-value" id="dL4">-</div></div>
+      <div style="font-size:10px;color:var(--slate-500);margin:5px 0 6px;line-height:1.4;">🚨 ${T('level4_desc')}</div>
       <div class="kpi-bar"><div class="kpi-bar-fill" id="dL4Bar" style="width:0%"></div></div>
     </div>
     
@@ -5041,39 +5073,392 @@ function renderUsersPage() {
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
       ${T('add_user')}
     </button>
+    
+    <!-- Search + Filter -->
+    <div style="display:grid;grid-template-columns:1fr auto;gap:7px;margin-bottom:11px;">
+      <input class="form-input" id="userSearch" type="text" 
+             placeholder="${lang === 'lo' ? '🔍 ຄົ້ນຫາຊື່ ຫຼື ບົດບາດ...' : '🔍 ค้นหาชื่อ หรือ บทบาท...'}"
+             oninput="filterUsersList()"
+             style="font-size:12px;">
+      <button class="btn btn-secondary" id="userViewToggle" onclick="toggleUserView()" 
+              style="font-size:11px;padding:7px 11px;white-space:nowrap;">
+        🏪 ${lang === 'lo' ? 'ສະແດງເປັນສາຂາ' : 'แสดงเป็นสาขา'}
+      </button>
+    </div>
+    
     <div id="usersList"></div>
   `;
 }
 
+let _allUsers = [];
+let _allBranchesForUsers = [];
+let _userViewMode = 'branch'; // 'branch' | 'flat'
+
 async function loadUsers() {
-  const { data } = await sb.from('users').select('*').order('role').order('username');
+  // Load both users and branches in parallel
+  const [usersRes, branchesRes] = await Promise.all([
+    sb.from('users').select('*').order('role').order('username'),
+    sb.from('branches').select('*').eq('is_active', true).order('id')
+  ]);
+  
+  _allUsers = usersRes.data || [];
+  _allBranchesForUsers = branchesRes.data || [];
+  
+  // Cache สำหรับใช้ใน Modal และ Switcher
+  window._allBranchesCache = _allBranchesForUsers;
+  
+  renderUsersList();
+  
+  // เพิ่ม Branch Filter FAB (เหมือน Floor Map)
+  renderBranchFilterFAB();
+}
+
+function renderUsersList() {
   const list = document.getElementById('usersList');
   if (!list) return;
   
-  const filtered = (data || []).filter(u => 
+  const searchEl = document.getElementById('userSearch');
+  const searchTerm = (searchEl?.value || '').toLowerCase().trim();
+  
+  // Filter out hidden roles
+  let filtered = _allUsers.filter(u => 
     !['admin', 'scc'].includes(u.role) || u.id === user.id
   );
   
-  list.innerHTML = filtered.map(u => {
-    const initial = u.username.charAt(0).toUpperCase();
-    const isMe = u.id === user.id;
-    const inactive = !u.is_active ? 'inactive' : '';
-    
-    return `
-      <div class="user-card ${inactive}" onclick="editUser('${u.id}')">
-        <div class="user-avatar r-${u.role}">${initial}</div>
-        <div class="user-info">
-          <div class="user-name">${u.full_name} ${isMe ? '<span style="color:var(--indigo-500);font-size:9px;">(YOU)</span>' : ''}</div>
-          <div class="user-username">@${u.username}</div>
+  // Apply branch filter (from FAB)
+  if (_userBranchFilter !== null) {
+    filtered = filtered.filter(u => u.branch_id === _userBranchFilter);
+  }
+  
+  // Apply search
+  if (searchTerm) {
+    filtered = filtered.filter(u => 
+      (u.username || '').toLowerCase().includes(searchTerm) ||
+      (u.full_name || '').toLowerCase().includes(searchTerm) ||
+      (u.role || '').toLowerCase().includes(searchTerm)
+    );
+  }
+  
+  // Filter status badge above list
+  let statusBadge = '';
+  if (_userBranchFilter !== null) {
+    const b = _allBranchesForUsers.find(x => x.id === _userBranchFilter);
+    if (b) {
+      const name = lang === 'lo' ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo);
+      statusBadge = `
+        <div style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));border:1px solid var(--violet-300);padding:8px 11px;border-radius:9px;margin-bottom:10px;display:flex;align-items:center;gap:8px;font-size:11px;">
+          <span style="font-size:14px;">🏪</span>
+          <span style="flex:1;">
+            <strong style="color:var(--violet-600);">${lang === 'lo' ? 'ກຳລັງກັ່ນຕອງ:' : 'กำลังกรอง:'}</strong> ${name}
+          </span>
+          <button onclick="filterByBranch(null)" 
+                  style="background:var(--rose-500);color:white;border:none;border-radius:5px;padding:3px 9px;font-size:10px;font-weight:700;cursor:pointer;">
+            ✕ ${lang === 'lo' ? 'ລ້າງ' : 'ล้าง'}
+          </button>
         </div>
-        <div class="user-badge-r ${u.role}">${u.role}</div>
+      `;
+    }
+  }
+  
+  if (filtered.length === 0) {
+    list.innerHTML = statusBadge + `<div style="text-align:center;padding:30px;color:var(--slate-400);">
+      ${lang === 'lo' ? 'ບໍ່ພົບ' : 'ไม่พบ'}
+    </div>`;
+    return;
+  }
+  
+  if (_userViewMode === 'flat' || _userBranchFilter !== null) {
+    // ถ้ามี filter ตามสาขาแล้ว → แสดงเป็น flat (ไม่ต้อง group ซ้ำ)
+    list.innerHTML = statusBadge + filtered.map(u => renderUserCard(u)).join('');
+    return;
+  }
+  
+  // Group by branch
+  const grouped = {};
+  const noBranch = [];
+  
+  filtered.forEach(u => {
+    if (u.branch_id) {
+      if (!grouped[u.branch_id]) grouped[u.branch_id] = [];
+      grouped[u.branch_id].push(u);
+    } else {
+      noBranch.push(u);
+    }
+  });
+  
+  // Sort branches by type then id
+  const typeOrder = { 'hq': 1, 'super': 1, 'warehouse': 2, 'minimart': 3, 'mini': 3, 'mall': 3 };
+  const sortedBranches = [..._allBranchesForUsers].sort((a, b) => {
+    const oa = typeOrder[a.branch_type] || 9;
+    const ob = typeOrder[b.branch_type] || 9;
+    if (oa !== ob) return oa - ob;
+    return a.id - b.id;
+  });
+  
+  // Sort users in each branch by role priority then username
+  const roleOrder = { 'admin': 1, 'scc': 2, 'bcs': 3, 'ctl': 4, 'verifier': 5, 'audit': 5, 'counter': 6, 'staff': 7 };
+  Object.keys(grouped).forEach(bid => {
+    grouped[bid].sort((a, b) => {
+      const oa = roleOrder[a.role] || 9;
+      const ob = roleOrder[b.role] || 9;
+      if (oa !== ob) return oa - ob;
+      return (a.username || '').localeCompare(b.username || '');
+    });
+  });
+  
+  let html = statusBadge;
+  
+  for (const b of sortedBranches) {
+    const users = grouped[b.id];
+    if (!users || !users.length) continue;
+    
+    const displayName = lang === 'lo' ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo);
+    const typeIcon = (b.branch_type === 'hq' || b.branch_type === 'super') ? '⭐' :
+                     (b.branch_type === 'warehouse') ? '📦' : '🏪';
+    const typeColor = (b.branch_type === 'hq' || b.branch_type === 'super') ? 'var(--amber-300)' :
+                      (b.branch_type === 'warehouse') ? 'var(--violet-300)' : 'var(--sky-300)';
+    
+    // Count active/inactive in this branch
+    const activeCount = users.filter(u => u.is_active).length;
+    const inactiveCount = users.length - activeCount;
+    
+    html += `
+      <div style="margin-bottom:12px;">
+        <div style="background:linear-gradient(135deg,var(--slate-50),white);border:2px solid ${typeColor};border-radius:11px;padding:9px 12px;margin-bottom:6px;display:flex;align-items:center;gap:9px;cursor:pointer;" onclick="filterByBranch(${b.id})">
+          <div style="font-size:18px;">${typeIcon}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;font-size:13px;color:var(--slate-900);">${displayName}</div>
+            <div style="font-size:10px;color:var(--slate-500);font-family:monospace;">${b.code}</div>
+          </div>
+          <div style="background:${typeColor};padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;color:var(--slate-700);">
+            ${activeCount}${inactiveCount > 0 ? `/<span style="opacity:0.5;">${users.length}</span>` : ''}
+          </div>
+        </div>
+        <div style="padding-left:8px;border-left:3px solid ${typeColor};">
+          ${users.map(u => renderUserCard(u)).join('')}
+        </div>
       </div>
     `;
+  }
+  
+  // Users without branch
+  if (noBranch.length > 0) {
+    html += `
+      <div style="margin-bottom:12px;">
+        <div style="background:var(--slate-100);border:2px solid var(--slate-300);border-radius:11px;padding:9px 12px;margin-bottom:6px;display:flex;align-items:center;gap:9px;">
+          <div style="font-size:18px;">❓</div>
+          <div style="flex:1;">
+            <div style="font-weight:700;font-size:13px;color:var(--slate-700);">${lang === 'lo' ? 'ບໍ່ມີສາຂາ' : 'ไม่มีสาขา'}</div>
+            <div style="font-size:10px;color:var(--slate-500);">${lang === 'lo' ? 'ບັນຊີທີ່ບໍ່ໄດ້ກຳນົດສາຂາ' : 'บัญชีที่ยังไม่ได้กำหนดสาขา'}</div>
+          </div>
+          <div style="background:var(--slate-300);padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;">
+            ${noBranch.length}
+          </div>
+        </div>
+        <div style="padding-left:8px;border-left:3px solid var(--slate-300);">
+          ${noBranch.map(u => renderUserCard(u)).join('')}
+        </div>
+      </div>
+    `;
+  }
+  
+  list.innerHTML = html;
+}
+
+function renderUserCard(u) {
+  const initial = (u.username || '?').charAt(0).toUpperCase();
+  const isMe = u.id === user.id;
+  const inactive = !u.is_active ? 'inactive' : '';
+  
+  return `
+    <div class="user-card ${inactive}" onclick="editUser('${u.id}')">
+      <div class="user-avatar r-${u.role}">${initial}</div>
+      <div class="user-info">
+        <div class="user-name">${u.full_name} ${isMe ? '<span style="color:var(--indigo-500);font-size:9px;">(YOU)</span>' : ''}</div>
+        <div class="user-username">@${u.username}</div>
+      </div>
+      <div class="user-badge-r ${u.role}">${u.role}</div>
+    </div>
+  `;
+}
+
+function filterUsersList() {
+  renderUsersList();
+}
+
+function toggleUserView() {
+  _userViewMode = _userViewMode === 'branch' ? 'flat' : 'branch';
+  const btn = document.getElementById('userViewToggle');
+  if (btn) {
+    btn.innerHTML = _userViewMode === 'branch' 
+      ? `🏪 ${lang === 'lo' ? 'ສະແດງເປັນສາຂາ' : 'แสดงเป็นสาขา'}`
+      : `📋 ${lang === 'lo' ? 'ສະແດງເປັນລາຍການ' : 'แสดงเป็นรายการ'}`;
+  }
+  renderUsersList();
+}
+
+// ==================== BRANCH FILTER FAB (Users Page) ====================
+let _userBranchFilter = null; // null = show all, integer = filter by branch_id
+
+function renderBranchFilterFAB() {
+  // Remove existing FAB
+  const existing = document.getElementById('qnavWrap');
+  if (existing) existing.remove();
+  const existingBd = document.getElementById('qnavBackdrop');
+  if (existingBd) existingBd.remove();
+  
+  const branches = _allBranchesForUsers || [];
+  if (branches.length === 0) return;
+  
+  // Count users per branch
+  const branchCounts = {};
+  _allUsers.forEach(u => {
+    if (u.branch_id) {
+      branchCounts[u.branch_id] = (branchCounts[u.branch_id] || 0) + 1;
+    }
+  });
+  
+  // Sort: hq → warehouse → minimart
+  const typeOrder = { 'hq': 1, 'super': 1, 'warehouse': 2, 'minimart': 3, 'mini': 3, 'mall': 3 };
+  const sorted = [...branches].sort((a, b) => {
+    const oa = typeOrder[a.branch_type] || 9;
+    const ob = typeOrder[b.branch_type] || 9;
+    if (oa !== ob) return oa - ob;
+    return a.id - b.id;
+  });
+  
+  // Backdrop
+  const backdrop = document.createElement('div');
+  backdrop.className = 'qnav-backdrop';
+  backdrop.id = 'qnavBackdrop';
+  backdrop.onclick = () => toggleBranchFilterFAB(false);
+  document.body.appendChild(backdrop);
+  
+  // FAB Wrap
+  const wrap = document.createElement('div');
+  wrap.className = 'qnav-wrap';
+  wrap.id = 'qnavWrap';
+  
+  const isLao = lang === 'lo';
+  const totalUsers = _allUsers.length;
+  
+  // Build items
+  const allItem = `
+    <button class="qnav-item ${_userBranchFilter === null ? 'qnav-item-active' : ''}" 
+            onclick="filterByBranch(null)">
+      <span class="qnav-item-icon" style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));font-size:16px;">🌐</span>
+      <span style="font-weight:700;">${isLao ? 'ທັງໝົດ' : 'ทั้งหมด'}</span>
+      <span class="qnav-item-count">${totalUsers}</span>
+    </button>
+  `;
+  
+  const branchItems = sorted.map(b => {
+    const cnt = branchCounts[b.id] || 0;
+    if (cnt === 0) return ''; // skip empty
+    
+    const displayName = isLao ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo);
+    const typeIcon = (b.branch_type === 'hq' || b.branch_type === 'super') ? '⭐' :
+                     (b.branch_type === 'warehouse') ? '📦' : '🏪';
+    
+    // Use existing CSS classes for color
+    let bgGradient = 'linear-gradient(135deg, #fef3c7, #fde68a)'; // default amber for hq
+    if (b.branch_type === 'warehouse') bgGradient = 'linear-gradient(135deg, #ddd6fe, #c4b5fd)';
+    else if (['minimart', 'mini', 'mall', 'super'].includes(b.branch_type) && !['hq'].includes(b.branch_type)) {
+      bgGradient = 'linear-gradient(135deg, #cffafe, #a5f3fc)';
+    }
+    if (b.branch_type === 'hq' || b.branch_type === 'super') {
+      bgGradient = 'linear-gradient(135deg, #fef3c7, #fde68a)';
+    }
+    
+    const isActive = _userBranchFilter === b.id;
+    
+    return `
+      <button class="qnav-item ${isActive ? 'qnav-item-active' : ''}" 
+              onclick="filterByBranch(${b.id})"
+              title="${displayName}">
+        <span class="qnav-item-icon" style="background:${bgGradient};font-size:16px;">${typeIcon}</span>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;">${displayName}</span>
+        <span class="qnav-item-count">${cnt}</span>
+      </button>
+    `;
   }).join('');
+  
+  wrap.innerHTML = `
+    <div class="qnav-menu" id="qnavMenu">
+      ${allItem}
+      ${branchItems}
+    </div>
+    <button class="qnav-fab" id="qnavFab" onclick="toggleBranchFilterFAB()" 
+            aria-label="Filter by Branch" 
+            title="${isLao ? 'ກັ່ນຕອງຕາມສາຂາ' : 'กรองตามสาขา'}">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 6h18M6 12h12M10 18h4"/>
+      </svg>
+    </button>
+  `;
+  document.body.appendChild(wrap);
+}
+
+function toggleBranchFilterFAB(forceState) {
+  const menu = document.getElementById('qnavMenu');
+  const fab = document.getElementById('qnavFab');
+  const bd = document.getElementById('qnavBackdrop');
+  if (!menu || !fab) return;
+  
+  const willOpen = forceState !== undefined ? forceState : !menu.classList.contains('is-open');
+  
+  if (willOpen) {
+    menu.classList.add('is-open');
+    fab.classList.add('is-open');
+    if (bd) bd.classList.add('is-open');
+  } else {
+    menu.classList.remove('is-open');
+    fab.classList.remove('is-open');
+    if (bd) bd.classList.remove('is-open');
+  }
+}
+
+function filterByBranch(branchId) {
+  _userBranchFilter = branchId;
+  toggleBranchFilterFAB(false);
+  
+  // Update Search input placeholder to hint the filter
+  const search = document.getElementById('userSearch');
+  if (search) search.value = ''; // Clear search
+  
+  renderUsersList();
+  renderBranchFilterFAB(); // Re-render to update active state
+  
+  // Show toast feedback
+  if (branchId === null) {
+    showToast(lang === 'lo' ? '🌐 ສະແດງທັງໝົດ' : '🌐 แสดงทั้งหมด', 'success');
+  } else {
+    const b = _allBranchesForUsers.find(x => x.id === branchId);
+    if (b) {
+      const name = lang === 'lo' ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo);
+      showToast(`🏪 ${name}`, 'success');
+    }
+  }
 }
 
 function openUserModal(userId = null) {
   const isEdit = !!userId;
+  
+  // เตรียม branches options
+  const branches = window._allBranchesCache || _allBranchesForUsers || [];
+  const typeOrder = { 'hq': 1, 'super': 1, 'warehouse': 2, 'minimart': 3, 'mini': 3, 'mall': 3 };
+  const sortedBranches = [...branches].sort((a, b) => {
+    const oa = typeOrder[a.branch_type] || 9;
+    const ob = typeOrder[b.branch_type] || 9;
+    if (oa !== ob) return oa - ob;
+    return a.id - b.id;
+  });
+  
+  const branchOptions = sortedBranches.map(b => {
+    const dn = lang === 'lo' ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo);
+    return `<option value="${b.id}">${dn} (${b.code})</option>`;
+  }).join('');
+  
   showModal(`
     <h3>${isEdit ? T('edit_user') : T('add_user')}</h3>
     <div class="error-msg" id="userErr"></div>
@@ -5101,11 +5486,30 @@ function openUserModal(userId = null) {
         <option value="audit">Audit (Legacy)</option>
       </select>
     </div>
+    <div class="form-group">
+      <label class="form-label">🏪 ${lang === 'lo' ? 'ສາຂາ' : 'สาขา'}</label>
+      <select class="form-select" id="mBranch">
+        ${branchOptions}
+      </select>
+    </div>
+    <div class="form-group" id="activeGroup" style="${isEdit ? '' : 'display:none;'}">
+      <label class="form-label">${lang === 'lo' ? 'ສະຖານະ' : 'สถานะ'}</label>
+      <select class="form-select" id="mIsActive">
+        <option value="true">✅ ${lang === 'lo' ? 'ໃຊ້ງານ' : 'ใช้งาน'}</option>
+        <option value="false">❌ ${lang === 'lo' ? 'ປິດໃຊ້ງານ' : 'ปิดใช้งาน'}</option>
+      </select>
+    </div>
     <div class="action-row" style="margin-top:12px;">
       <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
       <button class="btn btn-primary" onclick="saveUser()">${T('save')}</button>
     </div>
   `);
+  
+  // Default: current branch
+  if (!isEdit) {
+    const sel = document.getElementById('mBranch');
+    if (sel && branch) sel.value = branch.id;
+  }
   
   if (isEdit) {
     (async () => {
@@ -5114,6 +5518,10 @@ function openUserModal(userId = null) {
         document.getElementById('mUsername').value = data.username;
         document.getElementById('mFullName').value = data.full_name;
         document.getElementById('mRole').value = data.role;
+        if (data.branch_id) {
+          document.getElementById('mBranch').value = data.branch_id;
+        }
+        document.getElementById('mIsActive').value = String(data.is_active);
       }
     })();
   }
@@ -5127,6 +5535,8 @@ async function saveUser() {
   const password = document.getElementById('mPassword').value;
   const fullName = document.getElementById('mFullName').value.trim();
   const role = document.getElementById('mRole').value;
+  const branchId = parseInt(document.getElementById('mBranch').value) || null;
+  const isActiveEl = document.getElementById('mIsActive');
   const errEl = document.getElementById('userErr');
   
   if (!username || !fullName) {
@@ -5137,8 +5547,15 @@ async function saveUser() {
   
   try {
     if (id) {
-      const upd = { username, full_name: fullName, role, updated_at: new Date().toISOString() };
+      const upd = { 
+        username, 
+        full_name: fullName, 
+        role, 
+        branch_id: branchId,
+        updated_at: new Date().toISOString() 
+      };
       if (password) upd.password_hash = await hashPassword(password);
+      if (isActiveEl) upd.is_active = isActiveEl.value === 'true';
       const { error } = await sb.from('users').update(upd).eq('id', id);
       if (error) throw error;
     } else {
@@ -5151,7 +5568,7 @@ async function saveUser() {
       const { error } = await sb.from('users').insert({
         username, password_hash: hash, full_name: fullName, role,
         language: 'lo', is_active: true,
-        branch_id: branch?.id
+        branch_id: branchId || branch?.id
       });
       if (error) throw error;
     }
@@ -5842,12 +6259,15 @@ async function openVarianceSettings() {
     
     <!-- L1 -->
     <div style="background:var(--emerald-100);border-radius:10px;padding:11px;margin-bottom:8px;border-left:3px solid var(--emerald-500);">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
         <div>
           <span style="background:var(--emerald-500);color:white;padding:2px 9px;border-radius:5px;font-weight:700;font-size:12px;">L1</span>
           <span style="font-weight:700;color:var(--emerald-500);font-size:13px;margin-left:5px;">Auto Adjust</span>
         </div>
-        <span style="font-size:10px;color:var(--slate-500);">น้อยกว่า ↓</span>
+        <span style="font-size:10px;color:var(--slate-500);">${lang === 'lo' ? 'ໜ້ອຍກວ່າ' : 'น้อยกว่า'} ↓</span>
+      </div>
+      <div style="font-size:10px;color:#065f46;background:white;padding:6px 9px;border-radius:6px;margin-bottom:8px;line-height:1.4;">
+        ✅ ${T('level1_desc')}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
         <div>
@@ -5865,12 +6285,15 @@ async function openVarianceSettings() {
     
     <!-- L2 -->
     <div style="background:var(--amber-100);border-radius:10px;padding:11px;margin-bottom:8px;border-left:3px solid var(--amber-500);">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
         <div>
           <span style="background:var(--amber-500);color:white;padding:2px 9px;border-radius:5px;font-weight:700;font-size:12px;">L2</span>
           <span style="font-weight:700;color:#92400e;font-size:13px;margin-left:5px;">Explain Required</span>
         </div>
-        <span style="font-size:10px;color:var(--slate-500);">น้อยกว่า ↓</span>
+        <span style="font-size:10px;color:var(--slate-500);">${lang === 'lo' ? 'ໜ້ອຍກວ່າ' : 'น้อยกว่า'} ↓</span>
+      </div>
+      <div style="font-size:10px;color:#92400e;background:white;padding:6px 9px;border-radius:6px;margin-bottom:8px;line-height:1.4;">
+        📝 ${T('level2_desc')}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
         <div>
@@ -5888,12 +6311,15 @@ async function openVarianceSettings() {
     
     <!-- L3 -->
     <div style="background:var(--rose-100);border-radius:10px;padding:11px;margin-bottom:8px;border-left:3px solid var(--rose-500);">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
         <div>
           <span style="background:var(--rose-500);color:white;padding:2px 9px;border-radius:5px;font-weight:700;font-size:12px;">L3</span>
           <span style="font-weight:700;color:var(--rose-500);font-size:13px;margin-left:5px;">Mandatory Recount</span>
         </div>
-        <span style="font-size:10px;color:var(--slate-500);">น้อยกว่า ↓</span>
+        <span style="font-size:10px;color:var(--slate-500);">${lang === 'lo' ? 'ໜ້ອຍກວ່າ' : 'น้อยกว่า'} ↓</span>
+      </div>
+      <div style="font-size:10px;color:#9f1239;background:white;padding:6px 9px;border-radius:6px;margin-bottom:8px;line-height:1.4;">
+        🔁 ${T('level3_desc')}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
         <div>
@@ -5910,11 +6336,14 @@ async function openVarianceSettings() {
     </div>
     
     <!-- L4 (auto) -->
-    <div style="background:var(--slate-100);border-radius:10px;padding:9px;margin-bottom:11px;border-left:3px solid var(--rose-600);">
-      <div style="display:flex;align-items:center;gap:5px;">
+    <div style="background:var(--slate-100);border-radius:10px;padding:11px;margin-bottom:11px;border-left:3px solid var(--rose-600);">
+      <div style="display:flex;align-items:center;gap:5px;margin-bottom:5px;">
         <span style="background:var(--rose-600);color:white;padding:2px 9px;border-radius:5px;font-weight:700;font-size:12px;">L4</span>
         <span style="font-weight:700;color:var(--rose-600);font-size:12px;">Investigation</span>
-        <span style="font-size:10px;color:var(--slate-500);margin-left:auto;">มากกว่า L3 → L4 อัตโนมัติ</span>
+        <span style="font-size:10px;color:var(--slate-500);margin-left:auto;">${lang === 'lo' ? 'ມາກກວ່າ L3 → L4 ອັດຕະໂນມັດ' : 'มากกว่า L3 → L4 อัตโนมัติ'}</span>
+      </div>
+      <div style="font-size:10px;color:var(--rose-600);background:white;padding:6px 9px;border-radius:6px;line-height:1.4;">
+        🚨 ${T('level4_desc')}
       </div>
     </div>
     
@@ -9021,6 +9450,10 @@ window.stopScan = stopScan;
 window.manualLookup = manualLookup;
 window.openBranchSwitcher = openBranchSwitcher;
 window.switchBranch = switchBranch;
+window.filterUsersList = filterUsersList;
+window.toggleUserView = toggleUserView;
+window.toggleBranchFilterFAB = toggleBranchFilterFAB;
+window.filterByBranch = filterByBranch;
 window.adjustCount = adjustCount;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
