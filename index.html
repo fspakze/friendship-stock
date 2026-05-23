@@ -278,6 +278,145 @@
     align-items: center;
     gap: 6px;
   }
+  
+  /* View toggle: Pivot vs Rows */
+  .loc-view-toggle {
+    display: inline-flex;
+    background: var(--slate-100);
+    border-radius: 8px;
+    padding: 3px;
+    margin-bottom: 8px;
+    gap: 2px;
+  }
+  .loc-view-btn {
+    background: transparent;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--slate-600);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .loc-view-btn:hover { background: white; }
+  .loc-view-btn.active {
+    background: white;
+    color: var(--teal-700);
+    box-shadow: 0 1px 4px rgba(15,23,42,0.08);
+  }
+  
+  /* ===== Pivot view item (1 product / 1 row) ===== */
+  .loc-piv-item {
+    background: white;
+    border: 1px solid var(--slate-200);
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 6px;
+    transition: all 0.15s;
+  }
+  .loc-piv-item:hover {
+    border-color: var(--teal-300);
+    box-shadow: 0 2px 8px rgba(15,23,42,0.06);
+  }
+  .loc-piv-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .loc-piv-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--slate-900);
+    line-height: 1.3;
+  }
+  .loc-piv-status {
+    flex-shrink: 0;
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  
+  /* Roles grid: Counter / Verifier / TB / Manager */
+  .loc-piv-roles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+  .loc-piv-role {
+    border-radius: 7px;
+    padding: 5px 5px 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+  .loc-piv-role:hover { transform: translateY(-1px); }
+  .loc-piv-role-lbl {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 1px;
+  }
+  .loc-piv-role-qty {
+    font-size: 18px;
+    font-weight: 800;
+    font-family: 'Space Grotesk', monospace;
+    line-height: 1;
+  }
+  .loc-piv-role-user {
+    font-size: 8px;
+    color: var(--slate-500);
+    margin-top: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+  }
+  
+  /* Summary: POS | Final | Diff */
+  .loc-piv-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+  }
+  .loc-piv-sum-item {
+    background: var(--slate-50);
+    border-radius: 6px;
+    padding: 5px 4px;
+    text-align: center;
+  }
+  .loc-piv-sum-lbl {
+    font-size: 9px;
+    color: var(--slate-500);
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .loc-piv-sum-val {
+    font-size: 15px;
+    font-weight: 800;
+    font-family: 'Space Grotesk', monospace;
+    color: var(--slate-900);
+    line-height: 1.1;
+    margin-top: 1px;
+  }
+  .loc-piv-note {
+    margin-top: 6px;
+    font-size: 10px;
+    color: var(--slate-600);
+    background: var(--amber-100);
+    padding: 5px 8px;
+    border-radius: 6px;
+    font-style: italic;
+  }
+  
   .loc-detail-item {
     background: white;
     border: 1px solid var(--slate-200);
@@ -1428,6 +1567,16 @@ const I18N = {
     sort_name: 'ຊື່ສິນຄ້າ',
     items_count: 'ລາຍການ',
     unique_skus: 'SKU',
+    view_pivot: 'ສະຫຼຸບ',
+    view_pivot_hint: '1 ບັນທັດ/ສິນຄ້າ',
+    view_rows: 'ທຸກລາຍການ',
+    view_rows_hint: 'ທຸກ count',
+    final_qty: 'ສຸດທ້າຍ',
+    tb_match_c: 'TB = Counter',
+    tb_match_v: 'TB = Verifier',
+    tb_final: 'ໃຊ້ຄ່າ TB',
+    waiting_verifier: 'ລໍ Verifier',
+    verifier_only: 'ມີແຕ່ Verifier',
     export_report: 'ສົ່ງອອກລາຍງານ',
     export_xlsx: 'ດາວໂຫລດ Excel',
     exporting: 'ກຳລັງສ້າງລາຍງານ...',
@@ -1668,6 +1817,16 @@ const I18N = {
     sort_name: 'ชื่อสินค้า',
     items_count: 'รายการ',
     unique_skus: 'SKU',
+    view_pivot: 'สรุป',
+    view_pivot_hint: '1 บรรทัด/สินค้า',
+    view_rows: 'ทุกรายการ',
+    view_rows_hint: 'ทุก count',
+    final_qty: 'สุดท้าย',
+    tb_match_c: 'TB = Counter',
+    tb_match_v: 'TB = Verifier',
+    tb_final: 'ใช้ค่า TB',
+    waiting_verifier: 'รอ Verifier',
+    verifier_only: 'มีแต่ Verifier',
     export_report: 'ส่งออกรายงาน',
     export_xlsx: 'ดาวน์โหลด Excel',
     exporting: 'กำลังสร้างรายงาน...',
@@ -2136,24 +2295,32 @@ async function scanLocCode() {
     }
     locScanner = new Html5Qrcode("locReader", { verbose: false });
     const config = getScannerConfig();
+    
+    const onLocScanSuccess = (decoded) => {
+      stopLocScan();
+      document.getElementById('locInput').value = decoded.trim().toUpperCase();
+      onLocInput(decoded);
+      beep();
+    };
+    
     try {
       await locScanner.start(
-        { facingMode: { ideal: "environment" } },
+        { facingMode: "environment" },
         config,
-        (decoded) => {
-          stopLocScan();
-          document.getElementById('locInput').value = decoded.trim().toUpperCase();
-          onLocInput(decoded);
-          beep();
-        },
+        onLocScanSuccess,
         () => {}
       );
-      fixIOSVideoElement('locReader');
+      fixVideoElement('locReader');
     } catch (e) {
-      console.error('[FS] startLocScan error:', e);
-      const errMsg = getCameraErrorMessage(e);
-      showToast(errMsg, 'error');
-      stopLocScan();
+      console.warn('[FS] startLocScan facingMode failed, trying fallback:', e?.message);
+      try {
+        await tryStartScannerFallback(locScanner, 'locReader', onLocScanSuccess);
+      } catch (e2) {
+        console.error('[FS] startLocScan all methods failed:', e2);
+        const errMsg = getCameraErrorMessage(e2);
+        showToast(errMsg, 'error');
+        stopLocScan();
+      }
     }
   }, 100);
 }
@@ -2668,13 +2835,14 @@ function renderScanPage() {
 
 // ==================== SCANNER HELPERS (iOS-friendly) ====================
 function getScannerConfig() {
-  // iOS detection: ใช้ format hints + ขนาด qrbox ที่ดี
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || 
                 (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /Android/i.test(ua);
   
   // formats ที่จะอ่าน — ครอบคลุมบาร์โค้ดสินค้าทั่วไป
   const formats = (typeof Html5QrcodeSupportedFormats !== 'undefined') ? [
-    Html5QrcodeSupportedFormats.EAN_13,    // บาร์โค้ดสินค้ามาตรฐาน (most common)
+    Html5QrcodeSupportedFormats.EAN_13,
     Html5QrcodeSupportedFormats.EAN_8,
     Html5QrcodeSupportedFormats.UPC_A,
     Html5QrcodeSupportedFormats.UPC_E,
@@ -2686,61 +2854,116 @@ function getScannerConfig() {
     Html5QrcodeSupportedFormats.DATA_MATRIX
   ] : undefined;
   
-  // qrbox แบบ dynamic — ปรับตามขนาดจอจริง (ดีกว่า fixed)
-  const qrboxFunc = (viewfinderWidth, viewfinderHeight) => {
-    const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-    const w = Math.floor(minEdge * 0.85);          // กว้าง 85% ของด้านสั้น
-    const h = Math.floor(w * 0.45);                 // อัตราส่วน barcode แนวนอน
+  // qrbox แบบ dynamic
+  const qrboxFunc = (vw, vh) => {
+    const minEdge = Math.min(vw, vh);
+    const w = Math.floor(minEdge * 0.85);
+    const h = Math.floor(w * 0.45);
     return { width: w, height: h };
   };
   
+  // Resolution ที่ปลอดภัยต่อทุก device
+  // Android หลายรุ่นไม่ support 1920x1080 ทำให้จอดำ — ใช้ 1280x720 max
+  // ถอด min ออกเพื่อให้ browser เลือกความละเอียดที่ device ทำได้
+  const videoConstraints = {
+    facingMode: "environment",  // ไม่ใช้ ideal/exact — ใช้ string ตรงๆ ปลอดภัยกว่า
+    width: { ideal: 1280 },
+    height: { ideal: 720 }
+  };
+  
   return {
-    fps: isIOS ? 15 : 10,                          // iOS รับ fps สูงขึ้นได้
+    fps: 10,                                        // ลง fps จาก 15→10 ปลอดภัยทุก device
     qrbox: qrboxFunc,
-    aspectRatio: 1.333,                             // 4:3 standard
+    aspectRatio: 1.333,
     disableFlip: false,
     formatsToSupport: formats,
     rememberLastUsedCamera: true,
-    // experimentalFeatures: ปิด BarcodeDetector บน iOS เพราะ buggy
+    // BarcodeDetector API — เปิดให้ Android ใช้ (ทำงานเร็ว) ปิดให้ iOS (buggy)
     experimentalFeatures: {
       useBarCodeDetectorIfSupported: !isIOS
     },
-    videoConstraints: {
-      facingMode: { ideal: "environment" },
-      // iOS: ขอความละเอียดสูงขึ้นช่วยให้ decode ดีขึ้น
-      width: { ideal: 1920, min: 1280 },
-      height: { ideal: 1080, min: 720 }
-    }
+    videoConstraints: videoConstraints
   };
 }
 
-function fixIOSVideoElement(containerId) {
-  // iOS Safari ต้องการ playsinline ไม่งั้น video จะเปิด fullscreen หรือไม่เล่น
+// แก้ video element ให้ทำงานได้ทุก device (iOS + Android)
+function fixVideoElement(containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
-  setTimeout(() => {
+  
+  const applyFix = () => {
     const videos = container.querySelectorAll('video');
     videos.forEach(v => {
+      // iOS ต้องการ playsinline ไม่งั้น fullscreen หรือไม่เล่น
       v.setAttribute('playsinline', 'true');
       v.setAttribute('webkit-playsinline', 'true');
+      v.setAttribute('autoplay', 'true');
       v.setAttribute('muted', 'true');
       v.muted = true;
+      v.playsInline = true;
+      v.autoplay = true;
+      
+      // Style บังคับ
       v.style.objectFit = 'cover';
       v.style.width = '100%';
       v.style.height = '100%';
-      // บางเครื่อง iOS ต้อง play() อีกครั้งหลัง attribute
-      if (v.paused) { v.play().catch(() => {}); }
+      v.style.background = '#000';
+      
+      // Force play (Android Chrome บางครั้งไม่ auto-play)
+      if (v.paused || v.readyState < 2) {
+        v.play().catch(err => {
+          console.warn('[FS] video.play() failed:', err.message);
+        });
+      }
     });
-  }, 100);
-  // retry อีกครั้งหลัง 500ms เพื่อ safety
-  setTimeout(() => {
-    const videos = container.querySelectorAll('video');
-    videos.forEach(v => {
-      v.setAttribute('playsinline', 'true');
-      v.setAttribute('webkit-playsinline', 'true');
-      if (v.paused) { v.play().catch(() => {}); }
-    });
-  }, 600);
+  };
+  
+  // Apply หลายๆ ครั้งเพื่อ safety (Android Chrome render video element แบบ delayed)
+  setTimeout(applyFix, 100);
+  setTimeout(applyFix, 500);
+  setTimeout(applyFix, 1200);
+}
+
+// keep old name for compat
+function fixIOSVideoElement(containerId) {
+  return fixVideoElement(containerId);
+}
+
+// Fallback start: ถ้า facingMode fail ลอง enumerate cameras แล้วเลือก back camera
+async function tryStartScannerFallback(scannerInstance, containerId, onSuccess) {
+  try {
+    log('[FS] Falling back to camera enumeration');
+    const devices = await Html5Qrcode.getCameras();
+    log('[FS] Cameras found:', devices?.length || 0);
+    
+    if (!devices || devices.length === 0) {
+      throw new Error('No cameras available');
+    }
+    
+    // หา back camera (ลำดับชื่อบ่งบอก)
+    let backCamera = devices.find(d => /back|rear|environment/i.test(d.label || ''));
+    if (!backCamera) {
+      // ถ้าไม่เจอจากชื่อ ใช้ตัวสุดท้าย (มักจะเป็น back camera)
+      backCamera = devices[devices.length - 1];
+    }
+    log('[FS] Using camera:', backCamera.label, backCamera.id);
+    
+    const config = getScannerConfig();
+    delete config.videoConstraints; // ใช้ device id ตรงๆ ไม่ต้องมี constraints
+    
+    await scannerInstance.start(
+      backCamera.id,
+      config,
+      onSuccess,
+      () => {}
+    );
+    
+    fixVideoElement(containerId);
+    return true;
+  } catch (e) {
+    console.error('[FS] Fallback also failed:', e);
+    throw e;
+  }
 }
 
 function getCameraErrorMessage(err) {
@@ -2797,24 +3020,35 @@ async function startScan() {
   html5QrCode = new Html5Qrcode("reader", { verbose: false });
   const config = getScannerConfig();
   
+  const onScanSuccess = (decoded) => { 
+    beep();
+    stopScan(); 
+    lookupProduct(decoded); 
+  };
+  
   try {
+    // ลองวิธีปกติก่อน — ใช้ facingMode "environment"
     await html5QrCode.start(
-      { facingMode: { ideal: "environment" } },
+      { facingMode: "environment" },
       config,
-      (decoded) => { 
-        beep();
-        stopScan(); 
-        lookupProduct(decoded); 
-      },
-      () => {} // ignore errors per-frame
+      onScanSuccess,
+      () => {}
     );
-    // Fix iOS video element after start
-    fixIOSVideoElement('reader');
+    fixVideoElement('reader');
+    log('[FS] Scanner started with facingMode');
   } catch (e) {
-    console.error('[FS] startScan error:', e);
-    const errMsg = getCameraErrorMessage(e);
-    showToast(errMsg, 'error');
-    stopScan();
+    console.warn('[FS] facingMode failed, trying fallback:', e?.message);
+    
+    // Fallback: enumerate cameras แล้วเลือก back camera
+    try {
+      await tryStartScannerFallback(html5QrCode, 'reader', onScanSuccess);
+      log('[FS] Scanner started with fallback (deviceId)');
+    } catch (e2) {
+      console.error('[FS] startScan all methods failed:', e2);
+      const errMsg = getCameraErrorMessage(e2);
+      showToast(errMsg, 'error');
+      stopScan();
+    }
   }
 }
 
@@ -6260,6 +6494,127 @@ async function wfResetTo(locCode, targetStatus) {
   if (typeof loadWorkflowList === 'function') loadWorkflowList();
 }
 
+// Pivot helper: รวม count rows ของสินค้าเดียวกัน เป็น 1 บรรทัด
+// คืน array ของ { product, barcode, name, pos, counter, verifier, tiebreaker, manager, final, diff, varLevel, locCode, zoneId, users }
+function pivotByProduct(items, usersById) {
+  const byProduct = {};
+  
+  items.forEach(c => {
+    const pid = c.product_id;
+    if (!pid) return;
+    const p = c.products || {};
+    
+    if (!byProduct[pid]) {
+      byProduct[pid] = {
+        product_id: pid,
+        barcode: p.barcode || '',
+        name_th: p.name_th || '',
+        name_lo: p.name_lo || '',
+        unit_th: p.unit_th || '',
+        unit_lo: p.unit_lo || '',
+        pos_qty: p.pos_qty || 0,
+        sell_price: p.sell_price || 0,
+        is_markdown: c.is_markdown || false,
+        location_code: c.location_code || c.gondola_code || '',
+        zone_id: c.zone_id,
+        variance_level: c.variance_level,
+        notes: [],
+        // role-specific data
+        counter_qty: null, counter_user: '', counter_time: null, counter_id: null,
+        verifier_qty: null, verifier_user: '', verifier_time: null, verifier_id: null,
+        tiebreaker_qty: null, tiebreaker_user: '', tiebreaker_time: null, tiebreaker_id: null,
+        manager_qty: null, manager_user: '', manager_time: null, manager_id: null
+      };
+    }
+    
+    const role = (c.count_role || '').toLowerCase();
+    const userName = usersById[c.user_id]?.full_name || usersById[c.user_id]?.username || '';
+    const recBase = {
+      qty: c.counted_qty || 0,
+      user: userName,
+      time: c.counted_at,
+      id: c.id
+    };
+    
+    const target = byProduct[pid];
+    if (role.includes('counter')) {
+      target.counter_qty = recBase.qty;
+      target.counter_user = recBase.user;
+      target.counter_time = recBase.time;
+      target.counter_id = recBase.id;
+    } else if (role.includes('verifier')) {
+      target.verifier_qty = recBase.qty;
+      target.verifier_user = recBase.user;
+      target.verifier_time = recBase.time;
+      target.verifier_id = recBase.id;
+    } else if (role.includes('tiebreaker') || role === 'ctl_tiebreaker') {
+      target.tiebreaker_qty = recBase.qty;
+      target.tiebreaker_user = recBase.user;
+      target.tiebreaker_time = recBase.time;
+      target.tiebreaker_id = recBase.id;
+    } else if (role.includes('manager')) {
+      target.manager_qty = recBase.qty;
+      target.manager_user = recBase.user;
+      target.manager_time = recBase.time;
+      target.manager_id = recBase.id;
+    }
+    
+    if (c.note) target.notes.push(c.note);
+    
+    // Update variance level (use the latest/highest)
+    if (c.variance_level && (!target.variance_level || c.variance_level > target.variance_level)) {
+      target.variance_level = c.variance_level;
+    }
+  });
+  
+  // Calculate final qty (กฎ 2-of-3) และ diff vs POS
+  Object.values(byProduct).forEach(prod => {
+    let final = null;
+    let status = 'pending';
+    
+    // ถ้ามี Manager → ใช้ Manager เป็น final (override ทุกอย่าง)
+    if (prod.manager_qty !== null) {
+      final = prod.manager_qty;
+      status = 'manager_final';
+    }
+    // ถ้ามี Tiebreaker → ใช้กฎ 2-of-3
+    else if (prod.tiebreaker_qty !== null) {
+      const c = prod.counter_qty, v = prod.verifier_qty, t = prod.tiebreaker_qty;
+      if (c !== null && t === c) { final = c; status = 'tb_match_counter'; }
+      else if (v !== null && t === v) { final = v; status = 'tb_match_verifier'; }
+      else { final = t; status = 'tb_unique'; }
+    }
+    // ถ้ามี Counter + Verifier ตรงกัน
+    else if (prod.counter_qty !== null && prod.verifier_qty !== null) {
+      if (prod.counter_qty === prod.verifier_qty) {
+        final = prod.counter_qty;
+        status = 'matched';
+      } else {
+        // ไม่ตรงกัน รอ tiebreaker
+        status = 'need_tiebreaker';
+        final = null;
+      }
+    }
+    // มีแค่ Counter
+    else if (prod.counter_qty !== null) {
+      status = 'counter_only';
+      final = prod.counter_qty; // tentative
+    }
+    // มีแค่ Verifier (rare)
+    else if (prod.verifier_qty !== null) {
+      status = 'verifier_only';
+      final = prod.verifier_qty;
+    }
+    
+    prod.final_qty = final;
+    prod.status = status;
+    prod.diff = (final !== null) ? (final - prod.pos_qty) : null;
+    prod.note = prod.notes.join(' • ');
+  });
+  
+  return Object.values(byProduct);
+}
+
 async function showLocationDetail(locationCode) {
   log('Show location detail:', locationCode);
   
@@ -6310,17 +6665,22 @@ async function showLocationDetail(locationCode) {
   const zoneCode = z?.code || '';
   const zoneName = z ? (lang === 'lo' ? (z.name_lo || z.name_th) : (z.name_th || z.name_lo)) : '';
   
+  // Pivot: รวม count rows ของ product เดียวกันเป็น 1 บรรทัด
+  const pivoted = pivotByProduct(items, usersById);
+  
   // Calculate summary
   const totalItems = items.length;
-  const uniqueProducts = new Set(items.map(c => c.product_id)).size;
+  const uniqueProducts = pivoted.length;
   const totalQty = items.reduce((sum, c) => sum + (c.counted_qty || 0), 0);
   const isAdmin = ['admin', 'scc', 'bcs', 'ctl'].includes(user.role);
   
-  // Sort options state (default: by diff desc)
+  // Store for later use
   window._locDetailItems = items;
+  window._locDetailPivoted = pivoted;
   window._locDetailLocation = locationCode;
   window._locDetailSort = 'diff_desc';
   window._locDetailUsers = usersById;
+  window._locDetailView = 'pivot'; // 'pivot' หรือ 'rows'
   
   const sortOptions = isAdmin ? `
     <div class="loc-detail-sort">
@@ -6335,6 +6695,20 @@ async function showLocationDetail(locationCode) {
     </div>
   ` : '';
   
+  // View toggle (Pivot vs All Rows)
+  const viewToggle = `
+    <div class="loc-view-toggle">
+      <button class="loc-view-btn active" data-view="pivot" onclick="setLocDetailView('pivot', this)" 
+              title="${T('view_pivot_hint') || '1 บรรทัด/สินค้า'}">
+        📊 ${T('view_pivot') || 'สรุป'}
+      </button>
+      <button class="loc-view-btn" data-view="rows" onclick="setLocDetailView('rows', this)"
+              title="${T('view_rows_hint') || 'ทุก count'}">
+        📋 ${T('view_rows') || 'ทุกรายการ'}
+      </button>
+    </div>
+  `;
+  
   showModal(`
     <h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
       ${zoneCode ? `<span class="prod-locs-zone" style="font-size:12px;">${zoneCode}</span>` : ''}
@@ -6345,19 +6719,21 @@ async function showLocationDetail(locationCode) {
     ${items.length > 0 ? `
       <!-- Summary cards -->
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px;">
-        <div style="background:var(--teal-100);padding:7px 6px;border-radius:7px;text-align:center;">
-          <div style="font-size:9px;color:var(--teal-700);text-transform:uppercase;font-weight:700;">${T('items_count') || 'รายการ'}</div>
-          <div style="font-size:16px;font-weight:800;color:var(--teal-700);font-family:'Space Grotesk',monospace;">${totalItems}</div>
-        </div>
         <div style="background:var(--violet-100);padding:7px 6px;border-radius:7px;text-align:center;">
           <div style="font-size:9px;color:var(--violet-600);text-transform:uppercase;font-weight:700;">${T('unique_skus') || 'SKU'}</div>
           <div style="font-size:16px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;">${uniqueProducts}</div>
+        </div>
+        <div style="background:var(--teal-100);padding:7px 6px;border-radius:7px;text-align:center;">
+          <div style="font-size:9px;color:var(--teal-700);text-transform:uppercase;font-weight:700;">${T('items_count') || 'รายการ'}</div>
+          <div style="font-size:16px;font-weight:800;color:var(--teal-700);font-family:'Space Grotesk',monospace;">${totalItems}</div>
         </div>
         <div style="background:var(--amber-100);padding:7px 6px;border-radius:7px;text-align:center;">
           <div style="font-size:9px;color:#92400e;text-transform:uppercase;font-weight:700;">${T('total_qty') || 'รวม'}</div>
           <div style="font-size:16px;font-weight:800;color:#92400e;font-family:'Space Grotesk',monospace;">${totalQty}</div>
         </div>
       </div>
+      
+      ${viewToggle}
       
       <!-- Actions row -->
       <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center;">
@@ -6385,98 +6761,272 @@ async function showLocationDetail(locationCode) {
 }
 
 // Render the list inside the modal based on current sort
+function renderLocationDetailList_OLD_UNUSED_PLACEHOLDER() {
+  // (placeholder — replaced by new logic below)
+}
+
+// Helper สำหรับเปลี่ยน view
+function setLocDetailView(view, btnEl) {
+  window._locDetailView = view;
+  document.querySelectorAll('.loc-view-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  renderLocationDetailList();
+}
+
+// Helper: render pivot row (1 product / 1 row)
+function renderPivotRow(prod) {
+  const isAdmin = ['admin', 'scc', 'bcs', 'ctl'].includes(user.role);
+  const name = lang === 'lo' ? (prod.name_lo || prod.name_th || '?') : (prod.name_th || prod.name_lo || '?');
+  const unit = lang === 'lo' ? (prod.unit_lo || prod.unit_th || '') : (prod.unit_th || prod.unit_lo || '');
+  
+  // Status label
+  const statusLabels = {
+    'matched': { text: T('matched') || 'ตรง ✓', color: 'var(--emerald-600)', bg: 'var(--emerald-100)' },
+    'need_tiebreaker': { text: T('need_tb') || 'ต้องตรวจสอบใหม่', color: 'var(--rose-500)', bg: 'var(--rose-100)' },
+    'tb_match_counter': { text: T('tb_match_c') || 'TB = Counter', color: 'var(--violet-600)', bg: 'var(--violet-100)' },
+    'tb_match_verifier': { text: T('tb_match_v') || 'TB = Verifier', color: 'var(--violet-600)', bg: 'var(--violet-100)' },
+    'tb_unique': { text: T('tb_final') || 'ใช้ค่า TB', color: 'var(--violet-600)', bg: 'var(--violet-100)' },
+    'manager_final': { text: 'Manager', color: 'var(--sky-600)', bg: 'var(--sky-100)' },
+    'counter_only': { text: T('waiting_verifier') || 'รอ Verifier', color: 'var(--amber-600)', bg: 'var(--amber-100)' },
+    'verifier_only': { text: T('verifier_only') || 'Verifier เท่านั้น', color: 'var(--amber-600)', bg: 'var(--amber-100)' },
+    'pending': { text: 'Pending', color: 'var(--slate-500)', bg: 'var(--slate-100)' }
+  };
+  const stat = statusLabels[prod.status] || statusLabels.pending;
+  
+  const diff = prod.diff;
+  let diffColor = 'var(--slate-500)', diffBg = 'var(--slate-100)', diffText = '—';
+  if (diff !== null) {
+    if (diff === 0) { diffColor = 'var(--emerald-500)'; diffBg = 'var(--emerald-100)'; }
+    else if (diff > 0) { diffColor = 'var(--amber-600)'; diffBg = 'var(--amber-100)'; }
+    else { diffColor = 'var(--rose-500)'; diffBg = 'var(--rose-100)'; }
+    diffText = (diff > 0 ? '+' : '') + diff;
+  }
+  
+  const mdBadge = prod.is_markdown ? '<span style="background:var(--rose-100);color:var(--rose-500);padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700;margin-left:4px;">MD</span>' : '';
+  const varLevel = (isAdmin && prod.variance_level) ? `<span style="background:var(--slate-100);padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700;margin-left:4px;color:var(--slate-600);">L${prod.variance_level}</span>` : '';
+  
+  // Build role columns (only show roles that have data)
+  const roleCols = [];
+  if (prod.counter_qty !== null) {
+    roleCols.push({
+      label: 'Counter',
+      qty: prod.counter_qty,
+      user: prod.counter_user,
+      bg: 'var(--teal-100)',
+      color: 'var(--teal-700)',
+      id: prod.counter_id
+    });
+  }
+  if (prod.verifier_qty !== null) {
+    roleCols.push({
+      label: 'Verifier',
+      qty: prod.verifier_qty,
+      user: prod.verifier_user,
+      bg: 'var(--amber-100)',
+      color: '#92400e',
+      id: prod.verifier_id
+    });
+  }
+  if (prod.tiebreaker_qty !== null) {
+    roleCols.push({
+      label: T('tab_tiebreaker') || 'TB',
+      qty: prod.tiebreaker_qty,
+      user: prod.tiebreaker_user,
+      bg: 'var(--violet-100)',
+      color: 'var(--violet-600)',
+      id: prod.tiebreaker_id
+    });
+  }
+  if (prod.manager_qty !== null) {
+    roleCols.push({
+      label: 'Manager',
+      qty: prod.manager_qty,
+      user: prod.manager_user,
+      bg: 'var(--sky-100)',
+      color: 'var(--sky-600)',
+      id: prod.manager_id
+    });
+  }
+  
+  // Count breakdown grid (Counter | Verifier | TB | Manager)
+  const cntGrid = roleCols.map(r => `
+    <div class="loc-piv-role" style="background:${r.bg};" onclick="event.stopPropagation();openEditCount('${r.id}');" title="${r.label}: ${r.user}">
+      <div class="loc-piv-role-lbl" style="color:${r.color};">${r.label}</div>
+      <div class="loc-piv-role-qty" style="color:${r.color};">${r.qty}</div>
+      ${r.user ? `<div class="loc-piv-role-user">${r.user}</div>` : ''}
+    </div>
+  `).join('');
+  
+  return `
+    <div class="loc-piv-item">
+      <!-- Header -->
+      <div class="loc-piv-head">
+        <div class="loc-piv-name">
+          <strong>${name}</strong>${mdBadge}${varLevel}
+          <div style="font-family:'Space Grotesk',monospace;font-size:9px;color:var(--slate-500);margin-top:2px;">${prod.barcode}</div>
+        </div>
+        <div class="loc-piv-status" style="background:${stat.bg};color:${stat.color};">${stat.text}</div>
+      </div>
+      
+      <!-- Roles grid -->
+      <div class="loc-piv-roles">${cntGrid}</div>
+      
+      <!-- Summary: POS | Final | Diff -->
+      ${isAdmin ? `
+      <div class="loc-piv-summary">
+        <div class="loc-piv-sum-item">
+          <div class="loc-piv-sum-lbl">POS</div>
+          <div class="loc-piv-sum-val">${prod.pos_qty}</div>
+        </div>
+        <div class="loc-piv-sum-item" style="background:${prod.final_qty !== null ? 'var(--teal-100)' : 'var(--slate-100)'};">
+          <div class="loc-piv-sum-lbl">${T('final_qty') || 'สรุป'}</div>
+          <div class="loc-piv-sum-val" style="color:${prod.final_qty !== null ? 'var(--teal-700)' : 'var(--slate-400)'};">${prod.final_qty !== null ? prod.final_qty : '—'}</div>
+        </div>
+        <div class="loc-piv-sum-item" style="background:${diffBg};">
+          <div class="loc-piv-sum-lbl">Diff</div>
+          <div class="loc-piv-sum-val" style="color:${diffColor};">${diffText}</div>
+        </div>
+      </div>
+      ` : `
+      <div style="margin-top:6px;text-align:right;">
+        <span style="font-family:'Space Grotesk',monospace;font-weight:800;font-size:16px;">${prod.final_qty !== null ? prod.final_qty : '—'} ${unit}</span>
+      </div>
+      `}
+      
+      ${prod.note ? `<div class="loc-piv-note">📝 ${prod.note}</div>` : ''}
+    </div>
+  `;
+}
+
+// Helper: render single row (1 count = 1 row, แบบเดิม)
+function renderSingleRow(c, usersById) {
+  const isAdmin = ['admin', 'scc', 'bcs', 'ctl'].includes(user.role);
+  const p = c.products || {};
+  const userName = usersById[c.user_id]?.full_name || usersById[c.user_id]?.username || '—';
+  const name = lang === 'lo' ? (p.name_lo || p.name_th || '?') : (p.name_th || p.name_lo || '?');
+  const unit = lang === 'lo' ? (p.unit_lo || p.unit_th || '') : (p.unit_th || p.unit_lo || '');
+  const diff = c.diff || 0;
+  const diffColor = diff === 0 ? 'var(--emerald-500)' : (diff > 0 ? 'var(--amber-500)' : 'var(--rose-500)');
+  const diffBg = diff === 0 ? 'var(--emerald-100)' : (diff > 0 ? 'var(--amber-100)' : 'var(--rose-100)');
+  const role = (c.count_role || '').toLowerCase();
+  
+  let roleLabel = c.count_role || '';
+  let roleBg = 'var(--slate-100)', roleColor = 'var(--slate-600)';
+  if (role.includes('counter')) { roleBg = 'var(--teal-100)'; roleColor = 'var(--teal-700)'; roleLabel = 'Counter'; }
+  else if (role.includes('verifier')) { roleBg = 'var(--amber-100)'; roleColor = '#92400e'; roleLabel = 'Verifier'; }
+  else if (role.includes('tiebreaker')) { roleBg = 'var(--violet-100)'; roleColor = 'var(--violet-600)'; roleLabel = T('tab_tiebreaker') || 'TB'; }
+  else if (role.includes('manager')) { roleBg = 'var(--sky-100)'; roleColor = 'var(--sky-600)'; roleLabel = 'Manager'; }
+  
+  const time = new Date(c.counted_at).toLocaleString(lang === 'lo' ? 'lo-LA' : 'th-TH', {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+  
+  const mdBadge = c.is_markdown ? '<span style="background:var(--rose-100);color:var(--rose-500);padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700;margin-left:4px;">MD</span>' : '';
+  const varLevel = (isAdmin && c.variance_level) ? `<span style="background:var(--slate-100);padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700;margin-left:4px;color:var(--slate-600);">L${c.variance_level}</span>` : '';
+  
+  return `
+    <div class="loc-detail-item" onclick="openEditCount('${c.id}')">
+      <div class="loc-detail-name">
+        <strong>${name}</strong>${mdBadge}${varLevel}
+      </div>
+      <div class="loc-detail-meta">
+        <span style="font-family:'Space Grotesk',monospace;font-size:9px;color:var(--slate-500);">${p.barcode || ''}</span>
+      </div>
+      <div class="loc-detail-row">
+        <span class="loc-detail-role" style="background:${roleBg};color:${roleColor};">${roleLabel}</span>
+        <span style="font-size:9px;color:var(--slate-500);">${userName} • ${time}</span>
+      </div>
+      ${isAdmin ? `
+        <div class="loc-detail-numbers">
+          <div class="loc-detail-num-item">
+            <div class="loc-detail-num-lbl">POS</div>
+            <div class="loc-detail-num-val">${p.pos_qty || 0}</div>
+          </div>
+          <div class="loc-detail-num-item">
+            <div class="loc-detail-num-lbl">${T('counted_qty') || 'นับได้'}</div>
+            <div class="loc-detail-num-val" style="color:var(--teal-700);">${c.counted_qty}</div>
+          </div>
+          <div class="loc-detail-num-item" style="background:${diffBg};">
+            <div class="loc-detail-num-lbl">Diff</div>
+            <div class="loc-detail-num-val" style="color:${diffColor};">${diff > 0 ? '+' : ''}${diff}</div>
+          </div>
+        </div>
+      ` : `
+        <div style="margin-top:6px;display:flex;justify-content:flex-end;">
+          <span style="font-family:'Space Grotesk',monospace;font-weight:800;font-size:16px;color:var(--slate-900);">${c.counted_qty} ${unit}</span>
+        </div>
+      `}
+    </div>
+  `;
+}
+
+// Render the list inside the modal based on current sort + view
 function renderLocationDetailList() {
   const list = document.getElementById('locDetailList');
-  const items = window._locDetailItems || [];
-  const usersById = window._locDetailUsers || {};
   if (!list) return;
+  
+  const view = window._locDetailView || 'pivot';
+  const usersById = window._locDetailUsers || {};
   
   // Get sort option
   const sortSel = document.getElementById('locDetailSortSel');
   const sortBy = sortSel?.value || 'diff_desc';
   
-  const isAdmin = ['admin', 'scc', 'bcs', 'ctl'].includes(user.role);
-  
-  // Sort
-  const sorted = [...items].sort((a, b) => {
-    switch(sortBy) {
-      case 'diff_desc':
-        return (b.diff || 0) - (a.diff || 0);
-      case 'diff_abs':
-        return Math.abs(b.diff || 0) - Math.abs(a.diff || 0);
-      case 'time_desc':
-        return new Date(b.counted_at) - new Date(a.counted_at);
-      case 'qty_desc':
-        return (b.counted_qty || 0) - (a.counted_qty || 0);
-      case 'name': {
-        const an = lang === 'lo' ? (a.products?.name_lo || a.products?.name_th || '') : (a.products?.name_th || a.products?.name_lo || '');
-        const bn = lang === 'lo' ? (b.products?.name_lo || b.products?.name_th || '') : (b.products?.name_th || b.products?.name_lo || '');
-        return an.localeCompare(bn);
+  if (view === 'pivot') {
+    // Pivot view: 1 product / 1 row
+    const pivoted = window._locDetailPivoted || [];
+    
+    // Sort pivoted
+    const sortedPivot = [...pivoted].sort((a, b) => {
+      switch(sortBy) {
+        case 'diff_desc':
+          return (b.diff ?? -Infinity) - (a.diff ?? -Infinity);
+        case 'diff_abs':
+          return Math.abs(b.diff ?? 0) - Math.abs(a.diff ?? 0);
+        case 'time_desc': {
+          const at = a.counter_time || a.verifier_time || a.tiebreaker_time || 0;
+          const bt = b.counter_time || b.verifier_time || b.tiebreaker_time || 0;
+          return new Date(bt) - new Date(at);
+        }
+        case 'qty_desc':
+          return (b.final_qty ?? 0) - (a.final_qty ?? 0);
+        case 'name': {
+          const an = lang === 'lo' ? (a.name_lo || a.name_th || '') : (a.name_th || a.name_lo || '');
+          const bn = lang === 'lo' ? (b.name_lo || b.name_th || '') : (b.name_th || b.name_lo || '');
+          return an.localeCompare(bn);
+        }
+        default:
+          return 0;
       }
-      default:
-        return 0;
-    }
-  });
-  
-  list.innerHTML = sorted.map(c => {
-    const p = c.products || {};
-    const userName = usersById[c.user_id]?.full_name || usersById[c.user_id]?.username || '—';
-    const name = lang === 'lo' ? (p.name_lo || p.name_th || '?') : (p.name_th || p.name_lo || '?');
-    const unit = lang === 'lo' ? (p.unit_lo || p.unit_th || '') : (p.unit_th || p.unit_lo || '');
-    const diff = c.diff || 0;
-    const diffColor = diff === 0 ? 'var(--emerald-500)' : (diff > 0 ? 'var(--amber-500)' : 'var(--rose-500)');
-    const diffBg = diff === 0 ? 'var(--emerald-100)' : (diff > 0 ? 'var(--amber-100)' : 'var(--rose-100)');
-    const role = (c.count_role || '').toLowerCase();
-    
-    let roleLabel = c.count_role || '';
-    let roleBg = 'var(--slate-100)', roleColor = 'var(--slate-600)';
-    if (role.includes('counter')) { roleBg = 'var(--teal-100)'; roleColor = 'var(--teal-700)'; roleLabel = 'Counter'; }
-    else if (role.includes('verifier')) { roleBg = 'var(--amber-100)'; roleColor = '#92400e'; roleLabel = 'Verifier'; }
-    else if (role.includes('tiebreaker')) { roleBg = 'var(--violet-100)'; roleColor = 'var(--violet-600)'; roleLabel = T('tab_tiebreaker') || 'TB'; }
-    else if (role.includes('manager')) { roleBg = 'var(--sky-100)'; roleColor = 'var(--sky-600)'; roleLabel = 'Manager'; }
-    
-    const time = new Date(c.counted_at).toLocaleString(lang === 'lo' ? 'lo-LA' : 'th-TH', {
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
     });
     
-    const mdBadge = c.is_markdown ? '<span style="background:var(--rose-100);color:var(--rose-500);padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700;margin-left:4px;">MD</span>' : '';
-    const varLevel = (isAdmin && c.variance_level) ? `<span style="background:var(--slate-100);padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700;margin-left:4px;color:var(--slate-600);">L${c.variance_level}</span>` : '';
+    list.innerHTML = sortedPivot.map(renderPivotRow).join('');
+  } else {
+    // Single rows view (เก่า)
+    const items = window._locDetailItems || [];
     
-    return `
-      <div class="loc-detail-item" onclick="openEditCount('${c.id}')">
-        <div class="loc-detail-name">
-          <strong>${name}</strong>${mdBadge}${varLevel}
-        </div>
-        <div class="loc-detail-meta">
-          <span style="font-family:'Space Grotesk',monospace;font-size:9px;color:var(--slate-500);">${p.barcode || ''}</span>
-        </div>
-        <div class="loc-detail-row">
-          <span class="loc-detail-role" style="background:${roleBg};color:${roleColor};">${roleLabel}</span>
-          <span style="font-size:9px;color:var(--slate-500);">${userName} • ${time}</span>
-        </div>
-        ${isAdmin ? `
-          <div class="loc-detail-numbers">
-            <div class="loc-detail-num-item">
-              <div class="loc-detail-num-lbl">POS</div>
-              <div class="loc-detail-num-val">${p.pos_qty || 0}</div>
-            </div>
-            <div class="loc-detail-num-item">
-              <div class="loc-detail-num-lbl">${T('counted_qty') || 'นับได้'}</div>
-              <div class="loc-detail-num-val" style="color:var(--teal-700);">${c.counted_qty}</div>
-            </div>
-            <div class="loc-detail-num-item" style="background:${diffBg};">
-              <div class="loc-detail-num-lbl">Diff</div>
-              <div class="loc-detail-num-val" style="color:${diffColor};">${diff > 0 ? '+' : ''}${diff}</div>
-            </div>
-          </div>
-        ` : `
-          <div style="margin-top:6px;display:flex;justify-content:flex-end;">
-            <span style="font-family:'Space Grotesk',monospace;font-weight:800;font-size:16px;color:var(--slate-900);">${c.counted_qty} ${unit}</span>
-          </div>
-        `}
-      </div>
-    `;
-  }).join('');
+    const sorted = [...items].sort((a, b) => {
+      switch(sortBy) {
+        case 'diff_desc':
+          return (b.diff || 0) - (a.diff || 0);
+        case 'diff_abs':
+          return Math.abs(b.diff || 0) - Math.abs(a.diff || 0);
+        case 'time_desc':
+          return new Date(b.counted_at) - new Date(a.counted_at);
+        case 'qty_desc':
+          return (b.counted_qty || 0) - (a.counted_qty || 0);
+        case 'name': {
+          const an = lang === 'lo' ? (a.products?.name_lo || a.products?.name_th || '') : (a.products?.name_th || a.products?.name_lo || '');
+          const bn = lang === 'lo' ? (b.products?.name_lo || b.products?.name_th || '') : (b.products?.name_th || b.products?.name_lo || '');
+          return an.localeCompare(bn);
+        }
+        default:
+          return 0;
+      }
+    });
+    
+    list.innerHTML = sorted.map(c => renderSingleRow(c, usersById)).join('');
+  }
 }
 
 // ==================== EXPORT LOCATION DETAIL TO EXCEL ====================
@@ -6484,6 +7034,7 @@ async function exportLocationDetailExcel(locationCode) {
   log('Export location detail Excel:', locationCode);
   
   const items = window._locDetailItems || [];
+  const pivoted = window._locDetailPivoted || [];
   const usersById = window._locDetailUsers || {};
   
   if (!items.length) {
@@ -6503,10 +7054,150 @@ async function exportLocationDetailExcel(locationCode) {
     wb.creator = 'Friendship Stock';
     wb.created = new Date();
     
-    const ws = wb.addWorksheet(locationCode);
+    // ===== SHEET 1: Pivot (1 product/row) — สำหรับวิเคราะห์ Diff =====
+    const wsPivot = wb.addWorksheet(`${locationCode} - Pivot`);
+    
+    // Title row
+    const titleRow = wsPivot.addRow([`${locationCode} — Pivot View (1 บรรทัด/สินค้า)`]);
+    titleRow.font = { bold: true, size: 13, color: { argb: 'FF0F766E' } };
+    wsPivot.mergeCells(1, 1, 1, 13);
+    wsPivot.addRow([`Date: ${new Date().toLocaleString('th-TH')}`]);
+    wsPivot.addRow([]);
     
     // Headers
-    const headers = [
+    const pivotHeaders = [
+      'Barcode', T('product_name') || 'ชื่อสินค้า', 'Zone', 'Location',
+      'POS',
+      'Counter', 'Counter By',
+      'Verifier', 'Verifier By',
+      'TB / ตรวจสอบใหม่', 'TB By',
+      'สรุป Final', 'Diff', 'Diff %', 'Status',
+      'L', 'MD', 'Note'
+    ];
+    const pivotHeaderRow = wsPivot.addRow(pivotHeaders);
+    pivotHeaderRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    pivotHeaderRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } };
+    pivotHeaderRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    pivotHeaderRow.height = 28;
+    
+    // Sort pivoted by absolute diff descending (เหมือนใน UI default)
+    const sortedPivot = [...pivoted].sort((a, b) => Math.abs(b.diff ?? 0) - Math.abs(a.diff ?? 0));
+    
+    sortedPivot.forEach(prod => {
+      const name = prod.name_th || prod.name_lo || '?';
+      const z = (allZones || []).find(zz => zz.id == prod.zone_id);
+      const zCode = z?.code || '';
+      const diff = prod.diff;
+      const diffPct = (diff !== null && prod.pos_qty > 0) ? ((diff / prod.pos_qty) * 100).toFixed(2) + '%' : '—';
+      
+      const statusMap = {
+        'matched': 'ตรง ✓',
+        'need_tiebreaker': 'ต้องตรวจสอบใหม่',
+        'tb_match_counter': 'TB=Counter',
+        'tb_match_verifier': 'TB=Verifier',
+        'tb_unique': 'ใช้ค่า TB',
+        'manager_final': 'Manager Final',
+        'counter_only': 'รอ Verifier',
+        'verifier_only': 'Verifier เท่านั้น',
+        'pending': 'รอนับ'
+      };
+      
+      const row = wsPivot.addRow([
+        prod.barcode, name,
+        zCode, prod.location_code,
+        prod.pos_qty,
+        prod.counter_qty !== null ? prod.counter_qty : '', prod.counter_user || '',
+        prod.verifier_qty !== null ? prod.verifier_qty : '', prod.verifier_user || '',
+        prod.tiebreaker_qty !== null ? prod.tiebreaker_qty : '', prod.tiebreaker_user || '',
+        prod.final_qty !== null ? prod.final_qty : '',
+        diff !== null ? diff : '',
+        diffPct,
+        statusMap[prod.status] || prod.status,
+        prod.variance_level || '',
+        prod.is_markdown ? 'Y' : '',
+        prod.note || ''
+      ]);
+      
+      // Color Counter (col 6) — teal bg
+      if (prod.counter_qty !== null) {
+        row.getCell(6).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCCFBF1' } };
+        row.getCell(6).font = { bold: true, color: { argb: 'FF0F766E' } };
+      }
+      // Color Verifier (col 8) — amber bg
+      if (prod.verifier_qty !== null) {
+        row.getCell(8).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+        row.getCell(8).font = { bold: true, color: { argb: 'FF92400E' } };
+      }
+      // Color TB (col 10) — violet bg
+      if (prod.tiebreaker_qty !== null) {
+        row.getCell(10).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEDE9FE' } };
+        row.getCell(10).font = { bold: true, color: { argb: 'FF7C3AED' } };
+      }
+      // Final (col 12) — bold teal
+      if (prod.final_qty !== null) {
+        row.getCell(12).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF14B8A6' } };
+        row.getCell(12).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+      }
+      // Color diff (col 13)
+      if (diff !== null) {
+        const diffCell = row.getCell(13);
+        if (diff > 0) {
+          diffCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+          diffCell.font = { color: { argb: 'FF92400E' }, bold: true };
+        } else if (diff < 0) {
+          diffCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
+          diffCell.font = { color: { argb: 'FFDC2626' }, bold: true };
+        } else {
+          diffCell.font = { color: { argb: 'FF059669' }, bold: true };
+        }
+      }
+      // Status (col 15) - color by status
+      const statusCell = row.getCell(15);
+      if (prod.status === 'matched') {
+        statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+        statusCell.font = { color: { argb: 'FF059669' }, bold: true };
+      } else if (prod.status === 'need_tiebreaker') {
+        statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
+        statusCell.font = { color: { argb: 'FFDC2626' }, bold: true };
+      } else if (prod.status?.startsWith('tb_') || prod.status === 'manager_final') {
+        statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEDE9FE' } };
+        statusCell.font = { color: { argb: 'FF7C3AED' }, bold: true };
+      }
+    });
+    
+    // Summary row at top of data
+    const totalProducts = sortedPivot.length;
+    const matchedCount = sortedPivot.filter(p => p.status === 'matched').length;
+    const tbNeededCount = sortedPivot.filter(p => p.status === 'need_tiebreaker').length;
+    const tbDoneCount = sortedPivot.filter(p => p.status?.startsWith('tb_') || p.status === 'manager_final').length;
+    const totalDiffValue = sortedPivot.reduce((sum, p) => sum + (p.diff !== null ? (p.diff * (p.sell_price || 0)) : 0), 0);
+    
+    wsPivot.addRow([]);
+    const sumHeader = wsPivot.addRow(['📊 สรุป']);
+    sumHeader.font = { bold: true, size: 12, color: { argb: 'FF0F766E' } };
+    const sumRows = [
+      ['Total SKUs:', totalProducts],
+      ['Matched (ตรง):', matchedCount],
+      ['Need TB (ต้องตรวจสอบใหม่):', tbNeededCount],
+      ['TB Done (ตรวจสอบใหม่แล้ว):', tbDoneCount],
+      ['Total Diff Value (₭):', Math.round(totalDiffValue).toLocaleString()]
+    ];
+    sumRows.forEach(r => {
+      const sr = wsPivot.addRow(r);
+      sr.getCell(1).font = { bold: true };
+    });
+    
+    // Column widths
+    const pivotWidths = [14, 28, 8, 11, 8, 10, 16, 10, 16, 10, 16, 11, 10, 9, 16, 5, 5, 22];
+    pivotWidths.forEach((w, i) => wsPivot.getColumn(i + 1).width = w);
+    
+    // Freeze top rows
+    wsPivot.views = [{ state: 'frozen', ySplit: 4 }];
+    
+    // ===== SHEET 2: All Counts (raw - 1 count/row) — สำหรับ audit detail =====
+    const wsRaw = wb.addWorksheet(`${locationCode} - All Counts`);
+    
+    const rawHeaders = [
       'Barcode', T('product_name') || 'ชื่อสินค้า', 
       'Zone', 'Location', 
       'Role', T('counted_by') || 'ผู้นับ', 
@@ -6514,11 +7205,11 @@ async function exportLocationDetailExcel(locationCode) {
       'POS', T('counted_qty') || 'นับได้', 'Diff', 'Diff %',
       'L', 'Markdown', 'Note'
     ];
-    const headerRow = ws.addRow(headers);
-    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } };
-    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
-    headerRow.height = 22;
+    const rawHeaderRow = wsRaw.addRow(rawHeaders);
+    rawHeaderRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    rawHeaderRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7C3AED' } };
+    rawHeaderRow.alignment = { vertical: 'middle', horizontal: 'center' };
+    rawHeaderRow.height = 22;
     
     items.forEach(c => {
       const p = c.products || {};
@@ -6533,7 +7224,7 @@ async function exportLocationDetailExcel(locationCode) {
       const pos = p.pos_qty || 0;
       const diffPct = pos > 0 ? ((diff / pos) * 100).toFixed(2) + '%' : '-';
       
-      const row = ws.addRow([
+      const row = wsRaw.addRow([
         p.barcode || '', name,
         zCode, c.location_code || c.gondola_code || '',
         c.count_role || '', userName,
@@ -6542,25 +7233,32 @@ async function exportLocationDetailExcel(locationCode) {
         c.variance_level || '', c.is_markdown ? 'Y' : '', c.note || ''
       ]);
       
+      // Color row by role
+      const role = (c.count_role || '').toLowerCase();
+      let bgColor = null;
+      if (role.includes('counter')) bgColor = 'FFCCFBF1';
+      else if (role.includes('verifier')) bgColor = 'FFFEF3C7';
+      else if (role.includes('tiebreaker')) bgColor = 'FFEDE9FE';
+      if (bgColor) {
+        row.eachCell(cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
+        });
+      }
+      
       // Color diff cell
       const diffCell = row.getCell(10);
       if (diff > 0) {
-        diffCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
         diffCell.font = { color: { argb: 'FF92400E' }, bold: true };
       } else if (diff < 0) {
-        diffCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
         diffCell.font = { color: { argb: 'FFDC2626' }, bold: true };
       } else {
         diffCell.font = { color: { argb: 'FF059669' }, bold: true };
       }
     });
     
-    // Column widths
-    const widths = [14, 28, 8, 12, 14, 18, 18, 8, 10, 9, 10, 5, 10, 22];
-    widths.forEach((w, i) => ws.getColumn(i + 1).width = w);
-    
-    // Freeze header
-    ws.views = [{ state: 'frozen', ySplit: 1 }];
+    const rawWidths = [14, 28, 8, 12, 14, 18, 18, 8, 10, 9, 10, 5, 10, 22];
+    rawWidths.forEach((w, i) => wsRaw.getColumn(i + 1).width = w);
+    wsRaw.views = [{ state: 'frozen', ySplit: 1 }];
     
     // Download
     const buffer = await wb.xlsx.writeBuffer();
@@ -6569,7 +7267,7 @@ async function exportLocationDetailExcel(locationCode) {
     const a = document.createElement('a');
     a.href = url;
     const dateStr = new Date().toISOString().slice(0, 10);
-    a.download = `${locationCode}_counts_${dateStr}.xlsx`;
+    a.download = `${locationCode}_${dateStr}.xlsx`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -7514,6 +8212,10 @@ window.applyHistoryFilters = applyHistoryFilters;
 window.renderLocationDetailList = renderLocationDetailList;
 window.exportLocationDetailExcel = exportLocationDetailExcel;
 window.exportProductLocationsExcel = exportProductLocationsExcel;
+window.setLocDetailView = setLocDetailView;
+window.pivotByProduct = pivotByProduct;
+window.fixVideoElement = fixVideoElement;
+window.tryStartScannerFallback = tryStartScannerFallback;
 window.downloadImportTemplate = downloadImportTemplate;
 window.onPosFileSelected = onPosFileSelected;
 window.showImportPreview = showImportPreview;
