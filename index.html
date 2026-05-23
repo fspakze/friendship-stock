@@ -235,6 +235,42 @@
   .banner.sky .banner-text { color: #075985; }
   .banner.sky .banner-text h4 { color: var(--sky-600); }
   
+  /* Floor Map */
+  .fm-section { background: white; border-radius: 13px; padding: 11px; margin-bottom: 11px; box-shadow: var(--sh-sm); }
+  .fm-title { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--slate-900); margin-bottom: 9px; padding-bottom: 7px; border-bottom: 1px solid var(--slate-200); }
+  .fm-title-emoji { font-size: 16px; }
+  .fm-title-count { margin-left: auto; font-size: 11px; color: var(--slate-500); font-family: 'Space Grotesk', monospace; font-weight: 600; }
+  
+  .fm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 4px; }
+  .fm-grid-wh { grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); }
+  .fm-cell { aspect-ratio: 1; border-radius: 7px; padding: 4px; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; position: relative; border: 1px solid transparent; }
+  .fm-cell:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.12); }
+  .fm-cell.has-issues::after { content: '⚠'; position: absolute; top: 1px; right: 2px; font-size: 9px; color: var(--rose-500); }
+  
+  .fm-code { font-family: 'Space Grotesk', monospace; font-size: 9px; font-weight: 700; line-height: 1; margin-bottom: 2px; }
+  .fm-progress { font-size: 8px; opacity: 0.85; font-weight: 600; line-height: 1; }
+  
+  /* Color states */
+  .fm-cell.s-closed { background: var(--slate-100); border-color: var(--slate-200); color: var(--slate-500); }
+  .fm-cell.s-open_for_counting { background: var(--teal-100); border-color: var(--teal-500); color: var(--teal-700); }
+  .fm-cell.s-counting { background: var(--teal-500); color: white; animation: pulse-teal 2s infinite; }
+  .fm-cell.s-counted { background: var(--amber-100); border-color: var(--amber-500); color: #92400e; }
+  .fm-cell.s-open_for_verify { background: var(--amber-100); border-color: var(--amber-500); color: #92400e; }
+  .fm-cell.s-verifying { background: var(--amber-500); color: white; animation: pulse-amber 2s infinite; }
+  .fm-cell.s-verified { background: var(--violet-100); border-color: var(--violet-500); color: var(--violet-600); }
+  .fm-cell.s-tiebreaker_needed { background: var(--rose-100); border: 2px solid var(--rose-500); color: var(--rose-500); }
+  .fm-cell.s-tiebreaker { background: var(--violet-500); color: white; animation: pulse-violet 2s infinite; }
+  .fm-cell.s-completed { background: var(--emerald-500); color: white; }
+  
+  @keyframes pulse-teal { 0%,100%{box-shadow: 0 0 0 0 rgba(20,184,166,0.6);} 50%{box-shadow: 0 0 0 6px rgba(20,184,166,0);} }
+  @keyframes pulse-amber { 0%,100%{box-shadow: 0 0 0 0 rgba(245,158,11,0.6);} 50%{box-shadow: 0 0 0 6px rgba(245,158,11,0);} }
+  @keyframes pulse-violet { 0%,100%{box-shadow: 0 0 0 0 rgba(124,58,237,0.6);} 50%{box-shadow: 0 0 0 6px rgba(124,58,237,0);} }
+  
+  /* Legend */
+  .fm-legend { display: flex; flex-wrap: wrap; gap: 6px; padding: 9px; background: var(--slate-50); border-radius: 9px; margin-bottom: 11px; font-size: 10px; }
+  .fm-legend-item { display: flex; align-items: center; gap: 4px; }
+  .fm-legend-box { width: 12px; height: 12px; border-radius: 3px; }
+  
   /* Workflow Control */
   .wf-card { background: white; border-radius: 12px; padding: 11px; box-shadow: var(--sh-sm); border-left: 4px solid var(--slate-300); margin-bottom: 8px; }
   .wf-card.s-open_for_counting { border-left-color: var(--teal-500); background: var(--teal-50); }
@@ -678,6 +714,29 @@ const I18N = {
     when_to_use: 'ໃຊ້ເມື່ອໃດ',
     use_case_test: 'ຫລັງທົດສອບ - ກ່ອນເລີ່ມນັບຈິງ',
     use_case_full: 'ເລີ່ມໃໝ່ໝົດ - ລ້າງປະຫວັດທັງໝົດ',
+    floor_map: 'ແຜນທີ່ Gondola',
+    add_gondola: 'ເພີ່ມ Gondola',
+    add_location: 'ເພີ່ມຕຳແໜ່ງໃໝ່',
+    sale_floor: 'ພື້ນທີ່ຂາຍ',
+    top_stock_area: 'TOP STOCK',
+    display_area: 'Display & ອື່ນໆ',
+    warehouse_1: 'ຄັງສິນຄ້າ ຊັ້ນ 1',
+    warehouse_2: 'ຄັງສິນຄ້າ ຊັ້ນ 2',
+    location_type: 'ປະເພດ',
+    type_gondola: 'Gondola',
+    type_wall: 'Wall',
+    type_gondola_top: 'Top Stock (Gondola)',
+    type_wall_top: 'Top Stock (Wall)',
+    type_display: 'Display',
+    type_cashier: 'Cashier',
+    type_rack: 'Rack',
+    type_warehouse: 'Warehouse',
+    description: 'ຄຳອະທິບາຍ',
+    saved_added: 'ເພີ່ມສຳເລັດ',
+    refresh_map: 'ໂຫລດໃໝ່',
+    legend: 'ສັນຍາລັກ',
+    counted_x_of_y: 'ນັບ {x}/{y}',
+    issues: 'ບັນຫາ',
     select_location_full: 'ເລືອກຕຳແໜ່ງສິນຄ້າ',
     loc_type: 'ປະເພດ',
     loc_gondola: 'Gondola',
@@ -865,6 +924,29 @@ const I18N = {
     when_to_use: 'ใช้เมื่อไหร่',
     use_case_test: 'หลังทดสอบ - ก่อนเริ่มนับจริง',
     use_case_full: 'เริ่มใหม่หมด - ล้างประวัติทั้งหมด',
+    floor_map: 'แผนที่ Gondola',
+    add_gondola: 'เพิ่ม Gondola',
+    add_location: 'เพิ่มตำแหน่งใหม่',
+    sale_floor: 'พื้นที่ขาย',
+    top_stock_area: 'TOP STOCK',
+    display_area: 'Display & อื่นๆ',
+    warehouse_1: 'คลังสินค้า ชั้น 1',
+    warehouse_2: 'คลังสินค้า ชั้น 2',
+    location_type: 'ประเภท',
+    type_gondola: 'Gondola',
+    type_wall: 'Wall',
+    type_gondola_top: 'Top Stock (Gondola)',
+    type_wall_top: 'Top Stock (Wall)',
+    type_display: 'Display',
+    type_cashier: 'Cashier',
+    type_rack: 'Rack',
+    type_warehouse: 'Warehouse',
+    description: 'คำอธิบาย',
+    saved_added: 'เพิ่มสำเร็จ',
+    refresh_map: 'โหลดใหม่',
+    legend: 'สัญลักษณ์',
+    counted_x_of_y: 'นับ {x}/{y}',
+    issues: 'ปัญหา',
     select_location_full: 'เลือกตำแหน่งสินค้า',
     loc_type: 'ประเภท',
     loc_gondola: 'Gondola',
@@ -1498,6 +1580,10 @@ function renderShell() {
     const isCTL = r === 'ctl';
     tabs = `
       ${isCTL ? `
+      <button class="tab" data-page="floormap" onclick="goPage('floormap')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+        <span>${T('floor_map')}</span>
+      </button>
       <button class="tab" data-page="workflow" onclick="goPage('workflow')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
         <span>${T('workflow_control')}</span>
@@ -1522,6 +1608,10 @@ function renderShell() {
       <button class="tab" data-page="dashboard" onclick="goPage('dashboard')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5"/></svg>
         <span>${T('tab_dashboard')}</span>
+      </button>
+      <button class="tab" data-page="floormap" onclick="goPage('floormap')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+        <span>${T('floor_map')}</span>
       </button>
       <button class="tab" data-page="kpi" onclick="goPage('kpi')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8"/></svg>
@@ -1606,6 +1696,9 @@ function goPage(page) {
   } else if (page === 'workflow') {
     c.innerHTML = renderWorkflowPage();
     loadWorkflowList();
+  } else if (page === 'floormap') {
+    c.innerHTML = renderFloorMapPage();
+    loadFloorMap();
   }
   
   updateTbBadge();
@@ -4202,6 +4295,368 @@ function buildExpirySheet(wb, expiries, newSkus) {
   widths.forEach((w, i) => ws.getColumn(i + 1).width = w);
 }
 
+// ==================== FLOOR MAP ====================
+function renderFloorMapPage() {
+  return `
+    <div class="banner violet">
+      <div class="banner-icon">
+        <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+      </div>
+      <div class="banner-text">
+        <h4>${T('floor_map')}</h4>
+        <p>${branch?.name_th || 'PAKSE'} - ${session?.session_name || ''}</p>
+      </div>
+    </div>
+    
+    <!-- Top controls -->
+    <div style="display:flex;gap:7px;margin-bottom:11px;">
+      <button class="btn btn-primary" style="background:var(--violet-500);flex:1;font-size:11px;padding:9px;" onclick="openAddGondolaModal()">
+        + ${T('add_gondola')}
+      </button>
+      <button class="btn btn-secondary" style="flex:0 0 auto;font-size:11px;padding:9px 13px;" onclick="loadFloorMap()">
+        🔄
+      </button>
+    </div>
+    
+    <!-- Legend -->
+    <div class="fm-legend">
+      <div class="fm-legend-item"><span class="fm-legend-box" style="background:var(--slate-100);border:1px solid var(--slate-200);"></span><span>${T('not_started')}</span></div>
+      <div class="fm-legend-item"><span class="fm-legend-box" style="background:var(--teal-500);"></span><span>${T('status_counting')}</span></div>
+      <div class="fm-legend-item"><span class="fm-legend-box" style="background:var(--amber-500);"></span><span>${T('status_verifying')}</span></div>
+      <div class="fm-legend-item"><span class="fm-legend-box" style="background:var(--rose-500);"></span><span>Tiebreaker</span></div>
+      <div class="fm-legend-item"><span class="fm-legend-box" style="background:var(--emerald-500);"></span><span>${T('completed_lo')}</span></div>
+    </div>
+    
+    <div id="floorMapContent">
+      <div class="empty-state"><p>กำลังโหลด...</p></div>
+    </div>
+  `;
+}
+
+async function loadFloorMap() {
+  if (!branch) return;
+  
+  log('Loading floor map for branch:', branch.id);
+  
+  const { data, error } = await sb.rpc('get_floor_map_data', {
+    p_branch_id: branch.id
+  });
+  
+  if (error) {
+    log('Floor map error:', error);
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  
+  log('Floor map data:', data);
+  renderFloorMapContent(data || {});
+}
+
+function renderFloorMapContent(data) {
+  const el = document.getElementById('floorMapContent');
+  if (!el) return;
+  
+  const saleFloor = data.sale_floor || [];
+  const topStock = data.top_stock || [];
+  const display = data.display || [];
+  const warehouse = data.warehouse || [];
+  
+  // แยก warehouse 2 ชั้น
+  const wh1 = warehouse.filter(w => w.floor === 1);
+  const wh2 = warehouse.filter(w => w.floor === 2);
+  
+  const renderCell = (item) => {
+    const status = item.workflow_status || 'closed';
+    const total = item.total_products || 0;
+    const counted = item.counted_products || 0;
+    const issues = item.issues_count || 0;
+    const hasIssues = issues > 0 ? 'has-issues' : '';
+    
+    let progress = '';
+    if (total > 0) {
+      progress = `<div class="fm-progress">${counted}/${total}</div>`;
+    } else if (status !== 'closed') {
+      progress = `<div class="fm-progress">${counted}</div>`;
+    }
+    
+    return `
+      <div class="fm-cell s-${status} ${hasIssues}" 
+           onclick="onFloorMapCellClick('${item.location_code}', '${status}')"
+           title="${item.location_code} - ${T('status_'+status)}${item.counter_name ? ' • Counter: '+item.counter_name : ''}${item.verifier_name ? ' • Verifier: '+item.verifier_name : ''}${issues>0 ? ' • Issues: '+issues : ''}">
+        <div class="fm-code">${item.location_code}</div>
+        ${progress}
+      </div>
+    `;
+  };
+  
+  el.innerHTML = `
+    <!-- Sale Floor -->
+    ${saleFloor.length > 0 ? `
+      <div class="fm-section">
+        <div class="fm-title">
+          <span class="fm-title-emoji">🏬</span>
+          <span>${T('sale_floor')}</span>
+          <span class="fm-title-count">${saleFloor.length} จุด</span>
+        </div>
+        <div class="fm-grid">
+          ${saleFloor.map(renderCell).join('')}
+        </div>
+      </div>
+    ` : ''}
+    
+    <!-- Top Stock -->
+    ${topStock.length > 0 ? `
+      <div class="fm-section">
+        <div class="fm-title">
+          <span class="fm-title-emoji">📦</span>
+          <span>${T('top_stock_area')}</span>
+          <span class="fm-title-count">${topStock.length} จุด</span>
+        </div>
+        <div class="fm-grid">
+          ${topStock.map(renderCell).join('')}
+        </div>
+      </div>
+    ` : ''}
+    
+    <!-- Display & Others -->
+    ${display.length > 0 ? `
+      <div class="fm-section">
+        <div class="fm-title">
+          <span class="fm-title-emoji">🎯</span>
+          <span>${T('display_area')}</span>
+          <span class="fm-title-count">${display.length} จุด</span>
+        </div>
+        <div class="fm-grid">
+          ${display.map(renderCell).join('')}
+        </div>
+      </div>
+    ` : ''}
+    
+    <!-- Warehouse 1 -->
+    ${wh1.length > 0 ? `
+      <div class="fm-section">
+        <div class="fm-title">
+          <span class="fm-title-emoji">🏭</span>
+          <span>${T('warehouse_1')}</span>
+          <span class="fm-title-count">${wh1.length} จุด</span>
+        </div>
+        <div class="fm-grid fm-grid-wh">
+          ${wh1.map(renderCell).join('')}
+        </div>
+      </div>
+    ` : ''}
+    
+    <!-- Warehouse 2 -->
+    ${wh2.length > 0 ? `
+      <div class="fm-section">
+        <div class="fm-title">
+          <span class="fm-title-emoji">🏭</span>
+          <span>${T('warehouse_2')}</span>
+          <span class="fm-title-count">${wh2.length} จุด</span>
+        </div>
+        <div class="fm-grid fm-grid-wh">
+          ${wh2.map(renderCell).join('')}
+        </div>
+      </div>
+    ` : ''}
+  `;
+}
+
+function onFloorMapCellClick(locationCode, status) {
+  log('Floor map cell click:', locationCode, status);
+  
+  // ถ้าเป็น CTL → ไปหน้า workflow control
+  if (user.role === 'ctl') {
+    showModal(`
+      <h3>${locationCode}</h3>
+      <p style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">
+        Status: <strong>${T('status_'+status)}</strong>
+      </p>
+      <div style="display:flex;flex-direction:column;gap:7px;">
+        <button class="btn btn-primary" onclick="closeModal();goPage('workflow');" style="background:var(--violet-500);">
+          ${T('workflow_control')} →
+        </button>
+        <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
+      </div>
+    `);
+  } else {
+    // BCS/Admin → แสดงข้อมูลเฉยๆ
+    showLocationDetail(locationCode);
+  }
+}
+
+async function showLocationDetail(locationCode) {
+  // Load counts ของ location นี้ใน session ปัจจุบัน
+  const { data: counts } = await sb.from('stock_counts')
+    .select(`
+      *, products(barcode, name_th, name_lo), users(full_name)
+    `)
+    .or(`location_code.eq.${locationCode},gondola_code.eq.${locationCode}`)
+    .eq('session_id', session?.id || 0)
+    .order('counted_at', { ascending: false })
+    .limit(20);
+  
+  const items = counts || [];
+  
+  showModal(`
+    <h3>${locationCode}</h3>
+    <p style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">
+      การนับล่าสุด ${items.length} รายการ
+    </p>
+    
+    ${items.length === 0 ? `
+      <div class="empty-state"><p>ยังไม่มีการนับ</p></div>
+    ` : `
+      <div style="max-height:400px;overflow-y:auto;">
+        ${items.map(c => {
+          const p = c.products || {};
+          const u = c.users || {};
+          const name = lang === 'lo' ? (p.name_lo || p.name_th) : (p.name_th || p.name_lo);
+          const diff = c.diff || 0;
+          const diffColor = diff === 0 ? 'var(--emerald-500)' : (diff > 0 ? 'var(--amber-500)' : 'var(--rose-500)');
+          return `
+            <div style="background:var(--slate-50);border-radius:7px;padding:8px;margin-bottom:5px;font-size:11px;">
+              <div style="font-weight:700;color:var(--slate-900);">${name || '?'}</div>
+              <div style="display:flex;justify-content:space-between;margin-top:3px;">
+                <span style="font-family:monospace;font-size:9px;color:var(--slate-500);">${p.barcode || ''}</span>
+                <span>
+                  <span style="color:${diffColor};font-weight:700;">Diff: ${diff > 0 ? '+'+diff : diff}</span>
+                </span>
+              </div>
+              <div style="font-size:9px;color:var(--slate-500);margin-top:2px;">
+                ${u.full_name || ''} • ${c.count_role || ''} • L${c.variance_level || '-'}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `}
+    
+    <button class="btn btn-secondary" onclick="closeModal()" style="margin-top:11px;width:100%;">${T('cancel')}</button>
+  `);
+}
+
+// ==================== ADD GONDOLA ====================
+function openAddGondolaModal() {
+  showModal(`
+    <h3>${T('add_location')}</h3>
+    <p style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">
+      เพิ่ม Gondola/Location ใหม่
+    </p>
+    
+    <div class="form-group">
+      <label class="form-label">Location Code *</label>
+      <input type="text" class="form-input mono" id="addLocCode" 
+             placeholder="01A01, W028, WT028, WH050..." 
+             autocomplete="off" autocapitalize="characters"
+             style="text-transform:uppercase;text-align:center;letter-spacing:2px;font-weight:700;">
+      <div style="font-size:9px;color:var(--slate-500);margin-top:3px;">
+        ตัวอย่าง: 01A01 (Gondola), W028 (Wall), 10AT01 (Top), WH050 (Warehouse)
+      </div>
+    </div>
+    
+    <div class="form-group">
+      <label class="form-label">${T('location_type')} *</label>
+      <select class="form-input" id="addLocType">
+        <option value="gondola">${T('type_gondola')}</option>
+        <option value="wall">${T('type_wall')}</option>
+        <option value="gondola_top">${T('type_gondola_top')}</option>
+        <option value="wall_top">${T('type_wall_top')}</option>
+        <option value="display">${T('type_display')}</option>
+        <option value="cashier">${T('type_cashier')}</option>
+        <option value="rack">${T('type_rack')}</option>
+        <option value="warehouse">${T('type_warehouse')}</option>
+      </select>
+    </div>
+    
+    <div class="form-group">
+      <label class="form-label">Zone (Optional)</label>
+      <select class="form-input" id="addLocZone">
+        <option value="">-- Auto --</option>
+        ${zones?.map(z => `<option value="${z.code}">${z.code} - ${z.name_th || z.name_lo}</option>`).join('') || ''}
+      </select>
+    </div>
+    
+    <div class="form-group">
+      <label class="form-label">${T('description')}</label>
+      <input type="text" class="form-input" id="addLocDesc" 
+             placeholder="(optional)" autocomplete="off">
+    </div>
+    
+    <div class="error-msg" id="addLocErr"></div>
+    
+    <div class="action-row">
+      <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
+      <button class="btn btn-primary" id="addLocBtn" onclick="executeAddGondola()" style="background:var(--violet-500);">
+        + ${T('add_location')}
+      </button>
+    </div>
+  `);
+  
+  setTimeout(() => {
+    document.getElementById('addLocCode')?.focus();
+  }, 100);
+}
+
+async function executeAddGondola() {
+  const code = document.getElementById('addLocCode').value.trim().toUpperCase();
+  const type = document.getElementById('addLocType').value;
+  const zoneCode = document.getElementById('addLocZone').value;
+  const desc = document.getElementById('addLocDesc').value.trim();
+  
+  const errEl = document.getElementById('addLocErr');
+  const btn = document.getElementById('addLocBtn');
+  
+  errEl.classList.remove('show');
+  
+  if (!code) {
+    errEl.textContent = 'กรุณาใส่ Location Code';
+    errEl.classList.add('show');
+    return;
+  }
+  
+  if (code.length < 3 || code.length > 10) {
+    errEl.textContent = 'Code ต้องมี 3-10 ตัวอักษร';
+    errEl.classList.add('show');
+    return;
+  }
+  
+  btn.disabled = true;
+  btn.innerHTML = `<span class="loader"></span>`;
+  
+  try {
+    const { data, error } = await sb.rpc('add_gondola_location', {
+      p_branch_id: branch.id,
+      p_user_id: user.id,
+      p_location_code: code,
+      p_location_type: type,
+      p_zone_code: zoneCode || null,
+      p_description: desc || null
+    });
+    
+    if (error) throw error;
+    
+    if (data?.success === false) {
+      throw new Error(data.error || 'Unknown error');
+    }
+    
+    log('Gondola added:', data);
+    showToast(`✅ ${T('saved_added')}: ${code}`, 'success');
+    closeModal();
+    
+    // Reload locations + map
+    await loadLocations();
+    loadFloorMap();
+    
+  } catch (e) {
+    console.error('[FS] Add gondola error:', e);
+    errEl.textContent = e.message;
+    errEl.classList.add('show');
+    btn.disabled = false;
+    btn.innerHTML = `+ ${T('add_location')}`;
+  }
+}
+
 // ==================== WORKFLOW CONTROL (CTL) ====================
 let wfFilter = 'all';
 
@@ -4976,6 +5431,11 @@ window.openVarianceSettings = openVarianceSettings;
 window.previewVariance = previewVariance;
 window.saveVarianceSettings = saveVarianceSettings;
 window.resetVarianceDefault = resetVarianceDefault;
+window.loadFloorMap = loadFloorMap;
+window.onFloorMapCellClick = onFloorMapCellClick;
+window.showLocationDetail = showLocationDetail;
+window.openAddGondolaModal = openAddGondolaModal;
+window.executeAddGondola = executeAddGondola;
 window.downloadImportTemplate = downloadImportTemplate;
 window.onPosFileSelected = onPosFileSelected;
 window.showImportPreview = showImportPreview;
