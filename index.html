@@ -13,7 +13,39 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/html5-qrcode@2.3.10/html5-qrcode.min.js"></script>
+<!-- html5-qrcode with multi-CDN fallback -->
+<script>
+(function loadHtml5Qrcode() {
+  // ลำดับ CDN: jsdelivr → cdnjs → unpkg
+  const cdns = [
+    'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js',
+    'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js'
+  ];
+  let idx = 0;
+  function tryLoad() {
+    if (idx >= cdns.length) {
+      console.error('[FS] All html5-qrcode CDNs failed!');
+      window._html5QrcodeLoadFailed = true;
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = cdns[idx];
+    script.async = false;
+    script.onload = () => {
+      console.log('[FS] html5-qrcode loaded from:', cdns[idx]);
+      window._html5QrcodeLoadedFrom = cdns[idx];
+    };
+    script.onerror = () => {
+      console.warn('[FS] CDN failed:', cdns[idx]);
+      idx++;
+      tryLoad();
+    };
+    document.head.appendChild(script);
+  }
+  tryLoad();
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
@@ -3170,6 +3202,9 @@ async function startScan() {
   scanLog('mediaDevices: ' + !!navigator.mediaDevices);
   scanLog('getUserMedia: ' + !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
   scanLog('Html5Qrcode loaded: ' + (typeof Html5Qrcode !== 'undefined'));
+  if (window._html5QrcodeLoadedFrom) {
+    scanLog('CDN: ' + window._html5QrcodeLoadedFrom.substring(0, 50), 'ok');
+  }
   
   document.getElementById('scanPlaceholder').style.display = 'none';
   document.getElementById('reader').style.display = 'block';
@@ -3177,10 +3212,26 @@ async function startScan() {
   document.getElementById('stopScanBtn').style.display = 'flex';
   document.getElementById('scanFrame').classList.add('scanning');
   
+  // ถ้า library ยังไม่โหลด รอ + retry สูงสุด 8 วินาที
   if (typeof Html5Qrcode === 'undefined') {
-    scanLog('CRITICAL: html5-qrcode library not loaded!', 'error');
-    scanLog('Please check internet connection or CDN', 'error');
-    return;
+    scanLog('Library not loaded yet, waiting...', 'warn');
+    let retries = 0;
+    const maxRetries = 16; // 16 × 500ms = 8s
+    while (typeof Html5Qrcode === 'undefined' && retries < maxRetries) {
+      await new Promise(r => setTimeout(r, 500));
+      retries++;
+      if (retries % 4 === 0) scanLog('Still waiting... (' + retries + '/' + maxRetries + ')');
+    }
+    
+    if (typeof Html5Qrcode === 'undefined') {
+      scanLog('CRITICAL: Library failed to load from all CDNs!', 'error');
+      scanLog('Possible cause: CDN blocked by ISP/network', 'error');
+      scanLog('Solution: Try different WiFi or mobile data', 'warn');
+      scanLog('You can still type barcode manually below', 'warn');
+      // Don't return, allow manual input
+      return;
+    }
+    scanLog('Library loaded after ' + (retries * 0.5) + 's', 'ok');
   }
   
   // เช็ค browser support
