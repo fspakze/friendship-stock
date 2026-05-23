@@ -1,0 +1,4200 @@
+<!DOCTYPE html>
+<html lang="lo">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f766e">
+<title>Friendship Stock v3.1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --teal-700: #0f766e; --teal-600: #0d9488; --teal-500: #14b8a6;
+    --teal-400: #2dd4bf; --teal-100: #ccfbf1; --teal-50: #f0fdfa;
+    --amber-500: #f59e0b; --amber-400: #fbbf24; --amber-100: #fef3c7;
+    --rose-500: #f43f5e; --rose-100: #ffe4e6;
+    --emerald-500: #10b981; --emerald-100: #d1fae5;
+    --indigo-700: #4338ca; --indigo-600: #4f46e5; --indigo-500: #6366f1; --indigo-100: #e0e7ff;
+    --violet-600: #7c3aed; --violet-500: #8b5cf6; --violet-100: #ede9fe;
+    --sky-600: #0284c7; --sky-500: #0ea5e9; --sky-100: #e0f2fe;
+    --slate-900: #0f172a; --slate-700: #334155; --slate-600: #475569;
+    --slate-500: #64748b; --slate-400: #94a3b8; --slate-300: #cbd5e1;
+    --slate-200: #e2e8f0; --slate-100: #f1f5f9; --slate-50: #f8fafc;
+    --bg: #fafaf7;
+    --sh-sm: 0 1px 2px rgba(15,23,42,0.05);
+    --sh-md: 0 4px 12px rgba(15,23,42,0.08);
+    --sh-lg: 0 12px 32px rgba(15,23,42,0.12);
+    --sh-xl: 0 24px 48px rgba(15,118,110,0.18);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { overflow-x: hidden; }
+  body {
+    font-family: 'Noto Sans Lao', 'Noto Sans Thai', system-ui, sans-serif;
+    background: var(--bg);
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(20,184,166,0.08) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(245,158,11,0.06) 0px, transparent 50%);
+    min-height: 100vh;
+    color: var(--slate-900);
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'Space Grotesk', monospace; font-variant-numeric: tabular-nums; }
+  .display { font-family: 'Space Grotesk', sans-serif; letter-spacing: -0.02em; }
+  
+  /* LOGIN */
+  .login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; position: relative; overflow: hidden; }
+  .login-screen::before { content: ''; position: absolute; top: -50%; right: -30%; width: 600px; height: 600px; background: radial-gradient(circle, var(--teal-100) 0%, transparent 70%); }
+  .login-card { background: white; border-radius: 24px; padding: 28px 24px; width: 100%; max-width: 420px; box-shadow: var(--sh-xl); position: relative; z-index: 1; border: 1px solid rgba(15,118,110,0.1); }
+  .login-brand { text-align: center; margin-bottom: 22px; }
+  .login-logo { width: 56px; height: 56px; margin: 0 auto 10px; background: linear-gradient(135deg, var(--teal-700), var(--teal-500)); border-radius: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(15,118,110,0.3); }
+  .login-logo svg { width: 28px; height: 28px; color: white; }
+  .login-title { font-size: 22px; font-weight: 700; }
+  .login-subtitle { font-size: 12px; color: var(--slate-500); margin-top: 4px; }
+  .lang-toggle { position: absolute; top: 14px; right: 14px; display: flex; gap: 4px; background: var(--slate-100); padding: 3px; border-radius: 9px; }
+  .lang-btn { padding: 5px 10px; border: none; background: transparent; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; color: var(--slate-500); }
+  .lang-btn.active { background: white; color: var(--teal-700); box-shadow: var(--sh-sm); }
+  
+  .form-group { margin-bottom: 11px; }
+  .form-label { display: block; font-size: 11px; font-weight: 600; color: var(--slate-600); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .form-input, .form-select { width: 100%; padding: 12px 14px; border: 2px solid var(--slate-200); border-radius: 11px; font-size: 15px; font-family: inherit; background: var(--slate-50); }
+  .form-input:focus, .form-select:focus { outline: none; border-color: var(--teal-500); background: white; box-shadow: 0 0 0 4px rgba(20,184,166,0.1); }
+  
+  .btn { width: 100%; padding: 13px; border: none; border-radius: 11px; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn-primary { background: linear-gradient(135deg, var(--teal-700), var(--teal-600)); color: white; box-shadow: 0 4px 12px rgba(15,118,110,0.3); }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-secondary { background: var(--slate-100); color: var(--slate-700); }
+  .btn-danger { background: var(--rose-500); color: white; }
+  .btn-amber { background: var(--amber-500); color: white; }
+  .btn-violet { background: linear-gradient(135deg, var(--violet-600), var(--violet-500)); color: white; }
+  
+  .error-msg { background: var(--rose-100); color: var(--rose-500); padding: 11px 13px; border-radius: 10px; font-size: 13px; margin-bottom: 11px; display: none; }
+  .error-msg.show { display: block; }
+  
+  /* APP */
+  .app { min-height: 100vh; display: none; }
+  .app.active { display: block; }
+  
+  .topbar { background: white; border-bottom: 1px solid var(--slate-200); padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .topbar-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+  .topbar-logo { width: 34px; height: 34px; background: linear-gradient(135deg, var(--teal-700), var(--teal-500)); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; }
+  .topbar-logo.r-counter, .topbar-logo.r-staff { background: linear-gradient(135deg, var(--teal-700), var(--teal-500)); }
+  .topbar-logo.r-verifier, .topbar-logo.r-audit { background: linear-gradient(135deg, var(--amber-500), var(--amber-400)); }
+  .topbar-logo.r-ctl { background: linear-gradient(135deg, var(--violet-600), var(--violet-500)); }
+  .topbar-logo.r-bcs { background: linear-gradient(135deg, var(--sky-600), var(--sky-500)); }
+  .topbar-logo.r-admin, .topbar-logo.r-scc { background: linear-gradient(135deg, var(--indigo-700), var(--indigo-500)); }
+  .topbar-info { font-size: 12px; min-width: 0; }
+  .topbar-info .name { font-weight: 700; color: var(--slate-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar-info .meta { font-size: 10px; color: var(--slate-500); text-transform: uppercase; letter-spacing: 0.3px; }
+  .topbar-actions { display: flex; gap: 5px; align-items: center; }
+  .icon-btn { width: 32px; height: 32px; border: none; background: var(--slate-100); border-radius: 9px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--slate-600); }
+  .icon-btn:hover { background: var(--slate-200); color: var(--teal-700); }
+  .icon-btn svg { width: 16px; height: 16px; }
+  
+  .context-bar { padding: 6px 14px; display: flex; gap: 6px; align-items: center; font-size: 11px; flex-wrap: wrap; }
+  .context-bar.r-counter, .context-bar.r-staff { background: var(--teal-50); border-bottom: 1px solid var(--teal-100); }
+  .context-bar.r-verifier, .context-bar.r-audit { background: var(--amber-100); border-bottom: 1px solid var(--amber-400); }
+  .context-bar.r-ctl { background: var(--violet-100); border-bottom: 1px solid var(--violet-500); }
+  .context-bar.r-bcs { background: var(--sky-100); border-bottom: 1px solid var(--sky-500); }
+  .context-bar.r-admin, .context-bar.r-scc { background: var(--indigo-100); border-bottom: 1px solid var(--indigo-500); }
+  .ctx-chip { background: white; padding: 4px 9px; border-radius: 7px; font-weight: 600; color: var(--slate-700); box-shadow: var(--sh-sm); font-size: 11px; }
+  .ctx-chip .lbl { color: var(--slate-500); font-weight: 500; margin-right: 3px; }
+  .ctx-change { margin-left: auto; font-size: 11px; color: var(--teal-700); background: none; border: none; cursor: pointer; text-decoration: underline; }
+  
+  .content { padding: 12px; padding-bottom: 80px; max-width: 600px; margin: 0 auto; }
+  
+  /* Tabs */
+  .tabs { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid var(--slate-200); display: flex; z-index: 90; box-shadow: 0 -4px 20px rgba(15,23,42,0.06); max-width: 600px; margin: 0 auto; }
+  .tab { flex: 1; padding: 8px 4px; border: none; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; color: var(--slate-500); font-size: 10px; font-weight: 600; font-family: inherit; position: relative; }
+  .tab svg { width: 20px; height: 20px; }
+  .tab.active { color: var(--teal-700); }
+  .tab .tab-badge { position: absolute; top: 4px; right: 50%; transform: translateX(18px); background: var(--rose-500); color: white; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 9px; min-width: 16px; }
+  
+  /* Session Card */
+  .session-card { background: linear-gradient(135deg, var(--teal-700), var(--teal-500)); border-radius: 18px; padding: 16px; color: white; box-shadow: var(--sh-lg); margin-bottom: 12px; position: relative; overflow: hidden; }
+  .session-card.r-verifier, .session-card.r-audit { background: linear-gradient(135deg, #b45309, var(--amber-400)); }
+  .session-card.r-ctl { background: linear-gradient(135deg, var(--violet-600), var(--violet-500)); }
+  .session-card.r-bcs { background: linear-gradient(135deg, var(--sky-600), var(--sky-500)); }
+  .session-card.r-admin, .session-card.r-scc { background: linear-gradient(135deg, var(--indigo-700), var(--indigo-500)); }
+  .session-card::before { content: ''; position: absolute; top: -50%; right: -20%; width: 180px; height: 180px; background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%); }
+  .session-label { font-size: 10px; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+  .session-name { font-size: 14px; font-weight: 700; margin-top: 3px; margin-bottom: 10px; line-height: 1.3; }
+  .session-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; position: relative; z-index: 1; }
+  .session-stat { text-align: center; }
+  .session-stat .num { font-size: 20px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; }
+  .session-stat .lbl { font-size: 9px; opacity: 0.85; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.3px; }
+  
+  /* Scan */
+  .scan-card { background: white; border-radius: 16px; padding: 12px; box-shadow: var(--sh-md); margin-bottom: 12px; border: 1px solid var(--slate-200); }
+  .scan-frame { background: var(--slate-900); border-radius: 11px; aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center; color: white; overflow: hidden; margin-bottom: 10px; position: relative; }
+  #reader { width: 100% !important; }
+  #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
+  .scan-placeholder { text-align: center; padding: 24px; }
+  .scan-placeholder svg { width: 44px; height: 44px; opacity: 0.5; margin-bottom: 6px; }
+  .scan-placeholder p { font-size: 12px; opacity: 0.7; }
+  .scan-frame.scanning::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--teal-400), transparent); animation: scan-line 2s linear infinite; }
+  @keyframes scan-line { 0% { top: 20%; opacity: 0; } 50% { opacity: 1; } 100% { top: 80%; opacity: 0; } }
+  
+  .manual-search { display: flex; gap: 6px; }
+  .manual-search input { flex: 1; padding: 10px 12px; border: 2px solid var(--slate-200); border-radius: 9px; font-size: 14px; font-family: 'Space Grotesk', monospace; }
+  .manual-search input:focus { outline: none; border-color: var(--teal-500); }
+  
+  /* Product Card */
+  .product-card { background: white; border-radius: 16px; padding: 14px; box-shadow: var(--sh-lg); margin-bottom: 12px; border-left: 5px solid var(--teal-500); animation: slideUp 0.3s ease; }
+  .product-card.audit-mode { border-left-color: var(--amber-500); }
+  .product-card.tiebreaker-mode { border-left-color: var(--violet-500); }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .md-badge { display: inline-block; background: linear-gradient(135deg, var(--rose-500), #e11d48); color: white; font-size: 10px; padding: 2px 8px; border-radius: 5px; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 5px; }
+  .product-name { font-size: 15px; font-weight: 700; color: var(--slate-900); margin-bottom: 5px; line-height: 1.4; }
+  .product-barcode { font-size: 11px; color: var(--slate-500); font-family: 'Space Grotesk', monospace; background: var(--slate-100); padding: 3px 8px; border-radius: 5px; display: inline-block; margin-bottom: 10px; }
+  .product-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 10px; }
+  .meta-item { background: var(--slate-50); padding: 8px 10px; border-radius: 8px; }
+  .meta-label { font-size: 10px; color: var(--slate-500); text-transform: uppercase; letter-spacing: 0.3px; font-weight: 600; }
+  .meta-value { font-size: 13px; font-weight: 700; color: var(--slate-900); margin-top: 2px; font-family: 'Space Grotesk', sans-serif; }
+  
+  .count-section { background: linear-gradient(135deg, var(--teal-50), white); border-radius: 11px; padding: 11px; border: 2px solid var(--teal-100); margin-bottom: 10px; }
+  .count-section.audit-mode { background: linear-gradient(135deg, var(--amber-100), white); border-color: var(--amber-400); }
+  .count-section.tiebreaker-mode { background: linear-gradient(135deg, var(--violet-100), white); border-color: var(--violet-500); }
+  .count-label { font-size: 11px; font-weight: 700; color: var(--teal-700); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; text-align: center; }
+  .count-section.audit-mode .count-label { color: #92400e; }
+  .count-section.tiebreaker-mode .count-label { color: var(--violet-600); }
+  .count-controls { display: flex; align-items: center; gap: 7px; }
+  .count-btn { width: 44px; height: 44px; border: none; border-radius: 11px; background: white; color: var(--teal-700); font-size: 22px; font-weight: 700; cursor: pointer; box-shadow: var(--sh-sm); font-family: 'Space Grotesk', sans-serif; }
+  .count-section.audit-mode .count-btn { color: #92400e; }
+  .count-section.tiebreaker-mode .count-btn { color: var(--violet-600); }
+  .count-btn:active { transform: scale(0.92); }
+  .count-input { flex: 1; height: 44px; border: 2px solid var(--teal-200); border-radius: 11px; text-align: center; font-size: 22px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; background: white; }
+  .count-section.audit-mode .count-input { border-color: var(--amber-400); }
+  .count-section.tiebreaker-mode .count-input { border-color: var(--violet-500); }
+  
+  .note-input { width: 100%; padding: 9px 11px; border: 2px solid var(--slate-200); border-radius: 9px; font-size: 13px; font-family: inherit; margin-bottom: 9px; resize: none; }
+  .action-row { display: flex; gap: 7px; }
+  .action-row .btn { flex: 1; }
+  
+  /* Quick actions */
+  .quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+  .quick-btn { padding: 8px; border: 1px dashed var(--slate-300); background: var(--slate-50); border-radius: 8px; cursor: pointer; font-size: 11px; color: var(--slate-600); display: flex; align-items: center; justify-content: center; gap: 4px; font-family: inherit; }
+  .quick-btn:hover { background: var(--slate-100); }
+  .quick-btn svg { width: 13px; height: 13px; }
+  
+  /* History/list cards */
+  .history-card { background: white; border-radius: 16px; padding: 12px; box-shadow: var(--sh-md); border: 1px solid var(--slate-200); margin-bottom: 12px; }
+  .section-title { font-size: 11px; font-weight: 700; color: var(--slate-500); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 9px; display: flex; align-items: center; justify-content: space-between; }
+  .badge { background: var(--teal-100); color: var(--teal-700); padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; }
+  .badge.danger { background: var(--rose-100); color: var(--rose-500); }
+  .badge.warn { background: var(--amber-100); color: #92400e; }
+  
+  .history-list { display: flex; flex-direction: column; gap: 5px; max-height: 400px; overflow-y: auto; }
+  .history-item { background: var(--slate-50); border-radius: 9px; padding: 9px; display: flex; align-items: center; gap: 9px; border-left: 3px solid var(--slate-300); }
+  .history-item.match { border-left-color: var(--emerald-500); }
+  .history-item.diff-plus { border-left-color: var(--amber-500); }
+  .history-item.diff-minus { border-left-color: var(--rose-500); }
+  .history-item.clickable { cursor: pointer; }
+  .history-item.clickable:hover { background: var(--slate-100); }
+  .history-content { flex: 1; min-width: 0; }
+  .history-name { font-size: 12px; font-weight: 600; color: var(--slate-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .history-meta { font-size: 10px; color: var(--slate-500); font-family: 'Space Grotesk', monospace; }
+  .history-qty { font-size: 15px; font-weight: 700; color: var(--slate-900); font-family: 'Space Grotesk', sans-serif; min-width: 38px; text-align: right; }
+  
+  .diff-plus-text { color: var(--amber-500); }
+  .diff-minus-text { color: var(--rose-500); }
+  .diff-match-text { color: var(--emerald-500); }
+  
+  .empty-state { text-align: center; padding: 24px 14px; color: var(--slate-400); }
+  .empty-state svg { width: 40px; height: 40px; margin-bottom: 6px; opacity: 0.5; }
+  
+  /* Variance Badges */
+  .var-level { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+  .var-level-1 { background: var(--emerald-100); color: var(--emerald-500); }
+  .var-level-2 { background: var(--amber-100); color: #92400e; }
+  .var-level-3 { background: #fed7aa; color: #c2410c; }
+  .var-level-4 { background: var(--rose-100); color: var(--rose-500); }
+  
+  /* Banners */
+  .banner { border-radius: 13px; padding: 11px 13px; display: flex; gap: 10px; margin-bottom: 12px; }
+  .banner.amber { background: var(--amber-100); border: 1px solid var(--amber-400); }
+  .banner.violet { background: var(--violet-100); border: 1px solid var(--violet-500); }
+  .banner.sky { background: var(--sky-100); border: 1px solid var(--sky-500); }
+  .banner-icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; }
+  .banner.amber .banner-icon { background: var(--amber-500); }
+  .banner.violet .banner-icon { background: var(--violet-600); }
+  .banner.sky .banner-icon { background: var(--sky-600); }
+  .banner-icon svg { width: 18px; height: 18px; }
+  .banner-text h4 { font-size: 12px; font-weight: 700; margin-bottom: 1px; }
+  .banner-text p { font-size: 10px; }
+  .banner.amber .banner-text { color: #78350f; }
+  .banner.amber .banner-text h4 { color: #92400e; }
+  .banner.violet .banner-text { color: #4c1d95; }
+  .banner.violet .banner-text h4 { color: var(--violet-600); }
+  .banner.sky .banner-text { color: #075985; }
+  .banner.sky .banner-text h4 { color: var(--sky-600); }
+  
+  /* Workflow Control */
+  .wf-card { background: white; border-radius: 12px; padding: 11px; box-shadow: var(--sh-sm); border-left: 4px solid var(--slate-300); margin-bottom: 8px; }
+  .wf-card.s-open_for_counting { border-left-color: var(--teal-500); background: var(--teal-50); }
+  .wf-card.s-counting { border-left-color: var(--teal-500); background: linear-gradient(135deg, var(--teal-50), white); }
+  .wf-card.s-counted { border-left-color: var(--amber-500); background: var(--amber-100); }
+  .wf-card.s-open_for_verify { border-left-color: var(--amber-500); background: var(--amber-100); }
+  .wf-card.s-verifying { border-left-color: var(--amber-500); background: linear-gradient(135deg, var(--amber-100), white); }
+  .wf-card.s-verified { border-left-color: var(--violet-500); background: var(--violet-100); }
+  .wf-card.s-tiebreaker_needed { border-left-color: var(--rose-500); background: var(--rose-100); }
+  .wf-card.s-tiebreaker { border-left-color: var(--violet-600); background: var(--violet-100); }
+  .wf-card.s-completed { border-left-color: var(--emerald-500); background: var(--emerald-100); opacity: 0.85; }
+  .wf-card.s-closed { border-left-color: var(--slate-300); }
+  
+  .wf-row { display: flex; align-items: center; gap: 10px; }
+  .wf-loc { font-size: 16px; font-weight: 700; color: var(--slate-900); font-family: 'Space Grotesk', monospace; min-width: 70px; }
+  .wf-info { flex: 1; min-width: 0; }
+  .wf-status-text { font-size: 11px; font-weight: 600; }
+  .wf-meta { font-size: 10px; color: var(--slate-500); margin-top: 2px; }
+  .wf-stats { display: flex; gap: 5px; font-size: 10px; margin-top: 3px; }
+  .wf-stat-chip { background: rgba(255,255,255,0.7); padding: 1px 6px; border-radius: 4px; font-weight: 600; color: var(--slate-700); }
+  .wf-actions { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
+  .wf-btn { padding: 6px 11px; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; font-family: inherit; flex: 1; min-width: 90px; }
+  .wf-btn-open { background: var(--teal-500); color: white; }
+  .wf-btn-close { background: var(--amber-500); color: white; }
+  .wf-btn-verify { background: var(--amber-600); color: white; }
+  .wf-btn-complete { background: var(--emerald-500); color: white; }
+  .wf-btn-reopen { background: var(--slate-200); color: var(--slate-700); }
+  
+  .wf-filter { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 8px; -webkit-overflow-scrolling: touch; }
+  .wf-filter-tab { padding: 6px 11px; background: white; border: 1px solid var(--slate-200); border-radius: 7px; cursor: pointer; font-size: 11px; font-weight: 600; color: var(--slate-600); white-space: nowrap; font-family: inherit; flex-shrink: 0; }
+  .wf-filter-tab.active { background: var(--slate-900); color: white; border-color: var(--slate-900); }
+  
+  /* Progress Donut for Dashboard */
+  .progress-donut-card { background: white; border-radius: 14px; padding: 14px; box-shadow: var(--sh-md); margin-bottom: 12px; text-align: center; }
+  .progress-donut { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 10px 0; }
+  .donut-svg { width: 110px; height: 110px; }
+  .donut-bg { fill: none; stroke: var(--slate-100); stroke-width: 12; }
+  .donut-fg { fill: none; stroke: var(--emerald-500); stroke-width: 12; stroke-linecap: round; transition: stroke-dashoffset 0.5s; transform: rotate(-90deg); transform-origin: center; }
+  .donut-text { font-size: 24px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; fill: var(--slate-900); }
+  .donut-label { font-size: 9px; fill: var(--slate-500); text-transform: uppercase; }
+  
+  .wf-summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
+  .wf-sum-card { padding: 9px; border-radius: 9px; }
+  .wf-sum-card.completed { background: var(--emerald-100); }
+  .wf-sum-card.progress { background: var(--teal-100); }
+  .wf-sum-card.waiting { background: var(--amber-100); }
+  .wf-sum-card.not_started { background: var(--slate-100); }
+  .wf-sum-num { font-size: 20px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; }
+  .wf-sum-lbl { font-size: 9px; text-transform: uppercase; font-weight: 600; }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 12px; }
+  .stat-card { background: white; padding: 12px; border-radius: 12px; box-shadow: var(--sh-sm); border: 1px solid var(--slate-200); }
+  .stat-card .num { font-size: 24px; font-weight: 700; color: var(--slate-900); font-family: 'Space Grotesk', sans-serif; }
+  .stat-card .lbl { font-size: 10px; color: var(--slate-500); text-transform: uppercase; letter-spacing: 0.3px; margin-top: 2px; }
+  
+  /* KPI */
+  .kpi-card { background: white; padding: 12px; border-radius: 12px; box-shadow: var(--sh-sm); border: 1px solid var(--slate-200); margin-bottom: 9px; }
+  .kpi-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .kpi-title { font-size: 11px; font-weight: 700; color: var(--slate-700); text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-value { font-size: 26px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; }
+  .kpi-target { font-size: 10px; color: var(--slate-500); }
+  .kpi-bar { height: 5px; background: var(--slate-100); border-radius: 3px; overflow: hidden; margin-top: 5px; }
+  .kpi-bar-fill { height: 100%; transition: width 0.3s; border-radius: 3px; }
+  .kpi-good .kpi-bar-fill { background: var(--emerald-500); }
+  .kpi-warn .kpi-bar-fill { background: var(--amber-500); }
+  .kpi-bad .kpi-bar-fill { background: var(--rose-500); }
+  
+  /* Zone selection */
+  .zone-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; max-height: 280px; overflow-y: auto; }
+  .zone-card { background: white; border: 2px solid var(--slate-200); border-radius: 11px; padding: 9px; cursor: pointer; text-align: center; transition: all 0.15s; }
+  .zone-card:hover { border-color: var(--teal-500); }
+  .zone-card.selected { border-color: var(--teal-500); background: var(--teal-50); }
+  .zone-code { font-size: 17px; font-weight: 700; color: var(--teal-700); font-family: 'Space Grotesk', sans-serif; }
+  .zone-name { font-size: 10px; color: var(--slate-600); margin-top: 2px; line-height: 1.3; }
+  
+  .loc-type-tabs { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 8px; -webkit-overflow-scrolling: touch; }
+  .loc-type-tabs::-webkit-scrollbar { height: 4px; }
+  .loc-type-tabs::-webkit-scrollbar-thumb { background: var(--slate-300); border-radius: 2px; }
+  .loc-type-tab { padding: 7px 11px; background: white; border: 2px solid var(--slate-200); border-radius: 9px; cursor: pointer; font-size: 11px; font-weight: 600; color: var(--slate-600); white-space: nowrap; font-family: inherit; display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+  .loc-type-tab.active { background: var(--teal-500); color: white; border-color: var(--teal-500); }
+  .loc-type-count { background: rgba(0,0,0,0.1); padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 700; }
+  .loc-type-tab.active .loc-type-count { background: rgba(255,255,255,0.3); color: white; }
+  
+  /* New: Location input system */
+  .loc-input-row { display: flex; gap: 6px; margin-bottom: 10px; }
+  .loc-input { flex: 1; padding: 12px 14px; border: 2px solid var(--slate-200); border-radius: 10px; font-size: 16px; font-weight: 700; font-family: 'Space Grotesk', monospace; text-transform: uppercase; letter-spacing: 1px; text-align: center; background: var(--slate-50); }
+  .loc-input:focus { outline: none; border-color: var(--teal-500); background: white; box-shadow: 0 0 0 4px rgba(20,184,166,0.1); }
+  .loc-scan-btn { padding: 0 14px; background: linear-gradient(135deg, var(--teal-700), var(--teal-500)); color: white; border: none; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: inherit; }
+  .loc-scan-btn svg { width: 22px; height: 22px; }
+  .loc-scan-btn:active { transform: scale(0.95); }
+  
+  /* Recent locations chips */
+  .loc-recent-row { margin-bottom: 10px; }
+  .loc-recent-label { font-size: 10px; color: var(--slate-500); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+  .loc-recent { display: flex; flex-wrap: wrap; gap: 4px; }
+  .loc-recent-chip { padding: 5px 10px; background: var(--slate-100); border: 1px solid var(--slate-200); border-radius: 7px; cursor: pointer; font-size: 12px; font-weight: 700; color: var(--slate-700); font-family: 'Space Grotesk', monospace; }
+  .loc-recent-chip:hover { background: var(--teal-50); border-color: var(--teal-500); color: var(--teal-700); }
+  
+  /* Selected location display */
+  .loc-selected { background: linear-gradient(135deg, var(--teal-50), var(--teal-100)); border: 2px solid var(--teal-500); border-radius: 11px; padding: 11px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 11px; }
+  .loc-selected-icon { width: 38px; height: 38px; background: var(--teal-500); border-radius: 9px; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; flex-shrink: 0; }
+  .loc-selected-info { flex: 1; min-width: 0; }
+  .loc-selected-code { font-size: 18px; font-weight: 700; color: var(--teal-700); font-family: 'Space Grotesk', monospace; }
+  .loc-selected-desc { font-size: 11px; color: var(--slate-600); margin-top: 1px; }
+  .loc-selected-clear { width: 28px; height: 28px; background: white; border: 1px solid var(--slate-200); border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--slate-500); }
+  .loc-selected-clear:hover { background: var(--rose-100); color: var(--rose-500); border-color: var(--rose-500); }
+  
+  /* Error state */
+  .loc-not-found { background: var(--rose-100); color: var(--rose-500); padding: 9px 11px; border-radius: 9px; font-size: 12px; margin-bottom: 10px; border-left: 3px solid var(--rose-500); }
+  
+  /* Browse all (collapsible) */
+  .loc-browse-toggle { background: none; border: 1px dashed var(--slate-300); padding: 8px; width: 100%; border-radius: 8px; cursor: pointer; font-size: 11px; color: var(--slate-600); font-family: inherit; margin-bottom: 8px; }
+  .loc-browse-toggle:hover { background: var(--slate-50); border-color: var(--slate-400); }
+  
+  .loc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 10px; max-height: 220px; overflow-y: auto; padding: 2px; }
+  .loc-grid.hidden { display: none; }
+  .loc-chip { padding: 9px 4px; background: white; border: 2px solid var(--slate-200); border-radius: 9px; cursor: pointer; text-align: center; font-size: 11px; font-weight: 700; color: var(--slate-700); transition: all 0.15s; font-family: 'Space Grotesk', sans-serif; }
+  .loc-chip.selected { background: var(--teal-500); color: white; border-color: var(--teal-500); transform: scale(1.05); }
+  .loc-chip:hover:not(.selected) { border-color: var(--teal-500); background: var(--teal-50); }
+  
+  /* User card */
+  .user-card { background: white; border-radius: 11px; padding: 10px; border: 1px solid var(--slate-200); margin-bottom: 5px; display: flex; align-items: center; gap: 9px; cursor: pointer; }
+  .user-card:hover { border-color: var(--indigo-500); box-shadow: var(--sh-md); }
+  .user-card.inactive { opacity: 0.5; }
+  .user-avatar { width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+  .user-avatar.r-counter, .user-avatar.r-staff { background: linear-gradient(135deg, var(--teal-700), var(--teal-500)); }
+  .user-avatar.r-verifier, .user-avatar.r-audit { background: linear-gradient(135deg, var(--amber-500), var(--amber-400)); }
+  .user-avatar.r-ctl { background: linear-gradient(135deg, var(--violet-600), var(--violet-500)); }
+  .user-avatar.r-bcs { background: linear-gradient(135deg, var(--sky-600), var(--sky-500)); }
+  .user-avatar.r-admin, .user-avatar.r-scc { background: linear-gradient(135deg, var(--indigo-700), var(--indigo-500)); }
+  .user-info { flex: 1; min-width: 0; }
+  .user-name { font-size: 12px; font-weight: 700; color: var(--slate-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .user-username { font-size: 10px; color: var(--slate-500); font-family: 'Space Grotesk', monospace; }
+  .user-badge-r { font-size: 9px; padding: 2px 6px; border-radius: 5px; font-weight: 600; text-transform: uppercase; }
+  .user-badge-r.counter, .user-badge-r.staff { background: var(--teal-100); color: var(--teal-700); }
+  .user-badge-r.verifier, .user-badge-r.audit { background: var(--amber-100); color: #92400e; }
+  .user-badge-r.ctl { background: var(--violet-100); color: var(--violet-600); }
+  .user-badge-r.bcs { background: var(--sky-100); color: var(--sky-600); }
+  .user-badge-r.admin, .user-badge-r.scc { background: var(--indigo-100); color: var(--indigo-600); }
+  
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.6); z-index: 200; display: none; align-items: center; justify-content: center; padding: 16px; backdrop-filter: blur(4px); }
+  .modal-overlay.show { display: flex; }
+  .modal { background: white; border-radius: 18px; padding: 18px; max-width: 420px; width: 100%; box-shadow: var(--sh-xl); max-height: 90vh; overflow-y: auto; }
+  .modal h3 { font-size: 16px; margin-bottom: 4px; color: var(--slate-900); }
+  .modal p { font-size: 12px; color: var(--slate-600); margin-bottom: 11px; }
+  
+  /* Toast */
+  .toast { position: fixed; bottom: 78px; left: 50%; transform: translateX(-50%); background: var(--slate-900); color: white; padding: 11px 18px; border-radius: 11px; font-size: 13px; font-weight: 500; box-shadow: var(--sh-xl); z-index: 1000; opacity: 0; transition: all 0.3s; pointer-events: none; max-width: 90%; text-align: center; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-10px); }
+  .toast.success { background: var(--emerald-500); }
+  .toast.error { background: var(--rose-500); }
+  .toast.warning { background: var(--amber-500); }
+  
+  .loader { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  
+  .step { display: none; }
+  .step.active { display: block; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="lang-toggle">
+      <button class="lang-btn active" data-lang="lo" onclick="setLang('lo')">ລາວ</button>
+      <button class="lang-btn" data-lang="th" onclick="setLang('th')">ไทย</button>
+    </div>
+    
+    <!-- Step 1: Login -->
+    <div class="step active" id="step-login">
+      <div class="login-brand">
+        <div class="login-logo">
+          <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        </div>
+        <div class="login-title display">Friendship Stock</div>
+        <div class="login-subtitle" data-i18n="subtitle">ປາກເຊ • ລາວ</div>
+      </div>
+      <div class="error-msg" id="loginError"></div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="username">ຊື່ຜູ້ໃຊ້</label>
+        <input class="form-input" id="username" type="text" autocomplete="username" autocapitalize="off">
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label" data-i18n="password">ລະຫັດຜ່ານ</label>
+        <input class="form-input" id="password" type="password" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary" id="loginBtn" onclick="login()">
+        <span data-i18n="login">ເຂົ້າສູ່ລະບົບ</span>
+      </button>
+      <div style="text-align:center;margin-top:14px;font-size:10px;color:var(--slate-400);">
+        v3.1 SOP • Made with 💜 by Ania
+      </div>
+    </div>
+    
+    <!-- Step 2: Zone -->
+    <div class="step" id="step-zone">
+      <div style="text-align:center;margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:700;" id="zoneStepGreeting"></div>
+        <div style="font-size:11px;color:var(--slate-500);margin-top:3px;" data-i18n="select_zone_loc">ເລືອກໂຊນ ແລະ ສະຖານທີ່</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="select_zone">ໂຊນ</label>
+        <div class="zone-grid" id="zoneGrid"></div>
+      </div>
+      <div class="form-group" style="margin-top:12px;">
+        <label class="form-label" data-i18n="location">ສະຖານທີ່</label>
+        <div class="loc-type-tabs" id="locTypeTabs"></div>
+        
+        <!-- Selected location display -->
+        <div id="locSelected"></div>
+        
+        <!-- Input + Scan -->
+        <div class="loc-input-row">
+          <input type="text" class="loc-input" id="locInput" 
+                 placeholder="" 
+                 autocomplete="off" autocapitalize="characters" spellcheck="false"
+                 oninput="onLocInput(this.value)">
+          <button class="loc-scan-btn" onclick="scanLocCode()" title="">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V6a2 2 0 012-2h2M4 16v2a2 2 0 002 2h2m8-16h2a2 2 0 012 2v2m-4 12h2a2 2 0 002-2v-2"/>
+            </svg>
+          </button>
+        </div>
+        
+        <!-- Error / not found -->
+        <div id="locNotFound" style="display:none;"></div>
+        
+        <!-- Recent locations -->
+        <div class="loc-recent-row" id="locRecentRow" style="display:none;">
+          <div class="loc-recent-label" data-i18n="loc_recent">ล่าสุด</div>
+          <div class="loc-recent" id="locRecent"></div>
+        </div>
+        
+        <!-- Browse all (toggle) -->
+        <button class="loc-browse-toggle" onclick="toggleBrowse()" id="browseToggleBtn">
+          ↓ <span data-i18n="browse_all">ดูทั้งหมด</span>
+        </button>
+        <div class="loc-grid hidden" id="locGrid"></div>
+      </div>
+      <div class="action-row">
+        <button class="btn btn-secondary" onclick="logout()" data-i18n="back">ກັບຄືນ</button>
+        <button class="btn btn-primary" onclick="confirmZoneLocation()" data-i18n="continue">ດຳເນີນຕໍ່</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- APP shell -->
+<div class="app" id="app"></div>
+
+<div class="toast" id="toast"></div>
+<div class="modal-overlay" id="modalOverlay"><div class="modal" id="modalContent"></div></div>
+
+<script>
+// ==================== CONFIG ====================
+const SUPABASE_URL = 'https://wlfinzvwnahyupkouson.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_pX8syowjeewFtaF3cpxAEA_JZ7UPB5h';
+const SALT = 'friendship_pakse_2026';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ==================== STATE ====================
+let lang = localStorage.getItem('lang') || 'lo';
+let user = null;
+let branch = null;
+let zone = null;
+let loc = null;
+let session = null;
+let allZones = [];
+let allLocations = []; // location_master ทั้งหมด
+let locationsByType = {}; // จัดกลุ่มตาม type
+let curProduct = null;
+let curTask = null;
+let html5QrCode = null;
+let currentLocType = 'gondola'; // ประเภท location ที่เลือก
+
+// ==================== I18N ====================
+const I18N = {
+  lo: {
+    subtitle: 'ປາກເຊ • ລາວ',
+    username: 'ຊື່ຜູ້ໃຊ້', password: 'ລະຫັດຜ່ານ', login: 'ເຂົ້າສູ່ລະບົບ',
+    logging_in: 'ກຳລັງເຂົ້າສູ່ລະບົບ...',
+    login_failed: 'ຊື່ຜູ້ໃຊ້ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ',
+    back: 'ກັບຄືນ', continue: 'ດຳເນີນຕໍ່',
+    select_zone_loc: 'ເລືອກໂຊນ ແລະ ສະຖານທີ່',
+    select_zone: 'ໂຊນ', select_location: 'ສະຖານທີ່',
+    please_select: 'ກະລຸນາເລືອກໂຊນແລະສະຖານທີ່',
+    tab_scan: 'ສະແກນ', tab_history: 'ປະຫວັດ',
+    tab_tiebreaker: 'Tiebreaker', tab_dashboard: 'Dashboard',
+    tab_users: 'ຜູ້ໃຊ້', tab_kpi: 'KPI',
+    active_session: 'ຮອບການນັບ', scanned: 'ສະແກນ',
+    total_qty: 'ຈຳນວນ', diff: 'ສ່ວນຕ່າງ',
+    press_to_scan: 'ກົດປຸ່ມເພື່ອເລີ່ມສະແກນ', scan_barcode: 'ສະແກນ',
+    stop: 'ຢຸດ', enter_barcode: 'ໃສ່ Barcode...',
+    my_counts: 'ການນັບຂອງຂ້ອຍ', all_counts: 'ການນັບທັງໝົດ',
+    no_history: 'ຍັງບໍ່ມີຂໍ້ມູນ',
+    product_not_found: 'ບໍ່ພົບສິນຄ້ານີ້',
+    pos_qty: 'POS', sell_price: 'ລາຄາ', unit_label: 'ໜ່ວຍ',
+    count_label: 'ຈຳນວນທີ່ນັບໄດ້',
+    verify_label: 'ກວດສອບ (Blind)',
+    tiebreaker_label: 'Tiebreaker (ນັບຄັ້ງທີ 3)',
+    note_placeholder: 'ໝາຍເຫດ...',
+    save: 'ບັນທຶກ', saving: 'ກຳລັງບັນທຶກ...',
+    cancel: 'ຍົກເລີກ', saved: 'ບັນທຶກສຳເລັດ',
+    mark_expired: 'ໝົດອາຍຸ/ເສຍຫາຍ', add_new_sku: 'New SKU',
+    session_default: 'ການນັບສະຕ໋ອກ',
+    no_active_session: 'ບໍ່ມີຮອບການນັບ',
+    scan_error: 'ບໍ່ສາມາດເປີດກ້ອງ',
+    change_zone: 'ປ່ຽນໂຊນ',
+    counter_count: 'Counter ນັບ', verifier_count: 'Verifier ນັບ',
+    bcs_title: 'ຈັດການລະບົບ', kpi_title: 'KPI',
+    count_accuracy: 'Count Accuracy', recount_rate: 'Recount Rate',
+    shrinkage_pct: 'Shrinkage %', products_total: 'ສິນຄ້າທັງໝົດ',
+    counted_today: 'ນັບມື້ນີ້',
+    level1: 'L1 Auto', level2: 'L2 Explain', level3: 'L3 Recount', level4: 'L4 Investigate',
+    tiebreaker_title: 'ລາຍການທີ່ Counter ≠ Verifier',
+    tiebreaker_subtitle: 'ນັບຄັ້ງທີ 3 ໃຊ້ກົດ 2 ໃນ 3',
+    quantity: 'ຈຳນວນ', description: 'ລາຍລະອຽດ', submit: 'ສົ່ງ',
+    full_name: 'ຊື່ເຕັມ', role_label: 'ສິດ',
+    add_user: 'ເພີ່ມຜູ້ໃຊ້', edit_user: 'ແກ້ໄຂຜູ້ໃຊ້',
+    user_saved: 'ບັນທຶກສຳເລັດ',
+    expiry_title: 'ບັນທຶກສິນຄ້າຫມົດອາຍຸ',
+    new_sku_title: 'ສິນຄ້ານອກລະບົບ',
+    barcode_label: 'Barcode', product_name: 'ຊື່ສິນຄ້າ', price_estimate: 'ລາຄາປະມານ',
+    type_label: 'ປະເພດ',
+    type_expired: 'ໝົດອາຍຸ', type_damaged: 'ເສຍຫາຍ', type_near: 'ໃກ້ໝົດອາຍຸ',
+    fill_required: 'ກອກຂໍ້ມູນໃຫ້ຄົບ',
+    matched: 'ຄືກັນ ✓', need_tb: 'ຕ້ອງ Tiebreaker',
+    locked_session: 'ບໍ່ມີຮອບການນັບ',
+    edit_count: 'ແກ້ໄຂການນັບ',
+    delete_count: 'ລົບການນັບ',
+    delete_confirm: 'ຢືນຢັນລົບການນັບນີ້?',
+    deleted: 'ລົບສຳເລັດ',
+    updated: 'ແກ້ໄຂສຳເລັດ',
+    counted_at: 'ນັບເມື່ອ',
+    counted_qty: 'ຈຳນວນທີ່ນັບ',
+    tap_to_edit: 'ກົດເພື່ອແກ້ໄຂ',
+    location: 'ຕຳແໜ່ງ',
+    settings: 'ຕັ້ງຄ່າ',
+    danger_zone: 'ໂຊນອັນຕະລາຍ',
+    reset_data: 'ລ້າງຂໍ້ມູນການນັບ',
+    reset_warning: 'ການກະທຳນີ້ບໍ່ສາມາດຍ້ອນກັບໄດ້!',
+    reset_session_only: 'ລ້າງສະເພາະຮອບປັດຈຸບັນ',
+    reset_session_desc: 'ລົບສະຖິຕິການນັບທັງໝົດໃນຮອບປັດຈຸບັນ (ສະຖານະ active)',
+    reset_all: 'ລ້າງທັງໝົດ',
+    reset_all_desc: 'ລົບທຸກຂໍ້ມູນ: stock_counts, sessions, expiry log, new SKU log',
+    enter_admin_pwd: 'ໃສ່ລະຫັດ Admin',
+    type_reset_confirm: 'ພິມ RESET ເພື່ອຢືນຢັນ',
+    reset_executing: 'ກຳລັງລ້າງຂໍ້ມູນ...',
+    reset_success: 'ລ້າງຂໍ້ມູນສຳເລັດ',
+    wrong_pwd: 'ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ',
+    must_type_reset: 'ຕ້ອງພິມ RESET',
+    will_delete: 'ຂໍ້ມູນທີ່ຈະຖືກລົບ:',
+    counts_to_delete: 'ການນັບ',
+    sessions_to_delete: 'ຮອບການນັບ',
+    workflow_control: 'ຄວບຄຸມການນັບ',
+    open_for_counter: 'ເປີດໃຫ້ Counter',
+    open_for_verifier: 'ເປີດໃຫ້ Verifier',
+    close_counter: 'ປິດ Counter',
+    close_verifier: 'ປິດ Verifier',
+    mark_completed: 'ສຳເລັດ',
+    status_closed: 'ປິດ',
+    status_open_for_counting: 'ເປີດໃຫ້ Counter',
+    status_counting: 'ກຳລັງນັບ',
+    status_counted: 'Counter ນັບແລ້ວ',
+    status_open_for_verify: 'ເປີດໃຫ້ Verifier',
+    status_verifying: 'ກຳລັງກວດສອບ',
+    status_verified: 'ກວດສອບແລ້ວ',
+    status_tiebreaker_needed: 'ຕ້ອງ Tiebreaker',
+    status_tiebreaker: 'ກຳລັງ Tiebreaker',
+    status_completed: 'ສຳເລັດ',
+    gondola_locked: 'Gondola ນີ້ຍັງບໍ່ໄດ້ເປີດ - ກະລຸນາແຈ້ງ CTL',
+    progress: 'ຄວາມຄືບໜ້າ',
+    in_progress: 'ກຳລັງເຮັດ',
+    waiting: 'ລໍຖ້າ',
+    not_started: 'ຍັງບໍ່ໄດ້ເລີ່ມ',
+    completed_lo: 'ສຳເລັດ',
+    open_gondola: 'ເປີດ Gondola',
+    close_gondola: 'ປິດ Gondola',
+    reopen: 'ເປີດໃໝ່',
+    no_gondolas_active: 'ບໍ່ມີ Gondola ທີ່ກຳລັງເຮັດວຽກ',
+    select_to_count: 'ເລືອກ Gondola ທີ່ CTL ເປີດໃຫ້',
+    waiting_ctl: 'ລໍ CTL ເປີດໃຫ້',
+    counter_done: 'Counter ນັບແລ້ວ',
+    verifier_done: 'Verifier ນັບແລ້ວ',
+    tiebreaker_done: 'Tiebreaker ແລ້ວ',
+    export_report: 'ສົ່ງອອກລາຍງານ',
+    export_xlsx: 'ດາວໂຫລດ Excel',
+    exporting: 'ກຳລັງສ້າງລາຍງານ...',
+    export_success: 'ດາວໂຫລດສຳເລັດ',
+    export_options: 'ຕົວເລືອກສົ່ງອອກ',
+    export_full: 'ລາຍງານສະບັບເຕັມ (7 sheets)',
+    export_counts_only: 'ການນັບເທົ່ານັ້ນ',
+    export_variance_only: 'ສະເພາະຄວາມຜິດປົກກະຕິ',
+    import_pos: 'ນຳເຂົ້າຂໍ້ມູນ POS',
+    upload_xlsx: 'ອັບໂຫລດໄຟລ Excel',
+    preview_import: 'ເບິ່ງຕົວຢ່າງກ່ອນນຳເຂົ້າ',
+    confirm_import: 'ຢືນຢັນການນຳເຂົ້າ',
+    importing: 'ກຳລັງນຳເຂົ້າ...',
+    import_success: 'ນຳເຂົ້າສຳເລັດ',
+    import_summary: 'ສະຫລຸບການນຳເຂົ້າ',
+    products_total: 'ສິນຄ້າທັງໝົດ',
+    products_new: 'ສິນຄ້າໃໝ່',
+    products_updated: 'ສິນຄ້າອັບເດດ',
+    products_removed: 'ສິນຄ້າຖືກລົບ',
+    select_file: 'ເລືອກໄຟລ',
+    snapshot_name: 'ຊື່ Snapshot',
+    snapshot_history: 'ປະຫວັດ Snapshots',
+    no_snapshots: 'ບໍ່ມີ Snapshots',
+    download_template: 'ດາວໂຫລດ Template',
+    file_invalid: 'ໄຟລບໍ່ຖືກຕ້ອງ',
+    no_products_found: 'ບໍ່ພົບສິນຄ້າໃນໄຟລ',
+    select_location_full: 'ເລືອກຕຳແໜ່ງສິນຄ້າ',
+    loc_type: 'ປະເພດ',
+    loc_gondola: 'Gondola',
+    loc_gondola_top: 'Gondola Top',
+    loc_wall: 'ຝາ (Wall)',
+    loc_wall_top: 'Wall Top',
+    loc_display: 'Display',
+    loc_cashier: 'Cashier',
+    loc_rack: 'Rack',
+    loc_warehouse: 'Warehouse',
+    no_locations: 'ບໍ່ມີຕຳແໜ່ງ',
+    loc_help: 'ຕຳແໜ່ງປັດຈຸບັນ',
+    change_location: 'ປ່ຽນຕຳແໜ່ງ',
+    quick_pick: 'ເລືອກດ່ວນ',
+    type_loc_code: 'ພິມ ຫຼື ສະແກນລະຫັດ',
+    loc_recent: 'ຫຼ້າສຸດ',
+    loc_not_found: 'ບໍ່ພົບລະຫັດນີ້',
+    browse_all: 'ເບິ່ງທັງໝົດ',
+    hide_browse: 'ເຊື່ອງລາຍການ',
+    scan_loc_code: 'ສະແກນລະຫັດ',
+    loc_format_hint: 'ເຊັ່ນ: 10A01, W028, WT028, D001',
+    clear: 'ລ້າງ',
+  },
+  th: {
+    subtitle: 'ปากเซ • ลาว',
+    username: 'ชื่อผู้ใช้', password: 'รหัสผ่าน', login: 'เข้าสู่ระบบ',
+    logging_in: 'กำลังเข้าสู่ระบบ...',
+    login_failed: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง',
+    back: 'กลับ', continue: 'ดำเนินต่อ',
+    select_zone_loc: 'เลือกโซน และ สถานที่',
+    select_zone: 'โซน', select_location: 'สถานที่',
+    please_select: 'กรุณาเลือกโซนและสถานที่',
+    tab_scan: 'สแกน', tab_history: 'ประวัติ',
+    tab_tiebreaker: 'Tiebreaker', tab_dashboard: 'Dashboard',
+    tab_users: 'ผู้ใช้', tab_kpi: 'KPI',
+    active_session: 'รอบการนับ', scanned: 'สแกน',
+    total_qty: 'จำนวน', diff: 'ส่วนต่าง',
+    press_to_scan: 'กดปุ่มเพื่อเริ่มสแกน', scan_barcode: 'สแกน',
+    stop: 'หยุด', enter_barcode: 'ใส่ Barcode...',
+    my_counts: 'การนับของฉัน', all_counts: 'การนับทั้งหมด',
+    no_history: 'ยังไม่มีข้อมูล',
+    product_not_found: 'ไม่พบสินค้านี้',
+    pos_qty: 'POS', sell_price: 'ราคา', unit_label: 'หน่วย',
+    count_label: 'จำนวนที่นับได้',
+    verify_label: 'ตรวจสอบ (Blind)',
+    tiebreaker_label: 'Tiebreaker (นับครั้งที่ 3)',
+    note_placeholder: 'หมายเหตุ...',
+    save: 'บันทึก', saving: 'กำลังบันทึก...',
+    cancel: 'ยกเลิก', saved: 'บันทึกสำเร็จ',
+    mark_expired: 'หมดอายุ/เสียหาย', add_new_sku: 'New SKU',
+    session_default: 'การนับสต๊อค',
+    no_active_session: 'ไม่มีรอบการนับ',
+    scan_error: 'เปิดกล้องไม่ได้',
+    change_zone: 'เปลี่ยนโซน',
+    counter_count: 'Counter นับ', verifier_count: 'Verifier นับ',
+    bcs_title: 'จัดการระบบ', kpi_title: 'KPI',
+    count_accuracy: 'Count Accuracy', recount_rate: 'Recount Rate',
+    shrinkage_pct: 'Shrinkage %', products_total: 'สินค้าทั้งหมด',
+    counted_today: 'นับวันนี้',
+    level1: 'L1 Auto', level2: 'L2 Explain', level3: 'L3 Recount', level4: 'L4 Investigate',
+    tiebreaker_title: 'รายการที่ Counter ≠ Verifier',
+    tiebreaker_subtitle: 'นับครั้งที่ 3 ใช้กฎ 2 ใน 3',
+    quantity: 'จำนวน', description: 'รายละเอียด', submit: 'ส่ง',
+    full_name: 'ชื่อเต็ม', role_label: 'สิทธิ์',
+    add_user: 'เพิ่มผู้ใช้', edit_user: 'แก้ไขผู้ใช้',
+    user_saved: 'บันทึกสำเร็จ',
+    expiry_title: 'บันทึกสินค้าหมดอายุ',
+    new_sku_title: 'สินค้านอกระบบ',
+    barcode_label: 'Barcode', product_name: 'ชื่อสินค้า', price_estimate: 'ราคาประมาณ',
+    type_label: 'ประเภท',
+    type_expired: 'หมดอายุ', type_damaged: 'เสียหาย', type_near: 'ใกล้หมดอายุ',
+    fill_required: 'กรอกข้อมูลให้ครบ',
+    matched: 'ตรง ✓', need_tb: 'ต้อง Tiebreaker',
+    locked_session: 'ไม่มีรอบการนับ',
+    edit_count: 'แก้ไขการนับ',
+    delete_count: 'ลบการนับ',
+    delete_confirm: 'ยืนยันลบการนับนี้?',
+    deleted: 'ลบสำเร็จ',
+    updated: 'แก้ไขสำเร็จ',
+    counted_at: 'นับเมื่อ',
+    counted_qty: 'จำนวนที่นับ',
+    tap_to_edit: 'กดเพื่อแก้ไข',
+    location: 'ตำแหน่ง',
+    settings: 'ตั้งค่า',
+    danger_zone: 'โซนอันตราย',
+    reset_data: 'ล้างข้อมูลการนับ',
+    reset_warning: 'การกระทำนี้ไม่สามารถย้อนกลับได้!',
+    reset_session_only: 'ล้างเฉพาะรอบปัจจุบัน',
+    reset_session_desc: 'ลบสถิติการนับทั้งหมดในรอบปัจจุบัน (สถานะ active)',
+    reset_all: 'ล้างทั้งหมด',
+    reset_all_desc: 'ลบทุกข้อมูล: stock_counts, sessions, expiry log, new SKU log',
+    enter_admin_pwd: 'ใส่รหัส Admin',
+    type_reset_confirm: 'พิมพ์ RESET เพื่อยืนยัน',
+    reset_executing: 'กำลังล้างข้อมูล...',
+    reset_success: 'ล้างข้อมูลสำเร็จ',
+    wrong_pwd: 'รหัสผ่านไม่ถูกต้อง',
+    must_type_reset: 'ต้องพิมพ์ RESET',
+    will_delete: 'ข้อมูลที่จะถูกลบ:',
+    counts_to_delete: 'การนับ',
+    sessions_to_delete: 'รอบการนับ',
+    workflow_control: 'ควบคุมการนับ',
+    open_for_counter: 'เปิดให้ Counter',
+    open_for_verifier: 'เปิดให้ Verifier',
+    close_counter: 'ปิด Counter',
+    close_verifier: 'ปิด Verifier',
+    mark_completed: 'สำเร็จ',
+    status_closed: 'ปิด',
+    status_open_for_counting: 'เปิดให้ Counter',
+    status_counting: 'กำลังนับ',
+    status_counted: 'Counter นับแล้ว',
+    status_open_for_verify: 'เปิดให้ Verifier',
+    status_verifying: 'กำลังตรวจสอบ',
+    status_verified: 'ตรวจสอบแล้ว',
+    status_tiebreaker_needed: 'ต้อง Tiebreaker',
+    status_tiebreaker: 'กำลัง Tiebreaker',
+    status_completed: 'สำเร็จ',
+    gondola_locked: 'Gondola นี้ยังไม่ได้เปิด - กรุณาแจ้ง CTL',
+    progress: 'ความคืบหน้า',
+    in_progress: 'กำลังทำ',
+    waiting: 'รอ',
+    not_started: 'ยังไม่ได้เริ่ม',
+    completed_lo: 'สำเร็จ',
+    open_gondola: 'เปิด Gondola',
+    close_gondola: 'ปิด Gondola',
+    reopen: 'เปิดใหม่',
+    no_gondolas_active: 'ไม่มี Gondola ที่กำลังทำงาน',
+    select_to_count: 'เลือก Gondola ที่ CTL เปิดให้',
+    waiting_ctl: 'รอ CTL เปิดให้',
+    counter_done: 'Counter นับแล้ว',
+    verifier_done: 'Verifier นับแล้ว',
+    tiebreaker_done: 'Tiebreaker แล้ว',
+    export_report: 'ส่งออกรายงาน',
+    export_xlsx: 'ดาวน์โหลด Excel',
+    exporting: 'กำลังสร้างรายงาน...',
+    export_success: 'ดาวน์โหลดสำเร็จ',
+    export_options: 'ตัวเลือกส่งออก',
+    export_full: 'รายงานฉบับเต็ม (7 sheets)',
+    export_counts_only: 'การนับเท่านั้น',
+    export_variance_only: 'เฉพาะความผิดปกติ',
+    import_pos: 'นำเข้าข้อมูล POS',
+    upload_xlsx: 'อัพโหลดไฟล์ Excel',
+    preview_import: 'ดูตัวอย่างก่อนนำเข้า',
+    confirm_import: 'ยืนยันการนำเข้า',
+    importing: 'กำลังนำเข้า...',
+    import_success: 'นำเข้าสำเร็จ',
+    import_summary: 'สรุปการนำเข้า',
+    products_total: 'สินค้าทั้งหมด',
+    products_new: 'สินค้าใหม่',
+    products_updated: 'สินค้าอัพเดท',
+    products_removed: 'สินค้าถูกลบ',
+    select_file: 'เลือกไฟล์',
+    snapshot_name: 'ชื่อ Snapshot',
+    snapshot_history: 'ประวัติ Snapshots',
+    no_snapshots: 'ไม่มี Snapshots',
+    download_template: 'ดาวน์โหลด Template',
+    file_invalid: 'ไฟล์ไม่ถูกต้อง',
+    no_products_found: 'ไม่พบสินค้าในไฟล์',
+    select_location_full: 'เลือกตำแหน่งสินค้า',
+    loc_type: 'ประเภท',
+    loc_gondola: 'Gondola',
+    loc_gondola_top: 'Gondola Top',
+    loc_wall: 'ผนัง (Wall)',
+    loc_wall_top: 'Wall Top',
+    loc_display: 'Display',
+    loc_cashier: 'Cashier',
+    loc_rack: 'Rack',
+    loc_warehouse: 'Warehouse',
+    no_locations: 'ไม่มีตำแหน่ง',
+    loc_help: 'ตำแหน่งปัจจุบัน',
+    change_location: 'เปลี่ยนตำแหน่ง',
+    quick_pick: 'เลือกด่วน',
+    type_loc_code: 'พิมพ์ หรือ สแกนรหัส',
+    loc_recent: 'ล่าสุด',
+    loc_not_found: 'ไม่พบรหัสนี้',
+    browse_all: 'ดูทั้งหมด',
+    hide_browse: 'ซ่อนรายการ',
+    scan_loc_code: 'สแกนรหัส',
+    loc_format_hint: 'เช่น: 10A01, W028, WT028, D001',
+    clear: 'ล้าง',
+  }
+};
+
+function T(key) { return (I18N[lang] && I18N[lang][key]) || key; }
+
+function applyI18n() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = T(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = T(el.dataset.i18nPlaceholder);
+  });
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.lang === lang);
+  });
+}
+
+function setLang(l) {
+  lang = l;
+  localStorage.setItem('lang', l);
+  applyI18n();
+  if (user) renderApp();
+}
+
+function toggleLang() { setLang(lang === 'lo' ? 'th' : 'lo'); }
+
+// ==================== UTILS ====================
+function log(msg, data) {
+  console.log('[FS]', msg, data || '');
+}
+
+function showToast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + type;
+  setTimeout(() => el.classList.add('show'), 10);
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = 1200;
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+    osc.start(); osc.stop(ctx.currentTime + 0.1);
+  } catch(e) {}
+}
+
+function showModal(html) {
+  document.getElementById('modalContent').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+async function hashPassword(pwd) {
+  const data = new TextEncoder().encode(pwd + SALT);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// ==================== AUTH ====================
+async function login() {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  const btn = document.getElementById('loginBtn');
+  const errEl = document.getElementById('loginError');
+  
+  errEl.classList.remove('show');
+  if (!username || !password) {
+    errEl.textContent = T('login_failed');
+    errEl.classList.add('show');
+    return;
+  }
+  
+  btn.disabled = true;
+  btn.innerHTML = `<span class="loader"></span> ${T('logging_in')}`;
+  
+  try {
+    const hash = await hashPassword(password);
+    log('Login attempt:', username);
+    
+    // Step 1: Find user (without join to avoid issues)
+    const { data: userData, error: userErr } = await sb
+      .from('users')
+      .select('*')
+      .eq('username', username)
+      .eq('password_hash', hash)
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    if (userErr) throw userErr;
+    if (!userData) {
+      errEl.textContent = T('login_failed');
+      errEl.classList.add('show');
+      btn.disabled = false;
+      btn.innerHTML = `<span>${T('login')}</span>`;
+      return;
+    }
+    
+    user = userData;
+    log('User logged in:', user.username, 'role:', user.role);
+    
+    // Step 2: Load branch (default to PAKSE if no branch_id)
+    if (user.branch_id) {
+      const { data: br } = await sb.from('branches').select('*').eq('id', user.branch_id).maybeSingle();
+      branch = br;
+    }
+    if (!branch) {
+      const { data: pakse } = await sb.from('branches').select('*').eq('code', 'PAKSE').maybeSingle();
+      branch = pakse;
+      if (branch && !user.branch_id) {
+        // Update user with branch_id
+        await sb.from('users').update({ branch_id: branch.id }).eq('id', user.id);
+        user.branch_id = branch.id;
+      }
+    }
+    
+    log('Branch:', branch);
+    
+    localStorage.setItem('fs_user', JSON.stringify(user));
+    localStorage.setItem('fs_branch', JSON.stringify(branch));
+    
+    await afterLogin();
+    
+  } catch (e) {
+    console.error('[FS] Login error:', e);
+    errEl.textContent = T('login_failed') + ': ' + (e.message || e);
+    errEl.classList.add('show');
+    btn.disabled = false;
+    btn.innerHTML = `<span>${T('login')}</span>`;
+  }
+}
+
+async function afterLogin() {
+  const needsZone = ['counter', 'verifier', 'ctl', 'staff', 'audit'].includes(user.role);
+  
+  if (needsZone) {
+    await loadZonesAndLocations();
+    showZoneStep();
+  } else {
+    enterApp();
+  }
+}
+
+async function loadZonesAndLocations() {
+  if (!branch) {
+    log('ERROR: No branch loaded');
+    return;
+  }
+  
+  log('Loading zones + locations for branch:', branch.id);
+  
+  const [zonesRes, locsRes] = await Promise.all([
+    sb.from('zones').select('*').eq('branch_id', branch.id).eq('is_active', true).order('sort_order'),
+    sb.from('location_master').select('*').eq('branch_id', branch.id).eq('is_active', true).order('location_code')
+  ]);
+  
+  allZones = zonesRes.data || [];
+  allLocations = locsRes.data || [];
+  
+  // จัดกลุ่มตาม type
+  locationsByType = {};
+  allLocations.forEach(l => {
+    if (!locationsByType[l.location_type]) locationsByType[l.location_type] = [];
+    locationsByType[l.location_type].push(l);
+  });
+  
+  log('Zones loaded:', allZones.length);
+  log('Locations loaded:', allLocations.length);
+  log('Location types:', Object.keys(locationsByType));
+  
+  if (!allZones.length) {
+    showToast('ບໍ່ມີໂຊນ - ກະລຸນາໃຫ້ Admin ສ້າງໂຊນ', 'error');
+  }
+  if (!allLocations.length) {
+    showToast('ບໍ່ມີຕຳແໜ່ງ - ກະລຸນາ run SQL 19-add-full-locations.sql', 'error');
+  }
+}
+
+function showZoneStep() {
+  document.getElementById('step-login').classList.remove('active');
+  document.getElementById('step-zone').classList.add('active');
+  document.getElementById('zoneStepGreeting').textContent = 
+    `ສະບາຍດີ ${user.full_name} (${user.role.toUpperCase()})`;
+  
+  document.getElementById('zoneGrid').innerHTML = allZones.map(z => `
+    <div class="zone-card" data-zone="${z.id}" onclick="selectZone(${z.id})">
+      <div class="zone-code">${z.code}</div>
+      <div class="zone-name">${lang === 'lo' ? z.name_lo : z.name_th}</div>
+    </div>
+  `).join('') || '<div style="padding:20px;text-align:center;color:var(--slate-500);font-size:12px;">No zones available</div>';
+  
+  // Update placeholder
+  const inp = document.getElementById('locInput');
+  if (inp) inp.placeholder = T('loc_format_hint');
+  
+  // แสดง location type tabs
+  renderLocationTypes();
+  
+  // แสดง recent locations
+  renderRecentLocations();
+  
+  // Pre-select if saved
+  const saved = JSON.parse(localStorage.getItem('fs_context') || '{}');
+  if (saved.zone) {
+    const z = allZones.find(zz => zz.id == saved.zone);
+    if (z) selectZone(z.id);
+  }
+  if (saved.locType) currentLocType = saved.locType;
+  if (saved.location) {
+    const l = allLocations.find(ll => ll.location_code === saved.location);
+    if (l) {
+      loc = l;
+      renderSelectedLocation();
+    }
+  }
+  renderLocationGrid();
+}
+
+function renderRecentLocations() {
+  const recent = JSON.parse(localStorage.getItem('fs_loc_recent') || '[]');
+  const row = document.getElementById('locRecentRow');
+  const list = document.getElementById('locRecent');
+  if (!row || !list) return;
+  
+  if (!recent.length) {
+    row.style.display = 'none';
+    return;
+  }
+  
+  row.style.display = 'block';
+  list.innerHTML = recent.slice(0, 8).map(code => `
+    <div class="loc-recent-chip" onclick="pickRecent('${code}')">${code}</div>
+  `).join('');
+}
+
+function pickRecent(code) {
+  document.getElementById('locInput').value = code;
+  onLocInput(code);
+}
+
+function saveRecentLocation(code) {
+  let recent = JSON.parse(localStorage.getItem('fs_loc_recent') || '[]');
+  recent = recent.filter(c => c !== code);  // remove if exists
+  recent.unshift(code);  // add to front
+  recent = recent.slice(0, 10);  // keep 10
+  localStorage.setItem('fs_loc_recent', JSON.stringify(recent));
+}
+
+function onLocInput(value) {
+  const code = value.trim().toUpperCase();
+  const errEl = document.getElementById('locNotFound');
+  
+  // Clear if empty
+  if (!code) {
+    if (errEl) errEl.style.display = 'none';
+    return;
+  }
+  
+  // Find location
+  const found = allLocations.find(l => l.location_code === code);
+  
+  if (found) {
+    loc = found;
+    // Auto switch type tab
+    if (locationsByType[found.location_type]) {
+      currentLocType = found.location_type;
+      renderLocationTypes();
+    }
+    renderSelectedLocation();
+    if (errEl) errEl.style.display = 'none';
+    log('Location auto-selected:', found);
+  } else {
+    // Show suggestion ถ้าพิมพ์ครบ pattern แต่ไม่มี
+    if (code.length >= 4 && errEl) {
+      errEl.className = 'loc-not-found';
+      errEl.style.display = 'block';
+      errEl.innerHTML = `⚠️ ${T('loc_not_found')}: <strong>${code}</strong>`;
+    } else if (errEl) {
+      errEl.style.display = 'none';
+    }
+  }
+}
+
+function renderSelectedLocation() {
+  const el = document.getElementById('locSelected');
+  if (!el) return;
+  
+  if (!loc) {
+    el.innerHTML = '';
+    return;
+  }
+  
+  el.innerHTML = `
+    <div class="loc-selected">
+      <div class="loc-selected-icon">📍</div>
+      <div class="loc-selected-info">
+        <div class="loc-selected-code">${loc.location_code}</div>
+        <div class="loc-selected-desc">${loc.description || ''}</div>
+      </div>
+      <button class="loc-selected-clear" onclick="clearLocation()" title="${T('clear')}">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+  `;
+}
+
+function clearLocation() {
+  loc = null;
+  document.getElementById('locInput').value = '';
+  const errEl = document.getElementById('locNotFound');
+  if (errEl) errEl.style.display = 'none';
+  renderSelectedLocation();
+}
+
+function toggleBrowse() {
+  const grid = document.getElementById('locGrid');
+  const btn = document.getElementById('browseToggleBtn');
+  if (!grid) return;
+  
+  if (grid.classList.contains('hidden')) {
+    grid.classList.remove('hidden');
+    btn.innerHTML = `↑ <span>${T('hide_browse')}</span>`;
+    renderLocationGrid();
+  } else {
+    grid.classList.add('hidden');
+    btn.innerHTML = `↓ <span>${T('browse_all')}</span>`;
+  }
+}
+
+let locScanner = null;
+
+async function scanLocCode() {
+  // เปิดกล้องสแกน Barcode ที่ติดบน Gondola
+  showModal(`
+    <h3>${T('scan_loc_code')}</h3>
+    <p>${T('loc_format_hint')}</p>
+    <div id="locScanFrame" style="background:var(--slate-900);border-radius:11px;aspect-ratio:4/3;overflow:hidden;margin-bottom:10px;position:relative;">
+      <div id="locReader" style="width:100%;"></div>
+    </div>
+    <div class="action-row">
+      <button class="btn btn-secondary" onclick="stopLocScan()">${T('cancel')}</button>
+    </div>
+  `);
+  
+  setTimeout(async () => {
+    locScanner = new Html5Qrcode("locReader");
+    try {
+      await locScanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 280, height: 160 } },
+        (decoded) => {
+          stopLocScan();
+          document.getElementById('locInput').value = decoded.trim().toUpperCase();
+          onLocInput(decoded);
+          beep();
+        },
+        () => {}
+      );
+    } catch (e) {
+      showToast(T('scan_error'), 'error');
+      stopLocScan();
+    }
+  }, 100);
+}
+
+async function stopLocScan() {
+  if (locScanner) {
+    try { await locScanner.stop(); } catch(e) {}
+    locScanner = null;
+  }
+  closeModal();
+}
+
+function renderLocationTypes() {
+  const types = ['gondola', 'gondola_top', 'wall', 'wall_top', 'display', 'cashier', 'rack', 'warehouse'];
+  const typeIcons = {
+    gondola: '📦', gondola_top: '⬆️📦', 
+    wall: '🧱', wall_top: '⬆️🧱',
+    display: '🎯', cashier: '💰', rack: '📐', warehouse: '🏭'
+  };
+  
+  const tabsEl = document.getElementById('locTypeTabs');
+  if (!tabsEl) return;
+  
+  tabsEl.innerHTML = types
+    .filter(type => locationsByType[type] && locationsByType[type].length > 0)
+    .map(type => `
+      <button class="loc-type-tab ${currentLocType === type ? 'active' : ''}" 
+              onclick="selectLocType('${type}')" 
+              data-type="${type}">
+        ${typeIcons[type]} ${T('loc_' + type)} 
+        <span class="loc-type-count">${locationsByType[type].length}</span>
+      </button>
+    `).join('');
+}
+
+function selectLocType(type) {
+  currentLocType = type;
+  document.querySelectorAll('.loc-type-tab').forEach(t => 
+    t.classList.toggle('active', t.dataset.type === type));
+  
+  // Re-render grid if visible
+  const grid = document.getElementById('locGrid');
+  if (grid && !grid.classList.contains('hidden')) {
+    renderLocationGrid();
+  }
+}
+
+function renderLocationGrid() {
+  const grid = document.getElementById('locGrid');
+  if (!grid) return;
+  
+  let items = locationsByType[currentLocType] || [];
+  
+  // ถ้าเลือก Gondola หรือ Gondola Top ให้กรองตาม Zone ที่เลือก
+  if ((currentLocType === 'gondola' || currentLocType === 'gondola_top') && zone) {
+    items = items.filter(l => l.zone_id === zone.id);
+  }
+  
+  if (!items.length) {
+    grid.innerHTML = `<div style="padding:20px;text-align:center;color:var(--slate-400);font-size:12px;grid-column:1/-1;">${T('no_locations')}</div>`;
+    return;
+  }
+  
+  grid.innerHTML = items.map(l => {
+    const displayText = l.location_code;
+    return `
+      <div class="loc-chip" data-loc="${l.location_code}" onclick="selectLocation('${l.location_code}')" title="${l.description || ''}">
+        ${displayText}
+      </div>
+    `;
+  }).join('');
+}
+
+function selectZone(zoneId) {
+  document.querySelectorAll('.zone-card').forEach(c => c.classList.remove('selected'));
+  document.querySelector(`.zone-card[data-zone="${zoneId}"]`)?.classList.add('selected');
+  zone = allZones.find(z => z.id == zoneId);
+  log('Zone selected:', zone);
+  // re-render gondola/gondola_top list to filter by zone
+  if (currentLocType === 'gondola' || currentLocType === 'gondola_top') renderLocationGrid();
+}
+
+function selectLocation(locCode) {
+  loc = allLocations.find(l => l.location_code === locCode);
+  if (!loc) return;
+  log('Location selected:', loc);
+  
+  // Update input + display
+  const inp = document.getElementById('locInput');
+  if (inp) inp.value = locCode;
+  renderSelectedLocation();
+  
+  // Highlight chip if visible
+  document.querySelectorAll('.loc-chip').forEach(c => c.classList.remove('selected'));
+  document.querySelector(`.loc-chip[data-loc="${locCode}"]`)?.classList.add('selected');
+  
+  // Hide grid after selection
+  const grid = document.getElementById('locGrid');
+  const btn = document.getElementById('browseToggleBtn');
+  if (grid && !grid.classList.contains('hidden')) {
+    grid.classList.add('hidden');
+    if (btn) btn.innerHTML = `↓ <span>${T('browse_all')}</span>`;
+  }
+}
+
+function confirmZoneLocation() {
+  if (!zone || !loc) {
+    showToast(T('please_select'), 'warning');
+    return;
+  }
+  
+  // Save to recent
+  saveRecentLocation(loc.location_code);
+  
+  localStorage.setItem('fs_context', JSON.stringify({
+    zone: zone.id, 
+    location: loc.location_code,
+    locType: currentLocType
+  }));
+  enterApp();
+}
+
+async function logout() {
+  localStorage.removeItem('fs_user');
+  localStorage.removeItem('fs_branch');
+  localStorage.removeItem('fs_context');
+  user = null; zone = null; loc = null; branch = null; session = null;
+  if (html5QrCode) { try { await html5QrCode.stop(); } catch(e){} }
+  document.getElementById('step-zone').classList.remove('active');
+  document.getElementById('step-login').classList.add('active');
+  document.getElementById('app').classList.remove('active');
+  document.getElementById('app').innerHTML = '';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('username').value = '';
+  document.getElementById('password').value = '';
+}
+
+function changeZone() {
+  document.getElementById('app').classList.remove('active');
+  document.getElementById('loginScreen').style.display = 'flex';
+  showZoneStep();
+}
+
+// ==================== SESSION ====================
+async function ensureSession() {
+  if (!branch) {
+    log('ERROR: No branch for session');
+    return null;
+  }
+  
+  log('Ensuring session for branch:', branch.id);
+  
+  const { data: existing, error: selErr } = await sb
+    .from('stock_sessions')
+    .select('*')
+    .eq('status', 'active')
+    .eq('branch_id', branch.id)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  
+  if (selErr) {
+    log('Session select error:', selErr);
+  }
+  
+  if (existing) {
+    session = existing;
+    log('Active session found:', session.id, session.session_name);
+    return session;
+  }
+  
+  // Create new session
+  const now = new Date();
+  const q = 'Q' + (Math.floor(now.getMonth()/3)+1) + '/' + now.getFullYear();
+  const sessionName = `${q} - ${branch.name_lo || branch.name_th} ${now.toISOString().slice(0,10)}`;
+  
+  log('Creating new session:', sessionName);
+  
+  const { data: newS, error: insErr } = await sb
+    .from('stock_sessions')
+    .insert({
+      session_name: sessionName,
+      status: 'active',
+      phase: 'counting',
+      quarter: q,
+      branch_id: branch.id,
+      started_by: user.id
+    })
+    .select()
+    .single();
+  
+  if (insErr) {
+    log('Session create error:', insErr);
+    showToast('Error creating session: ' + insErr.message, 'error');
+    return null;
+  }
+  
+  session = newS;
+  log('New session created:', session.id);
+  return session;
+}
+
+// ==================== ENTER APP ====================
+async function enterApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').classList.add('active');
+  
+  await ensureSession();
+  renderApp();
+}
+
+function renderApp() {
+  document.getElementById('app').innerHTML = renderShell();
+  
+  const r = user.role;
+  if (['counter', 'staff'].includes(r)) goPage('scan');
+  else if (['verifier', 'audit'].includes(r)) goPage('tiebreaker');
+  else if (r === 'ctl') goPage('tiebreaker');
+  else if (['bcs', 'admin', 'scc'].includes(r)) goPage('dashboard');
+  else goPage('scan');
+}
+
+function renderShell() {
+  const r = user.role;
+  
+  // Tabs by role
+  let tabs = '';
+  if (['counter', 'staff'].includes(r)) {
+    tabs = `
+      <button class="tab" data-page="scan" onclick="goPage('scan')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V6a2 2 0 012-2h2M4 16v2a2 2 0 002 2h2"/></svg>
+        <span>${T('tab_scan')}</span>
+      </button>
+      <button class="tab" data-page="history" onclick="goPage('history')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12"/></svg>
+        <span>${T('tab_history')}</span>
+      </button>`;
+  } else if (['verifier', 'audit', 'ctl'].includes(r)) {
+    const isCTL = r === 'ctl';
+    tabs = `
+      ${isCTL ? `
+      <button class="tab" data-page="workflow" onclick="goPage('workflow')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+        <span>${T('workflow_control')}</span>
+      </button>` : ''}
+      <button class="tab" data-page="tiebreaker" onclick="goPage('tiebreaker')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/></svg>
+        <span>${T('tab_tiebreaker')}</span>
+        <span class="tab-badge" id="tabTbBadge" style="display:none;">0</span>
+      </button>
+      <button class="tab" data-page="scan" onclick="goPage('scan')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V6a2 2 0 012-2h2"/></svg>
+        <span>${T('tab_scan')}</span>
+      </button>
+      <button class="tab" data-page="history" onclick="goPage('history')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12"/></svg>
+        <span>${T('tab_history')}</span>
+      </button>`;
+  } else {
+    // BCS / Admin / SCC
+    const isFullAdmin = ['admin', 'scc'].includes(r);
+    tabs = `
+      <button class="tab" data-page="dashboard" onclick="goPage('dashboard')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5"/></svg>
+        <span>${T('tab_dashboard')}</span>
+      </button>
+      <button class="tab" data-page="kpi" onclick="goPage('kpi')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8"/></svg>
+        <span>${T('tab_kpi')}</span>
+      </button>
+      <button class="tab" data-page="tiebreaker" onclick="goPage('tiebreaker')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/></svg>
+        <span>${T('tab_tiebreaker')}</span>
+        <span class="tab-badge" id="tabTbBadge" style="display:none;">0</span>
+      </button>
+      <button class="tab" data-page="users" onclick="goPage('users')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857"/></svg>
+        <span>${T('tab_users')}</span>
+      </button>
+      ${isFullAdmin ? `
+      <button class="tab" data-page="settings" onclick="goPage('settings')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        <span>${T('settings')}</span>
+      </button>` : ''}`;
+  }
+  
+  // Context bar
+  const ctxBar = (zone && loc) ? `
+    <div class="context-bar r-${r}">
+      <div class="ctx-chip"><span class="lbl">Zone:</span>${zone.code}</div>
+      <div class="ctx-chip"><span class="lbl">Loc:</span>${loc.location_code}</div>
+      <button class="ctx-change" onclick="changeZone()">${T('change_zone')}</button>
+    </div>` : '';
+  
+  return `
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-logo r-${r}">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        </div>
+        <div class="topbar-info">
+          <div class="name">${user.full_name}</div>
+          <div class="meta">${r.toUpperCase()} • ${branch?.name_lo || 'ปากเซ'}</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn" onclick="toggleLang()"><span style="font-size:10px;font-weight:700;">${lang.toUpperCase()}</span></button>
+        <button class="icon-btn" onclick="logout()">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7"/></svg>
+        </button>
+      </div>
+    </div>
+    ${ctxBar}
+    <div class="content" id="appContent"></div>
+    <div class="tabs">${tabs}</div>
+  `;
+}
+
+function goPage(page) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.page === page));
+  const c = document.getElementById('appContent');
+  if (!c) return;
+  
+  log('Going to page:', page);
+  
+  if (page === 'scan') {
+    c.innerHTML = renderScanPage();
+    loadSessionStats();
+  } else if (page === 'history') {
+    c.innerHTML = renderHistoryPage();
+    loadHistory();
+  } else if (page === 'tiebreaker') {
+    c.innerHTML = renderTiebreakerPage();
+    loadTiebreakerList();
+  } else if (page === 'dashboard') {
+    c.innerHTML = renderDashboardPage();
+    loadDashboard();
+  } else if (page === 'kpi') {
+    c.innerHTML = renderKPIPage();
+    loadKPI();
+  } else if (page === 'users') {
+    c.innerHTML = renderUsersPage();
+    loadUsers();
+  } else if (page === 'settings') {
+    c.innerHTML = renderSettingsPage();
+    loadSettingsStats();
+  } else if (page === 'workflow') {
+    c.innerHTML = renderWorkflowPage();
+    loadWorkflowList();
+  }
+  
+  updateTbBadge();
+}
+
+// ==================== SCAN PAGE ====================
+function renderScanPage() {
+  const r = user.role;
+  
+  return `
+    <div class="session-card r-${r}">
+      <div class="session-label">${T('active_session')} • ${r.toUpperCase()}</div>
+      <div class="session-name">${session?.session_name || T('no_active_session')}</div>
+      <div class="session-stats">
+        <div class="session-stat"><div class="num" id="statScanned">0</div><div class="lbl">${T('scanned')}</div></div>
+        <div class="session-stat"><div class="num" id="statTotal">0</div><div class="lbl">${T('total_qty')}</div></div>
+        <div class="session-stat" id="statDiffCard"><div class="num" id="statDiff">-</div><div class="lbl">${T('diff')}</div></div>
+      </div>
+    </div>
+    
+    <div class="scan-card">
+      <div class="scan-frame" id="scanFrame">
+        <div class="scan-placeholder" id="scanPlaceholder">
+          <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5a1 1 0 011-1h2M9 4v16M15 4v16"/></svg>
+          <p>${T('press_to_scan')}</p>
+        </div>
+        <div id="reader" style="display:none;"></div>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:9px;">
+        <button class="btn btn-primary" id="startScanBtn" onclick="startScan()" style="flex:1;">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/></svg>
+          ${T('scan_barcode')}
+        </button>
+        <button class="btn btn-danger" id="stopScanBtn" onclick="stopScan()" style="flex:1;display:none;">${T('stop')}</button>
+      </div>
+      <div class="manual-search">
+        <input id="manualBarcode" type="text" inputmode="numeric" placeholder="${T('enter_barcode')}">
+        <button class="btn btn-secondary" onclick="manualLookup()" style="width:auto;padding:9px 13px;">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </button>
+      </div>
+    </div>
+    
+    <div id="productCard"></div>
+    
+    <div class="quick-actions">
+      <button class="quick-btn" onclick="openExpiryModal()">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        ${T('mark_expired')}
+      </button>
+      <button class="quick-btn" onclick="openNewSKUModal()">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        ${T('add_new_sku')}
+      </button>
+    </div>
+  `;
+}
+
+async function startScan() {
+  document.getElementById('scanPlaceholder').style.display = 'none';
+  document.getElementById('reader').style.display = 'block';
+  document.getElementById('startScanBtn').style.display = 'none';
+  document.getElementById('stopScanBtn').style.display = 'flex';
+  document.getElementById('scanFrame').classList.add('scanning');
+  
+  html5QrCode = new Html5Qrcode("reader");
+  try {
+    await html5QrCode.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 280, height: 160 } },
+      (decoded) => { stopScan(); lookupProduct(decoded); },
+      () => {}
+    );
+  } catch (e) {
+    showToast(T('scan_error'), 'error');
+    stopScan();
+  }
+}
+
+async function stopScan() {
+  if (html5QrCode) {
+    try { await html5QrCode.stop(); } catch(e) {}
+    html5QrCode = null;
+  }
+  const ph = document.getElementById('scanPlaceholder');
+  if (ph) {
+    ph.style.display = 'block';
+    document.getElementById('reader').style.display = 'none';
+    document.getElementById('startScanBtn').style.display = 'flex';
+    document.getElementById('stopScanBtn').style.display = 'none';
+    document.getElementById('scanFrame').classList.remove('scanning');
+  }
+}
+
+async function manualLookup() {
+  const bc = document.getElementById('manualBarcode').value.trim();
+  if (!bc) return;
+  await lookupProduct(bc);
+  document.getElementById('manualBarcode').value = '';
+}
+
+async function lookupProduct(barcode) {
+  beep();
+  log('Lookup product:', barcode);
+  
+  const { data, error } = await sb.from('products').select('*').eq('barcode', barcode).maybeSingle();
+  
+  if (error) {
+    log('Lookup error:', error);
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  
+  if (!data) {
+    document.getElementById('productCard').innerHTML = `
+      <div class="product-card" style="border-left-color: var(--rose-500);">
+        <div class="product-name" style="color: var(--rose-500);">⚠️ ${T('product_not_found')}</div>
+        <div class="product-barcode">${barcode}</div>
+        <button class="btn btn-amber" onclick="openNewSKUModal('${barcode}')" style="margin-top:8px;">
+          ${T('add_new_sku')}
+        </button>
+      </div>
+    `;
+    return;
+  }
+  
+  curProduct = data;
+  renderProduct(data);
+}
+
+function renderProduct(p) {
+  const name = lang === 'lo' ? (p.name_lo || p.name_th) : (p.name_th || p.name_lo);
+  const unit = lang === 'lo' ? (p.unit_lo || p.unit_th || 'pcs') : (p.unit_th || p.unit_lo || 'ชิ้น');
+  const price = Number(p.sell_price || 0).toLocaleString();
+  const r = user.role;
+  const isAdmin = ['admin', 'scc', 'bcs'].includes(r);
+  const isVerifier = ['verifier', 'audit'].includes(r);
+  const isCTL = r === 'ctl';
+  
+  let labelText = T('count_label');
+  let modeClass = '';
+  if (isVerifier) { labelText = T('verify_label'); modeClass = 'audit-mode'; }
+  if (isCTL) { labelText = T('tiebreaker_label'); modeClass = 'tiebreaker-mode'; }
+  
+  const metaSection = isAdmin ? `
+    <div class="product-meta">
+      <div class="meta-item"><div class="meta-label">${T('pos_qty')}</div><div class="meta-value mono">${p.pos_qty || 0} ${unit}</div></div>
+      <div class="meta-item"><div class="meta-label">${T('sell_price')}</div><div class="meta-value mono">₭ ${price}</div></div>
+    </div>` : `
+    <div class="product-meta" style="grid-template-columns: 1fr;">
+      <div class="meta-item" style="background: var(--teal-50);">
+        <div class="meta-label">${T('unit_label')}</div>
+        <div class="meta-value mono">${unit}</div>
+      </div>
+    </div>`;
+  
+  const mdWarning = p.is_markdown ? `<div class="md-badge">MD ${p.barcode.substring(0,3)}</div>` : '';
+  const startValue = isAdmin ? (p.pos_qty || 0) : 0;
+  
+  document.getElementById('productCard').innerHTML = `
+    <div class="product-card ${modeClass}">
+      ${mdWarning}
+      <div class="product-name">${name}</div>
+      <div class="product-barcode">${p.barcode}</div>
+      ${metaSection}
+      <div class="count-section ${modeClass}">
+        <div class="count-label">${labelText}</div>
+        <div class="count-controls">
+          <button class="count-btn" onclick="adjustCount(-1)">−</button>
+          <input class="count-input mono" id="countInput" type="number" inputmode="numeric" value="${startValue}" min="0">
+          <button class="count-btn" onclick="adjustCount(1)">+</button>
+        </div>
+      </div>
+      <textarea class="note-input" id="noteInput" rows="2" placeholder="${T('note_placeholder')}"></textarea>
+      <div class="action-row">
+        <button class="btn btn-secondary" onclick="cancelCount()">${T('cancel')}</button>
+        <button class="btn btn-primary" id="saveBtn" onclick="saveCount()">${T('save')}</button>
+      </div>
+    </div>
+  `;
+  setTimeout(() => {
+    const inp = document.getElementById('countInput');
+    if (inp) { inp.focus(); inp.select(); }
+  }, 100);
+}
+
+function adjustCount(delta) {
+  const inp = document.getElementById('countInput');
+  if (!inp) return;
+  let v = parseInt(inp.value) || 0;
+  inp.value = Math.max(0, v + delta);
+}
+
+function cancelCount() {
+  curProduct = null;
+  curTask = null;
+  const c = document.getElementById('productCard');
+  if (c) c.innerHTML = '';
+}
+
+async function saveCount() {
+  if (!curProduct) {
+    showToast('No product selected', 'error');
+    return;
+  }
+  if (!session) {
+    showToast(T('locked_session'), 'error');
+    log('ERROR: No session when saving');
+    return;
+  }
+  
+  // Workflow check - Counter/Verifier ต้องให้ CTL เปิดก่อน
+  const r = user.role;
+  if (['counter', 'staff', 'verifier', 'audit'].includes(r) && loc?.location_code) {
+    const { data: gs } = await sb.from('gondola_status')
+      .select('status, active_counter_id, active_verifier_id')
+      .eq('session_id', session.id)
+      .eq('location_code', loc.location_code)
+      .maybeSingle();
+    
+    const isCounter = ['counter', 'staff'].includes(r);
+    const isVerifier = ['verifier', 'audit'].includes(r);
+    
+    if (!gs) {
+      showToast(T('gondola_locked'), 'warning');
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = T('save');
+      return;
+    }
+    
+    if (isCounter && !['open_for_counting', 'counting'].includes(gs.status)) {
+      showToast(T('gondola_locked') + ' (Status: ' + gs.status + ')', 'warning');
+      const saveBtn = document.getElementById('saveBtn');
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = T('save'); }
+      return;
+    }
+    
+    if (isVerifier && !['open_for_verify', 'verifying'].includes(gs.status)) {
+      showToast(T('gondola_locked') + ' (Status: ' + gs.status + ')', 'warning');
+      const saveBtn = document.getElementById('saveBtn');
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = T('save'); }
+      return;
+    }
+    
+    // Update status to counting/verifying ถ้ายังไม่ใช่
+    if (isCounter && gs.status === 'open_for_counting') {
+      await sb.from('gondola_status').update({
+        status: 'counting',
+        active_counter_id: user.id,
+        counting_started_at: new Date().toISOString()
+      }).eq('session_id', session.id).eq('location_code', loc.location_code);
+    }
+    if (isVerifier && gs.status === 'open_for_verify') {
+      await sb.from('gondola_status').update({
+        status: 'verifying',
+        active_verifier_id: user.id,
+        verifying_started_at: new Date().toISOString()
+      }).eq('session_id', session.id).eq('location_code', loc.location_code);
+    }
+  }
+  
+  const count = parseInt(document.getElementById('countInput').value) || 0;
+  const note = document.getElementById('noteInput').value.trim();
+  const saveBtn = document.getElementById('saveBtn');
+  
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = `<span class="loader"></span> ${T('saving')}`;
+  
+  // Determine count_role
+  let countRole = 'counter';
+  if (['verifier', 'audit'].includes(r)) countRole = 'verifier';
+  else if (r === 'ctl') countRole = 'ctl_tiebreaker';
+  else if (['admin', 'scc', 'bcs'].includes(r)) countRole = 'manager_final';
+  
+  const insertData = {
+    session_id: session.id,
+    branch_id: branch?.id || user.branch_id,
+    product_id: curProduct.id,
+    zone_id: zone?.id || null,
+    location_code: loc?.location_code || null,
+    gondola_code: loc?.location_code || null,  // เก็บ Location เต็มเป็น gondola_code ด้วย
+    user_id: user.id,
+    counted_qty: count,
+    pos_qty_snapshot: curProduct.pos_qty || 0,
+    count_role: countRole,
+    is_markdown: curProduct.is_markdown || false,
+    note: note || null,
+  };
+  
+  log('Saving count:', insertData);
+  
+  const { data, error } = await sb.from('stock_counts').insert(insertData).select().single();
+  
+  if (error) {
+    console.error('[FS] Save error:', error);
+    showToast('Error: ' + error.message, 'error');
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = T('save');
+    return;
+  }
+  
+  log('Saved successfully:', data);
+  
+  // Show feedback based on workflow_status
+  let toastMsg = T('saved');
+  let toastType = 'success';
+  if (data.workflow_status === 'matched') {
+    toastMsg = '✓ ' + T('matched');
+  } else if (data.workflow_status === 'needs_audit') {
+    toastMsg = '⚠️ ' + T('need_tb');
+    toastType = 'warning';
+  }
+  
+  showToast(toastMsg, toastType);
+  cancelCount();
+  await loadSessionStats();
+  updateTbBadge();
+}
+
+// ==================== STATS ====================
+async function loadSessionStats() {
+  if (!session) return;
+  
+  const r = user.role;
+  const isAdmin = ['admin', 'scc', 'bcs'].includes(r);
+  
+  log('Loading stats for session:', session.id, 'user:', user.id);
+  
+  // ดึงเฉพาะของ user นี้ (ไม่ใช่ทั้งหมด)
+  const { data, error } = await sb.from('stock_counts')
+    .select('counted_qty, pos_qty_snapshot, diff')
+    .eq('session_id', session.id)
+    .eq('user_id', user.id);
+  
+  if (error) {
+    log('Stats error:', error);
+    return;
+  }
+  
+  log('My counts:', (data || []).length);
+  
+  const items = data || [];
+  const totalScanned = items.length;
+  const totalQty = items.reduce((s, x) => s + (x.counted_qty || 0), 0);
+  const totalDiff = items.reduce((s, x) => s + (x.diff || 0), 0);
+  
+  const sEl = document.getElementById('statScanned');
+  const tEl = document.getElementById('statTotal');
+  const dEl = document.getElementById('statDiff');
+  const dCard = document.getElementById('statDiffCard');
+  
+  if (sEl) sEl.textContent = totalScanned.toLocaleString();
+  if (tEl) tEl.textContent = totalQty.toLocaleString();
+  
+  if (isAdmin) {
+    if (dEl) dEl.textContent = (totalDiff > 0 ? '+' : '') + totalDiff.toLocaleString();
+  } else {
+    if (dCard) {
+      dCard.style.display = 'none';
+      const parent = dCard.parentElement;
+      if (parent) parent.style.gridTemplateColumns = '1fr 1fr';
+    }
+  }
+}
+
+// ==================== HISTORY ====================
+function renderHistoryPage() {
+  return `
+    <div class="history-card">
+      <div class="section-title">
+        ${T('my_counts')}
+        <span class="badge" id="histCount">0</span>
+      </div>
+      <div class="history-list" id="histList"></div>
+    </div>
+  `;
+}
+
+async function loadHistory() {
+  if (!session) return;
+  
+  log('Loading history for user:', user.id);
+  
+  const { data, error } = await sb.from('stock_counts')
+    .select(`
+      id, counted_qty, pos_qty_snapshot, diff, variance_level, is_markdown, workflow_status, counted_at, note, gondola_code, location_code,
+      products(id, barcode, name_th, name_lo, unit_th, unit_lo, pos_qty)
+    `)
+    .eq('session_id', session.id)
+    .eq('user_id', user.id)
+    .order('counted_at', { ascending: false })
+    .limit(50);
+  
+  if (error) {
+    log('History error:', error);
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  
+  const list = document.getElementById('histList');
+  const countEl = document.getElementById('histCount');
+  if (!list) return;
+  
+  const items = data || [];
+  log('History loaded:', items.length, 'items');
+  
+  if (countEl) countEl.textContent = items.length;
+  
+  if (!items.length) {
+    list.innerHTML = `<div class="empty-state"><p>${T('no_history')}</p></div>`;
+    return;
+  }
+  
+  const isAdmin = ['admin', 'scc', 'bcs'].includes(user.role);
+  
+  list.innerHTML = items.map(item => {
+    const p = item.products || {};
+    const name = lang === 'lo' ? (p.name_lo || p.name_th || '?') : (p.name_th || p.name_lo || '?');
+    const diff = item.diff || 0;
+    const cls = isAdmin ? (diff === 0 ? 'match' : (diff > 0 ? 'diff-plus' : 'diff-minus')) : 'match';
+    const diffText = isAdmin ? (diff === 0 ? '✓' : (diff > 0 ? `+${diff}` : `${diff}`)) : '✓';
+    const diffCls = isAdmin ? (diff === 0 ? 'diff-match-text' : (diff > 0 ? 'diff-plus-text' : 'diff-minus-text')) : 'diff-match-text';
+    
+    const varLevel = (isAdmin && item.variance_level) ? `<span class="var-level var-level-${item.variance_level}">L${item.variance_level}</span>` : '';
+    const mdBadge = item.is_markdown ? '<span class="md-badge" style="margin-left:4px;">MD</span>' : '';
+    const locBadge = item.gondola_code ? `<span style="background:var(--teal-100);color:var(--teal-700);padding:1px 5px;border-radius:4px;font-weight:700;margin-left:4px;font-family:'Space Grotesk',monospace;">${item.gondola_code}</span>` : '';
+    
+    return `
+      <div class="history-item clickable ${cls}" onclick="openEditCount('${item.id}')">
+        <div class="history-content">
+          <div class="history-name">${name}${mdBadge}${locBadge}</div>
+          <div class="history-meta">${p.barcode || ''} • <span class="${diffCls}">${diffText}</span> ${varLevel}</div>
+        </div>
+        <div class="history-qty mono">${item.counted_qty}</div>
+        <div style="color:var(--slate-400);font-size:14px;margin-left:4px;">✏️</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ==================== EDIT / DELETE COUNT ====================
+async function openEditCount(countId) {
+  log('Edit count:', countId);
+  
+  // Load count details with product
+  const { data: item, error } = await sb.from('stock_counts')
+    .select(`
+      *, 
+      products(barcode, name_th, name_lo, unit_th, unit_lo, pos_qty)
+    `)
+    .eq('id', countId)
+    .single();
+  
+  if (error || !item) {
+    showToast('Error loading count', 'error');
+    return;
+  }
+  
+  const p = item.products || {};
+  const name = lang === 'lo' ? (p.name_lo || p.name_th || '?') : (p.name_th || p.name_lo || '?');
+  const unit = lang === 'lo' ? (p.unit_lo || p.unit_th || 'ชิ้น') : (p.unit_th || p.unit_lo || 'ชิ้น');
+  const countedAt = new Date(item.counted_at).toLocaleString(lang === 'lo' ? 'lo-LA' : 'th-TH', {
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+  
+  const isAdmin = ['admin', 'scc', 'bcs'].includes(user.role);
+  const isOwn = item.user_id === user.id;
+  const canDelete = isAdmin || isOwn;
+  
+  showModal(`
+    <h3>${T('edit_count')}</h3>
+    
+    <!-- Product Info -->
+    <div style="background:var(--slate-50);padding:11px;border-radius:10px;margin-bottom:12px;">
+      <div style="font-size:13px;font-weight:700;color:var(--slate-900);margin-bottom:4px;">${name}</div>
+      <div style="font-size:11px;color:var(--slate-500);font-family:'Space Grotesk',monospace;margin-bottom:4px;">${p.barcode || ''}</div>
+      ${item.gondola_code ? `<div style="display:inline-block;background:var(--teal-100);color:var(--teal-700);padding:2px 8px;border-radius:5px;font-weight:700;font-family:'Space Grotesk',monospace;font-size:11px;margin-top:4px;">📍 ${item.gondola_code}</div>` : ''}
+    </div>
+    
+    <!-- Meta info -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:11px;">
+      <div style="background:white;padding:8px;border-radius:8px;border:1px solid var(--slate-200);">
+        <div style="font-size:9px;color:var(--slate-500);text-transform:uppercase;font-weight:600;">${T('counted_at')}</div>
+        <div style="font-size:11px;color:var(--slate-900);font-weight:600;margin-top:2px;">${countedAt}</div>
+      </div>
+      ${isAdmin ? `
+      <div style="background:white;padding:8px;border-radius:8px;border:1px solid var(--slate-200);">
+        <div style="font-size:9px;color:var(--slate-500);text-transform:uppercase;font-weight:600;">${T('pos_qty')}</div>
+        <div style="font-size:13px;color:var(--slate-900);font-weight:700;font-family:'Space Grotesk',monospace;margin-top:2px;">${p.pos_qty || 0} ${unit}</div>
+      </div>
+      ` : ''}
+    </div>
+    
+    <!-- Count Input -->
+    <div class="count-section" style="margin-bottom:11px;">
+      <div class="count-label">${T('counted_qty')}</div>
+      <div class="count-controls">
+        <button class="count-btn" onclick="adjustEditCount(-1)">−</button>
+        <input class="count-input mono" id="editCountInput" type="number" inputmode="numeric" value="${item.counted_qty}" min="0">
+        <button class="count-btn" onclick="adjustEditCount(1)">+</button>
+      </div>
+    </div>
+    
+    <!-- Note -->
+    <textarea class="note-input" id="editNoteInput" rows="2" placeholder="${T('note_placeholder')}">${item.note || ''}</textarea>
+    
+    <!-- Action buttons -->
+    <input type="hidden" id="editCountId" value="${item.id}">
+    <div style="display:flex;gap:7px;">
+      ${canDelete ? `<button class="btn btn-danger" onclick="confirmDeleteCount()" style="flex:0 0 auto;padding:13px;">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a2 2 0 012-2h2a2 2 0 012 2v3"/></svg>
+      </button>` : ''}
+      <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;">${T('cancel')}</button>
+      <button class="btn btn-primary" id="saveEditBtn" onclick="saveEditCount()" style="flex:1;">${T('save')}</button>
+    </div>
+  `);
+  
+  setTimeout(() => {
+    const inp = document.getElementById('editCountInput');
+    if (inp) { inp.focus(); inp.select(); }
+  }, 100);
+}
+
+function adjustEditCount(delta) {
+  const inp = document.getElementById('editCountInput');
+  if (!inp) return;
+  let v = parseInt(inp.value) || 0;
+  inp.value = Math.max(0, v + delta);
+}
+
+async function saveEditCount() {
+  const id = document.getElementById('editCountId').value;
+  const newQty = parseInt(document.getElementById('editCountInput').value) || 0;
+  const newNote = document.getElementById('editNoteInput').value.trim();
+  const btn = document.getElementById('saveEditBtn');
+  
+  if (!id) return;
+  
+  btn.disabled = true;
+  btn.innerHTML = `<span class="loader"></span> ${T('saving')}`;
+  
+  const { error } = await sb.from('stock_counts').update({
+    counted_qty: newQty,
+    note: newNote || null,
+    updated_at: new Date().toISOString()
+  }).eq('id', id);
+  
+  if (error) {
+    log('Update error:', error);
+    showToast('Error: ' + error.message, 'error');
+    btn.disabled = false;
+    btn.innerHTML = T('save');
+    return;
+  }
+  
+  log('Count updated:', id, 'new qty:', newQty);
+  showToast(T('updated'), 'success');
+  closeModal();
+  
+  // Reload current page
+  const activeTab = document.querySelector('.tab.active');
+  if (activeTab) goPage(activeTab.dataset.page);
+  
+  updateTbBadge();
+}
+
+function confirmDeleteCount() {
+  const id = document.getElementById('editCountId').value;
+  if (!id) return;
+  
+  if (confirm(T('delete_confirm'))) {
+    deleteCount(id);
+  }
+}
+
+async function deleteCount(id) {
+  log('Deleting count:', id);
+  
+  const { error } = await sb.from('stock_counts').delete().eq('id', id);
+  
+  if (error) {
+    log('Delete error:', error);
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  
+  showToast(T('deleted'), 'success');
+  closeModal();
+  
+  // Reload current page
+  const activeTab = document.querySelector('.tab.active');
+  if (activeTab) goPage(activeTab.dataset.page);
+  
+  updateTbBadge();
+}
+
+// ==================== TIEBREAKER ====================
+function renderTiebreakerPage() {
+  return `
+    <div class="banner violet">
+      <div class="banner-icon">
+        <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/></svg>
+      </div>
+      <div class="banner-text">
+        <h4>${T('tiebreaker_title')}</h4>
+        <p>${T('tiebreaker_subtitle')}</p>
+      </div>
+    </div>
+    <div class="history-card">
+      <div class="section-title">
+        ${T('tab_tiebreaker')}
+        <span class="badge danger" id="tbCount">0</span>
+      </div>
+      <div id="tbList"></div>
+    </div>
+  `;
+}
+
+async function loadTiebreakerList() {
+  if (!session) return;
+  
+  log('Loading tiebreaker list');
+  
+  let q = sb.from('v_needs_tiebreaker').select('*').eq('session_id', session.id);
+  if (zone) q = q.eq('zone_id', zone.id);
+  
+  const { data, error } = await q;
+  
+  if (error) {
+    log('Tiebreaker error:', error);
+    showToast('Error: ' + error.message, 'error');
+  }
+  
+  const items = data || [];
+  log('Tiebreaker items:', items.length);
+  
+  const list = document.getElementById('tbList');
+  const countEl = document.getElementById('tbCount');
+  if (countEl) countEl.textContent = items.length;
+  if (!list) return;
+  
+  if (!items.length) {
+    list.innerHTML = `<div class="empty-state"><p>${T('no_history')}</p></div>`;
+    return;
+  }
+  
+  const isAdmin = ['admin', 'scc', 'bcs'].includes(user.role);
+  
+  list.innerHTML = items.map(item => {
+    const name = lang === 'lo' ? (item.name_lo || item.name_th) : (item.name_th || item.name_lo);
+    const diff = Math.abs(item.cv_diff || 0);
+    const valDiff = Number(item.cv_value_diff || 0);
+    let priority = 'low', icon = '·', color = 'var(--teal-700)', bg = 'var(--teal-100)';
+    if (valDiff > 300000 || diff >= 20) { priority = 'high'; icon = '!'; color = 'var(--rose-500)'; bg = 'var(--rose-100)'; }
+    else if (diff >= 5) { priority = 'medium'; icon = '!'; color = 'var(--amber-500)'; bg = 'var(--amber-100)'; }
+    
+    const details = isAdmin ? `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;padding:7px;background:var(--slate-50);border-radius:7px;margin-top:6px;">
+        <div><span style="color:var(--slate-500);">Counter:</span> <strong>${item.counter_qty}</strong></div>
+        <div><span style="color:var(--slate-500);">Verifier:</span> <strong>${item.verifier_qty}</strong></div>
+        <div style="grid-column:1/-1;"><span style="color:var(--slate-500);">Diff:</span> <strong style="color:var(--rose-500);">${item.cv_diff > 0 ? '+' : ''}${item.cv_diff}</strong> (₭ ${valDiff.toLocaleString()})</div>
+      </div>` : '';
+    
+    return `
+      <div class="history-item clickable" onclick="startTiebreaker(${item.product_id}, ${item.zone_id || 'null'}, '${item.location_code || ''}')" style="display:block;">
+        <div style="display:flex;align-items:center;gap:9px;">
+          <div style="width:32px;height:32px;border-radius:8px;background:${bg};color:${color};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;">${icon}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="history-name">${name}</div>
+            <div class="history-meta">${item.barcode}</div>
+          </div>
+        </div>
+        ${details}
+      </div>
+    `;
+  }).join('');
+}
+
+async function updateTbBadge() {
+  if (!session) return;
+  if (!['ctl', 'audit', 'verifier', 'admin', 'scc', 'bcs'].includes(user.role)) return;
+  
+  const { data } = await sb.from('v_needs_tiebreaker').select('product_id').eq('session_id', session.id);
+  const count = (data || []).length;
+  
+  const badge = document.getElementById('tabTbBadge');
+  if (badge) {
+    if (count > 0) { badge.style.display = 'inline-block'; badge.textContent = count; }
+    else badge.style.display = 'none';
+  }
+}
+
+async function startTiebreaker(productId, zoneId, locationCode) {
+  log('Start tiebreaker:', productId, zoneId, locationCode);
+  
+  goPage('scan');
+  
+  setTimeout(async () => {
+    const { data: p } = await sb.from('products').select('*').eq('id', productId).single();
+    if (!p) return;
+    
+    if (zoneId && zoneId !== 'null') {
+      const z = allZones.find(zz => zz.id == zoneId);
+      if (z) zone = z;
+    }
+    if (locationCode) {
+      const l = allLocations.find(ll => ll.location_code === locationCode);
+      if (l) loc = l;
+    }
+    
+    curProduct = p;
+    curTask = { type: 'tiebreaker' };
+    renderProduct(p);
+  }, 200);
+}
+
+// ==================== DASHBOARD ====================
+function renderDashboardPage() {
+  return `
+    <div class="banner sky">
+      <div class="banner-icon">
+        <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5"/></svg>
+      </div>
+      <div class="banner-text">
+        <h4>${T('bcs_title')}</h4>
+        <p>${session?.session_name || ''}</p>
+      </div>
+    </div>
+    
+    <!-- Workflow Progress (NEW) -->
+    <div id="dashWfSummary"></div>
+    
+    <div class="stat-grid">
+      <div class="stat-card"><div class="num" id="dCounter">-</div><div class="lbl">Counter</div></div>
+      <div class="stat-card"><div class="num" id="dVerifier">-</div><div class="lbl">Verifier</div></div>
+      <div class="stat-card"><div class="num" id="dCTL">-</div><div class="lbl">CTL</div></div>
+      <div class="stat-card"><div class="num" id="dMatched">-</div><div class="lbl">Matched ✓</div></div>
+    </div>
+    
+    <div class="kpi-card kpi-good">
+      <div class="kpi-header"><div class="kpi-title">${T('level1')}</div><div class="kpi-value" id="dL1">-</div></div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="dL1Bar" style="width:0%"></div></div>
+    </div>
+    <div class="kpi-card kpi-warn">
+      <div class="kpi-header"><div class="kpi-title">${T('level2')}</div><div class="kpi-value" id="dL2">-</div></div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="dL2Bar" style="width:0%"></div></div>
+    </div>
+    <div class="kpi-card kpi-bad">
+      <div class="kpi-header"><div class="kpi-title">${T('level3')}</div><div class="kpi-value" id="dL3">-</div></div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="dL3Bar" style="width:0%"></div></div>
+    </div>
+    <div class="kpi-card kpi-bad">
+      <div class="kpi-header"><div class="kpi-title">${T('level4')}</div><div class="kpi-value" id="dL4">-</div></div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="dL4Bar" style="width:0%"></div></div>
+    </div>
+    
+    <div class="history-card">
+      <div class="section-title">${T('all_counts')}</div>
+      <div class="history-list" id="dAllList"></div>
+    </div>
+  `;
+}
+
+async function loadDashboard() {
+  if (!session) return;
+  
+  log('Loading dashboard');
+  
+  // Load workflow summary first
+  const { data: wfItems } = await sb.from('v_gondola_progress')
+    .select('status')
+    .eq('session_id', session.id);
+  
+  const wf = wfItems || [];
+  const wfTotal = wf.length;
+  const wfCompleted = wf.filter(x => x.status === 'completed').length;
+  const wfInProgress = wf.filter(x => ['counting', 'verifying', 'tiebreaker'].includes(x.status)).length;
+  const wfWaiting = wf.filter(x => ['counted', 'open_for_verify', 'verified', 'tiebreaker_needed', 'open_for_counting'].includes(x.status)).length;
+  const wfPct = wfTotal ? Math.round((wfCompleted / wfTotal) * 100) : 0;
+  
+  const wfEl = document.getElementById('dashWfSummary');
+  if (wfEl) {
+    wfEl.innerHTML = `
+      <div class="progress-donut-card">
+        <div style="font-size:11px;color:var(--slate-500);text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">Gondola ${T('progress')}</div>
+        <div class="progress-donut">
+          <svg class="donut-svg" viewBox="0 0 120 120">
+            <circle class="donut-bg" cx="60" cy="60" r="50"/>
+            <circle class="donut-fg" cx="60" cy="60" r="50" 
+              stroke-dasharray="${2 * Math.PI * 50}" 
+              stroke-dashoffset="${2 * Math.PI * 50 * (1 - wfPct/100)}"/>
+            <text class="donut-text" x="60" y="65" text-anchor="middle">${wfPct}%</text>
+          </svg>
+          <div style="text-align:left;">
+            <div style="font-size:24px;font-weight:700;color:var(--emerald-500);">${wfCompleted}<span style="color:var(--slate-400);font-size:14px;">/${wfTotal}</span></div>
+            <div style="font-size:10px;color:var(--slate-500);">Gondolas Done</div>
+          </div>
+        </div>
+        <div class="wf-summary-grid">
+          <div class="wf-sum-card progress">
+            <div class="wf-sum-num">${wfInProgress}</div>
+            <div class="wf-sum-lbl" style="color:var(--teal-700);">${T('in_progress')}</div>
+          </div>
+          <div class="wf-sum-card waiting">
+            <div class="wf-sum-num">${wfWaiting}</div>
+            <div class="wf-sum-lbl" style="color:#92400e;">${T('waiting')}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Get all counts for stats (no join needed for counts)
+  const { data: counts, error: cErr } = await sb.from('stock_counts')
+    .select('count_role, variance_level, workflow_status, diff')
+    .eq('session_id', session.id);
+  
+  if (cErr) log('Dashboard counts error:', cErr);
+  
+  const items = counts || [];
+  log('Dashboard items:', items.length);
+  
+  const counter = items.filter(x => x.count_role === 'counter').length;
+  const verifier = items.filter(x => x.count_role === 'verifier').length;
+  const ctl = items.filter(x => x.count_role === 'ctl_tiebreaker').length;
+  const matched = items.filter(x => x.workflow_status === 'matched').length;
+  
+  const l1 = items.filter(x => x.variance_level === 1).length;
+  const l2 = items.filter(x => x.variance_level === 2).length;
+  const l3 = items.filter(x => x.variance_level === 3).length;
+  const l4 = items.filter(x => x.variance_level === 4).length;
+  
+  document.getElementById('dCounter').textContent = counter;
+  document.getElementById('dVerifier').textContent = verifier;
+  document.getElementById('dCTL').textContent = ctl;
+  document.getElementById('dMatched').textContent = matched;
+  
+  const total = l1 + l2 + l3 + l4 || 1;
+  document.getElementById('dL1').textContent = l1;
+  document.getElementById('dL2').textContent = l2;
+  document.getElementById('dL3').textContent = l3;
+  document.getElementById('dL4').textContent = l4;
+  document.getElementById('dL1Bar').style.width = (l1/total*100) + '%';
+  document.getElementById('dL2Bar').style.width = (l2/total*100) + '%';
+  document.getElementById('dL3Bar').style.width = (l3/total*100) + '%';
+  document.getElementById('dL4Bar').style.width = (l4/total*100) + '%';
+  
+  // All counts list
+  const { data: recent } = await sb.from('stock_counts')
+    .select(`id, counted_qty, diff, variance_level, is_markdown, count_role, counted_at, gondola_code, location_code,
+             products(barcode, name_th, name_lo), users(full_name)`)
+    .eq('session_id', session.id)
+    .order('counted_at', { ascending: false })
+    .limit(30);
+  
+  const list = document.getElementById('dAllList');
+  if (!list) return;
+  
+  const recItems = recent || [];
+  
+  if (!recItems.length) {
+    list.innerHTML = `<div class="empty-state"><p>${T('no_history')}</p></div>`;
+    return;
+  }
+  
+  list.innerHTML = recItems.map(item => {
+    const p = item.products || {};
+    const u = item.users || {};
+    const name = lang === 'lo' ? (p.name_lo || p.name_th || '?') : (p.name_th || p.name_lo || '?');
+    const diff = item.diff || 0;
+    const cls = diff === 0 ? 'match' : (diff > 0 ? 'diff-plus' : 'diff-minus');
+    const varLevel = item.variance_level ? `<span class="var-level var-level-${item.variance_level}">L${item.variance_level}</span>` : '';
+    const mdBadge = item.is_markdown ? '<span class="md-badge" style="margin-left:4px;">MD</span>' : '';
+    const roleBadge = `<span style="font-size:9px;background:var(--slate-100);padding:1px 5px;border-radius:4px;color:var(--slate-600);">${item.count_role || ''}</span>`;
+    const locBadge = item.gondola_code ? `<span style="background:var(--teal-100);color:var(--teal-700);padding:1px 5px;border-radius:4px;font-weight:700;margin-left:4px;font-family:'Space Grotesk',monospace;">${item.gondola_code}</span>` : '';
+    
+    return `
+      <div class="history-item clickable ${cls}" onclick="openEditCount('${item.id}')">
+        <div class="history-content">
+          <div class="history-name">${name}${mdBadge}${locBadge}</div>
+          <div class="history-meta">${u.full_name || '?'} ${roleBadge} ${varLevel}</div>
+        </div>
+        <div class="history-qty mono">${item.counted_qty}</div>
+        <div style="color:var(--slate-400);font-size:14px;margin-left:4px;">✏️</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ==================== KPI ====================
+function renderKPIPage() {
+  return `
+    <div class="banner sky">
+      <div class="banner-icon">
+        <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8"/></svg>
+      </div>
+      <div class="banner-text">
+        <h4>${T('kpi_title')}</h4>
+        <p>SOP Section 9</p>
+      </div>
+    </div>
+    <div id="kpiList">Loading...</div>
+  `;
+}
+
+async function loadKPI() {
+  if (!session) return;
+  
+  log('Loading KPI');
+  
+  // Get all counts + products for calculation
+  const { data: counts } = await sb.from('stock_counts')
+    .select(`counted_qty, pos_qty_snapshot, diff, variance_level, is_markdown,
+             products(sell_price)`)
+    .eq('session_id', session.id);
+  
+  const items = counts || [];
+  const list = document.getElementById('kpiList');
+  if (!list) return;
+  
+  if (!items.length) {
+    list.innerHTML = `<div class="empty-state"><p>${T('no_history')}</p></div>`;
+    return;
+  }
+  
+  const total = items.length;
+  const l1Count = items.filter(x => x.variance_level === 1).length;
+  const recountCount = items.filter(x => (x.variance_level || 0) >= 3).length;
+  
+  const accuracy = (l1Count / total * 100);
+  const recountRate = (recountCount / total * 100);
+  
+  let shrinkageValue = 0, overageValue = 0, totalPosValue = 0;
+  items.forEach(x => {
+    const price = x.products?.sell_price || 0;
+    if (x.diff < 0) shrinkageValue += Math.abs(x.diff) * price;
+    if (x.diff > 0) overageValue += x.diff * price;
+    totalPosValue += (x.pos_qty_snapshot || 0) * price;
+  });
+  
+  const shrinkagePct = totalPosValue ? (shrinkageValue / totalPosValue * 100) : 0;
+  
+  const accCls = accuracy >= 95 ? 'kpi-good' : (accuracy >= 90 ? 'kpi-warn' : 'kpi-bad');
+  const rcCls = recountRate <= 5 ? 'kpi-good' : (recountRate <= 10 ? 'kpi-warn' : 'kpi-bad');
+  const shCls = shrinkagePct <= 0.3 ? 'kpi-good' : (shrinkagePct <= 1 ? 'kpi-warn' : 'kpi-bad');
+  
+  const mdCount = items.filter(x => x.is_markdown).length;
+  
+  list.innerHTML = `
+    <div class="kpi-card ${accCls}">
+      <div class="kpi-header"><div class="kpi-title">${T('count_accuracy')}</div><div class="kpi-value">${accuracy.toFixed(1)}%</div></div>
+      <div class="kpi-target">Target: ≥ 95%</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:${Math.min(accuracy,100)}%"></div></div>
+    </div>
+    <div class="kpi-card ${rcCls}">
+      <div class="kpi-header"><div class="kpi-title">${T('recount_rate')}</div><div class="kpi-value">${recountRate.toFixed(1)}%</div></div>
+      <div class="kpi-target">Target: < 5%</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:${Math.min(recountRate*5,100)}%"></div></div>
+    </div>
+    <div class="kpi-card ${shCls}">
+      <div class="kpi-header"><div class="kpi-title">${T('shrinkage_pct')}</div><div class="kpi-value">${shrinkagePct.toFixed(2)}%</div></div>
+      <div class="kpi-target">Target: < 0.3%</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:${Math.min(shrinkagePct*30,100)}%"></div></div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="num">₭${shrinkageValue.toLocaleString()}</div><div class="lbl">Shrinkage</div></div>
+      <div class="stat-card"><div class="num">${total}</div><div class="lbl">SKUs Counted</div></div>
+      <div class="stat-card"><div class="num">${mdCount}</div><div class="lbl">MD SKUs</div></div>
+      <div class="stat-card"><div class="num">₭${overageValue.toLocaleString()}</div><div class="lbl">Overage</div></div>
+    </div>
+  `;
+}
+
+// ==================== USERS ====================
+function renderUsersPage() {
+  return `
+    <button class="btn btn-violet" onclick="openUserModal()" style="margin-bottom:12px;">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      ${T('add_user')}
+    </button>
+    <div id="usersList"></div>
+  `;
+}
+
+async function loadUsers() {
+  const { data } = await sb.from('users').select('*').order('role').order('username');
+  const list = document.getElementById('usersList');
+  if (!list) return;
+  
+  const filtered = (data || []).filter(u => 
+    !['admin', 'scc'].includes(u.role) || u.id === user.id
+  );
+  
+  list.innerHTML = filtered.map(u => {
+    const initial = u.username.charAt(0).toUpperCase();
+    const isMe = u.id === user.id;
+    const inactive = !u.is_active ? 'inactive' : '';
+    
+    return `
+      <div class="user-card ${inactive}" onclick="editUser('${u.id}')">
+        <div class="user-avatar r-${u.role}">${initial}</div>
+        <div class="user-info">
+          <div class="user-name">${u.full_name} ${isMe ? '<span style="color:var(--indigo-500);font-size:9px;">(YOU)</span>' : ''}</div>
+          <div class="user-username">@${u.username}</div>
+        </div>
+        <div class="user-badge-r ${u.role}">${u.role}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openUserModal(userId = null) {
+  const isEdit = !!userId;
+  showModal(`
+    <h3>${isEdit ? T('edit_user') : T('add_user')}</h3>
+    <div class="error-msg" id="userErr"></div>
+    <input type="hidden" id="editId" value="${userId || ''}">
+    <div class="form-group">
+      <label class="form-label">${T('username')}</label>
+      <input class="form-input" id="mUsername" type="text" autocapitalize="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">${T('password')} ${isEdit ? '(' + (lang === 'lo' ? 'ປ່ອຍຫວ່າງເພື່ອບໍ່ປ່ຽນ' : 'ปล่อยว่างไม่เปลี่ยน') + ')' : ''}</label>
+      <input class="form-input" id="mPassword" type="text">
+    </div>
+    <div class="form-group">
+      <label class="form-label">${T('full_name')}</label>
+      <input class="form-input" id="mFullName" type="text">
+    </div>
+    <div class="form-group">
+      <label class="form-label">${T('role_label')}</label>
+      <select class="form-select" id="mRole">
+        <option value="counter">Counter</option>
+        <option value="verifier">Verifier</option>
+        <option value="ctl">CTL</option>
+        <option value="bcs">BCS</option>
+        <option value="staff">Staff (Legacy)</option>
+        <option value="audit">Audit (Legacy)</option>
+      </select>
+    </div>
+    <div class="action-row" style="margin-top:12px;">
+      <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
+      <button class="btn btn-primary" onclick="saveUser()">${T('save')}</button>
+    </div>
+  `);
+  
+  if (isEdit) {
+    (async () => {
+      const { data } = await sb.from('users').select('*').eq('id', userId).single();
+      if (data) {
+        document.getElementById('mUsername').value = data.username;
+        document.getElementById('mFullName').value = data.full_name;
+        document.getElementById('mRole').value = data.role;
+      }
+    })();
+  }
+}
+
+async function editUser(id) { openUserModal(id); }
+
+async function saveUser() {
+  const id = document.getElementById('editId').value;
+  const username = document.getElementById('mUsername').value.trim();
+  const password = document.getElementById('mPassword').value;
+  const fullName = document.getElementById('mFullName').value.trim();
+  const role = document.getElementById('mRole').value;
+  const errEl = document.getElementById('userErr');
+  
+  if (!username || !fullName) {
+    errEl.textContent = T('fill_required');
+    errEl.classList.add('show');
+    return;
+  }
+  
+  try {
+    if (id) {
+      const upd = { username, full_name: fullName, role, updated_at: new Date().toISOString() };
+      if (password) upd.password_hash = await hashPassword(password);
+      const { error } = await sb.from('users').update(upd).eq('id', id);
+      if (error) throw error;
+    } else {
+      if (!password) {
+        errEl.textContent = 'Password required';
+        errEl.classList.add('show');
+        return;
+      }
+      const hash = await hashPassword(password);
+      const { error } = await sb.from('users').insert({
+        username, password_hash: hash, full_name: fullName, role,
+        language: 'lo', is_active: true,
+        branch_id: branch?.id
+      });
+      if (error) throw error;
+    }
+    showToast(T('user_saved'), 'success');
+    closeModal();
+    loadUsers();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.add('show');
+  }
+}
+
+// ==================== EXPIRY/DAMAGE MODAL ====================
+function openExpiryModal() {
+  if (!curProduct) {
+    showToast(lang === 'lo' ? 'ສະແກນສິນຄ້າກ່ອນ' : 'สแกนสินค้าก่อน', 'warning');
+    return;
+  }
+  showModal(`
+    <h3>${T('expiry_title')}</h3>
+    <p>${lang === 'lo' ? curProduct.name_lo : curProduct.name_th}</p>
+    <div class="form-group">
+      <label class="form-label">${T('type_label')}</label>
+      <select class="form-select" id="eType">
+        <option value="expired">${T('type_expired')}</option>
+        <option value="damaged">${T('type_damaged')}</option>
+        <option value="near_expiry">${T('type_near')}</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">${T('quantity')}</label>
+      <input class="form-input" id="eQty" type="number" value="1" min="1">
+    </div>
+    <div class="form-group">
+      <label class="form-label">${T('description')}</label>
+      <textarea class="form-input" id="eDesc" rows="3"></textarea>
+    </div>
+    <div class="action-row">
+      <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
+      <button class="btn btn-amber" onclick="saveExpiry()">${T('submit')}</button>
+    </div>
+  `);
+}
+
+async function saveExpiry() {
+  if (!curProduct || !session) return;
+  const type = document.getElementById('eType').value;
+  const qty = parseInt(document.getElementById('eQty').value) || 0;
+  const desc = document.getElementById('eDesc').value.trim();
+  
+  const { error } = await sb.from('expiry_damage_log').insert({
+    session_id: session.id,
+    branch_id: branch?.id,
+    zone_id: zone?.id,
+    product_id: curProduct.id,
+    reported_by: user.id,
+    item_type: type,
+    quantity: qty,
+    damage_description: desc,
+  });
+  
+  if (error) {
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  showToast(T('saved'), 'success');
+  closeModal();
+}
+
+// ==================== NEW SKU MODAL ====================
+function openNewSKUModal(barcode = '') {
+  showModal(`
+    <h3>${T('new_sku_title')}</h3>
+    <div class="form-group">
+      <label class="form-label">${T('barcode_label')}</label>
+      <input class="form-input" id="nBarcode" type="text" value="${barcode}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">${T('product_name')}</label>
+      <input class="form-input" id="nName" type="text">
+    </div>
+    <div class="form-group">
+      <label class="form-label">${T('quantity')}</label>
+      <input class="form-input" id="nQty" type="number" value="1" min="1">
+    </div>
+    <div class="form-group">
+      <label class="form-label">${T('price_estimate')} (LAK)</label>
+      <input class="form-input" id="nPrice" type="number" value="0">
+    </div>
+    <div class="action-row">
+      <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
+      <button class="btn btn-primary" onclick="saveNewSKU()">${T('submit')}</button>
+    </div>
+  `);
+}
+
+async function saveNewSKU() {
+  const bc = document.getElementById('nBarcode').value.trim();
+  const name = document.getElementById('nName').value.trim();
+  const qty = parseInt(document.getElementById('nQty').value) || 0;
+  const price = parseFloat(document.getElementById('nPrice').value) || 0;
+  
+  if (!name) { showToast(T('fill_required'), 'warning'); return; }
+  
+  const { error } = await sb.from('new_sku_log').insert({
+    session_id: session.id,
+    branch_id: branch?.id,
+    zone_id: zone?.id,
+    reported_by: user.id,
+    barcode: bc || null,
+    product_name: name,
+    quantity: qty,
+    estimated_price: price,
+  });
+  
+  if (error) {
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  showToast(T('saved'), 'success');
+  closeModal();
+}
+
+// ==================== IMPORT POS DATA ====================
+let _pendingImport = null;
+
+function downloadImportTemplate() {
+  // สร้าง template โดยใช้ SheetJS
+  const wb = XLSX.utils.book_new();
+  
+  // Sheet 1: Instructions
+  const instData = [
+    ['POS DATA IMPORT - คู่มือ'],
+    [],
+    ['Step 1: ดึงข้อมูลจาก POS'],
+    ['  • Login ระบบ POS'],
+    ['  • Reports → Inventory → Current Stock'],
+    ['  • Filter: Branch = PAKSE'],
+    ['  • Export Excel'],
+    [],
+    ['Step 2: กรอกข้อมูลใน Sheet "Products"'],
+    ['  • Barcode (จำเป็น)'],
+    ['  • Product Name TH/LO'],
+    ['  • POS Qty (จำเป็น)'],
+    ['  • Sell Price (จำเป็น)'],
+    ['  • Gondola Code (เช่น 01A01)'],
+    [],
+    ['Step 3: Upload ในแอพ → Settings → Import POS'],
+    [],
+    ['⚠️ คำเตือน:'],
+    ['  • ห้าม Import ระหว่างนับสต๊อค'],
+    ['  • Reset ข้อมูลเก่าก่อน (ถ้าเริ่มใหม่)'],
+    ['  • สินค้าที่ไม่อยู่ในไฟล์ จะถูกตั้ง inactive'],
+  ];
+  const ws1 = XLSX.utils.aoa_to_sheet(instData);
+  ws1['!cols'] = [{wch:60}];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Instructions');
+  
+  // Sheet 2: Products
+  const prodData = [
+    ['Barcode*', 'Name TH*', 'Name LO', 'Unit TH', 'Unit LO', 'POS Qty*', 'Sell Price*', 'Gondola Code', 'Is Markdown'],
+    ['8850127010077', 'MILO ผงแอ๊กทีบี โถ 140g', 'MILO ໂມໂລ ໂຖ 140g', 'ชิ้น', 'ອັນ', 25, 15000, '10A03', false],
+    ['8851234567890', 'น้ำดื่ม Mineral 600ml', 'ນ້ຳດື່ມ 600ml', 'ขวด', 'ຂວດ', 100, 5000, 'W028', false],
+    ['8857890123456', 'มาม่า รสต้มยำกุ้ง', 'ມາມ່າ ຕົ້ມຍຳ', 'ซอง', 'ຊອງ', 50, 3500, '08A01', true],
+  ];
+  const ws2 = XLSX.utils.aoa_to_sheet(prodData);
+  ws2['!cols'] = [{wch:16},{wch:35},{wch:35},{wch:10},{wch:10},{wch:10},{wch:12},{wch:14},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Products');
+  
+  XLSX.writeFile(wb, 'POS-Import-Template.xlsx');
+  showToast('✅ ' + T('download_template'), 'success');
+}
+
+function onPosFileSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  log('POS file selected:', file.name);
+  showToast(T('importing'), '');
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      
+      // หา sheet ชื่อ Products
+      const sheetName = wb.SheetNames.find(n => 
+        n.toLowerCase().includes('product') || n.toLowerCase().includes('item')
+      ) || wb.SheetNames[wb.SheetNames.length - 1]; // เอา sheet สุดท้าย
+      
+      const ws = wb.Sheets[sheetName];
+      const json = XLSX.utils.sheet_to_json(ws, { defval: null });
+      
+      log('Parsed sheet:', sheetName, 'rows:', json.length);
+      
+      // Normalize column names
+      const products = [];
+      json.forEach(row => {
+        // ลองหา barcode (รองรับหลายชื่อคอลัมน์)
+        const barcode = row['Barcode*'] || row['Barcode'] || row['barcode'] || row['BARCODE'];
+        if (!barcode) return;
+        
+        const product = {
+          barcode: String(barcode).trim(),
+          name_th: row['Name TH*'] || row['Name TH'] || row['Product Name TH*'] || row['Product Name TH'] || row['name_th'] || '',
+          name_lo: row['Name LO'] || row['Product Name LO'] || row['name_lo'] || null,
+          unit_th: row['Unit TH'] || row['unit_th'] || 'ชิ้น',
+          unit_lo: row['Unit LO'] || row['unit_lo'] || 'ອັນ',
+          pos_qty: parseInt(row['POS Qty*'] || row['POS Qty'] || row['pos_qty'] || 0) || 0,
+          sell_price: parseFloat(row['Sell Price*'] || row['Sell Price (LAK)*'] || row['Sell Price'] || row['sell_price'] || 0) || 0,
+          gondola_code: row['Gondola Code'] || row['gondola_code'] || null,
+          is_markdown: row['Is Markdown'] === true || row['Is Markdown'] === 'TRUE' || row['Is Markdown'] === 'true'
+        };
+        
+        if (product.barcode && product.name_th) {
+          products.push(product);
+        }
+      });
+      
+      if (!products.length) {
+        showToast(T('no_products_found'), 'error');
+        return;
+      }
+      
+      log('Valid products:', products.length);
+      _pendingImport = products;
+      showImportPreview(products);
+      
+    } catch (err) {
+      console.error('[FS] Import parse error:', err);
+      showToast(T('file_invalid') + ': ' + err.message, 'error');
+    }
+  };
+  
+  reader.readAsArrayBuffer(file);
+  // Reset input
+  event.target.value = '';
+}
+
+function showImportPreview(products) {
+  const sample = products.slice(0, 10);
+  
+  const totalValue = products.reduce((s, p) => s + (p.pos_qty * p.sell_price), 0);
+  const totalItems = products.reduce((s, p) => s + p.pos_qty, 0);
+  
+  showModal(`
+    <h3>${T('preview_import')}</h3>
+    <div style="background:var(--sky-100);padding:11px;border-radius:10px;margin-bottom:12px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;text-align:center;">
+        <div>
+          <div style="font-size:20px;font-weight:700;color:var(--sky-600);font-family:'Space Grotesk',monospace;">${products.length.toLocaleString()}</div>
+          <div style="font-size:10px;color:var(--slate-600);">${T('products_total')}</div>
+        </div>
+        <div>
+          <div style="font-size:20px;font-weight:700;color:var(--teal-700);font-family:'Space Grotesk',monospace;">${totalItems.toLocaleString()}</div>
+          <div style="font-size:10px;color:var(--slate-600);">Total Items</div>
+        </div>
+        <div>
+          <div style="font-size:16px;font-weight:700;color:var(--emerald-500);font-family:'Space Grotesk',monospace;">${totalValue.toLocaleString()} ₭</div>
+          <div style="font-size:10px;color:var(--slate-600);">Total Value</div>
+        </div>
+      </div>
+    </div>
+    
+    <div style="font-size:11px;color:var(--slate-600);margin-bottom:8px;">ตัวอย่าง 10 รายการแรก:</div>
+    
+    <div style="max-height:250px;overflow-y:auto;border:1px solid var(--slate-200);border-radius:8px;">
+      <table style="width:100%;font-size:10px;border-collapse:collapse;">
+        <thead style="background:var(--slate-100);position:sticky;top:0;">
+          <tr>
+            <th style="padding:6px 4px;text-align:left;">Barcode</th>
+            <th style="padding:6px 4px;text-align:left;">Name</th>
+            <th style="padding:6px 4px;text-align:right;">Qty</th>
+            <th style="padding:6px 4px;text-align:right;">Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sample.map(p => `
+            <tr style="border-top:1px solid var(--slate-100);">
+              <td style="padding:5px 4px;font-family:monospace;">${p.barcode}</td>
+              <td style="padding:5px 4px;">${(p.name_th || '').substring(0, 30)}</td>
+              <td style="padding:5px 4px;text-align:right;font-weight:600;">${p.pos_qty}</td>
+              <td style="padding:5px 4px;text-align:right;">${p.sell_price.toLocaleString()}</td>
+            </tr>
+          `).join('')}
+          ${products.length > 10 ? `<tr><td colspan="4" style="padding:6px;text-align:center;color:var(--slate-500);font-style:italic;">... และอีก ${products.length - 10} รายการ</td></tr>` : ''}
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="form-group" style="margin-top:11px;">
+      <label class="form-label">${T('snapshot_name')}</label>
+      <input type="text" class="form-input" id="importSnapName" 
+             value="Snapshot ${new Date().toISOString().slice(0,16).replace('T',' ')}" 
+             autocomplete="off">
+    </div>
+    
+    <div class="error-msg" id="importErr"></div>
+    
+    <div class="action-row">
+      <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
+      <button class="btn btn-primary" id="importBtn" onclick="executeImport()" style="background:var(--sky-600);">
+        ✅ ${T('confirm_import')}
+      </button>
+    </div>
+  `);
+}
+
+async function executeImport() {
+  if (!_pendingImport || !_pendingImport.length) {
+    showToast(T('no_products_found'), 'error');
+    return;
+  }
+  
+  const snapName = document.getElementById('importSnapName').value.trim();
+  const btn = document.getElementById('importBtn');
+  const errEl = document.getElementById('importErr');
+  
+  btn.disabled = true;
+  btn.innerHTML = `<span class="loader"></span> ${T('importing')}`;
+  
+  log('Executing import:', _pendingImport.length, 'products');
+  
+  try {
+    const { data, error } = await sb.rpc('import_pos_products', {
+      p_branch_id: branch.id,
+      p_user_id: user.id,
+      p_products: _pendingImport,
+      p_snapshot_name: snapName,
+      p_session_id: session?.id || null
+    });
+    
+    if (error) throw error;
+    
+    log('Import result:', data);
+    
+    const result = data || {};
+    closeModal();
+    
+    // Show success summary
+    showModal(`
+      <div style="text-align:center;margin-bottom:14px;">
+        <div style="font-size:36px;">✅</div>
+        <div style="font-size:16px;font-weight:700;color:var(--emerald-500);margin-top:5px;">${T('import_success')}</div>
+      </div>
+      
+      <div style="background:var(--emerald-100);padding:12px;border-radius:10px;">
+        <div style="font-size:11px;color:var(--slate-500);text-transform:uppercase;font-weight:700;margin-bottom:9px;text-align:center;">${T('import_summary')}</div>
+        
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
+          <div style="background:white;padding:9px;border-radius:7px;text-align:center;">
+            <div style="font-size:20px;font-weight:700;color:var(--emerald-500);">${result.total_processed || 0}</div>
+            <div style="font-size:10px;color:var(--slate-600);">${T('products_total')}</div>
+          </div>
+          <div style="background:white;padding:9px;border-radius:7px;text-align:center;">
+            <div style="font-size:20px;font-weight:700;color:var(--teal-700);">${result.new_products || 0}</div>
+            <div style="font-size:10px;color:var(--slate-600);">${T('products_new')}</div>
+          </div>
+          <div style="background:white;padding:9px;border-radius:7px;text-align:center;">
+            <div style="font-size:20px;font-weight:700;color:var(--sky-600);">${result.updated_products || 0}</div>
+            <div style="font-size:10px;color:var(--slate-600);">${T('products_updated')}</div>
+          </div>
+          <div style="background:white;padding:9px;border-radius:7px;text-align:center;">
+            <div style="font-size:20px;font-weight:700;color:var(--rose-500);">${result.deactivated_products || 0}</div>
+            <div style="font-size:10px;color:var(--slate-600);">${T('products_removed')}</div>
+          </div>
+        </div>
+        
+        <div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--slate-200);text-align:center;">
+          <div style="font-size:9px;color:var(--slate-500);">Total Value</div>
+          <div style="font-size:14px;font-weight:700;color:var(--slate-900);">₭ ${(result.total_value || 0).toLocaleString()}</div>
+        </div>
+      </div>
+      
+      <button class="btn btn-primary" onclick="closeModal();loadSettingsStats();" style="margin-top:12px;background:var(--emerald-500);">
+        ✓ ${T('continue')}
+      </button>
+    `);
+    
+    _pendingImport = null;
+    
+  } catch (e) {
+    console.error('[FS] Import error:', e);
+    errEl.textContent = e.message;
+    errEl.classList.add('show');
+    btn.disabled = false;
+    btn.innerHTML = `✅ ${T('confirm_import')}`;
+  }
+}
+
+async function showSnapshotHistory() {
+  const { data, error } = await sb.from('v_pos_snapshots')
+    .select('*')
+    .eq('branch_id', branch.id)
+    .limit(20);
+  
+  if (error) {
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  
+  const items = data || [];
+  
+  showModal(`
+    <h3>${T('snapshot_history')}</h3>
+    <p style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">20 ครั้งล่าสุด</p>
+    
+    ${items.length === 0 ? `
+      <div class="empty-state"><p>${T('no_snapshots')}</p></div>
+    ` : `
+      <div style="max-height:400px;overflow-y:auto;">
+        ${items.map(s => `
+          <div style="background:var(--slate-50);border-radius:9px;padding:10px;margin-bottom:7px;border-left:3px solid var(--sky-500);">
+            <div style="display:flex;justify-content:space-between;align-items:start;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:12px;font-weight:700;color:var(--slate-900);">${s.snapshot_name || ''}</div>
+                <div style="font-size:10px;color:var(--slate-500);margin-top:1px;">
+                  ${new Date(s.snapshot_date).toLocaleString(lang === 'lo' ? 'lo-LA' : 'th-TH')}
+                </div>
+                <div style="font-size:10px;color:var(--slate-600);margin-top:3px;">
+                  By: <strong>${s.imported_by_name || '?'}</strong>
+                </div>
+              </div>
+              <div style="text-align:right;font-size:10px;">
+                <div><strong>${s.total_skus || 0}</strong> SKUs</div>
+                <div style="color:var(--emerald-500);">+${s.new_products || 0} new</div>
+                <div style="color:var(--sky-600);">~${s.updated_products || 0} upd</div>
+              </div>
+            </div>
+            <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--slate-200);font-size:10px;color:var(--slate-600);">
+              💰 Total Value: <strong>₭ ${(s.total_value || 0).toLocaleString()}</strong>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `}
+    
+    <button class="btn btn-secondary" onclick="closeModal()" style="margin-top:11px;">${T('cancel')}</button>
+  `);
+}
+
+// ==================== EXPORT EXCEL ====================
+async function exportToExcel(mode = 'full') {
+  if (!session) {
+    showToast(T('locked_session'), 'error');
+    return;
+  }
+  
+  showToast(T('exporting'), '');
+  log('Exporting Excel, mode:', mode);
+  
+  try {
+    // Load all data
+    const [countsRes, gondolaRes, expiryRes, newSkuRes] = await Promise.all([
+      sb.from('stock_counts').select(`
+        id, counted_at, count_role, location_code, gondola_code, zone_id,
+        counted_qty, pos_qty_snapshot, diff, variance_level, workflow_status, note,
+        products(barcode, name_th, name_lo, unit_th, unit_lo, sell_price),
+        users(full_name, username)
+      `).eq('session_id', session.id).order('counted_at', { ascending: false }),
+      
+      sb.from('v_gondola_progress').select('*').eq('session_id', session.id).order('location_code'),
+      
+      sb.from('expiry_damage_log').select(`
+        *, products(barcode, name_th, name_lo, sell_price), users(full_name)
+      `).eq('session_id', session.id).order('created_at', { ascending: false }),
+      
+      sb.from('new_sku_log').select(`
+        *, users(full_name)
+      `).eq('session_id', session.id).order('created_at', { ascending: false })
+    ]);
+    
+    const counts = countsRes.data || [];
+    const gondolas = gondolaRes.data || [];
+    const expiries = expiryRes.data || [];
+    const newSkus = newSkuRes.data || [];
+    
+    log('Loaded for export:', { counts: counts.length, gondolas: gondolas.length, expiries: expiries.length, newSkus: newSkus.length });
+    
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    
+    // ============ SHEET 1: SUMMARY ============
+    if (mode === 'full') {
+      const summaryData = buildSummaryData(counts, gondolas);
+      const wsSum = XLSX.utils.aoa_to_sheet(summaryData);
+      wsSum['!cols'] = [{wch:20}, {wch:18}, {wch:18}, {wch:18}, {wch:18}, {wch:18}, {wch:18}, {wch:18}];
+      XLSX.utils.book_append_sheet(wb, wsSum, 'Summary');
+    }
+    
+    // ============ SHEET 2: COUNTS DETAIL ============
+    if (mode === 'full' || mode === 'counts') {
+      const countsData = [
+        ['Count ID', 'Counted At', 'User', 'Role', 'Location', 'Zone', 'Barcode', 'Product Name', 
+         'Unit Price (K)', 'POS Qty', 'Counted Qty', 'Unit', 'Diff', 'Var Level', 'Workflow', 'Note']
+      ];
+      counts.forEach(c => {
+        const p = c.products || {};
+        const u = c.users || {};
+        countsData.push([
+          c.id?.substring(0, 8),
+          c.counted_at ? new Date(c.counted_at).toLocaleString('en-GB') : '',
+          u.full_name || u.username || '',
+          c.count_role || '',
+          c.location_code || c.gondola_code || '',
+          c.zone_id || '',
+          p.barcode || '',
+          (lang === 'lo' ? p.name_lo : p.name_th) || p.name_th || p.name_lo || '',
+          p.sell_price || 0,
+          c.pos_qty_snapshot || 0,
+          c.counted_qty || 0,
+          p.unit_th || p.unit_lo || 'pcs',
+          c.diff || 0,
+          c.variance_level || '',
+          c.workflow_status || '',
+          c.note || ''
+        ]);
+      });
+      const wsCounts = XLSX.utils.aoa_to_sheet(countsData);
+      wsCounts['!cols'] = [{wch:10},{wch:18},{wch:14},{wch:11},{wch:10},{wch:7},{wch:16},{wch:32},
+                          {wch:12},{wch:9},{wch:11},{wch:8},{wch:10},{wch:11},{wch:13},{wch:28}];
+      wsCounts['!freeze'] = { xSplit: 0, ySplit: 1 };
+      XLSX.utils.book_append_sheet(wb, wsCounts, 'Counts Detail');
+    }
+    
+    // ============ SHEET 3: VARIANCE ANALYSIS ============
+    if (mode === 'full' || mode === 'variance') {
+      const varData = [
+        ['Priority', 'Location', 'Barcode', 'Product Name', 'POS Qty', 'Counted Qty', 
+         'Diff', 'Diff %', 'Value Impact (K)', 'Var Level', 'Action']
+      ];
+      // Sort by variance level desc
+      const sorted = [...counts].filter(c => (c.variance_level || 0) >= 2)
+        .sort((a, b) => (b.variance_level || 0) - (a.variance_level || 0));
+      
+      sorted.forEach(c => {
+        const p = c.products || {};
+        const lv = c.variance_level || 1;
+        const priority = lv === 4 ? '🔴 HIGH' : lv === 3 ? '🟠 MED' : '🟡 LOW';
+        const action = lv === 4 ? 'Investigate' : lv === 3 ? 'Recount' : 'Explain';
+        const pctDiff = c.pos_qty_snapshot > 0 ? (c.diff || 0) / c.pos_qty_snapshot : 0;
+        const valueImpact = (c.diff || 0) * (p.sell_price || 0);
+        
+        varData.push([
+          priority,
+          c.location_code || c.gondola_code || '',
+          p.barcode || '',
+          (lang === 'lo' ? p.name_lo : p.name_th) || '',
+          c.pos_qty_snapshot || 0,
+          c.counted_qty || 0,
+          c.diff || 0,
+          pctDiff,
+          valueImpact,
+          lv,
+          action
+        ]);
+      });
+      const wsVar = XLSX.utils.aoa_to_sheet(varData);
+      wsVar['!cols'] = [{wch:10},{wch:11},{wch:16},{wch:30},{wch:9},{wch:11},{wch:10},{wch:9},{wch:14},{wch:10},{wch:28}];
+      XLSX.utils.book_append_sheet(wb, wsVar, 'Variance Analysis');
+    }
+    
+    // ============ SHEET 4: GONDOLA PROGRESS ============
+    if (mode === 'full') {
+      const gondData = [
+        ['Location', 'Type', 'Zone', 'Gondola #', 'Status', 'Counter', 'Counter Qty', 
+         'Verifier', 'Verifier Qty', 'Time (min)', 'Opened', 'Completed']
+      ];
+      gondolas.forEach(g => {
+        gondData.push([
+          g.location_code || '',
+          g.location_type || '',
+          g.zone_code || '',
+          g.gondola_no || '',
+          g.status || '',
+          g.counter_name || '',
+          g.counter_count || 0,
+          g.verifier_name || '',
+          g.verifier_count || 0,
+          Math.round(g.counter_minutes || 0),
+          g.opened_at ? new Date(g.opened_at).toLocaleString('en-GB') : '',
+          g.completed_at ? new Date(g.completed_at).toLocaleString('en-GB') : ''
+        ]);
+      });
+      const wsGond = XLSX.utils.aoa_to_sheet(gondData);
+      wsGond['!cols'] = [{wch:10},{wch:13},{wch:6},{wch:9},{wch:18},{wch:13},{wch:11},{wch:13},{wch:11},{wch:9},{wch:18},{wch:18}];
+      XLSX.utils.book_append_sheet(wb, wsGond, 'Gondola Progress');
+    }
+    
+    // ============ SHEET 5: COUNTER PERFORMANCE ============
+    if (mode === 'full') {
+      const perfMap = {};
+      counts.forEach(c => {
+        const u = c.users || {};
+        const key = u.full_name || u.username || 'Unknown';
+        if (!perfMap[key]) {
+          perfMap[key] = { 
+            name: key, role: c.count_role, skus: 0, items: 0, 
+            locations: new Set(), l1: 0, issues: 0 
+          };
+        }
+        perfMap[key].skus++;
+        perfMap[key].items += c.counted_qty || 0;
+        if (c.location_code || c.gondola_code) {
+          perfMap[key].locations.add(c.location_code || c.gondola_code);
+        }
+        if (c.variance_level === 1) perfMap[key].l1++;
+        if ((c.variance_level || 0) >= 2) perfMap[key].issues++;
+      });
+      
+      const perfData = [
+        ['User', 'Role', 'SKUs Counted', 'Total Items', 'Locations', 'L1 Counts', 'Issues (L2-L4)', 'Accuracy %']
+      ];
+      Object.values(perfMap).forEach(p => {
+        perfData.push([
+          p.name, p.role, p.skus, p.items, p.locations.size, p.l1, p.issues,
+          p.skus > 0 ? (p.l1 / p.skus) : 0
+        ]);
+      });
+      const wsPerf = XLSX.utils.aoa_to_sheet(perfData);
+      wsPerf['!cols'] = [{wch:14},{wch:11},{wch:13},{wch:12},{wch:11},{wch:11},{wch:14},{wch:12}];
+      XLSX.utils.book_append_sheet(wb, wsPerf, 'Counter Performance');
+    }
+    
+    // ============ SHEET 6: TIEBREAKER LOG ============
+    if (mode === 'full') {
+      // Get tiebreaker data from view
+      const { data: tbData } = await sb.from('v_needs_tiebreaker').select('*').eq('session_id', session.id);
+      const tbItems = tbData || [];
+      
+      const tbSheet = [
+        ['Location', 'Barcode', 'Product Name', 'Counter', 'Counter Qty', 
+         'Verifier', 'Verifier Qty', 'Diff', 'Value Diff (K)', 'Status']
+      ];
+      tbItems.forEach(t => {
+        tbSheet.push([
+          t.location_code || '',
+          t.barcode || '',
+          (lang === 'lo' ? t.name_lo : t.name_th) || '',
+          t.counter_name || '',
+          t.counter_qty || 0,
+          t.verifier_name || '',
+          t.verifier_qty || 0,
+          t.cv_diff || 0,
+          t.cv_value_diff || 0,
+          'Needs CTL Decision'
+        ]);
+      });
+      const wsTb = XLSX.utils.aoa_to_sheet(tbSheet);
+      wsTb['!cols'] = [{wch:11},{wch:16},{wch:28},{wch:12},{wch:11},{wch:12},{wch:11},{wch:8},{wch:14},{wch:20}];
+      XLSX.utils.book_append_sheet(wb, wsTb, 'Tiebreaker Log');
+    }
+    
+    // ============ SHEET 7: EXPIRY & NEW SKU ============
+    if (mode === 'full') {
+      const expData = [
+        ['EXPIRY / DAMAGED ITEMS', '', '', '', '', '', '', ''],
+        ['Date', 'Location', 'Barcode', 'Product', 'Type', 'Quantity', 'Value (K)', 'Description']
+      ];
+      expiries.forEach(e => {
+        const p = e.products || {};
+        expData.push([
+          e.created_at ? new Date(e.created_at).toLocaleDateString('en-GB') : '',
+          e.gondola_code || e.location_code || '',
+          p.barcode || '',
+          (lang === 'lo' ? p.name_lo : p.name_th) || '',
+          e.item_type || '',
+          e.quantity || 0,
+          (e.quantity || 0) * (p.sell_price || 0),
+          e.damage_description || ''
+        ]);
+      });
+      
+      // Spacer
+      expData.push([]);
+      expData.push([]);
+      expData.push(['NEW SKU (Items not in system)', '', '', '', '', '', '', '']);
+      expData.push(['Date', 'Location', 'Barcode', 'Product Name', 'Quantity', 'Est. Price (K)', 'Total Value', 'Reported By']);
+      newSkus.forEach(n => {
+        const u = n.users || {};
+        expData.push([
+          n.created_at ? new Date(n.created_at).toLocaleDateString('en-GB') : '',
+          n.location_code || '',
+          n.barcode || '',
+          n.product_name || '',
+          n.quantity || 0,
+          n.estimated_price || 0,
+          (n.quantity || 0) * (n.estimated_price || 0),
+          u.full_name || ''
+        ]);
+      });
+      
+      const wsExp = XLSX.utils.aoa_to_sheet(expData);
+      wsExp['!cols'] = [{wch:12},{wch:11},{wch:16},{wch:28},{wch:11},{wch:14},{wch:14},{wch:18}];
+      XLSX.utils.book_append_sheet(wb, wsExp, 'Expiry & New SKU');
+    }
+    
+    // Generate filename
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const sessionLabel = (session.session_name || 'Session').replace(/[^a-zA-Z0-9-]/g, '_').substring(0, 30);
+    const filename = `Stock-Count-Report-${sessionLabel}-${dateStr}.xlsx`;
+    
+    // Download
+    XLSX.writeFile(wb, filename);
+    
+    showToast(`✅ ${T('export_success')}: ${filename}`, 'success');
+    log('Export complete:', filename);
+    
+  } catch (e) {
+    console.error('[FS] Export error:', e);
+    showToast('Export error: ' + e.message, 'error');
+  }
+}
+
+function buildSummaryData(counts, gondolas) {
+  const totalSkus = counts.length;
+  const totalItems = counts.reduce((s, c) => s + (c.counted_qty || 0), 0);
+  const l1Count = counts.filter(c => c.variance_level === 1).length;
+  const accuracy = totalSkus > 0 ? (l1Count / totalSkus) : 0;
+  
+  let shrinkage = 0;
+  counts.forEach(c => {
+    if ((c.diff || 0) < 0) {
+      shrinkage += Math.abs(c.diff) * (c.products?.sell_price || 0);
+    }
+  });
+  
+  const varBreakdown = [1, 2, 3, 4].map(lv => ({
+    level: lv,
+    count: counts.filter(c => c.variance_level === lv).length
+  }));
+  
+  const gondoStatus = {
+    completed: gondolas.filter(g => g.status === 'completed').length,
+    inProgress: gondolas.filter(g => ['counting', 'verifying', 'tiebreaker'].includes(g.status)).length,
+    waiting: gondolas.filter(g => ['counted', 'open_for_verify', 'verified', 'tiebreaker_needed'].includes(g.status)).length,
+    notStarted: gondolas.filter(g => ['closed', 'open_for_counting'].includes(g.status)).length,
+  };
+  
+  return [
+    ['STOCK COUNT REPORT', '', '', '', '', '', '', ''],
+    ['Friendship Supermart - Pakse, Laos', '', '', '', '', '', '', ''],
+    [],
+    ['Report Date:', new Date().toLocaleString('en-GB')],
+    ['Session Name:', session.session_name || ''],
+    ['Branch:', branch?.name_th || branch?.name_lo || 'PAKSE'],
+    ['Reported By:', user.full_name],
+    ['Phase:', session.phase || 'active'],
+    [],
+    ['KEY PERFORMANCE INDICATORS', '', '', '', '', '', '', ''],
+    [],
+    ['Total SKUs Counted', totalSkus, '', 'Total Items', totalItems, '', 'Accuracy', accuracy],
+    ['', '', '', '', '', '', '', ''],
+    ['Shrinkage Value (K)', shrinkage, '', 'L1 Count', l1Count, '', 'Issues (L2-L4)', totalSkus - l1Count],
+    [],
+    ['VARIANCE BREAKDOWN', '', '', '', '', '', '', ''],
+    [],
+    ['Level', 'Description', 'Count', '%', 'Action Required', '', '', ''],
+    ['L1', 'Auto Adjust (<2% & <5K)', varBreakdown[0].count, totalSkus > 0 ? varBreakdown[0].count/totalSkus : 0, 'Approve automatically'],
+    ['L2', 'Explain (2-5% or 5-50K)', varBreakdown[1].count, totalSkus > 0 ? varBreakdown[1].count/totalSkus : 0, 'Manager must add explanation'],
+    ['L3', 'Mandatory Recount (>5% or >50K)', varBreakdown[2].count, totalSkus > 0 ? varBreakdown[2].count/totalSkus : 0, 'Re-count required'],
+    ['L4', 'Investigation (>10% or >200K)', varBreakdown[3].count, totalSkus > 0 ? varBreakdown[3].count/totalSkus : 0, 'Escalate to investigation'],
+    [],
+    ['GONDOLA PROGRESS', '', '', '', '', '', '', ''],
+    [],
+    ['Status', 'Description', 'Count', '%', '', '', '', ''],
+    ['Completed', 'Done & Verified', gondoStatus.completed, gondolas.length > 0 ? gondoStatus.completed/gondolas.length : 0],
+    ['In Progress', 'Counting/Verifying', gondoStatus.inProgress, gondolas.length > 0 ? gondoStatus.inProgress/gondolas.length : 0],
+    ['Waiting', 'Waiting for next step', gondoStatus.waiting, gondolas.length > 0 ? gondoStatus.waiting/gondolas.length : 0],
+    ['Not Started', 'Closed/Not opened', gondoStatus.notStarted, gondolas.length > 0 ? gondoStatus.notStarted/gondolas.length : 0],
+  ];
+}
+
+// ==================== WORKFLOW CONTROL (CTL) ====================
+let wfFilter = 'all';
+
+function renderWorkflowPage() {
+  return `
+    <div class="banner violet">
+      <div class="banner-icon">
+        <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"/></svg>
+      </div>
+      <div class="banner-text">
+        <h4>${T('workflow_control')}</h4>
+        <p>CTL: ${user.full_name}</p>
+      </div>
+    </div>
+    
+    <!-- Summary -->
+    <div id="wfSummary"></div>
+    
+    <!-- Open New Gondola button -->
+    <button class="btn btn-primary" onclick="openNewGondolaForCounter()" style="margin-bottom:11px;">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      ${T('open_gondola')}
+    </button>
+    
+    <!-- Filters -->
+    <div class="wf-filter">
+      <button class="wf-filter-tab active" data-f="all" onclick="setWfFilter('all')">ทั้งหมด</button>
+      <button class="wf-filter-tab" data-f="active" onclick="setWfFilter('active')">${T('in_progress')}</button>
+      <button class="wf-filter-tab" data-f="waiting" onclick="setWfFilter('waiting')">${T('waiting')}</button>
+      <button class="wf-filter-tab" data-f="completed" onclick="setWfFilter('completed')">${T('completed_lo')}</button>
+    </div>
+    
+    <!-- List -->
+    <div id="wfList"></div>
+  `;
+}
+
+function setWfFilter(f) {
+  wfFilter = f;
+  document.querySelectorAll('.wf-filter-tab').forEach(t => 
+    t.classList.toggle('active', t.dataset.f === f));
+  renderWorkflowList(window._wfData || []);
+}
+
+async function loadWorkflowList() {
+  if (!session) return;
+  
+  log('Loading workflow list');
+  
+  const { data, error } = await sb.from('v_gondola_progress')
+    .select('*')
+    .eq('session_id', session.id)
+    .order('opened_at', { ascending: false });
+  
+  if (error) {
+    log('Workflow error:', error);
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  
+  window._wfData = data || [];
+  log('Workflow items:', window._wfData.length);
+  
+  renderWorkflowSummary(window._wfData);
+  renderWorkflowList(window._wfData);
+}
+
+function renderWorkflowSummary(items) {
+  const total = items.length;
+  const completed = items.filter(x => x.status === 'completed').length;
+  const inProgress = items.filter(x => ['counting', 'verifying', 'tiebreaker'].includes(x.status)).length;
+  const waiting = items.filter(x => ['counted', 'open_for_verify', 'verified', 'tiebreaker_needed'].includes(x.status)).length;
+  const notStarted = items.filter(x => ['closed', 'open_for_counting'].includes(x.status)).length;
+  const pct = total ? Math.round((completed / total) * 100) : 0;
+  
+  const el = document.getElementById('wfSummary');
+  if (!el) return;
+  
+  el.innerHTML = `
+    <div class="progress-donut-card">
+      <div style="font-size:11px;color:var(--slate-500);text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">${T('progress')}</div>
+      <div class="progress-donut">
+        <svg class="donut-svg" viewBox="0 0 120 120">
+          <circle class="donut-bg" cx="60" cy="60" r="50"/>
+          <circle class="donut-fg" cx="60" cy="60" r="50" 
+            stroke-dasharray="${2 * Math.PI * 50}" 
+            stroke-dashoffset="${2 * Math.PI * 50 * (1 - pct/100)}"/>
+          <text class="donut-text" x="60" y="65" text-anchor="middle">${pct}%</text>
+        </svg>
+        <div style="text-align:left;">
+          <div style="font-size:24px;font-weight:700;color:var(--emerald-500);">${completed}<span style="color:var(--slate-400);font-size:14px;">/${total}</span></div>
+          <div style="font-size:10px;color:var(--slate-500);">Gondolas</div>
+        </div>
+      </div>
+      <div class="wf-summary-grid">
+        <div class="wf-sum-card progress">
+          <div class="wf-sum-num">${inProgress}</div>
+          <div class="wf-sum-lbl" style="color:var(--teal-700);">${T('in_progress')}</div>
+        </div>
+        <div class="wf-sum-card waiting">
+          <div class="wf-sum-num">${waiting}</div>
+          <div class="wf-sum-lbl" style="color:#92400e;">${T('waiting')}</div>
+        </div>
+        <div class="wf-sum-card completed">
+          <div class="wf-sum-num">${completed}</div>
+          <div class="wf-sum-lbl" style="color:var(--emerald-500);">${T('completed_lo')}</div>
+        </div>
+        <div class="wf-sum-card not_started">
+          <div class="wf-sum-num">${notStarted}</div>
+          <div class="wf-sum-lbl" style="color:var(--slate-600);">${T('not_started')}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderWorkflowList(items) {
+  const list = document.getElementById('wfList');
+  if (!list) return;
+  
+  // Apply filter
+  let filtered = items;
+  if (wfFilter === 'active') {
+    filtered = items.filter(x => ['counting', 'verifying', 'tiebreaker'].includes(x.status));
+  } else if (wfFilter === 'waiting') {
+    filtered = items.filter(x => ['counted', 'open_for_verify', 'verified', 'tiebreaker_needed', 'open_for_counting'].includes(x.status));
+  } else if (wfFilter === 'completed') {
+    filtered = items.filter(x => x.status === 'completed');
+  }
+  
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty-state"><p>${T('no_gondolas_active')}</p></div>`;
+    return;
+  }
+  
+  list.innerHTML = filtered.map(item => {
+    const status = item.status || 'closed';
+    const statusText = T('status_' + status);
+    
+    // Action buttons based on status
+    let actions = '';
+    if (status === 'closed' || status === 'open_for_counting') {
+      actions = `
+        <button class="wf-btn wf-btn-close" onclick="wfCloseCounter('${item.location_code}')">${T('close_counter')} →</button>
+      `;
+      if (status === 'closed') {
+        actions = `<button class="wf-btn wf-btn-open" onclick="wfOpenForCounter('${item.location_code}')">${T('open_for_counter')}</button>`;
+      }
+    } else if (status === 'counting') {
+      actions = `<button class="wf-btn wf-btn-close" onclick="wfCloseCounter('${item.location_code}')">${T('close_counter')} ✓</button>`;
+    } else if (status === 'counted') {
+      actions = `<button class="wf-btn wf-btn-verify" onclick="wfOpenForVerifier('${item.location_code}')">${T('open_for_verifier')} →</button>`;
+    } else if (status === 'open_for_verify' || status === 'verifying') {
+      actions = `<button class="wf-btn wf-btn-verify" onclick="wfCloseVerifier('${item.location_code}')">${T('close_verifier')} ✓</button>`;
+    } else if (status === 'verified' || status === 'tiebreaker_needed' || status === 'tiebreaker') {
+      actions = `<button class="wf-btn wf-btn-complete" onclick="wfMarkCompleted('${item.location_code}')">${T('mark_completed')} ✓</button>`;
+    } else if (status === 'completed') {
+      actions = `<button class="wf-btn wf-btn-reopen" onclick="wfReopen('${item.location_code}')">${T('reopen')}</button>`;
+    }
+    
+    const counter = item.counter_name ? `<span class="wf-stat-chip">👤 ${item.counter_name}: ${item.counter_count || 0}</span>` : '';
+    const verifier = item.verifier_name ? `<span class="wf-stat-chip">🔍 ${item.verifier_name}: ${item.verifier_count || 0}</span>` : '';
+    const tb = item.tb_count > 0 ? `<span class="wf-stat-chip">⚖️ TB: ${item.tb_count}</span>` : '';
+    const zone = item.zone_code ? `Zone ${item.zone_code}` : '';
+    
+    return `
+      <div class="wf-card s-${status}">
+        <div class="wf-row">
+          <div class="wf-loc">${item.location_code}</div>
+          <div class="wf-info">
+            <div class="wf-status-text">${statusText}</div>
+            <div class="wf-meta">${zone}</div>
+            <div class="wf-stats">${counter}${verifier}${tb}</div>
+          </div>
+        </div>
+        <div class="wf-actions">${actions}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// === Workflow Actions ===
+async function openNewGondolaForCounter() {
+  showModal(`
+    <h3>${T('open_gondola')}</h3>
+    <p>${T('select_to_count')}</p>
+    
+    <div class="form-group">
+      <label class="form-label">${T('gondola_code')}</label>
+      <input type="text" class="form-input mono" id="wfNewLoc" 
+             placeholder="01A01, W028, WT028..." 
+             autocomplete="off" autocapitalize="characters"
+             style="text-transform:uppercase;text-align:center;letter-spacing:2px;font-weight:700;">
+    </div>
+    
+    <div class="error-msg" id="wfNewErr"></div>
+    
+    <div class="action-row">
+      <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
+      <button class="btn btn-primary" onclick="confirmOpenNewGondola()">${T('open_for_counter')}</button>
+    </div>
+  `);
+  
+  setTimeout(() => {
+    document.getElementById('wfNewLoc')?.focus();
+  }, 100);
+}
+
+async function confirmOpenNewGondola() {
+  const code = document.getElementById('wfNewLoc').value.trim().toUpperCase();
+  const errEl = document.getElementById('wfNewErr');
+  
+  if (!code) {
+    errEl.textContent = T('please_select');
+    errEl.classList.add('show');
+    return;
+  }
+  
+  // Validate location exists
+  const found = allLocations.find(l => l.location_code === code);
+  if (!found) {
+    errEl.textContent = T('loc_not_found') + ': ' + code;
+    errEl.classList.add('show');
+    return;
+  }
+  
+  await wfOpenForCounter(code);
+  closeModal();
+}
+
+async function wfOpenForCounter(locCode) {
+  log('CTL opening for counter:', locCode);
+  
+  const { data, error } = await sb.rpc('open_gondola_for_counter', {
+    p_session_id: session.id,
+    p_branch_id: branch.id,
+    p_location_code: locCode,
+    p_ctl_user_id: user.id,
+    p_counter_id: null
+  });
+  
+  if (error) {
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  
+  showToast(`✅ ${locCode} ${T('open_for_counter')}`, 'success');
+  loadWorkflowList();
+}
+
+async function wfCloseCounter(locCode) {
+  if (!confirm(`${T('close_counter')} ${locCode}?`)) return;
+  
+  log('CTL closing counter for:', locCode);
+  
+  const { error } = await sb.rpc('close_gondola_counter', {
+    p_session_id: session.id,
+    p_location_code: locCode,
+    p_ctl_user_id: user.id
+  });
+  
+  if (error) {
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  
+  showToast(`✅ ${locCode} ${T('counter_done')}`, 'success');
+  loadWorkflowList();
+}
+
+async function wfOpenForVerifier(locCode) {
+  log('CTL opening for verifier:', locCode);
+  
+  const { error } = await sb.rpc('open_gondola_for_verifier', {
+    p_session_id: session.id,
+    p_location_code: locCode,
+    p_ctl_user_id: user.id,
+    p_verifier_id: null
+  });
+  
+  if (error) {
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  
+  showToast(`✅ ${locCode} ${T('open_for_verifier')}`, 'success');
+  loadWorkflowList();
+}
+
+async function wfCloseVerifier(locCode) {
+  if (!confirm(`${T('close_verifier')} ${locCode}?`)) return;
+  
+  log('CTL closing verifier for:', locCode);
+  
+  const { data, error } = await sb.rpc('close_gondola_verifier', {
+    p_session_id: session.id,
+    p_location_code: locCode,
+    p_ctl_user_id: user.id
+  });
+  
+  if (error) {
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  
+  const result = data || {};
+  if (result.status === 'tiebreaker_needed') {
+    showToast(`⚠️ ${locCode} ${T('status_tiebreaker_needed')}`, 'warning');
+  } else {
+    showToast(`✅ ${locCode} ${T('status_completed')}`, 'success');
+  }
+  loadWorkflowList();
+}
+
+async function wfMarkCompleted(locCode) {
+  if (!confirm(`${T('mark_completed')} ${locCode}?`)) return;
+  
+  const { error } = await sb.rpc('complete_tiebreaker', {
+    p_session_id: session.id,
+    p_location_code: locCode,
+    p_ctl_user_id: user.id
+  });
+  
+  if (error) {
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  
+  showToast(`✅ ${locCode} ${T('status_completed')}`, 'success');
+  loadWorkflowList();
+}
+
+async function wfReopen(locCode) {
+  if (!confirm(`${T('reopen')} ${locCode}?`)) return;
+  
+  const { error } = await sb.rpc('reopen_gondola', {
+    p_session_id: session.id,
+    p_location_code: locCode,
+    p_ctl_user_id: user.id,
+    p_target_status: 'open_for_counting'
+  });
+  
+  if (error) {
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  
+  showToast(`✅ ${locCode} ${T('reopen')}`, 'success');
+  loadWorkflowList();
+}
+
+// ==================== SETTINGS / DANGER ZONE ====================
+function renderSettingsPage() {
+  return `
+    <div class="banner sky">
+      <div class="banner-icon">
+        <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </div>
+      <div class="banner-text">
+        <h4>${T('settings')}</h4>
+        <p>Admin Only</p>
+      </div>
+    </div>
+    
+    <!-- Current Stats -->
+    <div class="stat-grid">
+      <div class="stat-card"><div class="num" id="settingsTotalCounts">-</div><div class="lbl">${T('counts_to_delete')}</div></div>
+      <div class="stat-card"><div class="num" id="settingsTotalSessions">-</div><div class="lbl">${T('sessions_to_delete')}</div></div>
+    </div>
+    
+    <!-- Import POS Data Section -->
+    <div style="background:white;border:2px solid var(--sky-500);border-radius:14px;padding:16px;margin-top:14px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
+        <div style="background:var(--sky-500);color:white;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+        </div>
+        <div>
+          <div style="font-weight:700;color:var(--sky-600);font-size:14px;">${T('import_pos')}</div>
+          <div style="font-size:11px;color:var(--slate-500);">อัพเดท POS Qty + Price จาก Excel</div>
+        </div>
+      </div>
+      
+      <div style="display:grid;gap:7px;">
+        <input type="file" id="posFileInput" accept=".xlsx,.xls" style="display:none;" onchange="onPosFileSelected(event)">
+        <button class="btn" style="background:var(--sky-600);color:white;font-size:12px;padding:11px;" onclick="document.getElementById('posFileInput').click()">
+          📥 ${T('upload_xlsx')}
+        </button>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
+          <button class="btn btn-secondary" style="font-size:11px;padding:9px;" onclick="downloadImportTemplate()">
+            📄 ${T('download_template')}
+          </button>
+          <button class="btn btn-secondary" style="font-size:11px;padding:9px;" onclick="showSnapshotHistory()">
+            🕐 ${T('snapshot_history')}
+          </button>
+        </div>
+      </div>
+      
+      <div style="font-size:10px;color:var(--slate-500);margin-top:8px;line-height:1.5;">
+        💡 Tips: ดาวน์โหลด Template → กรอกข้อมูลจาก POS → Upload เพื่ออัพเดท
+      </div>
+    </div>
+    
+    <!-- Export Report Section -->
+    <div style="background:white;border:2px solid var(--emerald-500);border-radius:14px;padding:16px;margin-top:14px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
+        <div style="background:var(--emerald-500);color:white;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+        </div>
+        <div>
+          <div style="font-weight:700;color:var(--emerald-500);font-size:14px;">${T('export_report')}</div>
+          <div style="font-size:11px;color:var(--slate-500);">Excel (.xlsx) format with 7 sheets</div>
+        </div>
+      </div>
+      
+      <div style="display:grid;gap:7px;">
+        <button class="btn" style="background:var(--emerald-500);color:white;font-size:12px;padding:11px;" onclick="exportToExcel('full')">
+          📊 ${T('export_full')}
+        </button>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
+          <button class="btn btn-secondary" style="font-size:11px;padding:9px;" onclick="exportToExcel('counts')">
+            📦 ${T('export_counts_only')}
+          </button>
+          <button class="btn btn-secondary" style="font-size:11px;padding:9px;" onclick="exportToExcel('variance')">
+            ⚠️ ${T('export_variance_only')}
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Danger Zone -->
+    <div style="background:white;border:2px solid var(--rose-500);border-radius:14px;padding:16px;margin-top:14px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
+        <div style="background:var(--rose-500);color:white;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        </div>
+        <div>
+          <div style="font-weight:700;color:var(--rose-500);font-size:14px;">${T('danger_zone')}</div>
+          <div style="font-size:11px;color:var(--slate-500);">${T('reset_warning')}</div>
+        </div>
+      </div>
+      
+      <!-- Option 1: Reset Session -->
+      <div style="background:var(--amber-100);border:1px solid var(--amber-400);border-radius:10px;padding:11px;margin-bottom:9px;">
+        <div style="font-weight:700;font-size:12px;color:#92400e;margin-bottom:3px;">${T('reset_session_only')}</div>
+        <div style="font-size:10px;color:#78350f;margin-bottom:8px;line-height:1.4;">${T('reset_session_desc')}</div>
+        <button class="btn btn-amber" onclick="openResetModal('session')" style="font-size:12px;padding:9px;">
+          ${T('reset_session_only')}
+        </button>
+      </div>
+      
+      <!-- Option 2: Reset All -->
+      <div style="background:var(--rose-100);border:1px solid var(--rose-500);border-radius:10px;padding:11px;">
+        <div style="font-weight:700;font-size:12px;color:var(--rose-500);margin-bottom:3px;">${T('reset_all')}</div>
+        <div style="font-size:10px;color:#9f1239;margin-bottom:8px;line-height:1.4;">${T('reset_all_desc')}</div>
+        <button class="btn btn-danger" onclick="openResetModal('all')" style="font-size:12px;padding:9px;">
+          ${T('reset_all')}
+        </button>
+      </div>
+    </div>
+    
+    <!-- App Info -->
+    <div style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:13px;margin-top:14px;">
+      <div style="font-size:11px;color:var(--slate-500);text-transform:uppercase;font-weight:700;letter-spacing:0.5px;margin-bottom:8px;">App Info</div>
+      <div style="font-size:12px;color:var(--slate-700);line-height:1.7;">
+        <div>Version: <strong>v3.1 SOP</strong></div>
+        <div>Branch: <strong>${branch?.name_lo || branch?.name_th || 'PAKSE'}</strong></div>
+        <div>User: <strong>${user.full_name}</strong> (${user.role.toUpperCase()})</div>
+        <div>Session: <strong>${session?.session_name || 'None'}</strong></div>
+        <div>Made with 💜 by Ania</div>
+      </div>
+    </div>
+  `;
+}
+
+async function loadSettingsStats() {
+  if (!branch) return;
+  
+  // Count stock_counts
+  const { count: countsTotal } = await sb.from('stock_counts')
+    .select('*', { count: 'exact', head: true })
+    .eq('branch_id', branch.id);
+  
+  // Count sessions
+  const { count: sessionsTotal } = await sb.from('stock_sessions')
+    .select('*', { count: 'exact', head: true })
+    .eq('branch_id', branch.id);
+  
+  const ce = document.getElementById('settingsTotalCounts');
+  const se = document.getElementById('settingsTotalSessions');
+  if (ce) ce.textContent = (countsTotal || 0).toLocaleString();
+  if (se) se.textContent = (sessionsTotal || 0).toLocaleString();
+}
+
+let resetMode = 'session';
+
+async function openResetModal(mode) {
+  resetMode = mode;
+  
+  // Get counts for warning
+  let countsToDelete = 0;
+  let sessionsToDelete = 0;
+  
+  if (mode === 'session' && session) {
+    const { count } = await sb.from('stock_counts')
+      .select('*', { count: 'exact', head: true })
+      .eq('session_id', session.id);
+    countsToDelete = count || 0;
+    sessionsToDelete = 1;
+  } else if (mode === 'all') {
+    const { count: cc } = await sb.from('stock_counts')
+      .select('*', { count: 'exact', head: true })
+      .eq('branch_id', branch?.id);
+    const { count: sc } = await sb.from('stock_sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('branch_id', branch?.id);
+    countsToDelete = cc || 0;
+    sessionsToDelete = sc || 0;
+  }
+  
+  const isAll = mode === 'all';
+  const titleText = isAll ? T('reset_all') : T('reset_session_only');
+  const descText = isAll ? T('reset_all_desc') : T('reset_session_desc');
+  
+  showModal(`
+    <div style="background:var(--rose-100);border:2px solid var(--rose-500);border-radius:11px;padding:11px;margin-bottom:12px;display:flex;gap:9px;align-items:center;">
+      <svg width="28" height="28" fill="none" stroke="var(--rose-500)" stroke-width="2.5" viewBox="0 0 24 24" style="flex-shrink:0;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      <div>
+        <div style="font-weight:700;color:var(--rose-500);font-size:14px;">${titleText}</div>
+        <div style="font-size:10px;color:#9f1239;margin-top:1px;">${T('reset_warning')}</div>
+      </div>
+    </div>
+    
+    <div style="background:var(--slate-50);border-radius:10px;padding:11px;margin-bottom:12px;">
+      <div style="font-size:10px;color:var(--slate-500);text-transform:uppercase;font-weight:700;margin-bottom:7px;">${T('will_delete')}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
+        <div style="background:white;padding:8px;border-radius:7px;text-align:center;">
+          <div style="font-size:18px;font-weight:700;color:var(--rose-500);font-family:'Space Grotesk',monospace;">${countsToDelete.toLocaleString()}</div>
+          <div style="font-size:9px;color:var(--slate-500);text-transform:uppercase;font-weight:600;">${T('counts_to_delete')}</div>
+        </div>
+        ${isAll ? `
+        <div style="background:white;padding:8px;border-radius:7px;text-align:center;">
+          <div style="font-size:18px;font-weight:700;color:var(--rose-500);font-family:'Space Grotesk',monospace;">${sessionsToDelete.toLocaleString()}</div>
+          <div style="font-size:9px;color:var(--slate-500);text-transform:uppercase;font-weight:600;">${T('sessions_to_delete')}</div>
+        </div>` : `
+        <div style="background:white;padding:8px;border-radius:7px;text-align:center;">
+          <div style="font-size:12px;font-weight:700;color:var(--slate-600);">${session?.session_name?.substring(0, 12) || 'Current'}...</div>
+          <div style="font-size:9px;color:var(--slate-500);text-transform:uppercase;font-weight:600;">Session</div>
+        </div>`}
+      </div>
+    </div>
+    
+    <div class="error-msg" id="resetErr"></div>
+    
+    <div class="form-group">
+      <label class="form-label">${T('enter_admin_pwd')}</label>
+      <input type="password" class="form-input" id="resetPwd" placeholder="••••••••" autocomplete="off">
+    </div>
+    
+    <div class="form-group" style="margin-bottom:14px;">
+      <label class="form-label">${T('type_reset_confirm')}</label>
+      <input type="text" class="form-input mono" id="resetConfirm" placeholder="RESET" autocomplete="off" style="font-family:'Space Grotesk',monospace;letter-spacing:2px;text-align:center;font-weight:700;">
+    </div>
+    
+    <div class="action-row">
+      <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
+      <button class="btn btn-danger" id="executeResetBtn" onclick="executeReset()">
+        🗑️ ${T('reset_data')}
+      </button>
+    </div>
+  `);
+  
+  setTimeout(() => {
+    document.getElementById('resetPwd')?.focus();
+  }, 100);
+}
+
+async function executeReset() {
+  const pwd = document.getElementById('resetPwd').value;
+  const confirmText = document.getElementById('resetConfirm').value.trim();
+  const errEl = document.getElementById('resetErr');
+  const btn = document.getElementById('executeResetBtn');
+  
+  errEl.classList.remove('show');
+  
+  // Validate confirmation
+  if (confirmText !== 'RESET') {
+    errEl.textContent = T('must_type_reset');
+    errEl.classList.add('show');
+    return;
+  }
+  
+  // Validate password
+  if (!pwd) {
+    errEl.textContent = T('wrong_pwd');
+    errEl.classList.add('show');
+    return;
+  }
+  
+  btn.disabled = true;
+  btn.innerHTML = `<span class="loader"></span> ${T('reset_executing')}`;
+  
+  try {
+    // Verify admin password
+    const hash = await hashPassword(pwd);
+    const { data: adminCheck } = await sb.from('users')
+      .select('id, role')
+      .eq('username', user.username)
+      .eq('password_hash', hash)
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    if (!adminCheck) {
+      throw new Error(T('wrong_pwd'));
+    }
+    
+    if (!['admin', 'scc'].includes(adminCheck.role)) {
+      throw new Error('Insufficient privileges');
+    }
+    
+    log('Reset confirmed by admin:', user.username, 'mode:', resetMode);
+    
+    // Execute reset
+    if (resetMode === 'session' && session) {
+      // Delete only counts in current session
+      const { error: e1 } = await sb.from('stock_counts')
+        .delete()
+        .eq('session_id', session.id);
+      if (e1) throw e1;
+      
+      // Delete expiry/sku logs of this session
+      await sb.from('expiry_damage_log').delete().eq('session_id', session.id);
+      await sb.from('new_sku_log').delete().eq('session_id', session.id);
+      
+      log('Session counts reset');
+      showToast(T('reset_success'), 'success');
+      
+    } else if (resetMode === 'all') {
+      // Delete ALL counts for this branch
+      const { error: e1 } = await sb.from('stock_counts')
+        .delete()
+        .eq('branch_id', branch.id);
+      if (e1) throw e1;
+      
+      // Delete all logs
+      await sb.from('expiry_damage_log').delete().eq('branch_id', branch.id);
+      await sb.from('new_sku_log').delete().eq('branch_id', branch.id);
+      
+      // Delete all sessions for this branch
+      const { error: e2 } = await sb.from('stock_sessions')
+        .delete()
+        .eq('branch_id', branch.id);
+      if (e2) throw e2;
+      
+      log('All data reset for branch:', branch.id);
+      showToast(T('reset_success'), 'success');
+      
+      // Clear local session reference
+      session = null;
+    }
+    
+    closeModal();
+    
+    // Reload page after a moment
+    setTimeout(async () => {
+      await ensureSession();
+      goPage('settings');
+    }, 500);
+    
+  } catch (e) {
+    console.error('[FS] Reset error:', e);
+    errEl.textContent = e.message;
+    errEl.classList.add('show');
+    btn.disabled = false;
+    btn.innerHTML = `🗑️ ${T('reset_data')}`;
+  }
+}
+
+// ==================== INIT ====================
+// Expose functions to global scope for onclick handlers
+window.login = login;
+window.logout = logout;
+window.setLang = setLang;
+window.toggleLang = toggleLang;
+window.selectZone = selectZone;
+window.selectLocation = selectLocation;
+window.selectLocType = selectLocType;
+window.confirmZoneLocation = confirmZoneLocation;
+window.onLocInput = onLocInput;
+window.pickRecent = pickRecent;
+window.clearLocation = clearLocation;
+window.toggleBrowse = toggleBrowse;
+window.scanLocCode = scanLocCode;
+window.stopLocScan = stopLocScan;
+window.changeZone = changeZone;
+window.goPage = goPage;
+window.startScan = startScan;
+window.stopScan = stopScan;
+window.manualLookup = manualLookup;
+window.adjustCount = adjustCount;
+window.cancelCount = cancelCount;
+window.saveCount = saveCount;
+window.startTiebreaker = startTiebreaker;
+window.openUserModal = openUserModal;
+window.editUser = editUser;
+window.saveUser = saveUser;
+window.closeModal = closeModal;
+window.openExpiryModal = openExpiryModal;
+window.saveExpiry = saveExpiry;
+window.openNewSKUModal = openNewSKUModal;
+window.saveNewSKU = saveNewSKU;
+window.openEditCount = openEditCount;
+window.adjustEditCount = adjustEditCount;
+window.saveEditCount = saveEditCount;
+window.confirmDeleteCount = confirmDeleteCount;
+window.deleteCount = deleteCount;
+window.openResetModal = openResetModal;
+window.executeReset = executeReset;
+window.setWfFilter = setWfFilter;
+window.openNewGondolaForCounter = openNewGondolaForCounter;
+window.confirmOpenNewGondola = confirmOpenNewGondola;
+window.wfOpenForCounter = wfOpenForCounter;
+window.wfCloseCounter = wfCloseCounter;
+window.wfOpenForVerifier = wfOpenForVerifier;
+window.wfCloseVerifier = wfCloseVerifier;
+window.wfMarkCompleted = wfMarkCompleted;
+window.wfReopen = wfReopen;
+window.exportToExcel = exportToExcel;
+window.downloadImportTemplate = downloadImportTemplate;
+window.onPosFileSelected = onPosFileSelected;
+window.showImportPreview = showImportPreview;
+window.executeImport = executeImport;
+window.showSnapshotHistory = showSnapshotHistory;
+
+document.addEventListener('keydown', e => {
+  if (e.target.id === 'password' && e.key === 'Enter') login();
+  if (e.target.id === 'manualBarcode' && e.key === 'Enter') manualLookup();
+  if (e.target.id === 'locInput' && e.key === 'Enter') {
+    // ถ้าเลือก location แล้ว + เลือก zone แล้ว → confirm ทันที
+    if (loc && zone) confirmZoneLocation();
+  }
+});
+
+applyI18n();
+
+// Auto-login
+(async () => {
+  const saved = localStorage.getItem('fs_user');
+  const savedBranch = localStorage.getItem('fs_branch');
+  
+  if (saved) {
+    try {
+      user = JSON.parse(saved);
+      if (savedBranch) branch = JSON.parse(savedBranch);
+      
+      // Re-fetch branch to make sure
+      if (!branch && user.branch_id) {
+        const { data } = await sb.from('branches').select('*').eq('id', user.branch_id).maybeSingle();
+        branch = data;
+      }
+      if (!branch) {
+        const { data } = await sb.from('branches').select('*').eq('code', 'PAKSE').maybeSingle();
+        branch = data;
+      }
+      
+      const ctx = JSON.parse(localStorage.getItem('fs_context') || '{}');
+      const needsZone = ['counter', 'verifier', 'ctl', 'staff', 'audit'].includes(user.role);
+      
+      if (needsZone) {
+        await loadZonesAndLocations();
+        if (ctx.zone) zone = allZones.find(z => z.id == ctx.zone);
+        if (ctx.locType) currentLocType = ctx.locType;
+        if (ctx.location) loc = allLocations.find(l => l.location_code === ctx.location);
+        
+        if (!zone || !loc) {
+          showZoneStep();
+        } else {
+          enterApp();
+        }
+      } else {
+        enterApp();
+      }
+    } catch(e) {
+      console.error('[FS] Auto-login error:', e);
+    }
+  }
+})();
+</script>
+</body>
+</html>
