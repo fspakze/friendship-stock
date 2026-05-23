@@ -4650,12 +4650,14 @@ function renderFloorMapPage() {
     </div>
     
     <!-- Top controls -->
-    <div style="display:flex;gap:7px;margin-bottom:11px;">
-      <button class="btn btn-primary" style="background:var(--violet-500);flex:1;font-size:11px;padding:9px;" onclick="openAddGondolaModal()">
-        ✚ ${T('add_gondola')}
+    <div style="display:flex;gap:8px;margin-bottom:11px;width:100%;align-items:stretch;">
+      <button class="btn btn-primary" style="background:linear-gradient(135deg,var(--violet-600),var(--violet-500));flex:1 1 0;width:auto;min-width:0;font-size:13px;padding:11px 14px;white-space:nowrap;box-shadow:0 4px 14px rgba(124,58,237,0.3);" onclick="openAddGondolaModal()">
+        <span style="font-size:16px;line-height:1;">✚</span>
+        <span>${T('add_gondola')}</span>
       </button>
-      <button class="btn btn-secondary" style="flex:0 0 auto;font-size:11px;padding:9px 13px;" onclick="loadFloorMap()" title="${T('refresh_map')}">
-        ⟲ ${T('refresh_map')}
+      <button class="btn btn-secondary" style="flex:0 0 auto;width:auto;font-size:13px;padding:11px 16px;white-space:nowrap;" onclick="loadFloorMap()" title="${T('refresh_map')}">
+        <span style="font-size:16px;line-height:1;">⟲</span>
+        <span>${T('refresh_map')}</span>
       </button>
     </div>
     
