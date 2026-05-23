@@ -4311,10 +4311,10 @@ function renderFloorMapPage() {
     <!-- Top controls -->
     <div style="display:flex;gap:7px;margin-bottom:11px;">
       <button class="btn btn-primary" style="background:var(--violet-500);flex:1;font-size:11px;padding:9px;" onclick="openAddGondolaModal()">
-        + ${T('add_gondola')}
+        ✚ ${T('add_gondola')}
       </button>
-      <button class="btn btn-secondary" style="flex:0 0 auto;font-size:11px;padding:9px 13px;" onclick="loadFloorMap()">
-        🔄
+      <button class="btn btn-secondary" style="flex:0 0 auto;font-size:11px;padding:9px 13px;" onclick="loadFloorMap()" title="${T('refresh_map')}">
+        ⟲ ${T('refresh_map')}
       </button>
     </div>
     
@@ -4538,64 +4538,76 @@ async function showLocationDetail(locationCode) {
 
 // ==================== ADD GONDOLA ====================
 function openAddGondolaModal() {
-  showModal(`
-    <h3>${T('add_location')}</h3>
-    <p style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">
-      เพิ่ม Gondola/Location ใหม่
-    </p>
-    
-    <div class="form-group">
-      <label class="form-label">Location Code *</label>
-      <input type="text" class="form-input mono" id="addLocCode" 
-             placeholder="01A01, W028, WT028, WH050..." 
-             autocomplete="off" autocapitalize="characters"
-             style="text-transform:uppercase;text-align:center;letter-spacing:2px;font-weight:700;">
-      <div style="font-size:9px;color:var(--slate-500);margin-top:3px;">
-        ตัวอย่าง: 01A01 (Gondola), W028 (Wall), 10AT01 (Top), WH050 (Warehouse)
-      </div>
-    </div>
-    
-    <div class="form-group">
-      <label class="form-label">${T('location_type')} *</label>
-      <select class="form-input" id="addLocType">
-        <option value="gondola">${T('type_gondola')}</option>
-        <option value="wall">${T('type_wall')}</option>
-        <option value="gondola_top">${T('type_gondola_top')}</option>
-        <option value="wall_top">${T('type_wall_top')}</option>
-        <option value="display">${T('type_display')}</option>
-        <option value="cashier">${T('type_cashier')}</option>
-        <option value="rack">${T('type_rack')}</option>
-        <option value="warehouse">${T('type_warehouse')}</option>
-      </select>
-    </div>
-    
-    <div class="form-group">
-      <label class="form-label">Zone (Optional)</label>
-      <select class="form-input" id="addLocZone">
-        <option value="">-- Auto --</option>
-        ${zones?.map(z => `<option value="${z.code}">${z.code} - ${z.name_th || z.name_lo}</option>`).join('') || ''}
-      </select>
-    </div>
-    
-    <div class="form-group">
-      <label class="form-label">${T('description')}</label>
-      <input type="text" class="form-input" id="addLocDesc" 
-             placeholder="(optional)" autocomplete="off">
-    </div>
-    
-    <div class="error-msg" id="addLocErr"></div>
-    
-    <div class="action-row">
-      <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
-      <button class="btn btn-primary" id="addLocBtn" onclick="executeAddGondola()" style="background:var(--violet-500);">
-        + ${T('add_location')}
-      </button>
-    </div>
-  `);
+  log('Opening add gondola modal');
   
-  setTimeout(() => {
-    document.getElementById('addLocCode')?.focus();
-  }, 100);
+  try {
+    const zonesOptions = (allZones || []).map(z => 
+      `<option value="${z.code}">${z.code} - ${z.name_th || z.name_lo || ''}</option>`
+    ).join('');
+    
+    showModal(`
+      <h3>${T('add_location')}</h3>
+      <p style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">
+        เพิ่ม Gondola/Location ใหม่
+      </p>
+      
+      <div class="form-group">
+        <label class="form-label">Location Code *</label>
+        <input type="text" class="form-input mono" id="addLocCode" 
+               placeholder="01A01, W028, WT028, WH050..." 
+               autocomplete="off" autocapitalize="characters"
+               style="text-transform:uppercase;text-align:center;letter-spacing:2px;font-weight:700;">
+        <div style="font-size:9px;color:var(--slate-500);margin-top:3px;">
+          ตัวอย่าง: 01A01 (Gondola), W028 (Wall), 10AT01 (Top), WH050 (Warehouse)
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">${T('location_type')} *</label>
+        <select class="form-input" id="addLocType">
+          <option value="gondola">${T('type_gondola')}</option>
+          <option value="wall">${T('type_wall')}</option>
+          <option value="gondola_top">${T('type_gondola_top')}</option>
+          <option value="wall_top">${T('type_wall_top')}</option>
+          <option value="display">${T('type_display')}</option>
+          <option value="cashier">${T('type_cashier')}</option>
+          <option value="rack">${T('type_rack')}</option>
+          <option value="warehouse">${T('type_warehouse')}</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Zone (Optional)</label>
+        <select class="form-input" id="addLocZone">
+          <option value="">-- Auto --</option>
+          ${zonesOptions}
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">${T('description')}</label>
+        <input type="text" class="form-input" id="addLocDesc" 
+               placeholder="(optional)" autocomplete="off">
+      </div>
+      
+      <div class="error-msg" id="addLocErr"></div>
+      
+      <div class="action-row">
+        <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
+        <button class="btn btn-primary" id="addLocBtn" onclick="executeAddGondola()" style="background:var(--violet-500);">
+          ✚ ${T('add_location')}
+        </button>
+      </div>
+    `);
+    
+    setTimeout(() => {
+      const inp = document.getElementById('addLocCode');
+      if (inp) inp.focus();
+    }, 100);
+  } catch (e) {
+    console.error('[FS] openAddGondolaModal error:', e);
+    showToast('Error opening modal: ' + e.message, 'error');
+  }
 }
 
 async function executeAddGondola() {
@@ -4645,7 +4657,7 @@ async function executeAddGondola() {
     closeModal();
     
     // Reload locations + map
-    await loadLocations();
+    await loadZonesAndLocations();
     loadFloorMap();
     
   } catch (e) {
