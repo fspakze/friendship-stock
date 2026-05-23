@@ -2829,6 +2829,11 @@ function renderScanPage() {
         </div>
         <div id="reader" style="display:none;"></div>
       </div>
+      <!-- Visual Debug Panel (สำหรับ debug บนมือถือโดยไม่ต้องใช้ DevTools) -->
+      <div id="scanDebugPanel" style="display:none;background:#0f172a;color:#e2e8f0;padding:9px 11px;border-radius:8px;margin-bottom:9px;font-family:monospace;font-size:10px;line-height:1.5;max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;border:2px solid #334155;">
+        <div style="color:#67e8f9;font-weight:700;margin-bottom:4px;">📋 Scan Debug Log:</div>
+        <div id="scanDebugContent"></div>
+      </div>
       <div style="display:flex;gap:6px;margin-bottom:9px;">
         <button class="btn btn-primary" id="startScanBtn" onclick="startScan()" style="flex:1;">
           <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/></svg>
@@ -3135,68 +3140,112 @@ function getCameraErrorMessage(err) {
 }
 
 async function startScan() {
+  // Reset debug panel
+  const dbgPanel = document.getElementById('scanDebugPanel');
+  const dbgContent = document.getElementById('scanDebugContent');
+  if (dbgPanel) dbgPanel.style.display = 'block';
+  if (dbgContent) dbgContent.innerHTML = '';
+  
+  // Helper: log ทั้ง console และ on-screen debug panel
+  const scanLog = (msg, level = 'info') => {
+    const colors = { info: '#e2e8f0', warn: '#fbbf24', error: '#f43f5e', ok: '#34d399' };
+    const prefix = { info: '·', warn: '⚠', error: '✗', ok: '✓' };
+    const color = colors[level] || '#e2e8f0';
+    const time = new Date().toLocaleTimeString().split(' ')[0];
+    console.log(`[FS Scan] ${msg}`);
+    if (dbgContent) {
+      const line = document.createElement('div');
+      line.style.color = color;
+      line.textContent = `${time} ${prefix[level] || ''} ${msg}`;
+      dbgContent.appendChild(line);
+      dbgContent.scrollTop = dbgContent.scrollHeight;
+    }
+  };
+  
+  scanLog('=== Scan started ===', 'ok');
+  scanLog('UA: ' + navigator.userAgent.substring(0, 60));
+  scanLog('PWA mode: ' + (isPWAMode() ? 'YES' : 'NO'));
+  scanLog('Protocol: ' + location.protocol);
+  scanLog('secureContext: ' + window.isSecureContext);
+  scanLog('mediaDevices: ' + !!navigator.mediaDevices);
+  scanLog('getUserMedia: ' + !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
+  scanLog('Html5Qrcode loaded: ' + (typeof Html5Qrcode !== 'undefined'));
+  
   document.getElementById('scanPlaceholder').style.display = 'none';
   document.getElementById('reader').style.display = 'block';
   document.getElementById('startScanBtn').style.display = 'none';
   document.getElementById('stopScanBtn').style.display = 'flex';
   document.getElementById('scanFrame').classList.add('scanning');
   
+  if (typeof Html5Qrcode === 'undefined') {
+    scanLog('CRITICAL: html5-qrcode library not loaded!', 'error');
+    scanLog('Please check internet connection or CDN', 'error');
+    return;
+  }
+  
   // เช็ค browser support
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    showScanError('ບຣາວເຊີນີ້ບໍ່ຮອງຮັບກ້ອງ', 'navigator.mediaDevices.getUserMedia ไม่มี');
-    stopScan();
+    scanLog('mediaDevices.getUserMedia not available', 'error');
     return;
   }
   
   // เช็ค HTTPS
   if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-    showScanError('ต้องใช้ HTTPS', 'Protocol: ' + location.protocol);
-    stopScan();
+    scanLog('Not HTTPS (' + location.protocol + ') - camera blocked', 'error');
     return;
   }
   
   html5QrCode = new Html5Qrcode("reader", { verbose: false });
+  scanLog('Html5Qrcode instance created');
   
   const onScanSuccess = (decoded) => { 
+    scanLog('Scanned: ' + decoded, 'ok');
     beep();
     stopScan(); 
     lookupProduct(decoded); 
   };
   
-  // วิธีที่ 1: facingMode + minimal config (เหมือนเวอร์ชันแรกที่ work)
+  // วิธีที่ 1: facingMode + minimal config
   try {
-    log('[FS] Attempt 1: facingMode environment with minimal config');
+    scanLog('Attempt 1: facingMode "environment"...');
     await html5QrCode.start(
       { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 280, height: 160 } },  // กลับใช้ qrbox fixed (เหมือนต้นฉบับ)
+      { fps: 10, qrbox: { width: 280, height: 160 } },
       onScanSuccess,
       () => {}
     );
+    scanLog('✅ SUCCESS: Camera started (Attempt 1)', 'ok');
     fixVideoElement('reader');
-    log('[FS] ✅ Scanner started (Attempt 1)');
+    // Hide debug panel after 3s on success
+    setTimeout(() => {
+      if (dbgPanel) dbgPanel.style.display = 'none';
+    }, 3000);
     return;
   } catch (e1) {
-    console.warn('[FS] Attempt 1 failed:', e1?.name, e1?.message);
+    scanLog('Attempt 1 FAILED: ' + (e1?.name || '?') + ' - ' + (e1?.message || '?').substring(0, 80), 'warn');
     
-    // ทำลายอันเก่าก่อนสร้างใหม่ (สำคัญสำหรับ Android)
+    // Cleanup
     try { await html5QrCode.stop(); } catch(_) {}
     try { html5QrCode.clear(); } catch(_) {}
     html5QrCode = new Html5Qrcode("reader", { verbose: false });
     
-    // วิธีที่ 2: enumerate cameras + ใช้ device id
+    // วิธีที่ 2: enumerate cameras
     try {
-      log('[FS] Attempt 2: enumerate cameras');
+      scanLog('Attempt 2: enumerating cameras...');
       const devices = await Html5Qrcode.getCameras();
-      log('[FS] Cameras found:', devices?.length, devices?.map(d => d.label).join(', '));
+      scanLog('Cameras found: ' + (devices?.length || 0));
       
       if (!devices || devices.length === 0) {
-        throw new Error('No cameras found');
+        throw new Error('No cameras');
       }
       
-      // เลือก back camera (ตามชื่อ) หรือตัวสุดท้าย
+      devices.forEach((d, i) => {
+        scanLog('  [' + i + '] ' + (d.label || 'unnamed') + ' (' + d.id.substring(0, 12) + '...)');
+      });
+      
       let cam = devices.find(d => /back|rear|environment/i.test(d.label || ''));
       if (!cam) cam = devices[devices.length - 1];
-      log('[FS] Using camera:', cam.label, cam.id);
+      scanLog('Using: ' + (cam.label || cam.id.substring(0, 20)));
       
       await html5QrCode.start(
         cam.id,
@@ -3204,40 +3253,53 @@ async function startScan() {
         onScanSuccess,
         () => {}
       );
+      scanLog('✅ SUCCESS: Camera started (Attempt 2)', 'ok');
       fixVideoElement('reader');
-      log('[FS] ✅ Scanner started (Attempt 2)');
+      setTimeout(() => {
+        if (dbgPanel) dbgPanel.style.display = 'none';
+      }, 3000);
       return;
     } catch (e2) {
-      console.warn('[FS] Attempt 2 failed:', e2?.name, e2?.message);
+      scanLog('Attempt 2 FAILED: ' + (e2?.name || '?') + ' - ' + (e2?.message || '?').substring(0, 80), 'warn');
       
-      // ทำลายอันเก่า
       try { await html5QrCode.stop(); } catch(_) {}
       try { html5QrCode.clear(); } catch(_) {}
       html5QrCode = new Html5Qrcode("reader", { verbose: false });
       
-      // วิธีที่ 3: ลองโดยไม่ระบุ facingMode (browser เลือกเอง)
+      // วิธีที่ 3: ขอ stream ตรงๆ ผ่าน getUserMedia ก่อน เพื่อยืนยัน permission
       try {
-        log('[FS] Attempt 3: no facingMode (let browser pick)');
+        scanLog('Attempt 3: direct getUserMedia test...');
+        const testStream = await navigator.mediaDevices.getUserMedia({ 
+          video: true, 
+          audio: false 
+        });
+        scanLog('getUserMedia OK, tracks: ' + testStream.getTracks().length, 'ok');
+        testStream.getTracks().forEach(t => {
+          scanLog('  Track: ' + t.kind + ' / ' + t.label);
+          t.stop();
+        });
+        
+        // หลัง permission OK รอ 500ms แล้วลอง html5-qrcode อีกครั้ง
+        await new Promise(r => setTimeout(r, 500));
+        
+        scanLog('Attempt 3b: retry html5-qrcode after permission...');
         await html5QrCode.start(
-          {},  // ไม่ระบุ camera (browser default)
+          { facingMode: "environment" },
           { fps: 10, qrbox: { width: 280, height: 160 } },
           onScanSuccess,
           () => {}
         );
+        scanLog('✅ SUCCESS: Camera started (Attempt 3)', 'ok');
         fixVideoElement('reader');
-        log('[FS] ✅ Scanner started (Attempt 3)');
+        setTimeout(() => {
+          if (dbgPanel) dbgPanel.style.display = 'none';
+        }, 3000);
         return;
       } catch (e3) {
-        console.error('[FS] All 3 attempts failed');
-        console.error('[FS] e1:', e1?.name, '-', e1?.message);
-        console.error('[FS] e2:', e2?.name, '-', e2?.message);
-        console.error('[FS] e3:', e3?.name, '-', e3?.message);
-        
-        // แสดง diagnostic info ที่จอ ให้บอล screenshot ได้
-        showScanError(
-          getCameraErrorMessage(e1),
-          `Try1: ${e1?.name || '?'} ${e1?.message || ''}\nTry2: ${e2?.name || '?'} ${e2?.message || ''}\nTry3: ${e3?.name || '?'} ${e3?.message || ''}`
-        );
+        scanLog('Attempt 3 FAILED: ' + (e3?.name || '?') + ' - ' + (e3?.message || '?').substring(0, 80), 'error');
+        scanLog('=== ALL ATTEMPTS FAILED ===', 'error');
+        scanLog('Please screenshot this and send to admin', 'warn');
+        // Keep debug panel visible (don't hide)
         stopScan();
       }
     }
