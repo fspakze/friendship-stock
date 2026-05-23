@@ -318,130 +318,6 @@
   .fm-legend-item { display: flex; align-items: center; gap: 4px; }
   .fm-legend-box { width: 12px; height: 12px; border-radius: 3px; }
   
-  /* ========== FLOOR MAP QUICK NAV (Floating Sidebar) ========== */
-  .fm-quicknav {
-    position: fixed;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 80;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    padding: 8px 6px;
-    border-radius: 14px;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(15, 23, 42, 0.04);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.25s ease, transform 0.25s ease;
-  }
-  .fm-quicknav.show {
-    opacity: 1;
-    pointer-events: auto;
-  }
-  .fm-quicknav-btn {
-    width: 42px;
-    height: 42px;
-    border: none;
-    background: var(--slate-100);
-    border-radius: 10px;
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1px;
-    color: var(--slate-700);
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    font-family: inherit;
-  }
-  .fm-quicknav-btn:hover {
-    background: var(--teal-100);
-    color: var(--teal-700);
-    transform: translateX(-3px);
-  }
-  .fm-quicknav-btn:active {
-    transform: translateX(-3px) scale(0.95);
-  }
-  .fm-quicknav-btn.active {
-    background: linear-gradient(135deg, var(--teal-700), var(--teal-500));
-    color: white;
-    box-shadow: 0 4px 12px rgba(15, 118, 110, 0.35);
-  }
-  .fm-qn-emoji {
-    font-size: 16px;
-    line-height: 1;
-  }
-  .fm-qn-count {
-    font-family: 'Space Grotesk', monospace;
-    font-size: 9px;
-    font-weight: 700;
-    line-height: 1;
-    opacity: 0.85;
-  }
-  .fm-quicknav-btn.active .fm-qn-count { opacity: 1; }
-  
-  /* Tooltip on hover (desktop only) */
-  .fm-quicknav-btn::before {
-    content: attr(data-label);
-    position: absolute;
-    right: calc(100% + 8px);
-    top: 50%;
-    transform: translateY(-50%);
-    background: var(--slate-900);
-    color: white;
-    padding: 5px 9px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.15s;
-  }
-  @media (hover: hover) {
-    .fm-quicknav-btn:hover::before { opacity: 1; }
-  }
-  
-  /* Scroll-to-top button (appears in quicknav) */
-  .fm-qn-top {
-    background: var(--slate-200) !important;
-    color: var(--slate-600) !important;
-  }
-  .fm-qn-top:hover {
-    background: var(--violet-100) !important;
-    color: var(--violet-600) !important;
-  }
-  
-  /* Section anchor offset (กัน topbar บัง section heading เมื่อ scroll) */
-  .fm-section { scroll-margin-top: 70px; }
-  
-  /* Mobile: ปรับขนาดและตำแหน่งเล็กลง */
-  @media (max-width: 480px) {
-    .fm-quicknav {
-      right: 6px;
-      padding: 6px 4px;
-      gap: 4px;
-      border-radius: 12px;
-    }
-    .fm-quicknav-btn {
-      width: 38px;
-      height: 38px;
-      border-radius: 9px;
-    }
-    .fm-qn-emoji { font-size: 15px; }
-    .fm-qn-count { font-size: 8px; }
-  }
-  
-  /* Hide tooltip on small screens (touch devices) */
-  @media (max-width: 768px) {
-    .fm-quicknav-btn::before { display: none; }
-  }
-  
   /* Workflow Control */
   .wf-card { background: white; border-radius: 12px; padding: 11px; box-shadow: var(--sh-sm); border-left: 4px solid var(--slate-300); margin-bottom: 8px; }
   .wf-card.s-open_for_counting { border-left-color: var(--teal-500); background: var(--teal-50); }
@@ -1796,7 +1672,6 @@ async function logout() {
   localStorage.removeItem('fs_context');
   user = null; zone = null; loc = null; branch = null; session = null;
   if (html5QrCode) { try { await html5QrCode.stop(); } catch(e){} }
-  if (typeof removeFloorMapQuickNav === 'function') removeFloorMapQuickNav();
   document.getElementById('step-zone').classList.remove('active');
   document.getElementById('step-login').classList.add('active');
   document.getElementById('app').classList.remove('active');
@@ -2007,11 +1882,6 @@ function goPage(page) {
   if (!c) return;
   
   log('Going to page:', page);
-  
-  // ลบ floating quicknav ของ Floor Map เมื่อเปลี่ยนไปหน้าอื่น
-  if (page !== 'floormap') {
-    if (typeof removeFloorMapQuickNav === 'function') removeFloorMapQuickNav();
-  }
   
   if (page === 'scan') {
     c.innerHTML = renderScanPage();
@@ -4733,7 +4603,7 @@ function renderFloorMapContent(data) {
   el.innerHTML = `
     <!-- Sale Floor -->
     ${saleFloor.length > 0 ? `
-      <div class="fm-section" id="fm-sec-sale">
+      <div class="fm-section">
         <div class="fm-title">
           <span class="fm-title-emoji">🏬</span>
           <span>${T('sale_floor')}</span>
@@ -4747,7 +4617,7 @@ function renderFloorMapContent(data) {
     
     <!-- Top Stock -->
     ${topStock.length > 0 ? `
-      <div class="fm-section" id="fm-sec-top">
+      <div class="fm-section">
         <div class="fm-title">
           <span class="fm-title-emoji">📦</span>
           <span>${T('top_stock_area')}</span>
@@ -4761,7 +4631,7 @@ function renderFloorMapContent(data) {
     
     <!-- Display & Others -->
     ${display.length > 0 ? `
-      <div class="fm-section" id="fm-sec-display">
+      <div class="fm-section">
         <div class="fm-title">
           <span class="fm-title-emoji">🎯</span>
           <span>${T('display_area')}</span>
@@ -4775,7 +4645,7 @@ function renderFloorMapContent(data) {
     
     <!-- Warehouse 1 -->
     ${wh1.length > 0 ? `
-      <div class="fm-section" id="fm-sec-wh1">
+      <div class="fm-section">
         <div class="fm-title">
           <span class="fm-title-emoji">🏭</span>
           <span>${T('warehouse_1')}</span>
@@ -4789,7 +4659,7 @@ function renderFloorMapContent(data) {
     
     <!-- Warehouse 2 -->
     ${wh2.length > 0 ? `
-      <div class="fm-section" id="fm-sec-wh2">
+      <div class="fm-section">
         <div class="fm-title">
           <span class="fm-title-emoji">🏭</span>
           <span>${T('warehouse_2')}</span>
@@ -4801,124 +4671,6 @@ function renderFloorMapContent(data) {
       </div>
     ` : ''}
   `;
-  
-  // ==== Render Floating Quick Nav Sidebar ====
-  renderFloorMapQuickNav({
-    sale: saleFloor.length,
-    top: topStock.length,
-    display: display.length,
-    wh1: wh1.length,
-    wh2: wh2.length
-  });
-}
-
-// ==================== FLOOR MAP QUICK NAV (Floating Sidebar) ====================
-function renderFloorMapQuickNav(counts) {
-  // ลบ quicknav เก่าถ้ามี
-  const existing = document.getElementById('fmQuickNav');
-  if (existing) existing.remove();
-  
-  // สร้างรายการ section (เฉพาะที่มี data)
-  const sections = [
-    { id: 'fm-sec-sale',    emoji: '🏬', label: T('sale_floor'),     count: counts.sale },
-    { id: 'fm-sec-top',     emoji: '📦', label: T('top_stock_area'), count: counts.top },
-    { id: 'fm-sec-display', emoji: '🎯', label: T('display_area'),   count: counts.display },
-    { id: 'fm-sec-wh1',     emoji: '🏭', label: T('warehouse_1'),    count: counts.wh1 },
-    { id: 'fm-sec-wh2',     emoji: '🏭', label: T('warehouse_2'),    count: counts.wh2 },
-  ].filter(s => s.count > 0);
-  
-  // ถ้ามี section น้อยกว่า 2 ก็ไม่ต้องแสดง quicknav
-  if (sections.length < 2) return;
-  
-  const topLabel = lang === 'lo' ? 'ຂຶ້ນເທິງສຸດ' : 'ขึ้นบนสุด';
-  
-  const nav = document.createElement('div');
-  nav.id = 'fmQuickNav';
-  nav.className = 'fm-quicknav';
-  nav.innerHTML = `
-    ${sections.map(s => `
-      <button class="fm-quicknav-btn" 
-              data-target="${s.id}" 
-              data-label="${s.label}"
-              onclick="fmScrollToSection('${s.id}')"
-              title="${s.label} (${s.count})">
-        <span class="fm-qn-emoji">${s.emoji}</span>
-        <span class="fm-qn-count">${s.count}</span>
-      </button>
-    `).join('')}
-    <button class="fm-quicknav-btn fm-qn-top" 
-            data-label="${topLabel}"
-            onclick="fmScrollToTop()"
-            title="${topLabel}">
-      <span class="fm-qn-emoji">⬆️</span>
-    </button>
-  `;
-  document.body.appendChild(nav);
-  
-  // Fade-in
-  requestAnimationFrame(() => nav.classList.add('show'));
-  
-  // Active state ตาม scroll
-  setupFloorMapScrollSpy(sections);
-}
-
-function fmScrollToSection(sectionId) {
-  const el = document.getElementById(sectionId);
-  if (!el) return;
-  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function fmScrollToTop() {
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-let fmScrollObserver = null;
-function setupFloorMapScrollSpy(sections) {
-  // ล้าง observer เก่า
-  if (fmScrollObserver) {
-    fmScrollObserver.disconnect();
-    fmScrollObserver = null;
-  }
-  
-  const buttons = document.querySelectorAll('#fmQuickNav .fm-quicknav-btn[data-target]');
-  if (!buttons.length) return;
-  
-  // Map section id → button
-  const btnMap = {};
-  buttons.forEach(b => { btnMap[b.dataset.target] = b; });
-  
-  fmScrollObserver = new IntersectionObserver((entries) => {
-    // หา section ที่ visible และอยู่บนสุด
-    const visible = entries
-      .filter(e => e.isIntersecting)
-      .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-    
-    if (visible.length > 0) {
-      const activeId = visible[0].target.id;
-      buttons.forEach(b => b.classList.remove('active'));
-      if (btnMap[activeId]) btnMap[activeId].classList.add('active');
-    }
-  }, {
-    rootMargin: '-80px 0px -50% 0px',
-    threshold: [0, 0.1, 0.5]
-  });
-  
-  sections.forEach(s => {
-    const el = document.getElementById(s.id);
-    if (el) fmScrollObserver.observe(el);
-  });
-}
-
-function removeFloorMapQuickNav() {
-  const nav = document.getElementById('fmQuickNav');
-  if (nav) {
-    nav.classList.remove('show');
-    setTimeout(() => nav.remove(), 250);
-  }
-  if (fmScrollObserver) {
-    fmScrollObserver.disconnect();
-    fmScrollObserver = null;
-  }
 }
 
 async function onFloorMapCellClick(locationCode, status) {
@@ -6084,9 +5836,6 @@ window.onPosFileSelected = onPosFileSelected;
 window.showImportPreview = showImportPreview;
 window.executeImport = executeImport;
 window.showSnapshotHistory = showSnapshotHistory;
-window.fmScrollToSection = fmScrollToSection;
-window.fmScrollToTop = fmScrollToTop;
-window.removeFloorMapQuickNav = removeFloorMapQuickNav;
 
 document.addEventListener('keydown', e => {
   if (e.target.id === 'password' && e.key === 'Enter') login();
