@@ -2302,7 +2302,6 @@ async function scanLocCode() {
     }
     
     locScanner = new Html5Qrcode("locReader", { verbose: false });
-    const config = getScannerConfig();
     
     const onLocScanSuccess = (decoded) => {
       stopLocScan();
@@ -2311,31 +2310,43 @@ async function scanLocCode() {
       beep();
     };
     
+    // Attempt 1: facingMode environment
     try {
+      log('[FS] LocScan Attempt 1: facingMode');
       await locScanner.start(
         { facingMode: "environment" },
-        config,
+        { fps: 10, qrbox: { width: 280, height: 160 } },
         onLocScanSuccess,
         () => {}
       );
       fixVideoElement('locReader');
-    } catch (e) {
-      console.warn('[FS] startLocScan facingMode failed, trying fallback:', e?.message);
-      try {
-        await tryStartScannerFallback(locScanner, 'locReader', onLocScanSuccess);
-      } catch (e2) {
-        console.error('[FS] startLocScan all methods failed:', e2);
-        const errName = (e2?.name || '').toLowerCase();
-        const isPermErr = errName.includes('notallowed') || 
-                          (e2?.message || '').toLowerCase().includes('permission');
-        if (isPermErr && isPWAMode()) {
-          stopLocScan();
-          showPWAPermissionHelp();
-        } else {
-          showToast(getCameraErrorMessage(e2), 'error');
-          stopLocScan();
-        }
-      }
+      return;
+    } catch (e1) {
+      console.warn('[FS] LocScan Attempt 1 failed:', e1?.name, e1?.message);
+      try { await locScanner.stop(); } catch(_) {}
+      try { locScanner.clear(); } catch(_) {}
+      locScanner = new Html5Qrcode("locReader", { verbose: false });
+    }
+    
+    // Attempt 2: enumerate cameras
+    try {
+      log('[FS] LocScan Attempt 2: enumerate');
+      const devices = await Html5Qrcode.getCameras();
+      if (!devices || devices.length === 0) throw new Error('No cameras');
+      let cam = devices.find(d => /back|rear|environment/i.test(d.label || ''));
+      if (!cam) cam = devices[devices.length - 1];
+      await locScanner.start(
+        cam.id,
+        { fps: 10, qrbox: { width: 280, height: 160 } },
+        onLocScanSuccess,
+        () => {}
+      );
+      fixVideoElement('locReader');
+      return;
+    } catch (e2) {
+      console.error('[FS] LocScan all attempts failed');
+      showToast(getCameraErrorMessage(e2), 'error');
+      stopLocScan();
     }
   }, 100);
 }
@@ -3130,15 +3141,21 @@ async function startScan() {
   document.getElementById('stopScanBtn').style.display = 'flex';
   document.getElementById('scanFrame').classList.add('scanning');
   
-  // เช็ค browser support ก่อน
+  // เช็ค browser support
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    showToast(T('scan_not_supported'), 'error');
+    showScanError('ບຣາວເຊີນີ້ບໍ່ຮອງຮັບກ້ອງ', 'navigator.mediaDevices.getUserMedia ไม่มี');
+    stopScan();
+    return;
+  }
+  
+  // เช็ค HTTPS
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    showScanError('ต้องใช้ HTTPS', 'Protocol: ' + location.protocol);
     stopScan();
     return;
   }
   
   html5QrCode = new Html5Qrcode("reader", { verbose: false });
-  const config = getScannerConfig();
   
   const onScanSuccess = (decoded) => { 
     beep();
@@ -3146,42 +3163,124 @@ async function startScan() {
     lookupProduct(decoded); 
   };
   
+  // วิธีที่ 1: facingMode + minimal config (เหมือนเวอร์ชันแรกที่ work)
   try {
-    // ลองวิธีปกติก่อน — ใช้ facingMode "environment"
+    log('[FS] Attempt 1: facingMode environment with minimal config');
     await html5QrCode.start(
       { facingMode: "environment" },
-      config,
+      { fps: 10, qrbox: { width: 280, height: 160 } },  // กลับใช้ qrbox fixed (เหมือนต้นฉบับ)
       onScanSuccess,
       () => {}
     );
     fixVideoElement('reader');
-    log('[FS] Scanner started with facingMode');
-  } catch (e) {
-    console.warn('[FS] facingMode failed, trying fallback:', e?.message);
+    log('[FS] ✅ Scanner started (Attempt 1)');
+    return;
+  } catch (e1) {
+    console.warn('[FS] Attempt 1 failed:', e1?.name, e1?.message);
     
-    // Fallback: enumerate cameras แล้วเลือก back camera
+    // ทำลายอันเก่าก่อนสร้างใหม่ (สำคัญสำหรับ Android)
+    try { await html5QrCode.stop(); } catch(_) {}
+    try { html5QrCode.clear(); } catch(_) {}
+    html5QrCode = new Html5Qrcode("reader", { verbose: false });
+    
+    // วิธีที่ 2: enumerate cameras + ใช้ device id
     try {
-      await tryStartScannerFallback(html5QrCode, 'reader', onScanSuccess);
-      log('[FS] Scanner started with fallback (deviceId)');
+      log('[FS] Attempt 2: enumerate cameras');
+      const devices = await Html5Qrcode.getCameras();
+      log('[FS] Cameras found:', devices?.length, devices?.map(d => d.label).join(', '));
+      
+      if (!devices || devices.length === 0) {
+        throw new Error('No cameras found');
+      }
+      
+      // เลือก back camera (ตามชื่อ) หรือตัวสุดท้าย
+      let cam = devices.find(d => /back|rear|environment/i.test(d.label || ''));
+      if (!cam) cam = devices[devices.length - 1];
+      log('[FS] Using camera:', cam.label, cam.id);
+      
+      await html5QrCode.start(
+        cam.id,
+        { fps: 10, qrbox: { width: 280, height: 160 } },
+        onScanSuccess,
+        () => {}
+      );
+      fixVideoElement('reader');
+      log('[FS] ✅ Scanner started (Attempt 2)');
+      return;
     } catch (e2) {
-      console.error('[FS] startScan all methods failed:', e2);
+      console.warn('[FS] Attempt 2 failed:', e2?.name, e2?.message);
       
-      // ถ้าเป็น PWA และ permission denied → แสดง help modal
-      const errName = (e2?.name || '').toLowerCase();
-      const errMsg = (e2?.message || '').toLowerCase();
-      const isPermErr = errName.includes('notallowed') || 
-                        errMsg.includes('permission') || 
-                        errMsg.includes('denied');
+      // ทำลายอันเก่า
+      try { await html5QrCode.stop(); } catch(_) {}
+      try { html5QrCode.clear(); } catch(_) {}
+      html5QrCode = new Html5Qrcode("reader", { verbose: false });
       
-      if (isPermErr && isPWAMode()) {
-        stopScan();
-        showPWAPermissionHelp();
-      } else {
-        showToast(getCameraErrorMessage(e2), 'error');
+      // วิธีที่ 3: ลองโดยไม่ระบุ facingMode (browser เลือกเอง)
+      try {
+        log('[FS] Attempt 3: no facingMode (let browser pick)');
+        await html5QrCode.start(
+          {},  // ไม่ระบุ camera (browser default)
+          { fps: 10, qrbox: { width: 280, height: 160 } },
+          onScanSuccess,
+          () => {}
+        );
+        fixVideoElement('reader');
+        log('[FS] ✅ Scanner started (Attempt 3)');
+        return;
+      } catch (e3) {
+        console.error('[FS] All 3 attempts failed');
+        console.error('[FS] e1:', e1?.name, '-', e1?.message);
+        console.error('[FS] e2:', e2?.name, '-', e2?.message);
+        console.error('[FS] e3:', e3?.name, '-', e3?.message);
+        
+        // แสดง diagnostic info ที่จอ ให้บอล screenshot ได้
+        showScanError(
+          getCameraErrorMessage(e1),
+          `Try1: ${e1?.name || '?'} ${e1?.message || ''}\nTry2: ${e2?.name || '?'} ${e2?.message || ''}\nTry3: ${e3?.name || '?'} ${e3?.message || ''}`
+        );
         stopScan();
       }
     }
   }
+}
+
+// แสดง diagnostic error modal แทน toast — เห็นชัดและถ่ายภาพได้
+function showScanError(userMsg, debugInfo) {
+  const ua = navigator.userAgent;
+  const pwa = (typeof isPWAMode === 'function') ? isPWAMode() : false;
+  
+  showModal(`
+    <h3 style="color:var(--rose-500);">📷 ${T('scan_error') || 'เปิดกล้องไม่ได้'}</h3>
+    
+    <div style="background:var(--rose-100);padding:10px 12px;border-radius:9px;margin-bottom:10px;color:#9f1239;font-size:12px;font-weight:600;">
+      ${userMsg || 'ไม่ทราบสาเหตุ'}
+    </div>
+    
+    <details style="background:var(--slate-100);padding:8px 10px;border-radius:7px;margin-bottom:11px;font-size:10px;">
+      <summary style="cursor:pointer;font-weight:700;color:var(--slate-700);">🔍 รายละเอียด (ส่งให้ทีมเทคนิค)</summary>
+      <div style="margin-top:8px;font-family:monospace;color:var(--slate-700);line-height:1.5;white-space:pre-wrap;word-break:break-all;">
+PWA: ${pwa ? 'YES' : 'NO'}
+URL: ${location.protocol}//${location.hostname}
+mediaDevices: ${!!navigator.mediaDevices}
+getUserMedia: ${!!(navigator.mediaDevices?.getUserMedia)}
+secureContext: ${window.isSecureContext}
+UA: ${ua.substring(0, 100)}
+
+ERRORS:
+${debugInfo || '(no debug info)'}
+      </div>
+    </details>
+    
+    <div style="background:var(--amber-100);padding:10px 12px;border-radius:9px;margin-bottom:11px;font-size:11px;color:#92400e;">
+      💡 <strong>วิธีแก้:</strong><br>
+      1. iPhone: Settings → Safari → กล้อง → "ถาม" หรือ "อนุญาต"<br>
+      2. Android: ⓘ ที่ address bar → Permissions → กล้อง → Allow<br>
+      3. ลองรีโหลดหน้าเว็บ (refresh)<br>
+      4. ปิด Browser และเปิดใหม่
+    </div>
+    
+    <button class="btn btn-secondary" onclick="closeModal()" style="width:100%;">ปิด</button>
+  `);
 }
 
 async function stopScan() {
@@ -8351,6 +8450,7 @@ window.tryStartScannerFallback = tryStartScannerFallback;
 window.isPWAMode = isPWAMode;
 window.requestCameraPermission = requestCameraPermission;
 window.showPWAPermissionHelp = showPWAPermissionHelp;
+window.showScanError = showScanError;
 window.downloadImportTemplate = downloadImportTemplate;
 window.onPosFileSelected = onPosFileSelected;
 window.showImportPreview = showImportPreview;
