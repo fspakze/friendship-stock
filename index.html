@@ -318,128 +318,167 @@
   .fm-legend-item { display: flex; align-items: center; gap: 4px; }
   .fm-legend-box { width: 12px; height: 12px; border-radius: 3px; }
   
-  /* ========== FLOOR MAP QUICK NAV (Floating Sidebar) ========== */
-  .fm-quicknav {
+  /* ===== Add Gondola Button (BIG) ===== */
+  .btn-add-gondola-big {
+    background: linear-gradient(135deg, var(--violet-600), var(--violet-500)) !important;
+    color: white !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    padding: 14px 18px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 6px 20px rgba(124,58,237,0.35), 0 2px 6px rgba(124,58,237,0.2) !important;
+    letter-spacing: 0.3px;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-add-gondola-big:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 28px rgba(124,58,237,0.45), 0 4px 10px rgba(124,58,237,0.25) !important;
+  }
+  .btn-add-gondola-big:active { transform: translateY(0); }
+  .btn-add-gondola-big .plus-icon {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(255,255,255,0.25); display: inline-flex;
+    align-items: center; justify-content: center; font-size: 16px; font-weight: 900;
+  }
+  .btn-refresh-map-big {
+    background: white !important;
+    color: var(--violet-600) !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    padding: 14px 16px !important;
+    border-radius: 12px !important;
+    box-shadow: var(--sh-sm) !important;
+    border: 2px solid var(--violet-100) !important;
+    cursor: pointer;
+    transition: all 0.18s ease;
+  }
+  .btn-refresh-map-big:hover {
+    background: var(--violet-100) !important;
+    transform: translateY(-1px);
+  }
+  
+  /* ===== Quick Nav FAB (Floating Action Button) ===== */
+  .qnav-wrap {
     position: fixed;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 80;
+    bottom: 20px;
+    right: 16px;
+    z-index: 9000;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    padding: 8px 6px;
-    border-radius: 14px;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(15, 23, 42, 0.04);
-    opacity: 0;
+    align-items: flex-end;
+    gap: 10px;
     pointer-events: none;
-    transition: opacity 0.25s ease, transform 0.25s ease;
   }
-  .fm-quicknav.show {
+  .qnav-wrap > * { pointer-events: auto; }
+  
+  .qnav-fab {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--violet-600), var(--violet-500));
+    color: white;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(124,58,237,0.45), 0 3px 8px rgba(124,58,237,0.25);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+    transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
+  }
+  .qnav-fab:hover { transform: scale(1.08); box-shadow: 0 12px 32px rgba(124,58,237,0.55); }
+  .qnav-fab:active { transform: scale(0.95); }
+  .qnav-fab.is-open { transform: rotate(135deg); background: linear-gradient(135deg, var(--rose-500), #e11d48); }
+  
+  .qnav-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    opacity: 0;
+    transform: translateY(10px) scale(0.92);
+    transform-origin: bottom right;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .qnav-menu.is-open {
     opacity: 1;
+    transform: translateY(0) scale(1);
     pointer-events: auto;
   }
-  .fm-quicknav-btn {
-    width: 42px;
-    height: 42px;
-    border: none;
-    background: var(--slate-100);
-    border-radius: 10px;
-    cursor: pointer;
+  .qnav-item {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 1px;
-    color: var(--slate-700);
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    font-family: inherit;
-  }
-  .fm-quicknav-btn:hover {
-    background: var(--teal-100);
-    color: var(--teal-700);
-    transform: translateX(-3px);
-  }
-  .fm-quicknav-btn:active {
-    transform: translateX(-3px) scale(0.95);
-  }
-  .fm-quicknav-btn.active {
-    background: linear-gradient(135deg, var(--teal-700), var(--teal-500));
-    color: white;
-    box-shadow: 0 4px 12px rgba(15, 118, 110, 0.35);
-  }
-  .fm-qn-emoji {
-    font-size: 16px;
-    line-height: 1;
-  }
-  .fm-qn-count {
-    font-family: 'Space Grotesk', monospace;
-    font-size: 9px;
+    gap: 9px;
+    background: white;
+    border: none;
+    padding: 9px 13px 9px 10px;
+    border-radius: 26px;
+    box-shadow: 0 4px 14px rgba(15,23,42,0.12), 0 1px 3px rgba(15,23,42,0.08);
+    cursor: pointer;
+    font-size: 12px;
     font-weight: 700;
-    line-height: 1;
-    opacity: 0.85;
-  }
-  .fm-quicknav-btn.active .fm-qn-count { opacity: 1; }
-  
-  /* Tooltip on hover (desktop only) */
-  .fm-quicknav-btn::before {
-    content: attr(data-label);
-    position: absolute;
-    right: calc(100% + 8px);
-    top: 50%;
-    transform: translateY(-50%);
-    background: var(--slate-900);
-    color: white;
-    padding: 5px 9px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 600;
+    color: var(--slate-700);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s;
     white-space: nowrap;
+  }
+  .qnav-item:hover {
+    transform: translateX(-3px);
+    background: var(--violet-100);
+    color: var(--violet-600);
+    box-shadow: 0 6px 18px rgba(124,58,237,0.25);
+  }
+  .qnav-item-icon {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .qnav-item-icon.sale { background: linear-gradient(135deg, #fef3c7, #fde68a); }
+  .qnav-item-icon.top { background: linear-gradient(135deg, #ddd6fe, #c4b5fd); }
+  .qnav-item-icon.display { background: linear-gradient(135deg, #fce7f3, #fbcfe8); }
+  .qnav-item-icon.wh1 { background: linear-gradient(135deg, #d1fae5, #a7f3d0); }
+  .qnav-item-icon.wh2 { background: linear-gradient(135deg, #cffafe, #a5f3fc); }
+  .qnav-item-count {
+    margin-left: auto;
+    background: var(--slate-100);
+    color: var(--slate-600);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-family: 'Space Grotesk', monospace;
+    font-weight: 700;
+  }
+  .qnav-item:hover .qnav-item-count {
+    background: var(--violet-500);
+    color: white;
+  }
+  
+  /* Section flash highlight when jumped to */
+  .fm-section.is-flashed {
+    animation: fmFlash 1.2s ease;
+  }
+  @keyframes fmFlash {
+    0% { box-shadow: 0 0 0 0 rgba(124,58,237,0.4), var(--sh-sm); }
+    40% { box-shadow: 0 0 0 6px rgba(124,58,237,0.15), 0 8px 20px rgba(124,58,237,0.2); }
+    100% { box-shadow: var(--sh-sm); }
+  }
+  
+  /* Backdrop when menu open (mobile-friendly) */
+  .qnav-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(15,23,42,0.04);
+    z-index: 8999;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.15s;
+    transition: opacity 0.2s;
   }
-  @media (hover: hover) {
-    .fm-quicknav-btn:hover::before { opacity: 1; }
-  }
+  .qnav-backdrop.is-open { opacity: 1; pointer-events: auto; }
   
-  /* Scroll-to-top button (appears in quicknav) */
-  .fm-qn-top {
-    background: var(--slate-200) !important;
-    color: var(--slate-600) !important;
-  }
-  .fm-qn-top:hover {
-    background: var(--violet-100) !important;
-    color: var(--violet-600) !important;
-  }
-  
-  /* Section anchor offset (กัน topbar บัง section heading เมื่อ scroll) */
-  .fm-section { scroll-margin-top: 70px; }
-  
-  /* Mobile: ปรับขนาดและตำแหน่งเล็กลง */
   @media (max-width: 480px) {
-    .fm-quicknav {
-      right: 6px;
-      padding: 6px 4px;
-      gap: 4px;
-      border-radius: 12px;
-    }
-    .fm-quicknav-btn {
-      width: 38px;
-      height: 38px;
-      border-radius: 9px;
-    }
-    .fm-qn-emoji { font-size: 15px; }
-    .fm-qn-count { font-size: 8px; }
-  }
-  
-  /* Hide tooltip on small screens (touch devices) */
-  @media (max-width: 768px) {
-    .fm-quicknav-btn::before { display: none; }
+    .qnav-wrap { bottom: 16px; right: 12px; }
+    .qnav-fab { width: 52px; height: 52px; font-size: 22px; }
+    .qnav-item { font-size: 11px; padding: 8px 11px 8px 8px; }
+    .qnav-item-icon { width: 28px; height: 28px; font-size: 14px; }
   }
   
   /* Workflow Control */
@@ -1059,6 +1098,8 @@ const I18N = {
     description: 'ຄຳອະທິບາຍ',
     saved_added: 'ເພີ່ມສຳເລັດ',
     refresh_map: 'ໂຫລດໃໝ່',
+    quick_nav: 'ໄປຫາໝວດ',
+    points: 'ຈຸດ',
     legend: 'ສັນຍາລັກ',
     counted_x_of_y: 'ນັບ {x}/{y}',
     issues: 'ບັນຫາ',
@@ -1269,6 +1310,8 @@ const I18N = {
     description: 'คำอธิบาย',
     saved_added: 'เพิ่มสำเร็จ',
     refresh_map: 'โหลดใหม่',
+    quick_nav: 'ไปยังหมวด',
+    points: 'จุด',
     legend: 'สัญลักษณ์',
     counted_x_of_y: 'นับ {x}/{y}',
     issues: 'ปัญหา',
@@ -1796,7 +1839,6 @@ async function logout() {
   localStorage.removeItem('fs_context');
   user = null; zone = null; loc = null; branch = null; session = null;
   if (html5QrCode) { try { await html5QrCode.stop(); } catch(e){} }
-  if (typeof removeFloorMapQuickNav === 'function') removeFloorMapQuickNav();
   document.getElementById('step-zone').classList.remove('active');
   document.getElementById('step-login').classList.add('active');
   document.getElementById('app').classList.remove('active');
@@ -2008,9 +2050,9 @@ function goPage(page) {
   
   log('Going to page:', page);
   
-  // ลบ floating quicknav ของ Floor Map เมื่อเปลี่ยนไปหน้าอื่น
-  if (page !== 'floormap') {
-    if (typeof removeFloorMapQuickNav === 'function') removeFloorMapQuickNav();
+  // Cleanup Quick Nav when leaving floormap
+  if (page !== 'floormap' && typeof cleanupQuickNav === 'function') {
+    cleanupQuickNav();
   }
   
   if (page === 'scan') {
@@ -4650,14 +4692,13 @@ function renderFloorMapPage() {
     </div>
     
     <!-- Top controls -->
-    <div style="display:flex;gap:8px;margin-bottom:11px;width:100%;align-items:stretch;">
-      <button class="btn btn-primary" style="background:linear-gradient(135deg,var(--violet-600),var(--violet-500));flex:1 1 0;width:auto;min-width:0;font-size:13px;padding:11px 14px;white-space:nowrap;box-shadow:0 4px 14px rgba(124,58,237,0.3);" onclick="openAddGondolaModal()">
-        <span style="font-size:16px;line-height:1;">✚</span>
+    <div style="display:flex;gap:9px;margin-bottom:13px;">
+      <button class="btn-add-gondola-big" style="flex:1;" onclick="openAddGondolaModal()">
+        <span class="plus-icon">+</span>
         <span>${T('add_gondola')}</span>
       </button>
-      <button class="btn btn-secondary" style="flex:0 0 auto;width:auto;font-size:13px;padding:11px 16px;white-space:nowrap;" onclick="loadFloorMap()" title="${T('refresh_map')}">
-        <span style="font-size:16px;line-height:1;">⟲</span>
-        <span>${T('refresh_map')}</span>
+      <button class="btn-refresh-map-big" onclick="loadFloorMap()" title="${T('refresh_map')}" aria-label="${T('refresh_map')}">
+        ⟲
       </button>
     </div>
     
@@ -4735,11 +4776,11 @@ function renderFloorMapContent(data) {
   el.innerHTML = `
     <!-- Sale Floor -->
     ${saleFloor.length > 0 ? `
-      <div class="fm-section" id="fm-sec-sale">
+      <div class="fm-section" id="fmSecSale">
         <div class="fm-title">
           <span class="fm-title-emoji">🏬</span>
           <span>${T('sale_floor')}</span>
-          <span class="fm-title-count">${saleFloor.length} จุด</span>
+          <span class="fm-title-count">${saleFloor.length} ${T('points') || 'จุด'}</span>
         </div>
         <div class="fm-grid">
           ${saleFloor.map(renderCell).join('')}
@@ -4749,11 +4790,11 @@ function renderFloorMapContent(data) {
     
     <!-- Top Stock -->
     ${topStock.length > 0 ? `
-      <div class="fm-section" id="fm-sec-top">
+      <div class="fm-section" id="fmSecTop">
         <div class="fm-title">
           <span class="fm-title-emoji">📦</span>
           <span>${T('top_stock_area')}</span>
-          <span class="fm-title-count">${topStock.length} จุด</span>
+          <span class="fm-title-count">${topStock.length} ${T('points') || 'จุด'}</span>
         </div>
         <div class="fm-grid">
           ${topStock.map(renderCell).join('')}
@@ -4763,11 +4804,11 @@ function renderFloorMapContent(data) {
     
     <!-- Display & Others -->
     ${display.length > 0 ? `
-      <div class="fm-section" id="fm-sec-display">
+      <div class="fm-section" id="fmSecDisplay">
         <div class="fm-title">
           <span class="fm-title-emoji">🎯</span>
           <span>${T('display_area')}</span>
-          <span class="fm-title-count">${display.length} จุด</span>
+          <span class="fm-title-count">${display.length} ${T('points') || 'จุด'}</span>
         </div>
         <div class="fm-grid">
           ${display.map(renderCell).join('')}
@@ -4777,11 +4818,11 @@ function renderFloorMapContent(data) {
     
     <!-- Warehouse 1 -->
     ${wh1.length > 0 ? `
-      <div class="fm-section" id="fm-sec-wh1">
+      <div class="fm-section" id="fmSecWh1">
         <div class="fm-title">
           <span class="fm-title-emoji">🏭</span>
           <span>${T('warehouse_1')}</span>
-          <span class="fm-title-count">${wh1.length} จุด</span>
+          <span class="fm-title-count">${wh1.length} ${T('points') || 'จุด'}</span>
         </div>
         <div class="fm-grid fm-grid-wh">
           ${wh1.map(renderCell).join('')}
@@ -4791,11 +4832,11 @@ function renderFloorMapContent(data) {
     
     <!-- Warehouse 2 -->
     ${wh2.length > 0 ? `
-      <div class="fm-section" id="fm-sec-wh2">
+      <div class="fm-section" id="fmSecWh2">
         <div class="fm-title">
           <span class="fm-title-emoji">🏭</span>
           <span>${T('warehouse_2')}</span>
-          <span class="fm-title-count">${wh2.length} จุด</span>
+          <span class="fm-title-count">${wh2.length} ${T('points') || 'จุด'}</span>
         </div>
         <div class="fm-grid fm-grid-wh">
           ${wh2.map(renderCell).join('')}
@@ -4804,8 +4845,8 @@ function renderFloorMapContent(data) {
     ` : ''}
   `;
   
-  // ==== Render Floating Quick Nav Sidebar ====
-  renderFloorMapQuickNav({
+  // Render Quick Nav FAB based on which sections exist
+  renderQuickNav({
     sale: saleFloor.length,
     top: topStock.length,
     display: display.length,
@@ -4814,113 +4855,98 @@ function renderFloorMapContent(data) {
   });
 }
 
-// ==================== FLOOR MAP QUICK NAV (Floating Sidebar) ====================
-function renderFloorMapQuickNav(counts) {
-  // ลบ quicknav เก่าถ้ามี
-  const existing = document.getElementById('fmQuickNav');
+// ==================== QUICK NAV FAB ====================
+function renderQuickNav(counts) {
+  // Remove existing
+  const existing = document.getElementById('qnavWrap');
   if (existing) existing.remove();
+  const existingBd = document.getElementById('qnavBackdrop');
+  if (existingBd) existingBd.remove();
   
-  // สร้างรายการ section (เฉพาะที่มี data)
-  const sections = [
-    { id: 'fm-sec-sale',    emoji: '🏬', label: T('sale_floor'),     count: counts.sale },
-    { id: 'fm-sec-top',     emoji: '📦', label: T('top_stock_area'), count: counts.top },
-    { id: 'fm-sec-display', emoji: '🎯', label: T('display_area'),   count: counts.display },
-    { id: 'fm-sec-wh1',     emoji: '🏭', label: T('warehouse_1'),    count: counts.wh1 },
-    { id: 'fm-sec-wh2',     emoji: '🏭', label: T('warehouse_2'),    count: counts.wh2 },
-  ].filter(s => s.count > 0);
+  // If no sections at all, skip
+  const totalSections = (counts.sale > 0) + (counts.top > 0) + (counts.display > 0) + (counts.wh1 > 0) + (counts.wh2 > 0);
+  if (totalSections < 2) return; // ไม่ต้องโชว์ถ้ามีหมวดเดียว
   
-  // ถ้ามี section น้อยกว่า 2 ก็ไม่ต้องแสดง quicknav
-  if (sections.length < 2) return;
+  const items = [];
+  if (counts.sale > 0) items.push({ id: 'fmSecSale', icon: '🏬', cls: 'sale', label: T('sale_floor'), count: counts.sale });
+  if (counts.top > 0) items.push({ id: 'fmSecTop', icon: '📦', cls: 'top', label: T('top_stock_area'), count: counts.top });
+  if (counts.display > 0) items.push({ id: 'fmSecDisplay', icon: '🎯', cls: 'display', label: T('display_area'), count: counts.display });
+  if (counts.wh1 > 0) items.push({ id: 'fmSecWh1', icon: '🏭', cls: 'wh1', label: T('warehouse_1'), count: counts.wh1 });
+  if (counts.wh2 > 0) items.push({ id: 'fmSecWh2', icon: '🏭', cls: 'wh2', label: T('warehouse_2'), count: counts.wh2 });
   
-  const topLabel = lang === 'lo' ? 'ຂຶ້ນເທິງສຸດ' : 'ขึ้นบนสุด';
+  const backdrop = document.createElement('div');
+  backdrop.className = 'qnav-backdrop';
+  backdrop.id = 'qnavBackdrop';
+  backdrop.onclick = () => toggleQuickNav(false);
+  document.body.appendChild(backdrop);
   
-  const nav = document.createElement('div');
-  nav.id = 'fmQuickNav';
-  nav.className = 'fm-quicknav';
-  nav.innerHTML = `
-    ${sections.map(s => `
-      <button class="fm-quicknav-btn" 
-              data-target="${s.id}" 
-              data-label="${s.label}"
-              onclick="fmScrollToSection('${s.id}')"
-              title="${s.label} (${s.count})">
-        <span class="fm-qn-emoji">${s.emoji}</span>
-        <span class="fm-qn-count">${s.count}</span>
-      </button>
-    `).join('')}
-    <button class="fm-quicknav-btn fm-qn-top" 
-            data-label="${topLabel}"
-            onclick="fmScrollToTop()"
-            title="${topLabel}">
-      <span class="fm-qn-emoji">⬆️</span>
+  const wrap = document.createElement('div');
+  wrap.className = 'qnav-wrap';
+  wrap.id = 'qnavWrap';
+  wrap.innerHTML = `
+    <div class="qnav-menu" id="qnavMenu">
+      ${items.map(it => `
+        <button class="qnav-item" onclick="jumpToSection('${it.id}')">
+          <span class="qnav-item-icon ${it.cls}">${it.icon}</span>
+          <span>${it.label}</span>
+          <span class="qnav-item-count">${it.count}</span>
+        </button>
+      `).join('')}
+    </div>
+    <button class="qnav-fab" id="qnavFab" onclick="toggleQuickNav()" aria-label="Quick Navigation" title="${T('quick_nav') || 'ໄປຫາໝວດ'}">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
     </button>
   `;
-  document.body.appendChild(nav);
+  document.body.appendChild(wrap);
+}
+
+function toggleQuickNav(forceState) {
+  const menu = document.getElementById('qnavMenu');
+  const fab = document.getElementById('qnavFab');
+  const bd = document.getElementById('qnavBackdrop');
+  if (!menu || !fab) return;
   
-  // Fade-in
-  requestAnimationFrame(() => nav.classList.add('show'));
+  const willOpen = forceState !== undefined ? forceState : !menu.classList.contains('is-open');
   
-  // Active state ตาม scroll
-  setupFloorMapScrollSpy(sections);
-}
-
-function fmScrollToSection(sectionId) {
-  const el = document.getElementById(sectionId);
-  if (!el) return;
-  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function fmScrollToTop() {
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-let fmScrollObserver = null;
-function setupFloorMapScrollSpy(sections) {
-  // ล้าง observer เก่า
-  if (fmScrollObserver) {
-    fmScrollObserver.disconnect();
-    fmScrollObserver = null;
+  if (willOpen) {
+    menu.classList.add('is-open');
+    fab.classList.add('is-open');
+    if (bd) bd.classList.add('is-open');
+  } else {
+    menu.classList.remove('is-open');
+    fab.classList.remove('is-open');
+    if (bd) bd.classList.remove('is-open');
   }
-  
-  const buttons = document.querySelectorAll('#fmQuickNav .fm-quicknav-btn[data-target]');
-  if (!buttons.length) return;
-  
-  // Map section id → button
-  const btnMap = {};
-  buttons.forEach(b => { btnMap[b.dataset.target] = b; });
-  
-  fmScrollObserver = new IntersectionObserver((entries) => {
-    // หา section ที่ visible และอยู่บนสุด
-    const visible = entries
-      .filter(e => e.isIntersecting)
-      .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-    
-    if (visible.length > 0) {
-      const activeId = visible[0].target.id;
-      buttons.forEach(b => b.classList.remove('active'));
-      if (btnMap[activeId]) btnMap[activeId].classList.add('active');
-    }
-  }, {
-    rootMargin: '-80px 0px -50% 0px',
-    threshold: [0, 0.1, 0.5]
-  });
-  
-  sections.forEach(s => {
-    const el = document.getElementById(s.id);
-    if (el) fmScrollObserver.observe(el);
-  });
 }
 
-function removeFloorMapQuickNav() {
-  const nav = document.getElementById('fmQuickNav');
-  if (nav) {
-    nav.classList.remove('show');
-    setTimeout(() => nav.remove(), 250);
-  }
-  if (fmScrollObserver) {
-    fmScrollObserver.disconnect();
-    fmScrollObserver = null;
-  }
+function jumpToSection(sectionId) {
+  toggleQuickNav(false);
+  const sec = document.getElementById(sectionId);
+  if (!sec) return;
+  
+  // Smooth scroll with offset for sticky topbar
+  const topbarHeight = 70; // approximate
+  const rect = sec.getBoundingClientRect();
+  const targetY = window.pageYOffset + rect.top - topbarHeight;
+  window.scrollTo({ top: targetY, behavior: 'smooth' });
+  
+  // Flash highlight
+  sec.classList.remove('is-flashed');
+  void sec.offsetWidth; // restart animation
+  sec.classList.add('is-flashed');
+  setTimeout(() => sec.classList.remove('is-flashed'), 1300);
+}
+
+// Auto-cleanup Quick Nav when leaving Floor Map page
+function cleanupQuickNav() {
+  const w = document.getElementById('qnavWrap');
+  if (w) w.remove();
+  const b = document.getElementById('qnavBackdrop');
+  if (b) b.remove();
 }
 
 async function onFloorMapCellClick(locationCode, status) {
@@ -6081,14 +6107,15 @@ window.openAddGondolaModal = openAddGondolaModal;
 window.executeAddGondola = executeAddGondola;
 window.showGondolaActions = showGondolaActions;
 window.wfResetTo = wfResetTo;
+window.toggleQuickNav = toggleQuickNav;
+window.jumpToSection = jumpToSection;
+window.cleanupQuickNav = cleanupQuickNav;
+window.renderQuickNav = renderQuickNav;
 window.downloadImportTemplate = downloadImportTemplate;
 window.onPosFileSelected = onPosFileSelected;
 window.showImportPreview = showImportPreview;
 window.executeImport = executeImport;
 window.showSnapshotHistory = showSnapshotHistory;
-window.fmScrollToSection = fmScrollToSection;
-window.fmScrollToTop = fmScrollToTop;
-window.removeFloorMapQuickNav = removeFloorMapQuickNav;
 
 document.addEventListener('keydown', e => {
   if (e.target.id === 'password' && e.key === 'Enter') login();
