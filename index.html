@@ -1368,6 +1368,12 @@
       </div>
       <div class="error-msg" id="loginError"></div>
       <div class="form-group">
+        <label class="form-label" data-i18n="select_branch">ສາຂາ / สาขา</label>
+        <select class="form-input" id="loginBranch" style="font-family:inherit;cursor:pointer;background:white;">
+          <option value="">-- ${typeof T !== 'undefined' ? '' : 'ກະລຸນາເລືອກສາຂາ'} --</option>
+        </select>
+      </div>
+      <div class="form-group">
         <label class="form-label" data-i18n="username">ຊື່ຜູ້ໃຊ້</label>
         <input class="form-input" id="username" type="text" autocomplete="username" autocapitalize="off">
       </div>
@@ -1379,7 +1385,7 @@
         <span data-i18n="login">ເຂົ້າສູ່ລະບົບ</span>
       </button>
       <div style="text-align:center;margin-top:14px;font-size:10px;color:var(--slate-400);">
-        v3.1 SOP • Made with 💗 by Anya
+        v4.0 Multi-Branch • Made with 💗 by Anya
       </div>
     </div>
     
@@ -1471,6 +1477,8 @@ const I18N = {
     username: 'ຊື່ຜູ້ໃຊ້', password: 'ລະຫັດຜ່ານ', login: 'ເຂົ້າສູ່ລະບົບ',
     logging_in: 'ກຳລັງເຂົ້າສູ່ລະບົບ...',
     login_failed: 'ຊື່ຜູ້ໃຊ້ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ',
+    select_branch: 'ສາຂາ',
+    branch_no_access: 'ບັນຊີນີ້ບໍ່ມີສິດເຂົ້າສາຂານີ້',
     back: 'ກັບຄືນ', continue: 'ດຳເນີນຕໍ່',
     select_zone_loc: 'ເລືອກໂຊນ ແລະ ສະຖານທີ່',
     select_zone: 'ໂຊນ', select_location: 'ສະຖານທີ່',
@@ -1723,6 +1731,8 @@ const I18N = {
     username: 'ชื่อผู้ใช้', password: 'รหัสผ่าน', login: 'เข้าสู่ระบบ',
     logging_in: 'กำลังเข้าสู่ระบบ...',
     login_failed: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง',
+    select_branch: 'สาขา',
+    branch_no_access: 'บัญชีนี้ไม่มีสิทธิ์เข้าสาขานี้',
     back: 'กลับ', continue: 'ดำเนินต่อ',
     select_zone_loc: 'เลือกโซน และ สถานที่',
     select_zone: 'โซน', select_location: 'สถานที่',
@@ -2031,20 +2041,76 @@ function closeModal() {
   document.getElementById('modalOverlay').classList.remove('show');
 }
 
+// ==================== AUTH ====================
+
+// โหลด branches list ตอนหน้า login
+async function loadBranchListForLogin() {
+  try {
+    const { data, error } = await sb.from('branches')
+      .select('id, code, name_th, name_lo, branch_type')
+      .eq('is_active', true)
+      .order('id');
+    
+    if (error) {
+      log('Load branches error:', error);
+      return;
+    }
+    
+    const sel = document.getElementById('loginBranch');
+    if (!sel) return;
+    
+    // Sort by type: hq → warehouse → minimart/mini/super/mall
+    const typeOrder = { 'hq': 1, 'super': 1, 'warehouse': 2, 'minimart': 3, 'mini': 3, 'mall': 3 };
+    const sorted = [...(data || [])].sort((a, b) => {
+      const oa = typeOrder[a.branch_type] || 9;
+      const ob = typeOrder[b.branch_type] || 9;
+      if (oa !== ob) return oa - ob;
+      return (a.code || '').localeCompare(b.code || '');
+    });
+    
+    const placeholderText = lang === 'lo' ? 'ກະລຸນາເລືອກສາຂາ' : 'กรุณาเลือกสาขา';
+    sel.innerHTML = `<option value="">-- ${placeholderText} --</option>` +
+      sorted.map(b => {
+        const displayName = lang === 'lo' ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo);
+        const typeLabel = (b.branch_type === 'hq' || b.branch_type === 'super') ? ' ⭐' : 
+                          (b.branch_type === 'warehouse') ? ' 📦' : '';
+        return `<option value="${b.id}" data-code="${b.code}">${displayName} (${b.code})${typeLabel}</option>`;
+      }).join('');
+    
+    // Restore last selected branch
+    const lastBranch = localStorage.getItem('fs_last_branch_id');
+    if (lastBranch) {
+      sel.value = lastBranch;
+    }
+    
+    log('Branches loaded for login:', data?.length);
+  } catch (e) {
+    console.error('[FS] loadBranchListForLogin error:', e);
+  }
+}
+
 async function hashPassword(pwd) {
   const data = new TextEncoder().encode(pwd + SALT);
   const buf = await crypto.subtle.digest('SHA-256', data);
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
-// ==================== AUTH ====================
 async function login() {
+  const selectedBranchId = document.getElementById('loginBranch').value;
   const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value;
   const btn = document.getElementById('loginBtn');
   const errEl = document.getElementById('loginError');
   
   errEl.classList.remove('show');
+  
+  // Validate branch selected
+  if (!selectedBranchId) {
+    errEl.textContent = lang === 'lo' ? 'ກະລຸນາເລືອກສາຂາ' : 'กรุณาเลือกสาขา';
+    errEl.classList.add('show');
+    return;
+  }
+  
   if (!username || !password) {
     errEl.textContent = T('login_failed');
     errEl.classList.add('show');
@@ -2056,9 +2122,9 @@ async function login() {
   
   try {
     const hash = await hashPassword(password);
-    log('Login attempt:', username);
+    log('Login attempt:', username, 'branch:', selectedBranchId);
     
-    // Step 1: Find user (without join to avoid issues)
+    // Step 1: Find user
     const { data: userData, error: userErr } = await sb
       .from('users')
       .select('*')
@@ -2077,27 +2143,50 @@ async function login() {
     }
     
     user = userData;
-    log('User logged in:', user.username, 'role:', user.role);
+    log('User found:', user.username, 'role:', user.role, 'user.branch_id:', user.branch_id);
     
-    // Step 2: Load branch (default to PAKSE if no branch_id)
-    if (user.branch_id) {
-      const { data: br } = await sb.from('branches').select('*').eq('id', user.branch_id).maybeSingle();
-      branch = br;
-    }
-    if (!branch) {
-      const { data: pakse } = await sb.from('branches').select('*').eq('code', 'PAKSE').maybeSingle();
-      branch = pakse;
-      if (branch && !user.branch_id) {
-        // Update user with branch_id
-        await sb.from('users').update({ branch_id: branch.id }).eq('id', user.id);
-        user.branch_id = branch.id;
-      }
+    // Step 2: Validate branch access
+    const branchIdInt = parseInt(selectedBranchId);
+    const isAdminRole = ['admin', 'scc', 'bcs'].includes(user.role);
+    
+    if (!isAdminRole && user.branch_id && user.branch_id !== branchIdInt) {
+      // User ไม่ใช่ admin + พยายามเข้าสาขาที่ไม่ใช่ของตัวเอง → reject
+      const branchName = document.getElementById('loginBranch')
+        .options[document.getElementById('loginBranch').selectedIndex].text;
+      errEl.textContent = lang === 'lo' 
+        ? `ບັນຊີນີ້ບໍ່ມີສິດເຂົ້າສາຂາ ${branchName}` 
+        : `บัญชีนี้ไม่มีสิทธิ์เข้าสาขา ${branchName}`;
+      errEl.classList.add('show');
+      btn.disabled = false;
+      btn.innerHTML = `<span>${T('login')}</span>`;
+      return;
     }
     
-    log('Branch:', branch);
+    // Step 3: Load selected branch
+    const { data: br } = await sb.from('branches').select('*').eq('id', branchIdInt).maybeSingle();
+    if (!br) {
+      errEl.textContent = lang === 'lo' ? 'ບໍ່ພົບສາຂາ' : 'ไม่พบสาขา';
+      errEl.classList.add('show');
+      btn.disabled = false;
+      btn.innerHTML = `<span>${T('login')}</span>`;
+      return;
+    }
+    branch = br;
+    
+    // ถ้า user ไม่มี branch_id (ตอนสมัครครั้งแรก) → set ให้
+    if (!user.branch_id && !isAdminRole) {
+      await sb.from('users').update({ branch_id: branch.id }).eq('id', user.id);
+      user.branch_id = branch.id;
+    }
+    
+    // สำหรับ admin → จำ "active branch" แยกจาก user.branch_id
+    user.active_branch_id = branch.id;
+    
+    log('Logged in:', user.username, '→ branch:', branch.code, isAdminRole ? '(Admin)' : '');
     
     localStorage.setItem('fs_user', JSON.stringify(user));
     localStorage.setItem('fs_branch', JSON.stringify(branch));
+    localStorage.setItem('fs_last_branch_id', String(branch.id));
     
     await afterLogin();
     
@@ -2516,6 +2605,132 @@ async function logout() {
   document.getElementById('password').value = '';
 }
 
+// ==================== BRANCH SWITCHER (Admin) ====================
+async function openBranchSwitcher() {
+  if (!user || !['admin', 'scc', 'bcs'].includes(user.role)) {
+    showToast(lang === 'lo' ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error');
+    return;
+  }
+  
+  // Load branches
+  let branches = window._allBranchesCache;
+  if (!branches || !branches.length) {
+    const { data } = await sb.from('branches').select('*').eq('is_active', true).order('id');
+    branches = data || [];
+    window._allBranchesCache = branches;
+  }
+  
+  // Sort: hq → warehouse → minimart
+  const typeOrder = { 'hq': 1, 'super': 1, 'warehouse': 2, 'minimart': 3, 'mini': 3, 'mall': 3 };
+  const sorted = [...branches].sort((a, b) => {
+    const oa = typeOrder[a.branch_type] || 9;
+    const ob = typeOrder[b.branch_type] || 9;
+    if (oa !== ob) return oa - ob;
+    return (a.code || '').localeCompare(b.code || '');
+  });
+  
+  const isLao = lang === 'lo';
+  
+  showModal(`
+    <h3>🏪 ${isLao ? 'ປ່ຽນສາຂາ' : 'เปลี่ยนสาขา'}</h3>
+    <p style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">
+      ${isLao ? 'ສາຂາປະຈຸບັນ' : 'สาขาปัจจุบัน'}: <strong style="color:var(--violet-600);">${isLao ? (branch?.name_lo || branch?.code) : (branch?.name_th || branch?.code)}</strong>
+    </p>
+    
+    <div style="max-height:400px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;">
+      ${sorted.map(b => {
+        const isCurrent = branch && branch.id === b.id;
+        const displayName = isLao ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo);
+        const typeIcon = (b.branch_type === 'hq' || b.branch_type === 'super') ? '⭐' :
+                         (b.branch_type === 'warehouse') ? '📦' : '🏪';
+        const typeColor = (b.branch_type === 'hq' || b.branch_type === 'super') ? 'var(--amber-100)' :
+                          (b.branch_type === 'warehouse') ? 'var(--violet-100)' : 'var(--sky-100)';
+        const typeText = (b.branch_type === 'hq' || b.branch_type === 'super') ? (isLao ? 'ສາຂາຫຼັກ' : 'สาขาหลัก') :
+                         (b.branch_type === 'warehouse') ? (isLao ? 'ຄັງສິນຄ້າ' : 'คลังสินค้า') : 'Mini Mart';
+        return `
+          <button 
+            onclick="switchBranch(${b.id})" 
+            ${isCurrent ? 'disabled' : ''}
+            style="
+              text-align:left;
+              padding:11px 13px;
+              border-radius:9px;
+              border:2px solid ${isCurrent ? 'var(--emerald-500)' : 'var(--slate-200)'};
+              background:${isCurrent ? 'var(--emerald-100)' : 'white'};
+              cursor:${isCurrent ? 'default' : 'pointer'};
+              transition:all 0.15s;
+              display:flex;
+              align-items:center;
+              gap:11px;
+              opacity:${isCurrent ? '0.7' : '1'};
+            "
+            ${!isCurrent ? `onmouseover="this.style.borderColor='var(--violet-500)';this.style.background='var(--violet-100)'" onmouseout="this.style.borderColor='var(--slate-200)';this.style.background='white'"` : ''}
+          >
+            <div style="font-size:24px;flex-shrink:0;">${typeIcon}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:700;font-size:13px;color:var(--slate-900);">${displayName}</div>
+              <div style="font-size:10px;color:var(--slate-500);font-family:monospace;margin-top:1px;">${b.code}</div>
+            </div>
+            <div style="background:${typeColor};padding:3px 8px;border-radius:5px;font-size:9px;font-weight:700;color:var(--slate-700);text-transform:uppercase;">
+              ${typeText}
+            </div>
+            ${isCurrent ? `<div style="color:var(--emerald-500);font-size:18px;">✓</div>` : ''}
+          </button>
+        `;
+      }).join('')}
+    </div>
+    
+    <div class="action-row" style="margin-top:12px;">
+      <button class="btn btn-secondary" onclick="closeModal()" style="width:100%;">${T('cancel')}</button>
+    </div>
+  `);
+}
+
+async function switchBranch(newBranchId) {
+  if (!user || !['admin', 'scc', 'bcs'].includes(user.role)) {
+    showToast(lang === 'lo' ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error');
+    return;
+  }
+  
+  try {
+    // Load branch
+    const { data: br, error } = await sb.from('branches').select('*').eq('id', newBranchId).maybeSingle();
+    if (error) throw error;
+    if (!br) {
+      showToast(lang === 'lo' ? 'ບໍ່ພົບສາຂາ' : 'ไม่พบสาขา', 'error');
+      return;
+    }
+    
+    log('Switching branch:', branch?.code, '→', br.code);
+    
+    branch = br;
+    user.active_branch_id = br.id;
+    
+    // Persist
+    localStorage.setItem('fs_branch', JSON.stringify(branch));
+    localStorage.setItem('fs_user', JSON.stringify(user));
+    localStorage.setItem('fs_last_branch_id', String(branch.id));
+    
+    // Clear caches that are branch-specific
+    window._productCache = null;
+    
+    closeModal();
+    showToast('✅ ' + (lang === 'lo' ? `ປ່ຽນເປັນ ${br.name_lo || br.code}` : `เปลี่ยนเป็น ${br.name_th || br.code}`), 'success');
+    
+    // Re-render app (รีเฟรชหน้าทั้งหมด)
+    document.getElementById('app').innerHTML = renderApp();
+    
+    // Re-enter current page
+    const activeTab = document.querySelector('.tab.active');
+    const currentPage = activeTab?.dataset.page || 'scan';
+    setTimeout(() => goPage(currentPage), 50);
+    
+  } catch (e) {
+    console.error('[FS] switchBranch error:', e);
+    showToast('Error: ' + (e.message || e), 'error');
+  }
+}
+
 function changeZone() {
   document.getElementById('app').classList.remove('active');
   document.getElementById('loginScreen').style.display = 'flex';
@@ -2770,6 +2985,9 @@ function renderShell() {
       <button class="ctx-change" onclick="changeZone()">${T('change_zone')}</button>
     </div>` : '';
   
+  const isAdminRole = ['admin', 'scc', 'bcs'].includes(r);
+  const branchName = lang === 'lo' ? (branch?.name_lo || branch?.code || '?') : (branch?.name_th || branch?.code || '?');
+  
   return `
     <div class="topbar">
       <div class="topbar-left">
@@ -2778,7 +2996,17 @@ function renderShell() {
         </div>
         <div class="topbar-info">
           <div class="name">${user.full_name}</div>
-          <div class="meta">${r.toUpperCase()} • ${branch?.name_lo || 'ปากเซ'}</div>
+          <div class="meta">
+            ${r.toUpperCase()} • 
+            ${isAdminRole ? `
+              <button onclick="openBranchSwitcher()" 
+                      style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));border:1px solid var(--violet-300);padding:1px 7px;border-radius:5px;font-size:10px;font-weight:700;color:var(--violet-600);cursor:pointer;display:inline-flex;align-items:center;gap:3px;"
+                      title="${lang === 'lo' ? 'ປ່ຽນສາຂາ' : 'เปลี่ยนสาขา'}">
+                🏪 ${branchName}
+                <span style="font-size:8px;">▾</span>
+              </button>
+            ` : `<span style="color:var(--violet-600);font-weight:600;">${branchName}</span>`}
+          </div>
         </div>
       </div>
       <div class="topbar-actions">
@@ -3386,31 +3614,116 @@ async function manualLookup() {
 
 async function lookupProduct(barcode) {
   beep();
-  log('Lookup product:', barcode);
+  log('Lookup product:', barcode, 'in branch:', branch?.id);
   
-  const { data, error } = await sb.from('products').select('*').eq('barcode', barcode).maybeSingle();
-  
-  if (error) {
-    log('Lookup error:', error);
-    showToast('Error: ' + error.message, 'error');
+  if (!branch || !branch.id) {
+    showToast(lang === 'lo' ? 'ບໍ່ມີສາຂາ' : 'ไม่มีสาขา', 'error');
     return;
   }
   
-  if (!data) {
-    document.getElementById('productCard').innerHTML = `
-      <div class="product-card" style="border-left-color: var(--rose-500);">
-        <div class="product-name" style="color: var(--rose-500);">⚠️ ${T('product_not_found')}</div>
-        <div class="product-barcode">${barcode}</div>
-        <button class="btn btn-amber" onclick="openNewSKUModal('${barcode}')" style="margin-top:8px;">
-          ${T('add_new_sku')}
-        </button>
+  // STEP 1: ลองหาใน branch ปัจจุบันก่อน
+  const { data: ownData, error: ownErr } = await sb
+    .from('products')
+    .select('*')
+    .eq('barcode', barcode)
+    .eq('branch_id', branch.id)
+    .eq('is_active', true)
+    .maybeSingle();
+  
+  if (ownErr) {
+    log('Lookup error (own branch):', ownErr);
+    showToast('Error: ' + ownErr.message, 'error');
+    return;
+  }
+  
+  if (ownData) {
+    log('Found in own branch:', ownData.id);
+    curProduct = ownData;
+    renderProduct(ownData);
+    return;
+  }
+  
+  // STEP 2: ไม่เจอในสาขาตัวเอง → หาในสาขาอื่นๆ
+  log('Not found in own branch, searching other branches...');
+  const { data: otherData, error: otherErr } = await sb
+    .from('products')
+    .select('*, branches(code, name_th, name_lo)')
+    .eq('barcode', barcode)
+    .neq('branch_id', branch.id)
+    .eq('is_active', true)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  
+  if (otherErr) {
+    log('Other branch lookup error:', otherErr);
+  }
+  
+  if (otherData) {
+    log('Found in other branch:', otherData.branches?.code, '→ auto-cloning to', branch.code);
+    
+    // STEP 3: Auto-clone เข้าสาขาตัวเอง
+    // ใช้ชื่อ/หน่วย/ราคา จากสาขาอื่น แต่ pos_qty = 0 (เพราะยังไม่มีในสาขานี้)
+    const cloneData = {
+      barcode: otherData.barcode,
+      name_th: otherData.name_th,
+      name_lo: otherData.name_lo,
+      unit_th: otherData.unit_th,
+      unit_lo: otherData.unit_lo,
+      category_id: otherData.category_id,
+      cost_price: otherData.cost_price,
+      sell_price: otherData.sell_price,
+      pos_qty: 0,  // เริ่มที่ 0 — เพราะ POS ของสาขานี้ไม่มีสินค้านี้
+      is_active: true,
+      is_markdown: otherData.is_markdown,
+      gondola_code: null,  // ไม่ clone gondola — แต่ละสาขามี layout ต่างกัน
+      branch_id: branch.id
+    };
+    
+    const { data: cloned, error: cloneErr } = await sb
+      .from('products')
+      .insert(cloneData)
+      .select()
+      .single();
+    
+    if (cloneErr) {
+      log('Clone failed:', cloneErr);
+      // ถ้า clone ไม่ได้ — ก็ยังใช้ otherData แสดงได้ แต่ save count อาจไม่ link ถูก
+      showToast(lang === 'lo' 
+        ? `⚠️ ພົບໃນ ${otherData.branches?.code} ແຕ່ບໍ່ສາມາດເພີ່ມໃນສາຂານີ້ໄດ້`
+        : `⚠️ พบใน ${otherData.branches?.code} แต่ไม่สามารถเพิ่มในสาขานี้ได้`, 'warning');
+      curProduct = otherData;
+      renderProduct(otherData);
+      return;
+    }
+    
+    // Show toast แจ้งให้ทราบว่า clone จากสาขาอื่น
+    const sourceName = lang === 'lo' 
+      ? (otherData.branches?.name_lo || otherData.branches?.code) 
+      : (otherData.branches?.name_th || otherData.branches?.code);
+    showToast(lang === 'lo' 
+      ? `📋 ດຶງຂໍ້ມູນຈາກ ${sourceName} ມາໃຊ້`
+      : `📋 ดึงข้อมูลจาก ${sourceName} มาใช้`, 'success');
+    
+    curProduct = cloned;
+    renderProduct(cloned);
+    return;
+  }
+  
+  // STEP 4: ไม่เจอเลยทั้งระบบ → ให้กรอกใหม่
+  log('Not found anywhere');
+  document.getElementById('productCard').innerHTML = `
+    <div class="product-card" style="border-left-color: var(--rose-500);">
+      <div class="product-name" style="color: var(--rose-500);">⚠️ ${T('product_not_found')}</div>
+      <div class="product-barcode">${barcode}</div>
+      <div style="font-size:10px;color:var(--slate-500);margin-top:6px;">
+        ${lang === 'lo' ? `ບໍ່ພົບໃນ ${branch.code} ແລະບໍ່ມີໃນສາຂາອື່ນ` : `ไม่พบใน ${branch.code} และไม่มีในสาขาอื่น`}
       </div>
-    `;
-    return;
-  }
-  
-  curProduct = data;
-  renderProduct(data);
+      <button class="btn btn-amber" onclick="openNewSKUModal('${barcode}')" style="margin-top:8px;">
+        ${T('add_new_sku')}
+      </button>
+    </div>
+  `;
 }
 
 function renderProduct(p) {
@@ -4966,7 +5279,6 @@ async function saveNewSKU() {
 let _pendingImport = null;
 
 function downloadImportTemplate() {
-  // สร้าง template โดยใช้ SheetJS
   const wb = XLSX.utils.book_new();
   
   // Sheet 1: Instructions
@@ -4976,43 +5288,61 @@ function downloadImportTemplate() {
     ['Step 1: ດຶງຂໍ້ມູນຈາກ Sabuysoft (ดึงข้อมูลจาก POS)'],
     ['  • Login ระบบ Sabuysoft / POS'],
     ['  • Reports → Inventory → Current Stock'],
-    ['  • Filter: Branch = PAKSE'],
+    ['  • Filter: เลือกสาขาที่ต้องการ'],
     ['  • Export Excel'],
     [],
     ['Step 2: ກອກຂໍ້ມູນໃນ Sheet "Products" (กรอกข้อมูลใน Sheet "Products")'],
     ['  • Barcode (ບັງຄັບ / จำเป็น)'],
     ['  • Name LO (ບັງຄັບ / จำเป็น) - ຊື່ສິນຄ້າພາສາລາວ'],
     ['  • Name TH (ທາງເລືອກ / ตัวเลือก) - ชื่อสินค้าภาษาไทย'],
-    ['  • POS Qty (ບັງຄັບ / จำเป็น)'],
-    ['  • Sell Price (ບັງຄັບ / จำเป็น)'],
+    ['  • POS Qty, Sell Price (ບັງຄັບ / จำเป็น)'],
+    ['  • Branch Code (ທາງເລືອກ / ตัวเลือก) - ดู sheet "Branches"'],
     ['  • Gondola Code (ເຊັ່ນ / เช่น 01A01)'],
+    [],
+    ['📌 Branch Code:'],
+    ['  • ຖ້າປ່ອຍຫວ່າງ → ໃຊ້ສາຂາທີ່ login ຢູ່'],
+    ['  • ຖ້າຕ້ອງການລະບຸ → ໃສ່ code ຈາກ sheet "Branches"'],
+    ['  • ຕົວຢ່າງ: SUPERMART, TRADING-WH, MINI-PHONBOK ...'],
     [],
     ['Step 3: Upload ໃນແອັບ → Settings → Import POS'],
     [],
     ['⚠️ ຄຳເຕືອນ / คำเตือน:'],
-    ['  • ຫ້າມ Import ລະຫວ່າງນັບສະຕ໋ອກ / ห้าม Import ระหว่างนับสต๊อก'],
-    ['  • Reset ຂໍ້ມູນເກົ່າກ່ອນ (ຖ້າເລີ່ມໃໝ່) / Reset ข้อมูลเก่าก่อน (ถ้าเริ่มใหม่)'],
-    ['  • ສິນຄ້າທີ່ບໍ່ຢູ່ໃນໄຟລ໌ ຈະຖືກຕັ້ງ inactive / สินค้าที่ไม่อยู่ในไฟล์ จะถูกตั้ง inactive'],
-    [],
-    ['📌 ໝາຍເຫດ: Sabuysoft ໃຊ້ພາສາລາວເປັນຫຼັກ — ໃຫ້ກອກ Name LO ກ່ອນ'],
-    ['📌 หมายเหตุ: Sabuysoft ใช้ภาษาลาวเป็นหลัก — ให้กรอก Name LO ก่อน'],
+    ['  • ຫ້າມ Import ລະຫວ່າງນັບສະຕ໋ອກ'],
+    ['  • Reset ຂໍ້ມູນເກົ່າກ່ອນ (ຖ້າເລີ່ມໃໝ່)'],
+    ['  • ສິນຄ້າທີ່ບໍ່ຢູ່ໃນໄຟລ໌ ຂອງສາຂາທີ່ login ຢູ່ ຈະຖືກຕັ້ງ inactive'],
   ];
   const ws1 = XLSX.utils.aoa_to_sheet(instData);
-  ws1['!cols'] = [{wch:70}];
+  ws1['!cols'] = [{wch:75}];
   XLSX.utils.book_append_sheet(wb, ws1, 'Instructions');
   
-  // Sheet 2: Products — Name LO เป็นหลัก, Name TH เป็น optional
+  // Sheet 2: Branches Reference (11 สาขา — ตามรหัสจริงในระบบ)
+  const branchData = [
+    ['Branch Code', 'Name', 'Type'],
+    ['SUPERMART', 'FS-SUPERMART ปากเซ', 'ສາຂາຫຼັກ / สาขาหลัก'],
+    ['TRADING-WH', 'FS-TRADING ສາງຫຼັງຮ້ານ', 'ຄັງສິນຄ້າ / คลังสินค้า'],
+    ['MALL', 'FS-MALL', 'Mini Mart'],
+    ['EXP-LUK7', 'FS-Express ຫລັກ 7', 'Mini Mart'],
+    ['EXP-TRADING', 'FS-Express TRADING', 'Mini Mart'],
+    ['MINI-PHONBOK', 'FSMINI ໂພນບົກ', 'Mini Mart'],
+    ['MINI-PHONSA-AT', 'FSMINI ໂພນສະອາດ', 'Mini Mart'],
+    ['MINI-PHONSAVANH', 'FSMINI ໂພນສະຫວັນ', 'Mini Mart'],
+    ['MINI-SALAKHAM', 'FSMINI ສາລະຄຳ', 'Mini Mart'],
+    ['MINI-THAHIN', 'FSMINI ທ່າຫີນ', 'Mini Mart'],
+    ['MINI-THALUNG', 'FSMINI ທ່າຫລວງ', 'Mini Mart'],
+  ];
+  const wsBranch = XLSX.utils.aoa_to_sheet(branchData);
+  wsBranch['!cols'] = [{wch:18}, {wch:32}, {wch:28}];
+  XLSX.utils.book_append_sheet(wb, wsBranch, 'Branches');
+  
+  // Sheet 3: Products (ตัวอย่าง - มี Branch Code คอลัมน์ใหม่)
   const prodData = [
-    ['Barcode*', 'Name LO*', 'Name TH', 'Unit LO', 'Unit TH', 'POS Qty*', 'Sell Price*', 'Gondola Code', 'Is Markdown'],
-    ['8850127010077', 'MILO ໂມໂລ ໂຖ 140g', 'MILO ผงแอ๊กทีบี โถ 140g', 'ອັນ', 'ชิ้น', 25, 15000, '10A03', false],
-    ['8851234567890', 'ນ້ຳດື່ມ 600ml', 'น้ำดื่ม Mineral 600ml', 'ຂວດ', 'ขวด', 100, 5000, 'W028', false],
-    ['8857890123456', 'ມາມ່າ ຕົ້ມຍຳ', 'มาม่า รสต้มยำกุ้ง', 'ຊອງ', 'ซอง', 50, 3500, '08A01', true],
+    ['Barcode*', 'Name LO*', 'Name TH', 'Unit LO', 'Unit TH', 'POS Qty*', 'Sell Price*', 'Branch Code', 'Gondola Code', 'Is Markdown'],
+    ['8850127010077', 'MILO ໂມໂລ ໂຖ 140g', 'MILO ผงแอ๊กทีบี โถ 140g', 'ອັນ', 'ชิ้น', 25, 15000, 'SUPERMART', '10A03', false],
+    ['8851234567890', 'ນ້ຳດື່ມ 600ml', 'น้ำดื่ม Mineral 600ml', 'ຂວດ', 'ขวด', 100, 5000, 'SUPERMART', 'W028', false],
+    ['8857890123456', 'ມາມ່າ ຕົ້ມຍຳ', 'มาม่า รสต้มยำกุ้ง', 'ຊອງ', 'ซอง', 50, 3500, 'MINI-PHONBOK', '08A01', true],
   ];
   const ws2 = XLSX.utils.aoa_to_sheet(prodData);
-  ws2['!cols'] = [{wch:16},{wch:35},{wch:35},{wch:10},{wch:10},{wch:10},{wch:12},{wch:14},{wch:12}];
-  
-  // Highlight header row + required columns
-  // (SheetJS Free ไม่ support styling แต่ก็พอใช้ได้)
+  ws2['!cols'] = [{wch:16},{wch:35},{wch:35},{wch:10},{wch:10},{wch:10},{wch:12},{wch:18},{wch:14},{wch:12}];
   XLSX.utils.book_append_sheet(wb, ws2, 'Products');
   
   XLSX.writeFile(wb, 'POS-Import-Template.xlsx');
@@ -5045,29 +5375,31 @@ function onPosFileSelected(event) {
       // Normalize column names
       const products = [];
       json.forEach(row => {
-        // ลองหา barcode (รองรับหลายชื่อคอลัมน์)
         const barcode = row['Barcode*'] || row['Barcode'] || row['barcode'] || row['BARCODE'];
         if (!barcode) return;
         
-        // Name LO เป็นหลัก (Sabuysoft ใช้ภาษาลาว)
         const name_lo = row['Name LO*'] || row['Name LO'] || row['Product Name LO*'] || 
                         row['Product Name LO'] || row['name_lo'] || '';
         const name_th = row['Name TH'] || row['Name TH*'] || row['Product Name TH'] || 
                         row['Product Name TH*'] || row['name_th'] || '';
         
-        // ถ้าไม่มีชื่อทั้ง 2 ภาษา = ข้าม
         if (!name_lo && !name_th) return;
+        
+        // Branch Code (optional - ถ้าไม่มี → ใช้ branch ของ user)
+        const branchCode = row['Branch Code'] || row['Branch'] || row['branch_code'] || 
+                           row['BRANCH'] || null;
         
         const product = {
           barcode: String(barcode).trim(),
-          name_lo: name_lo || name_th || '',  // ใช้ name_th เป็น fallback ถ้า name_lo ว่าง
-          name_th: name_th || name_lo || '',  // ใช้ name_lo เป็น fallback ถ้า name_th ว่าง
+          name_lo: name_lo || name_th || '',
+          name_th: name_th || name_lo || '',
           unit_lo: row['Unit LO'] || row['unit_lo'] || 'ອັນ',
           unit_th: row['Unit TH'] || row['unit_th'] || 'ชิ้น',
           pos_qty: parseInt(row['POS Qty*'] || row['POS Qty'] || row['pos_qty'] || 0) || 0,
           sell_price: parseFloat(row['Sell Price*'] || row['Sell Price (LAK)*'] || row['Sell Price'] || row['sell_price'] || 0) || 0,
           gondola_code: row['Gondola Code'] || row['gondola_code'] || null,
-          is_markdown: row['Is Markdown'] === true || row['Is Markdown'] === 'TRUE' || row['Is Markdown'] === 'true'
+          is_markdown: row['Is Markdown'] === true || row['Is Markdown'] === 'TRUE' || row['Is Markdown'] === 'true',
+          branch_code: branchCode ? String(branchCode).trim().toUpperCase() : null
         };
         
         if (product.barcode && (product.name_lo || product.name_th)) {
@@ -5101,6 +5433,21 @@ function showImportPreview(products) {
   const totalValue = products.reduce((s, p) => s + (p.pos_qty * p.sell_price), 0);
   const totalItems = products.reduce((s, p) => s + p.pos_qty, 0);
   
+  // นับว่ามีกี่ row ที่ระบุ Branch Code ใน Excel แล้ว
+  const rowsWithBranchCode = products.filter(p => p.branch_code).length;
+  const branchCodesInFile = [...new Set(products.map(p => p.branch_code).filter(x => x))];
+  
+  // โหลด branches list สำหรับ dropdown (เผื่อ admin จะเลือก default branch)
+  const branchesOptions = (window._allBranchesCache || []).map(b => {
+    const displayName = lang === 'lo' ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo);
+    const isCurrentBranch = branch && branch.id === b.id;
+    return `<option value="${b.id}" ${isCurrentBranch ? 'selected' : ''}>
+      ${displayName} (${b.code})${isCurrentBranch ? ' ✓' : ''}
+    </option>`;
+  }).join('');
+  
+  const isAdmin = ['admin', 'scc', 'bcs'].includes(user.role);
+  
   showModal(`
     <h3>${T('preview_import')}</h3>
     <div style="background:var(--sky-100);padding:11px;border-radius:10px;margin-bottom:12px;">
@@ -5120,14 +5467,35 @@ function showImportPreview(products) {
       </div>
     </div>
     
-    <div style="font-size:11px;color:var(--slate-600);margin-bottom:8px;">ตัวอย่าง 10 รายการแรก:</div>
+    <!-- Branch Destination -->
+    <div class="form-group" style="background:var(--violet-100);padding:11px;border-radius:9px;margin-bottom:12px;">
+      <label class="form-label" style="color:var(--violet-600);">
+        🏪 ${lang === 'lo' ? 'ສາຂາປາຍທາງ' : 'สาขาปลายทาง'} ${isAdmin ? '' : '(ໂດຍ default)'}
+      </label>
+      <select class="form-input" id="importBranchDest" ${!isAdmin ? 'disabled' : ''} 
+              style="font-family:inherit;cursor:${isAdmin ? 'pointer' : 'not-allowed'};background:white;">
+        ${branchesOptions}
+      </select>
+      ${rowsWithBranchCode > 0 ? `
+        <div style="margin-top:8px;background:var(--amber-100);padding:7px 9px;border-radius:6px;font-size:10px;color:#92400e;">
+          💡 ${lang === 'lo' ? 'ໃນໄຟລ໌ມີ Branch Code ໃນ' : 'ในไฟล์มี Branch Code ใน'} 
+          <strong>${rowsWithBranchCode.toLocaleString()}/${products.length.toLocaleString()}</strong> 
+          ${lang === 'lo' ? 'ແຖວ' : 'แถว'} 
+          (${branchCodesInFile.join(', ')})
+          <br>→ ${lang === 'lo' ? 'ສິນຄ້າທີ່ມີ Branch Code ຈະໄປສາຂານັ້ນ, ສ່ວນທີ່ບໍ່ມີຈະໃຊ້ສາຂາປາຍທາງ' : 'สินค้าที่มี Branch Code จะไปสาขานั้น, ส่วนที่ไม่มีจะใช้สาขาปลายทาง'}
+        </div>
+      ` : ''}
+    </div>
     
-    <div style="max-height:250px;overflow-y:auto;border:1px solid var(--slate-200);border-radius:8px;">
+    <div style="font-size:11px;color:var(--slate-600);margin-bottom:8px;">${lang === 'lo' ? 'ຕົວຢ່າງ 10 ລາຍການແຮກ:' : 'ตัวอย่าง 10 รายการแรก:'}</div>
+    
+    <div style="max-height:200px;overflow-y:auto;border:1px solid var(--slate-200);border-radius:8px;">
       <table style="width:100%;font-size:10px;border-collapse:collapse;">
         <thead style="background:var(--slate-100);position:sticky;top:0;">
           <tr>
             <th style="padding:6px 4px;text-align:left;">Barcode</th>
             <th style="padding:6px 4px;text-align:left;">Name</th>
+            <th style="padding:6px 4px;text-align:center;">Branch</th>
             <th style="padding:6px 4px;text-align:right;">Qty</th>
             <th style="padding:6px 4px;text-align:right;">Price</th>
           </tr>
@@ -5138,12 +5506,15 @@ function showImportPreview(products) {
             return `
             <tr style="border-top:1px solid var(--slate-100);">
               <td style="padding:5px 4px;font-family:monospace;">${p.barcode}</td>
-              <td style="padding:5px 4px;">${(displayName || '').substring(0, 30)}</td>
+              <td style="padding:5px 4px;">${(displayName || '').substring(0, 25)}</td>
+              <td style="padding:5px 4px;text-align:center;font-family:monospace;font-size:9px;color:var(--violet-600);">
+                ${p.branch_code || '<span style="color:var(--slate-400);">(default)</span>'}
+              </td>
               <td style="padding:5px 4px;text-align:right;font-weight:600;">${p.pos_qty}</td>
               <td style="padding:5px 4px;text-align:right;">${p.sell_price.toLocaleString()}</td>
             </tr>
           `;}).join('')}
-          ${products.length > 10 ? `<tr><td colspan="4" style="padding:6px;text-align:center;color:var(--slate-500);font-style:italic;">... และอีก ${products.length - 10} รายการ</td></tr>` : ''}
+          ${products.length > 10 ? `<tr><td colspan="5" style="padding:6px;text-align:center;color:var(--slate-500);font-style:italic;">... ${lang === 'lo' ? 'ແລະອີກ' : 'และอีก'} ${products.length - 10} ${lang === 'lo' ? 'ລາຍການ' : 'รายการ'}</td></tr>` : ''}
         </tbody>
       </table>
     </div>
@@ -5164,6 +5535,26 @@ function showImportPreview(products) {
       </button>
     </div>
   `);
+  
+  // Cache branches list ถ้ายังไม่มี
+  if (!window._allBranchesCache) {
+    sb.from('branches').select('*').eq('is_active', true).order('id').then(({ data }) => {
+      window._allBranchesCache = data || [];
+      // Re-populate dropdown
+      const sel = document.getElementById('importBranchDest');
+      if (sel) {
+        const currentVal = sel.value;
+        sel.innerHTML = window._allBranchesCache.map(b => {
+          const displayName = lang === 'lo' ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo);
+          const isCurrentBranch = branch && branch.id === b.id;
+          return `<option value="${b.id}" ${isCurrentBranch ? 'selected' : ''}>
+            ${displayName} (${b.code})${isCurrentBranch ? ' ✓' : ''}
+          </option>`;
+        }).join('');
+        if (currentVal) sel.value = currentVal;
+      }
+    });
+  }
 }
 
 async function executeImport() {
@@ -5173,16 +5564,22 @@ async function executeImport() {
   }
   
   const snapName = document.getElementById('importSnapName').value.trim();
+  const branchDestEl = document.getElementById('importBranchDest');
+  const destBranchId = branchDestEl ? parseInt(branchDestEl.value) : (branch?.id || 1);
+  const destBranchName = branchDestEl 
+    ? branchDestEl.options[branchDestEl.selectedIndex]?.text 
+    : (branch?.code || '?');
+  
   const btn = document.getElementById('importBtn');
   const errEl = document.getElementById('importErr');
   
   btn.disabled = true;
   
   const total = _pendingImport.length;
-  const BATCH_SIZE = 500; // 500 รายการ/batch (ปลอดภัยใต้ 8 วินาที timeout)
+  const BATCH_SIZE = 500;
   const totalBatches = Math.ceil(total / BATCH_SIZE);
   
-  log('Executing import:', total, 'products in', totalBatches, 'batches');
+  log('Executing import:', total, 'products to branch_id:', destBranchId, 'in', totalBatches, 'batches');
   
   // Replace modal content with progress UI
   closeModal();
@@ -5258,7 +5655,7 @@ async function executeImport() {
       // ส่ง batch นี้ — ไม่ส่ง snapshot_name ถ้าไม่ใช่ batch สุดท้าย
       // (snapshot จะถูกบันทึกใน batch สุดท้ายเท่านั้น)
       const { data, error } = await sb.rpc('import_pos_products_batch', {
-        p_branch_id: branch.id,
+        p_branch_id: destBranchId,
         p_user_id: user.id,
         p_products: chunk,
         p_is_last_batch: isLast,
@@ -5272,7 +5669,7 @@ async function executeImport() {
         log('Batch', i + 1, 'failed, retrying...', error.message);
         await new Promise(r => setTimeout(r, 1000));
         const { data: retryData, error: retryError } = await sb.rpc('import_pos_products_batch', {
-          p_branch_id: branch.id,
+          p_branch_id: destBranchId,
           p_user_id: user.id,
           p_products: chunk,
           p_is_last_batch: isLast,
@@ -8225,6 +8622,32 @@ function renderSettingsPage() {
       <div class="stat-card"><div class="num" id="settingsTotalSessions">-</div><div class="lbl">${T('sessions_to_delete')}</div></div>
     </div>
     
+    ${['admin', 'scc', 'bcs'].includes(user.role) ? `
+    <!-- Branch Switcher (Admin Only) -->
+    <div style="background:white;border:2px solid var(--violet-300);border-radius:14px;padding:16px;margin-top:14px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
+        <div style="background:linear-gradient(135deg,var(--violet-500),var(--sky-500));color:white;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">
+          🏪
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;color:var(--violet-600);font-size:14px;">${lang === 'lo' ? 'ສາຂາທີ່ກຳລັງເບິ່ງ' : 'สาขาที่กำลังดู'}</div>
+          <div style="font-size:11px;color:var(--slate-500);">
+            <strong style="color:var(--slate-900);">${lang === 'lo' ? (branch?.name_lo || branch?.code) : (branch?.name_th || branch?.code)}</strong>
+            <span style="font-family:monospace;color:var(--slate-400);">(${branch?.code})</span>
+          </div>
+        </div>
+      </div>
+      
+      <button class="btn" style="background:linear-gradient(135deg,var(--violet-500),var(--sky-500));color:white;font-size:12px;padding:11px;width:100%;" onclick="openBranchSwitcher()">
+        🔄 ${lang === 'lo' ? 'ປ່ຽນສາຂາ' : 'เปลี่ยนสาขา'}
+      </button>
+      
+      <div style="font-size:10px;color:var(--slate-500);margin-top:8px;line-height:1.5;">
+        💡 ${lang === 'lo' ? 'ປ່ຽນສາຂາເພື່ອເບິ່ງຂໍ້ມູນ + Import + ກວດສອບສະຕ໋ອກຂອງສາຂາອື່ນ ໂດຍບໍ່ຕ້ອງ logout' : 'เปลี่ยนสาขาเพื่อดูข้อมูล + Import + ตรวจสอบสต๊อกของสาขาอื่น โดยไม่ต้อง logout'}
+      </div>
+    </div>
+    ` : ''}
+    
     <!-- Import POS Data Section -->
     <div style="background:white;border:2px solid var(--sky-500);border-radius:14px;padding:16px;margin-top:14px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
@@ -8596,6 +9019,8 @@ window.goPage = goPage;
 window.startScan = startScan;
 window.stopScan = stopScan;
 window.manualLookup = manualLookup;
+window.openBranchSwitcher = openBranchSwitcher;
+window.switchBranch = switchBranch;
 window.adjustCount = adjustCount;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
@@ -8687,6 +9112,9 @@ if (typeof isPWAMode === 'function') {
 
 // Auto-login
 (async () => {
+  // โหลด branch list สำหรับ login dropdown (ทุกครั้งที่เปิดแอป)
+  loadBranchListForLogin();
+  
   const saved = localStorage.getItem('fs_user');
   const savedBranch = localStorage.getItem('fs_branch');
   
@@ -8696,12 +9124,14 @@ if (typeof isPWAMode === 'function') {
       if (savedBranch) branch = JSON.parse(savedBranch);
       
       // Re-fetch branch to make sure
-      if (!branch && user.branch_id) {
-        const { data } = await sb.from('branches').select('*').eq('id', user.branch_id).maybeSingle();
+      if (!branch && (user.active_branch_id || user.branch_id)) {
+        const bid = user.active_branch_id || user.branch_id;
+        const { data } = await sb.from('branches').select('*').eq('id', bid).maybeSingle();
         branch = data;
       }
       if (!branch) {
-        const { data } = await sb.from('branches').select('*').eq('code', 'PAKSE').maybeSingle();
+        // Fallback: ลองหา SUPERMART หรือ PAKSE
+        const { data } = await sb.from('branches').select('*').in('code', ['SUPERMART', 'PAKSE']).order('id').maybeSingle();
         branch = data;
       }
       
