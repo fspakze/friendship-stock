@@ -271,6 +271,262 @@
   .diff-minus-text { color: var(--rose-500); }
   .diff-match-text { color: var(--emerald-500); }
   
+  /* ===== Context Chip as Button (Quick Zone Jump) ===== */
+  .ctx-chip-btn {
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .ctx-chip-btn:hover {
+    background: var(--teal-100);
+    transform: translateY(-1px);
+  }
+  .ctx-chip-btn:active { transform: translateY(0); }
+  
+  /* ===== Quick Zone Jump Modal Grid ===== */
+  .qzone-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    max-height: 380px;
+    overflow-y: auto;
+    padding: 4px;
+  }
+  .qzone-card {
+    position: relative;
+    background: white;
+    border: 2px solid var(--slate-200);
+    border-radius: 11px;
+    padding: 12px 10px 10px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .qzone-card:hover {
+    border-color: var(--teal-500);
+    background: var(--teal-50);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(20,184,166,0.18);
+  }
+  .qzone-card.is-current {
+    border-color: var(--teal-500);
+    background: linear-gradient(135deg, var(--teal-100), white);
+    box-shadow: 0 4px 14px rgba(20,184,166,0.25);
+  }
+  .qzone-code {
+    font-family: 'Space Grotesk', monospace;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--slate-900);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .qzone-card.is-current .qzone-code { color: var(--teal-700); }
+  .qzone-name {
+    font-size: 11px;
+    color: var(--slate-500);
+    font-weight: 600;
+    line-height: 1.2;
+    min-height: 26px;
+  }
+  .qzone-count {
+    margin-top: 6px;
+    font-size: 10px;
+    color: var(--violet-600);
+    font-family: 'Space Grotesk', monospace;
+    font-weight: 700;
+    background: var(--violet-100);
+    padding: 2px 7px;
+    border-radius: 8px;
+    display: inline-block;
+  }
+  .qzone-current-badge {
+    position: absolute;
+    top: -6px;
+    right: -4px;
+    background: var(--teal-500);
+    color: white;
+    font-size: 8px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 6px rgba(20,184,166,0.4);
+  }
+  .hist-filter-bar {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin-bottom: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+  .hist-filter-bar::-webkit-scrollbar { height: 4px; }
+  .hist-filter-bar::-webkit-scrollbar-thumb { background: var(--slate-300); border-radius: 2px; }
+  
+  .hist-chip {
+    flex: 0 0 auto;
+    padding: 6px 11px;
+    background: var(--slate-100);
+    border: 1.5px solid var(--slate-200);
+    border-radius: 18px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--slate-600);
+    cursor: pointer;
+    font-family: 'Space Grotesk', monospace;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .hist-chip:hover { background: var(--slate-50); border-color: var(--teal-300); }
+  .hist-chip.active {
+    background: var(--teal-500);
+    border-color: var(--teal-500);
+    color: white;
+    box-shadow: 0 2px 8px rgba(20,184,166,0.3);
+  }
+  .hist-chip-count {
+    background: rgba(255,255,255,0.25);
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 10px;
+    color: inherit;
+  }
+  .hist-chip:not(.active) .hist-chip-count {
+    background: white;
+    color: var(--slate-500);
+  }
+  
+  /* ===== History Group (Zone → Loc) ===== */
+  .hist-group {
+    margin-bottom: 12px;
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--slate-200);
+  }
+  .hist-group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 11px;
+    background: linear-gradient(90deg, var(--teal-100), white);
+    border-bottom: 1px solid var(--slate-200);
+    font-size: 11px;
+  }
+  .hist-group-zone { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .hist-group-zone-code {
+    background: var(--teal-500);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-weight: 800;
+    font-family: 'Space Grotesk', monospace;
+    font-size: 11px;
+  }
+  .hist-group-zone-name {
+    font-weight: 700;
+    color: var(--slate-700);
+    font-size: 11px;
+  }
+  .hist-group-loc {
+    flex: 1;
+    font-family: 'Space Grotesk', monospace;
+    font-weight: 700;
+    color: var(--violet-600);
+    font-size: 11px;
+  }
+  .hist-group-count {
+    color: var(--slate-500);
+    font-size: 10px;
+    font-family: 'Space Grotesk', monospace;
+    font-weight: 600;
+  }
+  .hist-group .history-item {
+    border-radius: 0;
+    background: white;
+    border-bottom: 1px solid var(--slate-100);
+  }
+  .hist-group .history-item:last-child { border-bottom: none; }
+  
+  /* ===== Product Locations (Tiebreaker detail) ===== */
+  .prod-locs-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+    font-size: 11px;
+  }
+  .prod-locs-table th {
+    background: var(--slate-100);
+    color: var(--slate-600);
+    padding: 6px 8px;
+    text-align: left;
+    font-weight: 700;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid var(--slate-200);
+  }
+  .prod-locs-table td {
+    padding: 7px 8px;
+    border-bottom: 1px solid var(--slate-100);
+  }
+  .prod-locs-table tr:last-child td { border-bottom: none; }
+  .prod-locs-table tr.role-counter { background: rgba(20,184,166,0.04); }
+  .prod-locs-table tr.role-verifier { background: rgba(245,158,11,0.04); }
+  .prod-locs-table tr.role-tiebreaker { background: rgba(124,58,237,0.06); }
+  .prod-locs-role-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-family: 'Space Grotesk', monospace;
+  }
+  .prod-locs-role-badge.counter { background: var(--teal-100); color: var(--teal-700); }
+  .prod-locs-role-badge.verifier { background: var(--amber-100); color: #92400e; }
+  .prod-locs-role-badge.tiebreaker { background: var(--violet-100); color: var(--violet-600); }
+  .prod-locs-loc {
+    font-family: 'Space Grotesk', monospace;
+    font-weight: 700;
+    color: var(--slate-900);
+  }
+  .prod-locs-zone {
+    display: inline-block;
+    background: var(--slate-100);
+    color: var(--slate-600);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    font-family: 'Space Grotesk', monospace;
+    margin-right: 4px;
+  }
+  .prod-locs-qty {
+    font-family: 'Space Grotesk', monospace;
+    font-weight: 800;
+    color: var(--slate-900);
+    text-align: right;
+  }
+  .prod-locs-total {
+    background: var(--teal-100);
+    font-weight: 800;
+  }
+  .prod-locs-total td {
+    border-top: 2px solid var(--teal-500);
+    color: var(--teal-700);
+    padding: 9px 8px;
+  }
+  
   .empty-state { text-align: center; padding: 24px 14px; color: var(--slate-400); }
   .empty-state svg { width: 40px; height: 40px; margin-bottom: 6px; opacity: 0.5; }
   
@@ -942,7 +1198,7 @@ const I18N = {
     select_zone: 'ໂຊນ', select_location: 'ສະຖານທີ່',
     please_select: 'ກະລຸນາເລືອກໂຊນແລະສະຖານທີ່',
     tab_scan: 'ສະແກນ', tab_history: 'ປະຫວັດ',
-    tab_tiebreaker: 'Tiebreaker', tab_dashboard: 'Dashboard',
+    tab_tiebreaker: 'ກວດສອບໃໝ່', tab_dashboard: 'Dashboard',
     tab_users: 'ຜູ້ໃຊ້', tab_kpi: 'KPI',
     active_session: 'ຮອບການນັບ', scanned: 'ສະແກນ',
     total_qty: 'ຈຳນວນ', diff: 'ສ່ວນຕ່າງ',
@@ -954,7 +1210,7 @@ const I18N = {
     pos_qty: 'POS', sell_price: 'ລາຄາ', unit_label: 'ໜ່ວຍ',
     count_label: 'ຈຳນວນທີ່ນັບໄດ້',
     verify_label: 'ກວດສອບ (Blind)',
-    tiebreaker_label: 'Tiebreaker (ນັບຄັ້ງທີ 3)',
+    tiebreaker_label: 'ກວດສອບໃໝ່ (ນັບຄັ້ງທີ 3)',
     note_placeholder: 'ໝາຍເຫດ...',
     save: 'ບັນທຶກ', saving: 'ກຳລັງບັນທຶກ...',
     cancel: 'ຍົກເລີກ', saved: 'ບັນທຶກສຳເລັດ',
@@ -975,7 +1231,7 @@ const I18N = {
     shrinkage_pct: 'Shrinkage %', products_total: 'ສິນຄ້າທັງໝົດ',
     counted_today: 'ນັບມື້ນີ້',
     level1: 'L1 Auto', level2: 'L2 Explain', level3: 'L3 Recount', level4: 'L4 Investigate',
-    tiebreaker_title: 'ລາຍການທີ່ Counter ≠ Verifier',
+    tiebreaker_title: 'ລາຍການທີ່ຕ້ອງກວດສອບໃໝ່',
     tiebreaker_subtitle: 'ນັບຄັ້ງທີ 3 ໃຊ້ກົດ 2 ໃນ 3',
     quantity: 'ຈຳນວນ', description: 'ລາຍລະອຽດ', submit: 'ສົ່ງ',
     full_name: 'ຊື່ເຕັມ', role_label: 'ສິດ',
@@ -987,7 +1243,7 @@ const I18N = {
     type_label: 'ປະເພດ',
     type_expired: 'ໝົດອາຍຸ', type_damaged: 'ເສຍຫາຍ', type_near: 'ໃກ້ໝົດອາຍຸ',
     fill_required: 'ກອກຂໍ້ມູນໃຫ້ຄົບ',
-    matched: 'ຄືກັນ ✓', need_tb: 'ຕ້ອງ Tiebreaker',
+    matched: 'ຄືກັນ ✓', need_tb: 'ຕ້ອງກວດສອບໃໝ່',
     locked_session: 'ບໍ່ມີຮອບການນັບ',
     edit_count: 'ແກ້ໄຂການນັບ',
     delete_count: 'ລົບການນັບ',
@@ -1028,8 +1284,8 @@ const I18N = {
     status_open_for_verify: 'ເປີດໃຫ້ Verifier',
     status_verifying: 'ກຳລັງກວດສອບ',
     status_verified: 'ກວດສອບແລ້ວ',
-    status_tiebreaker_needed: 'ຕ້ອງ Tiebreaker',
-    status_tiebreaker: 'ກຳລັງ Tiebreaker',
+    status_tiebreaker_needed: 'ຕ້ອງກວດສອບໃໝ່',
+    status_tiebreaker: 'ກຳລັງກວດສອບໃໝ່',
     status_completed: 'ສຳເລັດ',
     gondola_locked: 'Gondola ນີ້ຍັງບໍ່ໄດ້ເປີດ - ກະລຸນາແຈ້ງ CTL',
     progress: 'ຄວາມຄືບໜ້າ',
@@ -1045,7 +1301,18 @@ const I18N = {
     waiting_ctl: 'ລໍ CTL ເປີດໃຫ້',
     counter_done: 'Counter ນັບແລ້ວ',
     verifier_done: 'Verifier ນັບແລ້ວ',
-    tiebreaker_done: 'Tiebreaker ແລ້ວ',
+    tiebreaker_done: 'ກວດສອບໃໝ່ແລ້ວ',
+    product_locations: 'ຕຳແໜ່ງທີ່ນັບໄດ້',
+    view_all_locations: 'ເບິ່ງທີ່ອື່ນ',
+    start_tiebreaker: 'ເລີ່ມກວດສອບ',
+    product_in_multi_locs: 'ສິນຄ້ານີ້ຖືກນັບໃນ',
+    locations: 'ຈຸດ',
+    items: 'ຊິ້ນ',
+    all_zones: 'ທັງໝົດ',
+    loading: 'ກຳລັງໂຫລດ...',
+    jump_to_zone: 'ໄປຫາໂຊນ',
+    select_zone_to_jump: 'ເລືອກໂຊນທີ່ຕ້ອງການໄປ',
+    current: 'ປັດຈຸບັນ',
     export_report: 'ສົ່ງອອກລາຍງານ',
     export_xlsx: 'ດາວໂຫລດ Excel',
     exporting: 'ກຳລັງສ້າງລາຍງານ...',
@@ -1160,7 +1427,7 @@ const I18N = {
     select_zone: 'โซน', select_location: 'สถานที่',
     please_select: 'กรุณาเลือกโซนและสถานที่',
     tab_scan: 'สแกน', tab_history: 'ประวัติ',
-    tab_tiebreaker: 'Tiebreaker', tab_dashboard: 'Dashboard',
+    tab_tiebreaker: 'ตรวจสอบใหม่', tab_dashboard: 'Dashboard',
     tab_users: 'ผู้ใช้', tab_kpi: 'KPI',
     active_session: 'รอบการนับ', scanned: 'สแกน',
     total_qty: 'จำนวน', diff: 'ส่วนต่าง',
@@ -1172,7 +1439,7 @@ const I18N = {
     pos_qty: 'POS', sell_price: 'ราคา', unit_label: 'หน่วย',
     count_label: 'จำนวนที่นับได้',
     verify_label: 'ตรวจสอบ (Blind)',
-    tiebreaker_label: 'Tiebreaker (นับครั้งที่ 3)',
+    tiebreaker_label: 'ตรวจสอบใหม่ (นับครั้งที่ 3)',
     note_placeholder: 'หมายเหตุ...',
     save: 'บันทึก', saving: 'กำลังบันทึก...',
     cancel: 'ยกเลิก', saved: 'บันทึกสำเร็จ',
@@ -1193,7 +1460,7 @@ const I18N = {
     shrinkage_pct: 'Shrinkage %', products_total: 'สินค้าทั้งหมด',
     counted_today: 'นับวันนี้',
     level1: 'L1 Auto', level2: 'L2 Explain', level3: 'L3 Recount', level4: 'L4 Investigate',
-    tiebreaker_title: 'รายการที่ Counter ≠ Verifier',
+    tiebreaker_title: 'รายการที่ต้องตรวจสอบใหม่',
     tiebreaker_subtitle: 'นับครั้งที่ 3 ใช้กฎ 2 ใน 3',
     quantity: 'จำนวน', description: 'รายละเอียด', submit: 'ส่ง',
     full_name: 'ชื่อเต็ม', role_label: 'สิทธิ์',
@@ -1205,7 +1472,7 @@ const I18N = {
     type_label: 'ประเภท',
     type_expired: 'หมดอายุ', type_damaged: 'เสียหาย', type_near: 'ใกล้หมดอายุ',
     fill_required: 'กรอกข้อมูลให้ครบ',
-    matched: 'ตรง ✓', need_tb: 'ต้อง Tiebreaker',
+    matched: 'ตรง ✓', need_tb: 'ต้องตรวจสอบใหม่',
     locked_session: 'ไม่มีรอบการนับ',
     edit_count: 'แก้ไขการนับ',
     delete_count: 'ลบการนับ',
@@ -1246,8 +1513,8 @@ const I18N = {
     status_open_for_verify: 'เปิดให้ Verifier',
     status_verifying: 'กำลังตรวจสอบ',
     status_verified: 'ตรวจสอบแล้ว',
-    status_tiebreaker_needed: 'ต้อง Tiebreaker',
-    status_tiebreaker: 'กำลัง Tiebreaker',
+    status_tiebreaker_needed: 'ต้องตรวจสอบใหม่',
+    status_tiebreaker: 'กำลังตรวจสอบใหม่',
     status_completed: 'สำเร็จ',
     gondola_locked: 'Gondola นี้ยังไม่ได้เปิด - กรุณาแจ้ง CTL',
     progress: 'ความคืบหน้า',
@@ -1263,7 +1530,18 @@ const I18N = {
     waiting_ctl: 'รอ CTL เปิดให้',
     counter_done: 'Counter นับแล้ว',
     verifier_done: 'Verifier นับแล้ว',
-    tiebreaker_done: 'Tiebreaker แล้ว',
+    tiebreaker_done: 'ตรวจสอบใหม่แล้ว',
+    product_locations: 'ตำแหน่งที่นับได้',
+    view_all_locations: 'ดูที่อื่นๆ',
+    start_tiebreaker: 'เริ่มตรวจสอบ',
+    product_in_multi_locs: 'สินค้านี้ถูกนับใน',
+    locations: 'จุด',
+    items: 'ชิ้น',
+    all_zones: 'ทั้งหมด',
+    loading: 'กำลังโหลด...',
+    jump_to_zone: 'ไปยังโซน',
+    select_zone_to_jump: 'เลือกโซนที่ต้องการไป',
+    current: 'ปัจจุบัน',
     export_report: 'ส่งออกรายงาน',
     export_xlsx: 'ดาวน์โหลด Excel',
     exporting: 'กำลังสร้างรายงาน...',
@@ -1893,6 +2171,86 @@ function changeZone() {
   showZoneStep();
 }
 
+// ==================== QUICK ZONE JUMP ====================
+// แสดง Modal เลือกโซนรวดเร็ว ไม่ต้อง logout
+async function openQuickZoneJump() {
+  if (!allZones || allZones.length === 0) {
+    showToast('No zones', 'error');
+    return;
+  }
+  
+  // คำนวณว่ามีคนนับไปกี่ชิ้นใน zone นี้แล้ว (ถ้ามี session)
+  let countsByZone = {};
+  if (session) {
+    const { data } = await sb.from('stock_counts')
+      .select('zone_id')
+      .eq('session_id', session.id)
+      .eq('user_id', user.id);
+    (data || []).forEach(c => {
+      if (c.zone_id) countsByZone[c.zone_id] = (countsByZone[c.zone_id] || 0) + 1;
+    });
+  }
+  
+  const zonesHtml = (allZones || []).map(z => {
+    const zoneName = lang === 'lo' ? (z.name_lo || z.name_th) : (z.name_th || z.name_lo);
+    const isCurrent = zone && zone.id === z.id;
+    const count = countsByZone[z.id] || 0;
+    return `
+      <button class="qzone-card ${isCurrent ? 'is-current' : ''}" onclick="selectQuickZone(${z.id})">
+        <div class="qzone-code">${z.code}</div>
+        <div class="qzone-name">${zoneName || ''}</div>
+        ${count > 0 ? `<div class="qzone-count">${count} ${T('items') || 'ชิ้น'}</div>` : ''}
+        ${isCurrent ? `<div class="qzone-current-badge">${T('current') || 'ปัจจุบัน'}</div>` : ''}
+      </button>
+    `;
+  }).join('');
+  
+  showModal(`
+    <h3>${T('jump_to_zone') || 'ไปยังโซน'}</h3>
+    <p style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">
+      ${T('select_zone_to_jump') || 'เลือกโซนที่ต้องการไป'}
+    </p>
+    <div class="qzone-grid">
+      ${zonesHtml}
+    </div>
+    <button class="btn btn-secondary" onclick="closeModal()" style="width:100%;margin-top:11px;">${T('cancel')}</button>
+  `);
+}
+
+async function selectQuickZone(zoneId) {
+  const z = (allZones || []).find(zz => zz.id == zoneId);
+  if (!z) return;
+  
+  // If already on this zone, just close
+  if (zone && zone.id === z.id) {
+    closeModal();
+    return;
+  }
+  
+  // Clear location (since it belongs to old zone)
+  zone = z;
+  loc = null;
+  
+  // Update localStorage
+  localStorage.setItem('fs_zone_loc', JSON.stringify({
+    zone: zone.id,
+    location: null
+  }));
+  
+  closeModal();
+  
+  // Go to zone selection step to pick a new location
+  showToast(`Zone: ${z.code}`, 'success');
+  document.getElementById('app').classList.remove('active');
+  document.getElementById('loginScreen').style.display = 'flex';
+  showZoneStep();
+  
+  // Auto-select the zone we just picked
+  setTimeout(() => {
+    if (typeof selectZone === 'function') selectZone(z.id);
+  }, 200);
+}
+
 // ==================== SESSION ====================
 async function ensureSession() {
   if (!branch) {
@@ -2053,7 +2411,10 @@ function renderShell() {
   // Context bar
   const ctxBar = (zone && loc) ? `
     <div class="context-bar r-${r}">
-      <div class="ctx-chip"><span class="lbl">Zone:</span>${zone.code}</div>
+      <button class="ctx-chip ctx-chip-btn" onclick="openQuickZoneJump()" title="${T('jump_to_zone') || 'ไปยังโซน'}">
+        <span class="lbl">Zone:</span>${zone.code}
+        <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" style="margin-left:3px;opacity:0.6;"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+      </button>
       <div class="ctx-chip"><span class="lbl">Loc:</span>${loc.location_code}</div>
       <button class="ctx-change" onclick="changeZone()">${T('change_zone')}</button>
     </div>` : '';
@@ -2625,6 +2986,7 @@ function renderHistoryPage() {
         ${T('my_counts')}
         <span class="badge" id="histCount">0</span>
       </div>
+      <div class="hist-filter-bar" id="histFilterBar" style="display:none;"></div>
       <div class="history-list" id="histList"></div>
     </div>
   `;
@@ -2637,13 +2999,13 @@ async function loadHistory() {
   
   const { data, error } = await sb.from('stock_counts')
     .select(`
-      id, counted_qty, pos_qty_snapshot, diff, variance_level, is_markdown, workflow_status, counted_at, note, gondola_code, location_code,
+      id, counted_qty, pos_qty_snapshot, diff, variance_level, is_markdown, workflow_status, counted_at, note, gondola_code, location_code, zone_id,
       products(id, barcode, name_th, name_lo, unit_th, unit_lo, pos_qty)
     `)
     .eq('session_id', session.id)
     .eq('user_id', user.id)
     .order('counted_at', { ascending: false })
-    .limit(50);
+    .limit(200);
   
   if (error) {
     log('History error:', error);
@@ -2662,33 +3024,150 @@ async function loadHistory() {
   
   if (!items.length) {
     list.innerHTML = `<div class="empty-state"><p>${T('no_history')}</p></div>`;
+    // hide filter bar
+    const fb = document.getElementById('histFilterBar');
+    if (fb) fb.style.display = 'none';
+    return;
+  }
+  
+  // Store globally for filtering
+  window._histItems = items;
+  
+  // Build zone filter chips
+  buildHistoryFilterBar(items);
+  
+  // Render with current filter
+  renderHistoryList(items);
+}
+
+function buildHistoryFilterBar(items) {
+  const filterBar = document.getElementById('histFilterBar');
+  if (!filterBar) return;
+  
+  // Get unique zones from items
+  const zoneMap = {};
+  items.forEach(item => {
+    const zid = item.zone_id;
+    if (!zid) return;
+    if (!zoneMap[zid]) {
+      const z = (allZones || []).find(zz => zz.id == zid);
+      zoneMap[zid] = {
+        id: zid,
+        code: z?.code || '?',
+        name: z ? (lang === 'lo' ? (z.name_lo || z.name_th) : (z.name_th || z.name_lo)) : '?',
+        count: 0
+      };
+    }
+    zoneMap[zid].count++;
+  });
+  
+  const zoneList = Object.values(zoneMap).sort((a, b) => a.code.localeCompare(b.code));
+  
+  if (zoneList.length === 0) {
+    filterBar.style.display = 'none';
+    return;
+  }
+  
+  filterBar.style.display = 'flex';
+  filterBar.innerHTML = `
+    <button class="hist-chip active" data-zone="all" onclick="filterHistByZone('all', this)">
+      ${T('all_zones') || 'ทั้งหมด'} <span class="hist-chip-count">${items.length}</span>
+    </button>
+    ${zoneList.map(z => `
+      <button class="hist-chip" data-zone="${z.id}" onclick="filterHistByZone('${z.id}', this)" title="${z.name}">
+        ${z.code} <span class="hist-chip-count">${z.count}</span>
+      </button>
+    `).join('')}
+  `;
+}
+
+function filterHistByZone(zoneFilter, btnEl) {
+  // toggle active state
+  document.querySelectorAll('#histFilterBar .hist-chip').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  
+  const items = window._histItems || [];
+  const filtered = zoneFilter === 'all' ? items : items.filter(it => String(it.zone_id) === String(zoneFilter));
+  renderHistoryList(filtered);
+}
+
+function renderHistoryList(items) {
+  const list = document.getElementById('histList');
+  if (!list) return;
+  
+  if (!items.length) {
+    list.innerHTML = `<div class="empty-state"><p>${T('no_history')}</p></div>`;
     return;
   }
   
   const isAdmin = ['admin', 'scc', 'bcs'].includes(user.role);
   
-  list.innerHTML = items.map(item => {
-    const p = item.products || {};
-    const name = lang === 'lo' ? (p.name_lo || p.name_th || '?') : (p.name_th || p.name_lo || '?');
-    const diff = item.diff || 0;
-    const cls = isAdmin ? (diff === 0 ? 'match' : (diff > 0 ? 'diff-plus' : 'diff-minus')) : 'match';
-    const diffText = isAdmin ? (diff === 0 ? '✓' : (diff > 0 ? `+${diff}` : `${diff}`)) : '✓';
-    const diffCls = isAdmin ? (diff === 0 ? 'diff-match-text' : (diff > 0 ? 'diff-plus-text' : 'diff-minus-text')) : 'diff-match-text';
-    
-    const varLevel = (isAdmin && item.variance_level) ? `<span class="var-level var-level-${item.variance_level}">L${item.variance_level}</span>` : '';
-    const mdBadge = item.is_markdown ? '<span class="md-badge" style="margin-left:4px;">MD</span>' : '';
-    const locBadge = item.gondola_code ? `<span style="background:var(--teal-100);color:var(--teal-700);padding:1px 5px;border-radius:4px;font-weight:700;margin-left:4px;font-family:'Space Grotesk',monospace;">${item.gondola_code}</span>` : '';
-    
-    return `
-      <div class="history-item clickable ${cls}" onclick="openEditCount('${item.id}')">
-        <div class="history-content">
-          <div class="history-name">${name}${mdBadge}${locBadge}</div>
-          <div class="history-meta">${p.barcode || ''} • <span class="${diffCls}">${diffText}</span> ${varLevel}</div>
+  // Group by Zone → Location
+  const groups = {};
+  items.forEach(item => {
+    const zid = item.zone_id || 'no_zone';
+    const loc = item.location_code || item.gondola_code || '?';
+    const groupKey = `${zid}__${loc}`;
+    if (!groups[groupKey]) {
+      const z = (allZones || []).find(zz => zz.id == item.zone_id);
+      groups[groupKey] = {
+        zone_id: item.zone_id,
+        zone_code: z?.code || '',
+        zone_name: z ? (lang === 'lo' ? (z.name_lo || z.name_th) : (z.name_th || z.name_lo)) : '',
+        location_code: loc,
+        items: []
+      };
+    }
+    groups[groupKey].items.push(item);
+  });
+  
+  // Sort groups by zone code → location
+  const sortedGroups = Object.values(groups).sort((a, b) => {
+    if (a.zone_code !== b.zone_code) return (a.zone_code || '').localeCompare(b.zone_code || '');
+    return (a.location_code || '').localeCompare(b.location_code || '');
+  });
+  
+  list.innerHTML = sortedGroups.map(grp => {
+    const groupHeader = `
+      <div class="hist-group-header">
+        <div class="hist-group-zone">
+          <span class="hist-group-zone-code">${grp.zone_code || '—'}</span>
+          ${grp.zone_name ? `<span class="hist-group-zone-name">${grp.zone_name}</span>` : ''}
         </div>
-        <div class="history-qty mono">${item.counted_qty}</div>
-        <div style="color:var(--slate-400);font-size:14px;margin-left:4px;">✏️</div>
+        <div class="hist-group-loc">📍 ${grp.location_code}</div>
+        <div class="hist-group-count">${grp.items.length} ${T('items') || 'ชิ้น'}</div>
       </div>
     `;
+    
+    const rows = grp.items.map(item => {
+      const p = item.products || {};
+      const name = lang === 'lo' ? (p.name_lo || p.name_th || '?') : (p.name_th || p.name_lo || '?');
+      const diff = item.diff || 0;
+      const cls = isAdmin ? (diff === 0 ? 'match' : (diff > 0 ? 'diff-plus' : 'diff-minus')) : 'match';
+      const diffText = isAdmin ? (diff === 0 ? '✓' : (diff > 0 ? `+${diff}` : `${diff}`)) : '✓';
+      const diffCls = isAdmin ? (diff === 0 ? 'diff-match-text' : (diff > 0 ? 'diff-plus-text' : 'diff-minus-text')) : 'diff-match-text';
+      
+      const varLevel = (isAdmin && item.variance_level) ? `<span class="var-level var-level-${item.variance_level}">L${item.variance_level}</span>` : '';
+      const mdBadge = item.is_markdown ? '<span class="md-badge" style="margin-left:4px;">MD</span>' : '';
+      
+      // Show time only (date in header makes it cleaner)
+      const time = new Date(item.counted_at).toLocaleTimeString(lang === 'lo' ? 'lo-LA' : 'th-TH', {
+        hour: '2-digit', minute: '2-digit'
+      });
+      
+      return `
+        <div class="history-item clickable ${cls}" onclick="openEditCount('${item.id}')">
+          <div class="history-content">
+            <div class="history-name">${name}${mdBadge}</div>
+            <div class="history-meta">${p.barcode || ''} • ${time} • <span class="${diffCls}">${diffText}</span> ${varLevel}</div>
+          </div>
+          <div class="history-qty mono">${item.counted_qty}</div>
+          <div style="color:var(--slate-400);font-size:14px;margin-left:4px;">✏️</div>
+        </div>
+      `;
+    }).join('');
+    
+    return `<div class="hist-group" data-zone-id="${grp.zone_id || ''}">${groupHeader}${rows}</div>`;
   }).join('');
 }
 
@@ -2916,15 +3395,24 @@ async function loadTiebreakerList() {
       </div>` : '';
     
     return `
-      <div class="history-item clickable" onclick="startTiebreaker(${item.product_id}, ${item.zone_id || 'null'}, '${item.location_code || ''}')" style="display:block;">
-        <div style="display:flex;align-items:center;gap:9px;">
-          <div style="width:32px;height:32px;border-radius:8px;background:${bg};color:${color};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;">${icon}</div>
+      <div class="history-item clickable" style="display:block;">
+        <div style="display:flex;align-items:center;gap:9px;" onclick="startTiebreaker(${item.product_id}, ${item.zone_id || 'null'}, '${item.location_code || ''}')">
+          <div style="width:32px;height:32px;border-radius:8px;background:${bg};color:${color};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;">${icon}</div>
           <div style="flex:1;min-width:0;">
             <div class="history-name">${name}</div>
             <div class="history-meta">${item.barcode}</div>
           </div>
         </div>
         ${details}
+        <div style="display:flex;gap:6px;margin-top:7px;">
+          <button class="btn btn-secondary" onclick="event.stopPropagation();showProductLocations(${item.product_id})" style="flex:1;font-size:10px;padding:7px 9px;">
+            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px;"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            ${T('view_all_locations') || 'ดูที่อื่นๆ'}
+          </button>
+          <button class="btn btn-primary" onclick="event.stopPropagation();startTiebreaker(${item.product_id}, ${item.zone_id || 'null'}, '${item.location_code || ''}')" style="flex:1;font-size:10px;padding:7px 9px;background:var(--violet-500);">
+            ${T('start_tiebreaker') || 'เริ่มตรวจสอบ'} →
+          </button>
+        </div>
       </div>
     `;
   }).join('');
@@ -2966,6 +3454,182 @@ async function startTiebreaker(productId, zoneId, locationCode) {
     curTask = { type: 'tiebreaker' };
     renderProduct(p);
   }, 200);
+}
+
+// ==================== SHOW PRODUCT LOCATIONS ====================
+// แสดงว่าสินค้านี้ ถูกนับที่ Zone/Location ไหนบ้าง ในรอบปัจจุบัน
+async function showProductLocations(productId) {
+  log('Show product locations for product:', productId);
+  
+  if (!session) {
+    showToast(T('no_active_session'), 'error');
+    return;
+  }
+  
+  // Loading modal
+  showModal(`
+    <h3>${T('product_locations') || 'ตำแหน่งที่นับได้'}</h3>
+    <div class="empty-state"><p>${T('loading') || 'กำลังโหลด...'}</p></div>
+  `);
+  
+  // Fetch all counts for this product in this session
+  const { data: counts, error } = await sb.from('stock_counts')
+    .select(`
+      id, counted_qty, count_role, counted_at, zone_id, location_code, gondola_code, note, user_id,
+      products(barcode, name_th, name_lo, unit_th, unit_lo)
+    `)
+    .eq('session_id', session.id)
+    .eq('product_id', productId)
+    .order('counted_at', { ascending: true });
+  
+  if (error) {
+    log('showProductLocations error:', error);
+    showToast('Error: ' + error.message, 'error');
+    closeModal();
+    return;
+  }
+  
+  if (!counts || counts.length === 0) {
+    showModal(`
+      <h3>${T('product_locations') || 'ตำแหน่งที่นับได้'}</h3>
+      <div class="empty-state"><p>${T('no_history')}</p></div>
+      <button class="btn btn-secondary" onclick="closeModal()" style="width:100%;margin-top:11px;">${T('cancel')}</button>
+    `);
+    return;
+  }
+  
+  // Get user names
+  const userIds = [...new Set(counts.map(c => c.user_id).filter(x => x))];
+  let usersById = {};
+  if (userIds.length > 0) {
+    const { data: usersData } = await sb.from('users').select('id, full_name, username').in('id', userIds);
+    (usersData || []).forEach(u => { usersById[u.id] = u; });
+  }
+  
+  const p = counts[0].products || {};
+  const productName = lang === 'lo' ? (p.name_lo || p.name_th || '?') : (p.name_th || p.name_lo || '?');
+  const unit = lang === 'lo' ? (p.unit_lo || p.unit_th || 'ชิ้น') : (p.unit_th || p.unit_lo || 'ชิ้น');
+  
+  // Group by Zone + Location + count_role to show structure clearly
+  // Sort: by location_code, then by counted_at
+  const sorted = [...counts].sort((a, b) => {
+    const locA = a.location_code || a.gondola_code || '';
+    const locB = b.location_code || b.gondola_code || '';
+    if (locA !== locB) return locA.localeCompare(locB);
+    return new Date(a.counted_at) - new Date(b.counted_at);
+  });
+  
+  // Calculate totals per role
+  let totalCounter = 0, totalVerifier = 0, totalTiebreaker = 0;
+  sorted.forEach(c => {
+    const role = (c.count_role || '').toLowerCase();
+    if (role.includes('counter')) totalCounter += (c.counted_qty || 0);
+    else if (role.includes('verifier')) totalVerifier += (c.counted_qty || 0);
+    else if (role.includes('tiebreaker') || role === 'ctl_tiebreaker') totalTiebreaker += (c.counted_qty || 0);
+  });
+  
+  // Build rows
+  const rows = sorted.map(c => {
+    const z = (allZones || []).find(zz => zz.id == c.zone_id);
+    const zoneCode = z?.code || '—';
+    const locCode = c.location_code || c.gondola_code || '?';
+    const role = (c.count_role || '').toLowerCase();
+    
+    let roleClass = '', roleBadge = '', roleLabel = '';
+    if (role.includes('counter')) {
+      roleClass = 'role-counter';
+      roleBadge = 'counter';
+      roleLabel = 'Counter';
+    } else if (role.includes('verifier')) {
+      roleClass = 'role-verifier';
+      roleBadge = 'verifier';
+      roleLabel = 'Verifier';
+    } else if (role.includes('tiebreaker')) {
+      roleClass = 'role-tiebreaker';
+      roleBadge = 'tiebreaker';
+      roleLabel = T('tab_tiebreaker') || 'Tiebreaker';
+    } else {
+      roleLabel = c.count_role || '?';
+    }
+    
+    const userName = usersById[c.user_id]?.full_name || usersById[c.user_id]?.username || '—';
+    const time = new Date(c.counted_at).toLocaleString(lang === 'lo' ? 'lo-LA' : 'th-TH', {
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+    
+    return `
+      <tr class="${roleClass}">
+        <td>
+          <span class="prod-locs-zone">${zoneCode}</span>
+          <span class="prod-locs-loc">${locCode}</span>
+        </td>
+        <td><span class="prod-locs-role-badge ${roleBadge}">${roleLabel}</span></td>
+        <td style="font-size:10px;color:var(--slate-500);">${userName}<br>${time}</td>
+        <td class="prod-locs-qty">${c.counted_qty}</td>
+      </tr>
+    `;
+  }).join('');
+  
+  // Summary cards
+  const totalsHtml = `
+    <div style="display:grid;grid-template-columns:repeat(${totalTiebreaker > 0 ? 3 : 2},1fr);gap:6px;margin:10px 0;">
+      <div style="background:var(--teal-100);padding:8px;border-radius:8px;text-align:center;">
+        <div style="font-size:9px;color:var(--teal-700);text-transform:uppercase;font-weight:700;">Counter</div>
+        <div style="font-size:18px;font-weight:800;color:var(--teal-700);font-family:'Space Grotesk',monospace;">${totalCounter}</div>
+      </div>
+      <div style="background:var(--amber-100);padding:8px;border-radius:8px;text-align:center;">
+        <div style="font-size:9px;color:#92400e;text-transform:uppercase;font-weight:700;">Verifier</div>
+        <div style="font-size:18px;font-weight:800;color:#92400e;font-family:'Space Grotesk',monospace;">${totalVerifier}</div>
+      </div>
+      ${totalTiebreaker > 0 ? `
+        <div style="background:var(--violet-100);padding:8px;border-radius:8px;text-align:center;">
+          <div style="font-size:9px;color:var(--violet-600);text-transform:uppercase;font-weight:700;">${T('tab_tiebreaker')}</div>
+          <div style="font-size:18px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;">${totalTiebreaker}</div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+  
+  // Count unique locations
+  const uniqueLocs = new Set(sorted.map(c => c.location_code || c.gondola_code).filter(x => x));
+  const locsHint = uniqueLocs.size > 1 
+    ? `<div style="background:var(--amber-100);padding:8px 10px;border-radius:7px;margin-bottom:8px;font-size:11px;color:#92400e;font-weight:600;">
+        ⚠️ ${T('product_in_multi_locs') || 'สินค้านี้ถูกนับใน'} ${uniqueLocs.size} ${T('locations') || 'จุด'}
+      </div>` 
+    : '';
+  
+  showModal(`
+    <h3>${T('product_locations') || 'ตำแหน่งที่นับได้'}</h3>
+    
+    <!-- Product info -->
+    <div style="background:var(--slate-50);padding:9px 11px;border-radius:9px;margin-bottom:10px;">
+      <div style="font-size:13px;font-weight:700;color:var(--slate-900);">${productName}</div>
+      <div style="font-size:10px;color:var(--slate-500);font-family:'Space Grotesk',monospace;margin-top:2px;">${p.barcode || ''}</div>
+    </div>
+    
+    ${locsHint}
+    
+    ${totalsHtml}
+    
+    <!-- Locations table -->
+    <div style="max-height:300px;overflow-y:auto;border:1px solid var(--slate-200);border-radius:8px;">
+      <table class="prod-locs-table">
+        <thead>
+          <tr>
+            <th>${T('location') || 'ตำแหน่ง'}</th>
+            <th>${T('role_label') || 'บทบาท'}</th>
+            <th>${T('counted_at') || 'นับเมื่อ'}</th>
+            <th style="text-align:right;">${T('counted_qty') || 'จำนวน'}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    </div>
+    
+    <button class="btn btn-secondary" onclick="closeModal()" style="width:100%;margin-top:11px;">${T('cancel') || 'ปิด'}</button>
+  `);
 }
 
 // ==================== DASHBOARD ====================
@@ -4877,7 +5541,7 @@ function renderFloorMapPage() {
       <div class="fm-legend-item"><span class="fm-legend-box" style="background:var(--slate-100);border:1px solid var(--slate-200);"></span><span>${T('not_started')}</span></div>
       <div class="fm-legend-item"><span class="fm-legend-box" style="background:var(--teal-500);"></span><span>${T('status_counting')}</span></div>
       <div class="fm-legend-item"><span class="fm-legend-box" style="background:var(--amber-500);"></span><span>${T('status_verifying')}</span></div>
-      <div class="fm-legend-item"><span class="fm-legend-box" style="background:var(--rose-500);"></span><span>Tiebreaker</span></div>
+      <div class="fm-legend-item"><span class="fm-legend-box" style="background:var(--rose-500);"></span><span>${T('status_tiebreaker_needed')}</span></div>
       <div class="fm-legend-item"><span class="fm-legend-box" style="background:var(--emerald-500);"></span><span>${T('completed_lo')}</span></div>
     </div>
     
@@ -6281,6 +6945,10 @@ window.toggleQuickNav = toggleQuickNav;
 window.jumpToSection = jumpToSection;
 window.cleanupQuickNav = cleanupQuickNav;
 window.renderQuickNav = renderQuickNav;
+window.filterHistByZone = filterHistByZone;
+window.showProductLocations = showProductLocations;
+window.openQuickZoneJump = openQuickZoneJump;
+window.selectQuickZone = selectQuickZone;
 window.downloadImportTemplate = downloadImportTemplate;
 window.onPosFileSelected = onPosFileSelected;
 window.showImportPreview = showImportPreview;
