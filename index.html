@@ -5233,8 +5233,8 @@ async function executeImport() {
     if (txt) txt.textContent = pct + '%';
     if (stat && statusText) stat.textContent = statusText;
     if (batch) batch.textContent = `${batchIdx}/${totalBatches}`;
-    if (newEl) newEl.textContent = stats.new.toLocaleString();
-    if (updEl) updEl.textContent = stats.updated.toLocaleString();
+    if (newEl) newEl.textContent = (stats.new_products || 0).toLocaleString();
+    if (updEl) updEl.textContent = (stats.updated_products || 0).toLocaleString();
   };
   
   const aggStats = {
