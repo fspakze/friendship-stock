@@ -1111,10 +1111,14 @@ async function login() {
 }
 
 async function afterLogin() {
-  const needsZone = ['counter', 'verifier', 'ctl', 'staff', 'audit'].includes(user.role);
+  // CTL, BCS, Admin, SCC ไม่ต้องเลือก Zone/Location (ดูภาพรวม + ควบคุม)
+  // Counter, Verifier, Staff, Audit ต้องเลือก (ต้องสแกนนับ)
+  const needsZone = ['counter', 'verifier', 'staff', 'audit'].includes(user.role);
+  
+  // โหลด zones+locations เสมอ (เพื่อให้ Floor Map + Workflow Control ใช้)
+  await loadZonesAndLocations();
   
   if (needsZone) {
-    await loadZonesAndLocations();
     showZoneStep();
   } else {
     enterApp();
@@ -1556,7 +1560,7 @@ function renderApp() {
   const r = user.role;
   if (['counter', 'staff'].includes(r)) goPage('scan');
   else if (['verifier', 'audit'].includes(r)) goPage('tiebreaker');
-  else if (r === 'ctl') goPage('tiebreaker');
+  else if (r === 'ctl') goPage('floormap');
   else if (['bcs', 'admin', 'scc'].includes(r)) goPage('dashboard');
   else goPage('scan');
 }
@@ -1576,10 +1580,9 @@ function renderShell() {
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12"/></svg>
         <span>${T('tab_history')}</span>
       </button>`;
-  } else if (['verifier', 'audit', 'ctl'].includes(r)) {
-    const isCTL = r === 'ctl';
+  } else if (r === 'ctl') {
+    // CTL: ไม่มี Scan/History (ไม่ได้นับเอง)
     tabs = `
-      ${isCTL ? `
       <button class="tab" data-page="floormap" onclick="goPage('floormap')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
         <span>${T('floor_map')}</span>
@@ -1587,7 +1590,14 @@ function renderShell() {
       <button class="tab" data-page="workflow" onclick="goPage('workflow')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
         <span>${T('workflow_control')}</span>
-      </button>` : ''}
+      </button>
+      <button class="tab" data-page="tiebreaker" onclick="goPage('tiebreaker')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/></svg>
+        <span>${T('tab_tiebreaker')}</span>
+        <span class="tab-badge" id="tabTbBadge" style="display:none;">0</span>
+      </button>`;
+  } else if (['verifier', 'audit'].includes(r)) {
+    tabs = `
       <button class="tab" data-page="tiebreaker" onclick="goPage('tiebreaker')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/></svg>
         <span>${T('tab_tiebreaker')}</span>
@@ -4462,27 +4472,193 @@ function renderFloorMapContent(data) {
   `;
 }
 
-function onFloorMapCellClick(locationCode, status) {
+async function onFloorMapCellClick(locationCode, status) {
   log('Floor map cell click:', locationCode, status);
   
-  // ถ้าเป็น CTL → ไปหน้า workflow control
-  if (user.role === 'ctl') {
-    showModal(`
-      <h3>${locationCode}</h3>
-      <p style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">
-        Status: <strong>${T('status_'+status)}</strong>
-      </p>
-      <div style="display:flex;flex-direction:column;gap:7px;">
-        <button class="btn btn-primary" onclick="closeModal();goPage('workflow');" style="background:var(--violet-500);">
-          ${T('workflow_control')} →
-        </button>
-        <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
-      </div>
-    `);
+  // CTL → action panel | Admin/SCC → action panel | BCS → ดูข้อมูลเฉยๆ
+  if (user.role === 'ctl' || user.role === 'admin' || user.role === 'scc') {
+    showGondolaActions(locationCode, status);
   } else {
-    // BCS/Admin → แสดงข้อมูลเฉยๆ
     showLocationDetail(locationCode);
   }
+}
+
+async function showGondolaActions(locationCode, status) {
+  // Load detail ของ location
+  const { data: gs } = await sb.from('v_gondola_progress')
+    .select('*')
+    .eq('session_id', session?.id || 0)
+    .eq('location_code', locationCode)
+    .maybeSingle();
+  
+  const info = gs || { status: status, location_code: locationCode };
+  const curStatus = info.status || 'closed';
+  
+  // กำหนด actions ตามสถานะ
+  // มี 2 ประเภท: Primary (action ปกติ) + Secondary (ยกเลิก/Reset)
+  let primaryActions = [];
+  let secondaryActions = [];
+  
+  if (curStatus === 'closed') {
+    primaryActions.push({
+      label: '🟢 ' + T('open_for_counter'),
+      action: `wfOpenForCounter('${locationCode}');closeModal();setTimeout(loadFloorMap,500);`,
+      color: 'var(--teal-500)'
+    });
+  } else if (curStatus === 'open_for_counting') {
+    primaryActions.push({
+      label: '✓ ' + T('close_counter') + ' (Counter เสร็จ)',
+      action: `wfCloseCounter('${locationCode}');closeModal();setTimeout(loadFloorMap,500);`,
+      color: 'var(--amber-500)'
+    });
+    secondaryActions.push({
+      label: '⟲ ยกเลิก (กลับ Closed)',
+      action: `wfResetTo('${locationCode}', 'closed');closeModal();setTimeout(loadFloorMap,500);`,
+      color: 'var(--slate-500)'
+    });
+  } else if (curStatus === 'counting') {
+    primaryActions.push({
+      label: '✓ ' + T('close_counter'),
+      action: `wfCloseCounter('${locationCode}');closeModal();setTimeout(loadFloorMap,500);`,
+      color: 'var(--amber-500)'
+    });
+    secondaryActions.push({
+      label: '⟲ ยังไม่นับ (กลับ Closed)',
+      action: `wfResetTo('${locationCode}', 'closed');closeModal();setTimeout(loadFloorMap,500);`,
+      color: 'var(--slate-500)'
+    });
+  } else if (curStatus === 'counted') {
+    primaryActions.push({
+      label: '🟡 ' + T('open_for_verifier'),
+      action: `wfOpenForVerifier('${locationCode}');closeModal();setTimeout(loadFloorMap,500);`,
+      color: 'var(--amber-500)'
+    });
+    secondaryActions.push({
+      label: '⟲ กลับไปนับใหม่ (Counter)',
+      action: `wfResetTo('${locationCode}', 'open_for_counting');closeModal();setTimeout(loadFloorMap,500);`,
+      color: 'var(--teal-500)'
+    });
+  } else if (curStatus === 'open_for_verify') {
+    primaryActions.push({
+      label: '✓ ' + T('close_verifier') + ' (Verifier เสร็จ)',
+      action: `wfCloseVerifier('${locationCode}');closeModal();setTimeout(loadFloorMap,500);`,
+      color: 'var(--violet-500)'
+    });
+    secondaryActions.push({
+      label: '⟲ ยกเลิก (กลับ Counter เสร็จ)',
+      action: `wfResetTo('${locationCode}', 'counted');closeModal();setTimeout(loadFloorMap,500);`,
+      color: 'var(--amber-500)'
+    });
+  } else if (curStatus === 'verifying') {
+    primaryActions.push({
+      label: '✓ ' + T('close_verifier'),
+      action: `wfCloseVerifier('${locationCode}');closeModal();setTimeout(loadFloorMap,500);`,
+      color: 'var(--violet-500)'
+    });
+    secondaryActions.push({
+      label: '⟲ ยังไม่ตรวจ (กลับ Counter เสร็จ)',
+      action: `wfResetTo('${locationCode}', 'counted');closeModal();setTimeout(loadFloorMap,500);`,
+      color: 'var(--amber-500)'
+    });
+  } else if (curStatus === 'verified' || curStatus === 'tiebreaker_needed' || curStatus === 'tiebreaker') {
+    primaryActions.push({
+      label: '✅ ' + T('mark_completed'),
+      action: `wfMarkCompleted('${locationCode}');closeModal();setTimeout(loadFloorMap,500);`,
+      color: 'var(--emerald-500)'
+    });
+    secondaryActions.push({
+      label: '⟲ กลับไป Verify ใหม่',
+      action: `wfResetTo('${locationCode}', 'open_for_verify');closeModal();setTimeout(loadFloorMap,500);`,
+      color: 'var(--amber-500)'
+    });
+  } else if (curStatus === 'completed') {
+    secondaryActions.push({
+      label: '⟲ เปิดใหม่ (Reopen)',
+      action: `wfResetTo('${locationCode}', 'open_for_counting');closeModal();setTimeout(loadFloorMap,500);`,
+      color: 'var(--teal-500)'
+    });
+  }
+  
+  // Status badge color
+  const statusColors = {
+    'closed': 'var(--slate-500)',
+    'open_for_counting': 'var(--teal-500)',
+    'counting': 'var(--teal-600)',
+    'counted': 'var(--amber-500)',
+    'open_for_verify': 'var(--amber-500)',
+    'verifying': 'var(--amber-600)',
+    'verified': 'var(--violet-500)',
+    'tiebreaker_needed': 'var(--rose-500)',
+    'tiebreaker': 'var(--violet-600)',
+    'completed': 'var(--emerald-500)'
+  };
+  
+  showModal(`
+    <div style="text-align:center;margin-bottom:11px;">
+      <div style="font-size:24px;font-weight:700;color:var(--slate-900);font-family:'Space Grotesk',monospace;letter-spacing:2px;">
+        ${locationCode}
+      </div>
+      <div style="display:inline-block;background:${statusColors[curStatus] || 'var(--slate-500)'};color:white;padding:3px 12px;border-radius:6px;font-size:11px;font-weight:700;margin-top:5px;">
+        ${T('status_' + curStatus)}
+      </div>
+    </div>
+    
+    ${(info.counter_name || info.verifier_name || (info.counter_count > 0) || (info.verifier_count > 0)) ? `
+    <div style="background:var(--slate-50);border-radius:10px;padding:9px;margin-bottom:11px;font-size:11px;">
+      ${info.counter_name ? `<div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:var(--slate-500);">👤 Counter:</span><strong>${info.counter_name} (${info.counter_count || 0})</strong></div>` : ''}
+      ${info.verifier_name ? `<div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:var(--slate-500);">🔍 Verifier:</span><strong>${info.verifier_name} (${info.verifier_count || 0})</strong></div>` : ''}
+      ${info.tb_count > 0 ? `<div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:var(--slate-500);">⚖️ Tiebreaker:</span><strong>${info.tb_count}</strong></div>` : ''}
+    </div>` : ''}
+    
+    ${primaryActions.length > 0 ? `
+      <div style="margin-bottom:9px;">
+        <div style="font-size:10px;color:var(--slate-500);text-transform:uppercase;font-weight:700;margin-bottom:6px;">การดำเนินการ</div>
+        ${primaryActions.map(a => `
+          <button class="btn" style="background:${a.color};color:white;width:100%;margin-bottom:6px;font-size:12px;padding:11px;font-weight:700;" onclick="${a.action}">
+            ${a.label}
+          </button>
+        `).join('')}
+      </div>
+    ` : ''}
+    
+    ${secondaryActions.length > 0 ? `
+      <div style="border-top:1px solid var(--slate-200);padding-top:9px;">
+        <div style="font-size:10px;color:var(--slate-500);text-transform:uppercase;font-weight:700;margin-bottom:6px;">⚠️ แก้ไข / ยกเลิก</div>
+        ${secondaryActions.map(a => `
+          <button class="btn" style="background:white;color:${a.color};border:1.5px solid ${a.color};width:100%;margin-bottom:6px;font-size:11px;padding:9px;font-weight:600;" onclick="if(confirm('ยืนยันการแก้ไขสถานะ?')){${a.action}}">
+            ${a.label}
+          </button>
+        `).join('')}
+      </div>
+    ` : ''}
+    
+    <div style="display:flex;gap:6px;margin-top:9px;">
+      <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;">${T('cancel')}</button>
+      <button class="btn btn-secondary" onclick="closeModal();showLocationDetail('${locationCode}');" style="flex:1;font-size:11px;">
+        📋 ดูการนับ
+      </button>
+    </div>
+  `);
+}
+
+// Reset gondola to any status (สำหรับ CTL แก้ไข)
+async function wfResetTo(locCode, targetStatus) {
+  log('CTL reset gondola:', locCode, '→', targetStatus);
+  
+  const { error } = await sb.rpc('reopen_gondola', {
+    p_session_id: session.id,
+    p_location_code: locCode,
+    p_ctl_user_id: user.id,
+    p_target_status: targetStatus
+  });
+  
+  if (error) {
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  
+  showToast(`✅ ${locCode} → ${T('status_' + targetStatus)}`, 'success');
+  if (typeof loadWorkflowList === 'function') loadWorkflowList();
 }
 
 async function showLocationDetail(locationCode) {
@@ -4808,23 +4984,27 @@ function renderWorkflowList(items) {
     const status = item.status || 'closed';
     const statusText = T('status_' + status);
     
-    // Action buttons based on status
+    // Action buttons based on status + undo button
     let actions = '';
-    if (status === 'closed' || status === 'open_for_counting') {
-      actions = `
-        <button class="wf-btn wf-btn-close" onclick="wfCloseCounter('${item.location_code}')">${T('close_counter')} →</button>
-      `;
-      if (status === 'closed') {
-        actions = `<button class="wf-btn wf-btn-open" onclick="wfOpenForCounter('${item.location_code}')">${T('open_for_counter')}</button>`;
-      }
+    let undoBtn = '';
+    
+    if (status === 'closed') {
+      actions = `<button class="wf-btn wf-btn-open" onclick="wfOpenForCounter('${item.location_code}')">${T('open_for_counter')}</button>`;
+    } else if (status === 'open_for_counting') {
+      actions = `<button class="wf-btn wf-btn-close" onclick="wfCloseCounter('${item.location_code}')">${T('close_counter')} →</button>`;
+      undoBtn = `<button class="wf-btn wf-btn-reopen" onclick="if(confirm('ยกเลิก ${item.location_code}?')){wfResetTo('${item.location_code}','closed');loadWorkflowList();}" style="font-size:10px;flex:0 0 auto;">⟲</button>`;
     } else if (status === 'counting') {
       actions = `<button class="wf-btn wf-btn-close" onclick="wfCloseCounter('${item.location_code}')">${T('close_counter')} ✓</button>`;
+      undoBtn = `<button class="wf-btn wf-btn-reopen" onclick="if(confirm('ยังไม่นับ - กลับ Closed?')){wfResetTo('${item.location_code}','closed');loadWorkflowList();}" style="font-size:10px;flex:0 0 auto;">⟲</button>`;
     } else if (status === 'counted') {
       actions = `<button class="wf-btn wf-btn-verify" onclick="wfOpenForVerifier('${item.location_code}')">${T('open_for_verifier')} →</button>`;
+      undoBtn = `<button class="wf-btn wf-btn-reopen" onclick="if(confirm('กลับไปนับใหม่?')){wfResetTo('${item.location_code}','open_for_counting');loadWorkflowList();}" style="font-size:10px;flex:0 0 auto;">⟲</button>`;
     } else if (status === 'open_for_verify' || status === 'verifying') {
       actions = `<button class="wf-btn wf-btn-verify" onclick="wfCloseVerifier('${item.location_code}')">${T('close_verifier')} ✓</button>`;
+      undoBtn = `<button class="wf-btn wf-btn-reopen" onclick="if(confirm('ยังไม่ตรวจ - กลับ Counter เสร็จ?')){wfResetTo('${item.location_code}','counted');loadWorkflowList();}" style="font-size:10px;flex:0 0 auto;">⟲</button>`;
     } else if (status === 'verified' || status === 'tiebreaker_needed' || status === 'tiebreaker') {
       actions = `<button class="wf-btn wf-btn-complete" onclick="wfMarkCompleted('${item.location_code}')">${T('mark_completed')} ✓</button>`;
+      undoBtn = `<button class="wf-btn wf-btn-reopen" onclick="if(confirm('กลับไป Verify ใหม่?')){wfResetTo('${item.location_code}','open_for_verify');loadWorkflowList();}" style="font-size:10px;flex:0 0 auto;">⟲</button>`;
     } else if (status === 'completed') {
       actions = `<button class="wf-btn wf-btn-reopen" onclick="wfReopen('${item.location_code}')">${T('reopen')}</button>`;
     }
@@ -4844,7 +5024,7 @@ function renderWorkflowList(items) {
             <div class="wf-stats">${counter}${verifier}${tb}</div>
           </div>
         </div>
-        <div class="wf-actions">${actions}</div>
+        <div class="wf-actions">${actions}${undoBtn}</div>
       </div>
     `;
   }).join('');
@@ -5448,6 +5628,8 @@ window.onFloorMapCellClick = onFloorMapCellClick;
 window.showLocationDetail = showLocationDetail;
 window.openAddGondolaModal = openAddGondolaModal;
 window.executeAddGondola = executeAddGondola;
+window.showGondolaActions = showGondolaActions;
+window.wfResetTo = wfResetTo;
 window.downloadImportTemplate = downloadImportTemplate;
 window.onPosFileSelected = onPosFileSelected;
 window.showImportPreview = showImportPreview;
@@ -5486,10 +5668,12 @@ applyI18n();
       }
       
       const ctx = JSON.parse(localStorage.getItem('fs_context') || '{}');
-      const needsZone = ['counter', 'verifier', 'ctl', 'staff', 'audit'].includes(user.role);
+      const needsZone = ['counter', 'verifier', 'staff', 'audit'].includes(user.role);
+      
+      // โหลด zones+locations เสมอ
+      await loadZonesAndLocations();
       
       if (needsZone) {
-        await loadZonesAndLocations();
         if (ctx.zone) zone = allZones.find(z => z.id == ctx.zone);
         if (ctx.locType) currentLocType = ctx.locType;
         if (ctx.location) loc = allLocations.find(l => l.location_code === ctx.location);
