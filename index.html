@@ -4971,41 +4971,48 @@ function downloadImportTemplate() {
   
   // Sheet 1: Instructions
   const instData = [
-    ['POS DATA IMPORT - คู่มือ'],
+    ['POS DATA IMPORT - คู่มือ / ຄູ່ມື'],
     [],
-    ['Step 1: ดึงข้อมูลจาก POS'],
-    ['  • Login ระบบ POS'],
+    ['Step 1: ດຶງຂໍ້ມູນຈາກ Sabuysoft (ดึงข้อมูลจาก POS)'],
+    ['  • Login ระบบ Sabuysoft / POS'],
     ['  • Reports → Inventory → Current Stock'],
     ['  • Filter: Branch = PAKSE'],
     ['  • Export Excel'],
     [],
-    ['Step 2: กรอกข้อมูลใน Sheet "Products"'],
-    ['  • Barcode (จำเป็น)'],
-    ['  • Product Name TH/LO'],
-    ['  • POS Qty (จำเป็น)'],
-    ['  • Sell Price (จำเป็น)'],
-    ['  • Gondola Code (เช่น 01A01)'],
+    ['Step 2: ກອກຂໍ້ມູນໃນ Sheet "Products" (กรอกข้อมูลใน Sheet "Products")'],
+    ['  • Barcode (ບັງຄັບ / จำเป็น)'],
+    ['  • Name LO (ບັງຄັບ / จำเป็น) - ຊື່ສິນຄ້າພາສາລາວ'],
+    ['  • Name TH (ທາງເລືອກ / ตัวเลือก) - ชื่อสินค้าภาษาไทย'],
+    ['  • POS Qty (ບັງຄັບ / จำเป็น)'],
+    ['  • Sell Price (ບັງຄັບ / จำเป็น)'],
+    ['  • Gondola Code (ເຊັ່ນ / เช่น 01A01)'],
     [],
-    ['Step 3: Upload ในแอพ → Settings → Import POS'],
+    ['Step 3: Upload ໃນແອັບ → Settings → Import POS'],
     [],
-    ['⚠️ คำเตือน:'],
-    ['  • ห้าม Import ระหว่างนับสต๊อค'],
-    ['  • Reset ข้อมูลเก่าก่อน (ถ้าเริ่มใหม่)'],
-    ['  • สินค้าที่ไม่อยู่ในไฟล์ จะถูกตั้ง inactive'],
+    ['⚠️ ຄຳເຕືອນ / คำเตือน:'],
+    ['  • ຫ້າມ Import ລະຫວ່າງນັບສະຕ໋ອກ / ห้าม Import ระหว่างนับสต๊อก'],
+    ['  • Reset ຂໍ້ມູນເກົ່າກ່ອນ (ຖ້າເລີ່ມໃໝ່) / Reset ข้อมูลเก่าก่อน (ถ้าเริ่มใหม่)'],
+    ['  • ສິນຄ້າທີ່ບໍ່ຢູ່ໃນໄຟລ໌ ຈະຖືກຕັ້ງ inactive / สินค้าที่ไม่อยู่ในไฟล์ จะถูกตั้ง inactive'],
+    [],
+    ['📌 ໝາຍເຫດ: Sabuysoft ໃຊ້ພາສາລາວເປັນຫຼັກ — ໃຫ້ກອກ Name LO ກ່ອນ'],
+    ['📌 หมายเหตุ: Sabuysoft ใช้ภาษาลาวเป็นหลัก — ให้กรอก Name LO ก่อน'],
   ];
   const ws1 = XLSX.utils.aoa_to_sheet(instData);
-  ws1['!cols'] = [{wch:60}];
+  ws1['!cols'] = [{wch:70}];
   XLSX.utils.book_append_sheet(wb, ws1, 'Instructions');
   
-  // Sheet 2: Products
+  // Sheet 2: Products — Name LO เป็นหลัก, Name TH เป็น optional
   const prodData = [
-    ['Barcode*', 'Name TH*', 'Name LO', 'Unit TH', 'Unit LO', 'POS Qty*', 'Sell Price*', 'Gondola Code', 'Is Markdown'],
-    ['8850127010077', 'MILO ผงแอ๊กทีบี โถ 140g', 'MILO ໂມໂລ ໂຖ 140g', 'ชิ้น', 'ອັນ', 25, 15000, '10A03', false],
-    ['8851234567890', 'น้ำดื่ม Mineral 600ml', 'ນ້ຳດື່ມ 600ml', 'ขวด', 'ຂວດ', 100, 5000, 'W028', false],
-    ['8857890123456', 'มาม่า รสต้มยำกุ้ง', 'ມາມ່າ ຕົ້ມຍຳ', 'ซอง', 'ຊອງ', 50, 3500, '08A01', true],
+    ['Barcode*', 'Name LO*', 'Name TH', 'Unit LO', 'Unit TH', 'POS Qty*', 'Sell Price*', 'Gondola Code', 'Is Markdown'],
+    ['8850127010077', 'MILO ໂມໂລ ໂຖ 140g', 'MILO ผงแอ๊กทีบี โถ 140g', 'ອັນ', 'ชิ้น', 25, 15000, '10A03', false],
+    ['8851234567890', 'ນ້ຳດື່ມ 600ml', 'น้ำดื่ม Mineral 600ml', 'ຂວດ', 'ขวด', 100, 5000, 'W028', false],
+    ['8857890123456', 'ມາມ່າ ຕົ້ມຍຳ', 'มาม่า รสต้มยำกุ้ง', 'ຊອງ', 'ซอง', 50, 3500, '08A01', true],
   ];
   const ws2 = XLSX.utils.aoa_to_sheet(prodData);
   ws2['!cols'] = [{wch:16},{wch:35},{wch:35},{wch:10},{wch:10},{wch:10},{wch:12},{wch:14},{wch:12}];
+  
+  // Highlight header row + required columns
+  // (SheetJS Free ไม่ support styling แต่ก็พอใช้ได้)
   XLSX.utils.book_append_sheet(wb, ws2, 'Products');
   
   XLSX.writeFile(wb, 'POS-Import-Template.xlsx');
@@ -5042,19 +5049,28 @@ function onPosFileSelected(event) {
         const barcode = row['Barcode*'] || row['Barcode'] || row['barcode'] || row['BARCODE'];
         if (!barcode) return;
         
+        // Name LO เป็นหลัก (Sabuysoft ใช้ภาษาลาว)
+        const name_lo = row['Name LO*'] || row['Name LO'] || row['Product Name LO*'] || 
+                        row['Product Name LO'] || row['name_lo'] || '';
+        const name_th = row['Name TH'] || row['Name TH*'] || row['Product Name TH'] || 
+                        row['Product Name TH*'] || row['name_th'] || '';
+        
+        // ถ้าไม่มีชื่อทั้ง 2 ภาษา = ข้าม
+        if (!name_lo && !name_th) return;
+        
         const product = {
           barcode: String(barcode).trim(),
-          name_th: row['Name TH*'] || row['Name TH'] || row['Product Name TH*'] || row['Product Name TH'] || row['name_th'] || '',
-          name_lo: row['Name LO'] || row['Product Name LO'] || row['name_lo'] || null,
-          unit_th: row['Unit TH'] || row['unit_th'] || 'ชิ้น',
+          name_lo: name_lo || name_th || '',  // ใช้ name_th เป็น fallback ถ้า name_lo ว่าง
+          name_th: name_th || name_lo || '',  // ใช้ name_lo เป็น fallback ถ้า name_th ว่าง
           unit_lo: row['Unit LO'] || row['unit_lo'] || 'ອັນ',
+          unit_th: row['Unit TH'] || row['unit_th'] || 'ชิ้น',
           pos_qty: parseInt(row['POS Qty*'] || row['POS Qty'] || row['pos_qty'] || 0) || 0,
           sell_price: parseFloat(row['Sell Price*'] || row['Sell Price (LAK)*'] || row['Sell Price'] || row['sell_price'] || 0) || 0,
           gondola_code: row['Gondola Code'] || row['gondola_code'] || null,
           is_markdown: row['Is Markdown'] === true || row['Is Markdown'] === 'TRUE' || row['Is Markdown'] === 'true'
         };
         
-        if (product.barcode && product.name_th) {
+        if (product.barcode && (product.name_lo || product.name_th)) {
           products.push(product);
         }
       });
@@ -5117,14 +5133,16 @@ function showImportPreview(products) {
           </tr>
         </thead>
         <tbody>
-          ${sample.map(p => `
+          ${sample.map(p => {
+            const displayName = lang === 'lo' ? (p.name_lo || p.name_th) : (p.name_th || p.name_lo);
+            return `
             <tr style="border-top:1px solid var(--slate-100);">
               <td style="padding:5px 4px;font-family:monospace;">${p.barcode}</td>
-              <td style="padding:5px 4px;">${(p.name_th || '').substring(0, 30)}</td>
+              <td style="padding:5px 4px;">${(displayName || '').substring(0, 30)}</td>
               <td style="padding:5px 4px;text-align:right;font-weight:600;">${p.pos_qty}</td>
               <td style="padding:5px 4px;text-align:right;">${p.sell_price.toLocaleString()}</td>
             </tr>
-          `).join('')}
+          `;}).join('')}
           ${products.length > 10 ? `<tr><td colspan="4" style="padding:6px;text-align:center;color:var(--slate-500);font-style:italic;">... และอีก ${products.length - 10} รายการ</td></tr>` : ''}
         </tbody>
       </table>
