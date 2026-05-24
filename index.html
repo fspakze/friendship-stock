@@ -2380,20 +2380,96 @@ async function openSelectiveCopyModal() {
   const allZones = zonesRes.data || [];
   const allLocs = locsRes.data || [];
   
-  // Group locations by zone_id
-  _copyState.locsByZone = {};
-  allLocs.forEach(l => {
-    const zid = l.zone_id || 'no-zone';
-    if (!_copyState.locsByZone[zid]) _copyState.locsByZone[zid] = [];
-    _copyState.locsByZone[zid].push({ ...l, selected: false });
-  });
+  // เก็บ zones lookup เพื่อใช้ตอน copy
+  _copyState.zonesByOldId = {};
+  allZones.forEach(z => { _copyState.zonesByOldId[z.id] = z; });
+  _copyState.allZones = allZones;
   
-  // Locations without zone
-  if (_copyState.locsByZone['no-zone']) {
-    allZones.push({ id: 'no-zone', code: '?', name_lo: 'ບໍ່ມີໂຊນ', name_th: 'ไม่มีโซน' });
+  // ==================== GROUP BY GONDOLA NUMBER ====================
+  // Pattern:
+  //   01A01 → Gondola "01" (number = 01)
+  //   01B03 → Gondola "01" 
+  //   01E02 → Gondola "01"
+  //   02A01 → Gondola "02"
+  //   W028  → Wall (group "W")
+  //   WT028 → Wall Top (group "WT")
+  //   WH050 → Warehouse (group "WH")
+  //   D01, D02 → Display (group "D")
+  
+  function parseLocationCode(code) {
+    const upper = (code || '').toUpperCase().trim();
+    
+    // 01A01, 02B03, 10AT05 → number group
+    const numMatch = upper.match(/^(\d{2,})([A-Z]+)(\d+)$/);
+    if (numMatch) {
+      return {
+        groupKey: numMatch[1],        // "01", "02", "10"
+        groupLabel: `Gondola ${numMatch[1]}`,
+        type: numMatch[2],            // "A", "B", "E", "AT"
+        bay: numMatch[3]              // "01", "03"
+      };
+    }
+    
+    // W028, WT028, WH050 → letter prefix
+    const letterMatch = upper.match(/^([A-Z]+)(\d+)$/);
+    if (letterMatch) {
+      const prefix = letterMatch[1];
+      let label = prefix;
+      if (prefix === 'W') label = 'Wall';
+      else if (prefix === 'WT') label = 'Wall Top';
+      else if (prefix === 'WH') label = 'Warehouse';
+      else if (prefix === 'D') label = 'Display';
+      else if (prefix === 'C') label = 'Cashier';
+      else if (prefix === 'R') label = 'Rack';
+      return {
+        groupKey: 'z' + prefix,       // 'zW' (prefix z to sort after numbers)
+        groupLabel: label,
+        type: prefix,
+        bay: letterMatch[2]
+      };
+    }
+    
+    // Other patterns
+    return {
+      groupKey: 'zzz_other',
+      groupLabel: isLao ? 'ອື່ນໆ' : 'อื่นๆ',
+      type: '?',
+      bay: code
+    };
   }
   
-  _copyState.zones = allZones.map(z => ({ ...z, selected: false }));
+  _copyState.groups = {};  // groupKey → { label, locations: [] }
+  
+  allLocs.forEach(l => {
+    const parsed = parseLocationCode(l.location_code);
+    
+    if (!_copyState.groups[parsed.groupKey]) {
+      _copyState.groups[parsed.groupKey] = {
+        groupKey: parsed.groupKey,
+        groupLabel: parsed.groupLabel,
+        locations: []
+      };
+    }
+    _copyState.groups[parsed.groupKey].locations.push({
+      ...l,
+      selected: false,
+      _parsed: parsed
+    });
+  });
+  
+  // Sort locations within each group: by type (A→B→E→AT...) then by bay
+  Object.values(_copyState.groups).forEach(g => {
+    g.locations.sort((a, b) => {
+      const typeA = a._parsed.type || '';
+      const typeB = b._parsed.type || '';
+      if (typeA !== typeB) return typeA.localeCompare(typeB);
+      // Numeric sort for bay
+      const bayA = parseInt(a._parsed.bay) || 0;
+      const bayB = parseInt(b._parsed.bay) || 0;
+      return bayA - bayB;
+    });
+  });
+  
   _copyState.search = '';
   
   renderSelectiveCopyModal();
@@ -2402,28 +2478,24 @@ async function openSelectiveCopyModal() {
 function renderSelectiveCopyModal() {
   const isLao = lang === 'lo';
   
-  // Apply search filter to locations
-  const search = (_copyState.search || '').toLowerCase().trim();
-  
   // นับ stats
   let selectedLocCount = 0;
-  let selectedZones = new Set();
+  let selectedGroups = new Set();
   let totalLocs = 0;
   
-  _copyState.zones.forEach(z => {
-    const locs = _copyState.locsByZone[z.id] || [];
-    totalLocs += locs.length;
-    locs.forEach(l => {
+  Object.values(_copyState.groups).forEach(g => {
+    totalLocs += g.locations.length;
+    g.locations.forEach(l => {
       if (l.selected) {
         selectedLocCount++;
-        selectedZones.add(z.id);
+        selectedGroups.add(g.groupKey);
       }
     });
   });
   
   showModal(`
     <h3 style="display:flex;align-items:center;gap:7px;">
-      🎯 ${isLao ? 'ເລືອກ Gondola ທີ່ຈະ Copy' : 'เลือก Gondola ที่จะ Copy'}
+      🎯 ${isLao ? 'ເລືອກ Gondola' : 'เลือก Gondola'}
       <span style="font-size:11px;color:var(--slate-500);font-weight:500;margin-left:auto;">
         ${branch?.code || ''}
       </span>
@@ -2432,7 +2504,7 @@ function renderSelectiveCopyModal() {
     <!-- Search -->
     <div style="margin-bottom:9px;">
       <input type="text" id="copySearch" 
-             placeholder="🔍 ${isLao ? 'ຄົ້ນຫາ code...' : 'ค้นหา code...'}"
+             placeholder="🔍 ${isLao ? 'ຄົ້ນຫາ code (ເຊັ່ນ: 01, A01, W028)...' : 'ค้นหา code (เช่น: 01, A01, W028)...'}"
              value="${_copyState.search}"
              oninput="onCopySearchChange(this.value)"
              class="form-input" style="font-size:11px;padding:7px 11px;">
@@ -2445,8 +2517,8 @@ function renderSelectiveCopyModal() {
       </div>
       <div style="display:flex;gap:11px;align-items:center;">
         <div style="font-size:12px;color:var(--violet-600);font-weight:700;">
-          <span style="font-family:'Space Grotesk',monospace;">${selectedZones.size}</span> 
-          <span style="font-size:10px;">${isLao ? 'ໂຊນ' : 'โซน'}</span>
+          <span style="font-family:'Space Grotesk',monospace;">${selectedGroups.size}</span> 
+          <span style="font-size:10px;">${isLao ? 'ກຸ່ມ' : 'กลุ่ม'}</span>
         </div>
         <div style="font-size:12px;color:var(--teal-700);font-weight:700;">
           <span style="font-family:'Space Grotesk',monospace;">${selectedLocCount}</span>
@@ -2465,9 +2537,9 @@ function renderSelectiveCopyModal() {
       </button>
     </div>
     
-    <!-- Zones + Locations List -->
+    <!-- Groups List -->
     <div id="copyList" style="max-height:380px;overflow-y:auto;border:1px solid var(--slate-200);border-radius:9px;padding:7px;background:var(--slate-50);">
-      ${renderCopyList(search)}
+      ${renderCopyList((_copyState.search || '').toLowerCase().trim())}
     </div>
     
     <div class="action-row" style="margin-top:11px;">
@@ -2487,79 +2559,96 @@ function renderCopyList(search) {
   let html = '';
   let hasResults = false;
   
-  _copyState.zones.forEach(zone => {
-    const allLocsInZone = _copyState.locsByZone[zone.id] || [];
+  // Sort groups by groupKey (numbers first, then letter-prefixed)
+  const sortedGroups = Object.values(_copyState.groups).sort((a, b) => {
+    // Numbers (01, 02...) come before letters (zW, zWT...)
+    return a.groupKey.localeCompare(b.groupKey, undefined, { numeric: true });
+  });
+  
+  sortedGroups.forEach(group => {
+    const allLocsInGroup = group.locations;
     
     // Apply search filter
-    let locsInZone = allLocsInZone;
+    let locsInGroup = allLocsInGroup;
     if (search) {
-      locsInZone = allLocsInZone.filter(l => 
+      locsInGroup = allLocsInGroup.filter(l => 
         (l.location_code || '').toLowerCase().includes(search)
       );
     }
     
-    if (locsInZone.length === 0) return; // skip empty zones
+    if (locsInGroup.length === 0) return;
     hasResults = true;
     
-    // Count selected in this zone
-    const selectedInZone = locsInZone.filter(l => l.selected).length;
-    const allSelected = locsInZone.length > 0 && selectedInZone === locsInZone.length;
-    const someSelected = selectedInZone > 0 && selectedInZone < locsInZone.length;
+    // Count selected in this group
+    const selectedInGroup = locsInGroup.filter(l => l.selected).length;
+    const allSelected = locsInGroup.length > 0 && selectedInGroup === locsInGroup.length;
+    const someSelected = selectedInGroup > 0 && selectedInGroup < locsInGroup.length;
     
-    const zoneName = isLao ? (zone.name_lo || zone.name_th || zone.code) : (zone.name_th || zone.name_lo || zone.code);
+    // Get unique types in this group (e.g., "A, B, E")
+    const typesInGroup = [...new Set(locsInGroup.map(l => l._parsed.type))].sort().join(', ');
     
-    // Zone header (clickable to toggle all)
+    // Group header
     html += `
       <div style="margin-bottom:9px;">
-        <div onclick="toggleZoneSelection('${zone.id}')"
+        <div onclick="toggleZoneSelection('${group.groupKey}')"
              style="background:white;border:2px solid ${allSelected ? 'var(--teal-500)' : someSelected ? 'var(--amber-500)' : 'var(--slate-200)'};border-radius:9px;padding:9px 11px;display:flex;align-items:center;gap:9px;cursor:pointer;transition:all 0.15s;">
           <div style="font-size:18px;flex-shrink:0;">
             ${allSelected ? '✅' : someSelected ? '🟡' : '⬜'}
           </div>
           <div style="flex:1;min-width:0;">
-            <div style="font-weight:800;color:var(--slate-900);font-size:12px;font-family:'Space Grotesk',monospace;">
-              ${zone.code} - ${zoneName}
+            <div style="font-weight:800;color:var(--slate-900);font-size:13px;font-family:'Space Grotesk',monospace;">
+              ${group.groupLabel}
             </div>
             <div style="font-size:10px;color:var(--slate-500);">
-              ${selectedInZone}/${locsInZone.length} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}
+              ${selectedInGroup}/${locsInGroup.length} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'} • Type: ${typesInGroup}
             </div>
           </div>
         </div>
         
-        <!-- Locations in this zone -->
+        <!-- Locations in this group -->
         <div style="padding:5px 0 5px 21px;border-left:2px dashed var(--slate-200);margin-left:7px;">
     `;
     
-    // Show locations (limit display, but keep all in state)
-    const SHOW_LIMIT = 50; // แสดงสูงสุด 50 ต่อ zone
-    const locsToShow = locsInZone.slice(0, SHOW_LIMIT);
-    
-    locsToShow.forEach(loc => {
-      html += `
-        <div onclick="toggleLocationSelection('${zone.id}', ${loc.id})"
-             style="background:white;border:1px solid ${loc.selected ? 'var(--teal-500)' : 'var(--slate-200)'};border-radius:7px;padding:5px 9px;margin-bottom:3px;display:flex;align-items:center;gap:7px;cursor:pointer;transition:all 0.1s;${loc.selected ? 'background:var(--teal-100);' : ''}">
-          <div style="font-size:13px;flex-shrink:0;">
-            ${loc.selected ? '☑️' : '⬜'}
-          </div>
-          <div style="flex:1;min-width:0;display:flex;align-items:center;gap:7px;">
-            <span style="font-family:'Space Grotesk',monospace;font-size:11px;font-weight:700;color:var(--slate-900);">
-              ${loc.location_code}
-            </span>
-            <span style="font-size:9px;color:var(--slate-500);background:var(--slate-100);padding:1px 5px;border-radius:4px;">
-              ${loc.location_type}
-            </span>
-          </div>
-        </div>
-      `;
+    // Group locations by TYPE within the group (A, B, E, AT...)
+    const byType = {};
+    locsInGroup.forEach(l => {
+      const t = l._parsed.type || '?';
+      if (!byType[t]) byType[t] = [];
+      byType[t].push(l);
     });
     
-    if (locsInZone.length > SHOW_LIMIT) {
-      html += `
-        <div style="text-align:center;font-size:10px;color:var(--slate-500);font-style:italic;padding:5px;">
-          + ${locsInZone.length - SHOW_LIMIT} ${isLao ? 'ອື່ນໆ' : 'อื่นๆ'} (${isLao ? 'ໃຊ້ "ເລືອກທັງໝົດ"' : 'ใช้ "เลือกทั้งหมด"'})
-        </div>
-      `;
-    }
+    Object.keys(byType).sort().forEach(typeKey => {
+      const typeLocs = byType[typeKey];
+      const typeSelected = typeLocs.filter(l => l.selected).length;
+      
+      // Type sub-header (only if multiple types)
+      if (Object.keys(byType).length > 1) {
+        html += `
+          <div style="font-size:10px;color:var(--violet-500);font-weight:700;margin:5px 0 3px;padding-left:3px;">
+            ▸ ${typeKey} <span style="color:var(--slate-400);font-weight:500;">(${typeSelected}/${typeLocs.length})</span>
+          </div>
+        `;
+      }
+      
+      typeLocs.forEach(loc => {
+        html += `
+          <div onclick="toggleLocationSelection('${group.groupKey}', ${loc.id})"
+               style="background:white;border:1px solid ${loc.selected ? 'var(--teal-500)' : 'var(--slate-200)'};border-radius:7px;padding:5px 9px;margin-bottom:3px;display:flex;align-items:center;gap:7px;cursor:pointer;transition:all 0.1s;${loc.selected ? 'background:var(--teal-100);' : ''}">
+            <div style="font-size:13px;flex-shrink:0;">
+              ${loc.selected ? '☑️' : '⬜'}
+            </div>
+            <div style="flex:1;min-width:0;display:flex;align-items:center;gap:7px;">
+              <span style="font-family:'Space Grotesk',monospace;font-size:11px;font-weight:700;color:var(--slate-900);">
+                ${loc.location_code}
+              </span>
+              <span style="font-size:9px;color:var(--slate-500);background:var(--slate-100);padding:1px 5px;border-radius:4px;">
+                ${loc.location_type}
+              </span>
+            </div>
+          </div>
+        `;
+      });
+    });
     
     html += '</div></div>';
   });
@@ -2573,14 +2662,16 @@ function renderCopyList(search) {
   return html;
 }
 
-function toggleZoneSelection(zoneId) {
-  // Find current state (consider all visible after search)
-  const search = (_copyState.search || '').toLowerCase().trim();
-  const allLocsInZone = _copyState.locsByZone[zoneId] || [];
+function toggleZoneSelection(groupKey) {
+  const group = _copyState.groups[groupKey];
+  if (!group) return;
   
-  let visibleLocs = allLocsInZone;
+  const search = (_copyState.search || '').toLowerCase().trim();
+  
+  // Find visible locations (consider search filter)
+  let visibleLocs = group.locations;
   if (search) {
-    visibleLocs = allLocsInZone.filter(l => (l.location_code || '').toLowerCase().includes(search));
+    visibleLocs = group.locations.filter(l => (l.location_code || '').toLowerCase().includes(search));
   }
   
   if (visibleLocs.length === 0) return;
@@ -2588,7 +2679,6 @@ function toggleZoneSelection(zoneId) {
   const allSelected = visibleLocs.every(l => l.selected);
   const newState = !allSelected;
   
-  // Toggle all VISIBLE locations
   visibleLocs.forEach(l => {
     l.selected = newState;
   });
@@ -2596,9 +2686,11 @@ function toggleZoneSelection(zoneId) {
   renderSelectiveCopyModal();
 }
 
-function toggleLocationSelection(zoneId, locId) {
-  const locs = _copyState.locsByZone[zoneId] || [];
-  const loc = locs.find(l => l.id === locId);
+function toggleLocationSelection(groupKey, locId) {
+  const group = _copyState.groups[groupKey];
+  if (!group) return;
+  
+  const loc = group.locations.find(l => l.id === locId);
   if (loc) {
     loc.selected = !loc.selected;
     renderSelectiveCopyModal();
@@ -2607,10 +2699,9 @@ function toggleLocationSelection(zoneId, locId) {
 
 function selectAllInCopy(state) {
   const search = (_copyState.search || '').toLowerCase().trim();
-  _copyState.zones.forEach(z => {
-    const allLocs = _copyState.locsByZone[z.id] || [];
-    allLocs.forEach(l => {
-      // Apply ตาม search filter ปัจจุบัน
+  
+  Object.values(_copyState.groups).forEach(g => {
+    g.locations.forEach(l => {
       if (search) {
         if ((l.location_code || '').toLowerCase().includes(search)) {
           l.selected = state;
@@ -2620,12 +2711,12 @@ function selectAllInCopy(state) {
       }
     });
   });
+  
   renderSelectiveCopyModal();
 }
 
 function onCopySearchChange(value) {
   _copyState.search = (value || '').trim();
-  // Debounce
   clearTimeout(window._copySearchTimer);
   window._copySearchTimer = setTimeout(() => {
     const listEl = document.getElementById('copyList');
@@ -2640,16 +2731,15 @@ async function executeCopyFromSupermart() {
     return;
   }
   
-  // รวบรวม selected locations + their zones
+  // รวบรวม selected locations
   const selectedLocs = [];
-  const selectedZoneIds = new Set();
+  const requiredOldZoneIds = new Set();
   
-  _copyState.zones.forEach(z => {
-    const locs = _copyState.locsByZone[z.id] || [];
-    locs.forEach(l => {
+  Object.values(_copyState.groups).forEach(g => {
+    g.locations.forEach(l => {
       if (l.selected) {
         selectedLocs.push(l);
-        if (z.id !== 'no-zone') selectedZoneIds.add(z.id);
+        if (l.zone_id) requiredOldZoneIds.add(l.zone_id);
       }
     });
   });
@@ -2660,18 +2750,19 @@ async function executeCopyFromSupermart() {
   }
   
   if (!confirm(isLao 
-    ? `ກ໊ອບປີ້ ${selectedZoneIds.size} ໂຊນ + ${selectedLocs.length} ຕຳແໜ່ງ ມາ ${branch.code}?`
-    : `คัดลอก ${selectedZoneIds.size} โซน + ${selectedLocs.length} ตำแหน่ง มา ${branch.code}?`)) return;
+    ? `ກ໊ອບປີ້ ${selectedLocs.length} ຕຳແໜ່ງ ມາ ${branch.code}?`
+    : `คัดลอก ${selectedLocs.length} ตำแหน่ง มา ${branch.code}?`)) return;
   
   showToast(isLao ? '⏳ ກຳລັງກ໊ອບປີ້...' : '⏳ กำลังคัดลอก...', 'success');
   
   try {
-    // 1. Copy selected zones
+    // 1. Copy required zones first (zones ที่ locations ที่เลือกใช้)
     let zonesCopied = 0;
     const zoneIdMap = {}; // old_zone_id → new_zone_id
     
-    for (const zone of _copyState.zones) {
-      if (!selectedZoneIds.has(zone.id) || zone.id === 'no-zone') continue;
+    for (const oldZoneId of requiredOldZoneIds) {
+      const zone = _copyState.zonesByOldId[oldZoneId];
+      if (!zone) continue;
       
       // เช็คว่ามีอยู่แล้วใน branch นี้ไหม
       const { data: existing } = await sb
@@ -2679,7 +2770,7 @@ async function executeCopyFromSupermart() {
         .eq('branch_id', branch.id).eq('code', zone.code).maybeSingle();
       
       if (existing) {
-        zoneIdMap[zone.id] = existing.id;
+        zoneIdMap[oldZoneId] = existing.id;
         continue;
       }
       
@@ -2701,11 +2792,11 @@ async function executeCopyFromSupermart() {
         console.warn('[FS] Zone copy err:', ie.message);
         continue;
       }
-      zoneIdMap[zone.id] = inserted.id;
+      zoneIdMap[oldZoneId] = inserted.id;
       zonesCopied++;
     }
     
-    // 2. Copy selected locations (batch insert)
+    // 2. Copy locations (batch insert)
     let locsCopied = 0;
     let locsFailed = 0;
     const BATCH = 100;
@@ -2741,7 +2832,7 @@ async function executeCopyFromSupermart() {
     );
     
     // Clear state
-    _copyState = { zones: [], locsByZone: {}, search: '' };
+    _copyState = { zones: [], locsByZone: {}, groups: {}, search: '' };
     
     // Reload
     await loadZonesAndLocations();
