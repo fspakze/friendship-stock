@@ -1033,6 +1033,13 @@
     background: var(--violet-500);
     color: white;
   }
+  .qnav-section-label {
+    font-size: 9px; font-weight: 700; color: var(--slate-500); 
+    text-transform: uppercase; padding: 7px 10px 3px; letter-spacing: 0.5px;
+    border-top: 1px solid var(--slate-100); margin-top: 3px;
+  }
+  .qnav-section-label:first-child { border-top: none; margin-top: 0; }
+  .qnav-item-status { padding-left: 6px !important; }
   
   /* Section flash highlight when jumped to */
   .fm-section.is-flashed {
@@ -5500,6 +5507,616 @@ async function exportPrecountExcel() {
   await exportPanOGramExcel(); // ใช้ตัวเดียวกัน (มี Precount sheet อยู่แล้ว)
 }
 
+// ==================== ZONE MANAGER (Admin Only) ====================
+let _zoneMgrData = null;
+let _zoneMgrSelectedZone = null; // For viewing locations in a specific zone
+
+async function openZoneManager() {
+  const isLao = lang === 'lo';
+  
+  if (!['admin', 'scc', 'bcs'].includes(user.role)) {
+    showToast(lang === 'lo' ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error');
+    return;
+  }
+  
+  showModal(`
+    <h3 style="display:flex;align-items:center;gap:7px;">
+      🎨 ${isLao ? 'ຈັດການໂຊນ' : 'จัดการโซน'}
+      <span style="font-size:11px;color:var(--slate-500);font-weight:500;margin-left:auto;">
+        ${branch?.code || ''}
+      </span>
+    </h3>
+    
+    <div id="zoneMgrLoader" style="text-align:center;padding:30px;color:var(--slate-400);">
+      <div class="loader" style="margin:0 auto 9px;"></div>
+      <div style="font-size:11px;">${isLao ? 'ກຳລັງໂຫລດ...' : 'กำลังโหลด...'}</div>
+    </div>
+    
+    <div id="zoneMgrContent" style="display:none;"></div>
+    
+    <div class="action-row" style="margin-top:11px;">
+      <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;">${T('cancel')}</button>
+      <button class="btn btn-primary" onclick="openCreateZoneModal()" style="background:var(--sky-500);flex:1;">
+        ✚ ${isLao ? 'ສ້າງໂຊນ' : 'สร้างโซน'}
+      </button>
+    </div>
+  `);
+  
+  await loadZoneManager();
+}
+
+async function loadZoneManager() {
+  if (!branch) return;
+  
+  const [zonesRes, locsRes] = await Promise.all([
+    sb.from('zones').select('*').eq('branch_id', branch.id).order('sort_order').order('code'),
+    sb.from('location_master').select('*').eq('branch_id', branch.id).eq('is_active', true).order('location_code')
+  ]);
+  
+  if (zonesRes.error) {
+    document.getElementById('zoneMgrLoader').innerHTML = '❌ Error: ' + zonesRes.error.message;
+    return;
+  }
+  
+  _zoneMgrData = {
+    zones: zonesRes.data || [],
+    locations: locsRes.data || []
+  };
+  
+  document.getElementById('zoneMgrLoader').style.display = 'none';
+  const content = document.getElementById('zoneMgrContent');
+  content.style.display = 'block';
+  renderZoneManager();
+}
+
+function renderZoneManager() {
+  const isLao = lang === 'lo';
+  const { zones, locations } = _zoneMgrData;
+  
+  // Count locations per zone
+  const locCountByZone = {};
+  locations.forEach(l => {
+    const zid = l.zone_id || 'no-zone';
+    locCountByZone[zid] = (locCountByZone[zid] || 0) + 1;
+  });
+  
+  const content = document.getElementById('zoneMgrContent');
+  
+  if (zones.length === 0) {
+    content.innerHTML = `
+      <div style="text-align:center;padding:30px 20px;color:var(--slate-400);">
+        <div style="font-size:36px;margin-bottom:8px;">🎨</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:5px;">
+          ${isLao ? 'ຍັງບໍ່ມີໂຊນ' : 'ยังไม่มีโซน'}
+        </div>
+        <div style="font-size:11px;">
+          ${isLao ? 'ກົດປຸ່ມ "ສ້າງໂຊນ" ດ້ານລຸ່ມ' : 'กดปุ่ม "สร้างโซน" ด้านล่าง'}
+        </div>
+      </div>
+    `;
+    return;
+  }
+  
+  const noZoneCount = locCountByZone['no-zone'] || 0;
+  
+  let html = `
+    <!-- Stats Bar -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:9px;">
+      <div style="background:var(--sky-100);padding:6px 4px;border-radius:7px;text-align:center;">
+        <div style="font-size:14px;font-weight:800;color:var(--sky-600);font-family:'Space Grotesk',monospace;">${zones.length}</div>
+        <div style="font-size:9px;color:var(--sky-600);">${isLao ? 'ໂຊນ' : 'โซน'}</div>
+      </div>
+      <div style="background:var(--teal-100);padding:6px 4px;border-radius:7px;text-align:center;">
+        <div style="font-size:14px;font-weight:800;color:var(--teal-700);font-family:'Space Grotesk',monospace;">${locations.length}</div>
+        <div style="font-size:9px;color:var(--teal-700);">${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}</div>
+      </div>
+      <div style="background:${noZoneCount > 0 ? 'var(--amber-100)' : 'var(--emerald-100)'};padding:6px 4px;border-radius:7px;text-align:center;">
+        <div style="font-size:14px;font-weight:800;color:${noZoneCount > 0 ? '#92400e' : 'var(--emerald-500)'};font-family:'Space Grotesk',monospace;">${noZoneCount}</div>
+        <div style="font-size:9px;color:${noZoneCount > 0 ? '#92400e' : 'var(--emerald-500)'};">${isLao ? 'ບໍ່ມີໂຊນ' : 'ไม่มีโซน'}</div>
+      </div>
+    </div>
+    
+    <!-- Zones List -->
+    <div style="max-height:400px;overflow-y:auto;background:var(--slate-50);border-radius:9px;padding:7px;">
+  `;
+  
+  zones.forEach(z => {
+    const count = locCountByZone[z.id] || 0;
+    const zoneName = isLao ? (z.name_lo || z.name_th) : (z.name_th || z.name_lo);
+    const color = z.color || '#0ea5e9';
+    
+    html += `
+      <div style="background:white;border:1px solid var(--slate-200);border-radius:9px;padding:9px 11px;margin-bottom:6px;display:flex;align-items:center;gap:9px;border-left:4px solid ${color};">
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:7px;">
+            <span style="font-family:'Space Grotesk',monospace;font-weight:800;font-size:12px;color:var(--slate-900);">${z.code}</span>
+            <span style="font-size:11px;color:var(--slate-700);">${zoneName}</span>
+            ${!z.is_active ? `<span style="background:var(--rose-100);color:var(--rose-500);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;">OFF</span>` : ''}
+          </div>
+          <div style="font-size:9px;color:var(--slate-500);margin-top:2px;">
+            ${count} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'} • ID: ${z.id}
+          </div>
+        </div>
+        <button onclick="manageZoneLocations(${z.id})" 
+                style="background:var(--violet-100);color:var(--violet-600);border:none;border-radius:5px;padding:5px 9px;font-size:10px;font-weight:700;cursor:pointer;">
+          📍 ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}
+        </button>
+        <button onclick="openEditZoneModal(${z.id})" 
+                style="background:var(--sky-100);color:var(--sky-600);border:none;border-radius:5px;padding:5px 9px;font-size:10px;font-weight:700;cursor:pointer;">
+          ✏️ ${isLao ? 'ແກ້ໄຂ' : 'แก้ไข'}
+        </button>
+      </div>
+    `;
+  });
+  
+  // No Zone group (เผื่อมี locations ที่ไม่ได้ assign)
+  if (noZoneCount > 0) {
+    html += `
+      <div style="background:var(--amber-100);border:2px dashed var(--amber-500);border-radius:9px;padding:9px 11px;margin-top:8px;display:flex;align-items:center;gap:9px;">
+        <div style="font-size:18px;">⚠️</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;color:#92400e;font-size:12px;">
+            ${isLao ? 'ບໍ່ມີໂຊນ' : 'ไม่มีโซน'} (${noZoneCount})
+          </div>
+          <div style="font-size:10px;color:#92400e;">
+            ${isLao ? 'ມີຕຳແໜ່ງທີ່ບໍ່ໄດ້ກຳນົດໂຊນ' : 'มีตำแหน่งที่ไม่ได้กำหนดโซน'}
+          </div>
+        </div>
+        <button onclick="manageZoneLocations(null)" 
+                style="background:#92400e;color:white;border:none;border-radius:5px;padding:5px 9px;font-size:10px;font-weight:700;cursor:pointer;">
+          📍 ${isLao ? 'ກຳນົດ' : 'กำหนด'}
+        </button>
+      </div>
+    `;
+  }
+  
+  html += '</div>';
+  content.innerHTML = html;
+}
+
+// Modal สร้างโซนใหม่
+function openCreateZoneModal() {
+  openZoneFormModal(null);
+}
+
+function openEditZoneModal(zoneId) {
+  const z = _zoneMgrData.zones.find(x => x.id === zoneId);
+  if (z) openZoneFormModal(z);
+}
+
+function openZoneFormModal(existing) {
+  const isLao = lang === 'lo';
+  const isEdit = !!existing;
+  
+  showModal(`
+    <h3>${isEdit ? (isLao ? '✏️ ແກ້ໄຂໂຊນ' : '✏️ แก้ไขโซน') : (isLao ? '✚ ສ້າງໂຊນໃໝ່' : '✚ สร้างโซนใหม่')}</h3>
+    
+    <div class="error-msg" id="zoneFormErr"></div>
+    <input type="hidden" id="zoneFormId" value="${existing?.id || ''}">
+    
+    <div class="form-group">
+      <label class="form-label">${isLao ? 'ລະຫັດ' : 'รหัส'} * (${isLao ? 'ບໍ່ສາມາດແກ້ໄຂພາຍຫຼັງ' : 'ไม่สามารถแก้ไขภายหลัง'})</label>
+      <input type="text" class="form-input mono" id="zoneFormCode" 
+             value="${existing?.code || ''}"
+             ${isEdit ? 'disabled' : ''}
+             style="text-transform:uppercase;font-weight:700;letter-spacing:1px;text-align:center;${isEdit ? 'opacity:0.6;' : ''}"
+             placeholder="01, 02, WH, W..."
+             autocomplete="off">
+    </div>
+    
+    <div class="form-group">
+      <label class="form-label">${isLao ? 'ຊື່ (ລາວ)' : 'ชื่อ (ลาว)'} *</label>
+      <input type="text" class="form-input" id="zoneFormNameLo" 
+             value="${existing?.name_lo || ''}"
+             placeholder="${isLao ? 'ເຊັ່ນ: ໂຊນອາຫານ' : 'เช่น: โซนอาหาร'}">
+    </div>
+    
+    <div class="form-group">
+      <label class="form-label">${isLao ? 'ຊື່ (ໄທ)' : 'ชื่อ (ไทย)'}</label>
+      <input type="text" class="form-input" id="zoneFormNameTh" 
+             value="${existing?.name_th || ''}"
+             placeholder="${isLao ? 'ເຊັ່ນ: โซนอาหาร' : 'เช่น: โซนอาหาร'}">
+    </div>
+    
+    <div class="form-group">
+      <label class="form-label">${isLao ? 'ສີ' : 'สี'}</label>
+      <input type="color" class="form-input" id="zoneFormColor" 
+             value="${existing?.color || '#0ea5e9'}"
+             style="height:40px;padding:3px;cursor:pointer;">
+    </div>
+    
+    <div class="form-group">
+      <label class="form-label">${isLao ? 'ລຳດັບ' : 'ลำดับ'}</label>
+      <input type="number" class="form-input" id="zoneFormSort" 
+             value="${existing?.sort_order || 0}" min="0" max="999"
+             style="text-align:center;">
+    </div>
+    
+    ${isEdit ? `
+    <div class="form-group">
+      <label class="form-label">${isLao ? 'ສະຖານະ' : 'สถานะ'}</label>
+      <select class="form-select" id="zoneFormActive">
+        <option value="true" ${existing.is_active !== false ? 'selected' : ''}>✅ ${isLao ? 'ໃຊ້ງານ' : 'ใช้งาน'}</option>
+        <option value="false" ${existing.is_active === false ? 'selected' : ''}>❌ ${isLao ? 'ປິດ' : 'ปิด'}</option>
+      </select>
+    </div>
+    ` : ''}
+    
+    <div class="action-row" style="margin-top:11px;">
+      ${isEdit ? `<button class="btn btn-danger" onclick="deleteZone(${existing.id})" style="background:var(--rose-500);">${isLao ? 'ລົບ' : 'ลบ'}</button>` : ''}
+      <button class="btn btn-secondary" onclick="openZoneManager()">${T('cancel')}</button>
+      <button class="btn btn-primary" onclick="saveZone()" style="background:var(--sky-500);">${isLao ? 'ບັນທຶກ' : 'บันทึก'}</button>
+    </div>
+  `);
+}
+
+async function saveZone() {
+  const isLao = lang === 'lo';
+  const id = document.getElementById('zoneFormId').value;
+  const isEdit = !!id;
+  
+  const code = document.getElementById('zoneFormCode').value.trim().toUpperCase();
+  const name_lo = document.getElementById('zoneFormNameLo').value.trim();
+  const name_th = document.getElementById('zoneFormNameTh').value.trim() || name_lo;
+  const color = document.getElementById('zoneFormColor').value;
+  const sort_order = parseInt(document.getElementById('zoneFormSort').value) || 0;
+  const activeEl = document.getElementById('zoneFormActive');
+  const is_active = activeEl ? activeEl.value === 'true' : true;
+  
+  const errEl = document.getElementById('zoneFormErr');
+  
+  if (!code || !name_lo) {
+    errEl.textContent = isLao ? 'ກະລຸນາໃສ່ Code + ຊື່' : 'กรุณาใส่ Code + ชื่อ';
+    errEl.classList.add('show');
+    return;
+  }
+  
+  try {
+    if (isEdit) {
+      const upd = { name_lo, name_th, color, sort_order, is_active, updated_at: new Date().toISOString() };
+      const { error } = await sb.from('zones').update(upd).eq('id', id);
+      if (error) throw error;
+      showToast(`✅ ${isLao ? 'ບັນທຶກ' : 'บันทึก'}`, 'success');
+    } else {
+      const { error } = await sb.from('zones').insert({
+        branch_id: branch.id,
+        code, name_lo, name_th, color, sort_order, is_active: true
+      });
+      if (error) throw error;
+      showToast(`✅ ${isLao ? 'ສ້າງສຳເລັດ' : 'สร้างสำเร็จ'}`, 'success');
+    }
+    openZoneManager(); // reload
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.add('show');
+  }
+}
+
+async function deleteZone(zoneId) {
+  const isLao = lang === 'lo';
+  
+  // เช็คว่ามี locations อยู่ในโซนนี้ไหม
+  const locCount = _zoneMgrData.locations.filter(l => l.zone_id === zoneId).length;
+  
+  let confirmMsg = isLao ? 'ລົບໂຊນນີ້?' : 'ลบโซนนี้?';
+  if (locCount > 0) {
+    confirmMsg = isLao 
+      ? `ໂຊນນີ້ມີ ${locCount} ຕຳແໜ່ງ — ຕຳແໜ່ງເຫລົ່ານີ້ຈະກາຍເປັນ "ບໍ່ມີໂຊນ"\nຍ້ອນຍັນລົບ?`
+      : `โซนนี้มี ${locCount} ตำแหน่ง — ตำแหน่งเหล่านี้จะกลายเป็น "ไม่มีโซน"\nยืนยันลบ?`;
+  }
+  
+  if (!confirm(confirmMsg)) return;
+  
+  try {
+    // Soft delete: set is_active=false instead of hard delete
+    // เพื่อรักษา historical data
+    const { error: ue } = await sb.from('location_master')
+      .update({ zone_id: null })
+      .eq('zone_id', zoneId).eq('branch_id', branch.id);
+    if (ue) throw ue;
+    
+    const { error: de } = await sb.from('zones').delete().eq('id', zoneId);
+    if (de) throw de;
+    
+    showToast(`🗑️ ${isLao ? 'ລົບແລ້ວ' : 'ลบแล้ว'}`, 'success');
+    openZoneManager();
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+// ==================== ZONE LOCATIONS MANAGER ====================
+async function manageZoneLocations(zoneId) {
+  const isLao = lang === 'lo';
+  _zoneMgrSelectedZone = zoneId;
+  
+  const zone = zoneId ? _zoneMgrData.zones.find(z => z.id === zoneId) : null;
+  const zoneName = zone ? (isLao ? (zone.name_lo || zone.name_th) : (zone.name_th || zone.name_lo)) : (isLao ? 'ບໍ່ມີໂຊນ' : 'ไม่มีโซน');
+  const zoneColor = zone?.color || '#94a3b8';
+  
+  showModal(`
+    <h3 style="display:flex;align-items:center;gap:7px;">
+      <span style="background:${zoneColor};color:white;padding:3px 9px;border-radius:5px;font-size:11px;font-family:'Space Grotesk',monospace;">
+        ${zone?.code || '?'}
+      </span>
+      ${zoneName}
+    </h3>
+    
+    <p style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">
+      ${isLao ? 'ກຳນົດ Gondola/Location ໃຫ້ໂຊນນີ້' : 'กำหนด Gondola/Location ให้โซนนี้'}
+    </p>
+    
+    <!-- Search + Filter -->
+    <div style="display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:9px;">
+      <input type="text" id="zoneLocSearch" 
+             placeholder="🔍 ${isLao ? 'ຄົ້ນຫາ code...' : 'ค้นหา code...'}"
+             oninput="renderZoneLocationsList(this.value, document.getElementById('zoneLocFilter')?.value || 'all')"
+             class="form-input" style="font-size:11px;padding:7px 11px;">
+      <select id="zoneLocFilter" 
+              onchange="renderZoneLocationsList(document.getElementById('zoneLocSearch')?.value || '', this.value)"
+              class="form-select" style="font-size:11px;padding:7px;">
+        <option value="all">${isLao ? 'ທັງໝົດ' : 'ทั้งหมด'}</option>
+        <option value="in_zone" selected>${isLao ? 'ໃນໂຊນນີ້' : 'ในโซนนี้'}</option>
+        <option value="not_in_zone">${isLao ? 'ບໍ່ໃນໂຊນນີ້' : 'ไม่ในโซนนี้'}</option>
+        <option value="no_zone">${isLao ? 'ບໍ່ມີໂຊນ' : 'ไม่มีโซน'}</option>
+      </select>
+    </div>
+    
+    <!-- Stats -->
+    <div id="zoneLocStats" style="background:linear-gradient(135deg,var(--sky-100),var(--teal-100));padding:7px 11px;border-radius:7px;margin-bottom:9px;font-size:11px;color:var(--slate-700);"></div>
+    
+    <!-- Quick Actions -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:9px;">
+      <button onclick="bulkAssignToZone(${zoneId || 'null'}, true)" class="btn btn-secondary" style="font-size:10px;padding:6px;background:var(--emerald-100);color:var(--emerald-500);">
+        ✅ ${isLao ? 'ເລືອກທີ່ກອງ ກຳນົດໝົດ' : 'เลือกที่กรอง กำหนดหมด'}
+      </button>
+      <button onclick="bulkAssignToZone(null, true)" class="btn btn-secondary" style="font-size:10px;padding:6px;background:var(--rose-100);color:var(--rose-500);">
+        ❌ ${isLao ? 'ປົດອອກໝົດ' : 'ปลดออกหมด'}
+      </button>
+    </div>
+    
+    <!-- Locations List -->
+    <div id="zoneLocList" style="max-height:380px;overflow-y:auto;border:1px solid var(--slate-200);border-radius:9px;padding:7px;background:var(--slate-50);">
+    </div>
+    
+    <div class="action-row" style="margin-top:11px;">
+      <button class="btn btn-primary" onclick="openZoneManager()" style="background:var(--sky-500);width:100%;">
+        ← ${isLao ? 'ກັບໄປ' : 'กลับไป'}
+      </button>
+    </div>
+  `);
+  
+  renderZoneLocationsList('', 'in_zone');
+}
+
+function renderZoneLocationsList(search, filter) {
+  const isLao = lang === 'lo';
+  const zoneId = _zoneMgrSelectedZone;
+  const allLocs = _zoneMgrData?.locations || [];
+  const s = (search || '').toLowerCase().trim();
+  
+  // Apply filter
+  let filtered = allLocs;
+  if (filter === 'in_zone') {
+    filtered = allLocs.filter(l => l.zone_id === zoneId);
+  } else if (filter === 'not_in_zone') {
+    filtered = allLocs.filter(l => l.zone_id !== zoneId);
+  } else if (filter === 'no_zone') {
+    filtered = allLocs.filter(l => !l.zone_id);
+  }
+  
+  // Apply search
+  if (s) {
+    filtered = filtered.filter(l => (l.location_code || '').toLowerCase().includes(s));
+  }
+  
+  // Update stats
+  const statsEl = document.getElementById('zoneLocStats');
+  if (statsEl) {
+    const inZone = allLocs.filter(l => l.zone_id === zoneId).length;
+    statsEl.innerHTML = `
+      <strong style="color:var(--sky-600);">${inZone}</strong> ${isLao ? 'ໃນໂຊນ' : 'ในโซน'} • 
+      <strong style="color:var(--slate-700);">${filtered.length}</strong> ${isLao ? 'ກອງ' : 'กรอง'}
+    `;
+  }
+  
+  const listEl = document.getElementById('zoneLocList');
+  if (!listEl) return;
+  
+  if (filtered.length === 0) {
+    listEl.innerHTML = `<div style="text-align:center;padding:25px;color:var(--slate-400);font-size:11px;">
+      ${isLao ? 'ບໍ່ພົບ' : 'ไม่พบ'}
+    </div>`;
+    return;
+  }
+  
+  // Parse + group by Gondola Number (same logic as Floor Map)
+  function parseCode(code) {
+    const upper = (code || '').toUpperCase().trim();
+    const numMatch = upper.match(/^(\d{2,})([A-Z]+)(\d+)$/);
+    if (numMatch) return { groupKey: numMatch[1], groupLabel: `Gondola ${numMatch[1]}`, type: numMatch[2], bay: parseInt(numMatch[3]) || 0 };
+    const letterMatch = upper.match(/^([A-Z]+)(\d+)$/);
+    if (letterMatch) {
+      const prefix = letterMatch[1];
+      let label = prefix;
+      if (prefix === 'W') label = 'Wall';
+      else if (prefix === 'WT') label = 'Wall Top';
+      else if (prefix === 'WH') label = 'Warehouse';
+      else if (prefix === 'D') label = 'Display';
+      return { groupKey: 'z' + prefix, groupLabel: label, type: prefix, bay: parseInt(letterMatch[2]) || 0 };
+    }
+    return { groupKey: 'zzz', groupLabel: '?', type: '?', bay: 0 };
+  }
+  
+  const groups = {};
+  filtered.forEach(l => {
+    const p = parseCode(l.location_code);
+    if (!groups[p.groupKey]) {
+      groups[p.groupKey] = { label: p.groupLabel, items: [] };
+    }
+    groups[p.groupKey].items.push({ ...l, _parsed: p });
+  });
+  
+  // Sort groups
+  const sortedGroups = Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+  
+  let html = '';
+  sortedGroups.forEach(([gKey, g]) => {
+    g.items.sort((a, b) => {
+      if (a._parsed.type !== b._parsed.type) return a._parsed.type.localeCompare(b._parsed.type);
+      return a._parsed.bay - b._parsed.bay;
+    });
+    
+    const inZoneCount = g.items.filter(l => l.zone_id === zoneId).length;
+    const isAllInZone = inZoneCount === g.items.length;
+    
+    html += `
+      <div style="margin-bottom:7px;">
+        <div style="background:white;border:1px solid var(--slate-200);border-radius:7px;padding:7px 9px;display:flex;align-items:center;gap:7px;margin-bottom:4px;">
+          <span style="font-family:'Space Grotesk',monospace;font-weight:800;font-size:11px;color:var(--slate-900);flex:1;">
+            ${g.label}
+          </span>
+          <span style="font-size:10px;color:var(--slate-500);">
+            ${inZoneCount}/${g.items.length}
+          </span>
+          <button onclick="toggleGroupInZone('${gKey}', ${zoneId || 'null'})" 
+                  style="background:${isAllInZone ? 'var(--rose-100)' : 'var(--emerald-100)'};color:${isAllInZone ? 'var(--rose-500)' : 'var(--emerald-500)'};border:none;border-radius:4px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer;">
+            ${isAllInZone ? (isLao ? '✕ ປົດ' : '✕ ปลด') : '✅ ' + (isLao ? 'ກຳນົດ' : 'กำหนด')}
+          </button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(80px, 1fr));gap:4px;padding-left:8px;">
+    `;
+    
+    g.items.forEach(loc => {
+      const inThisZone = loc.zone_id === zoneId;
+      html += `
+        <div onclick="toggleLocationZone(${loc.id}, ${zoneId || 'null'})"
+             style="background:${inThisZone ? 'var(--emerald-100)' : 'white'};border:1px solid ${inThisZone ? 'var(--emerald-500)' : 'var(--slate-200)'};border-radius:6px;padding:4px 6px;font-family:'Space Grotesk',monospace;font-size:10px;font-weight:700;color:var(--slate-900);text-align:center;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:3px;">
+          ${inThisZone ? '✓' : ''}
+          ${loc.location_code}
+        </div>
+      `;
+    });
+    
+    html += '</div></div>';
+  });
+  
+  listEl.innerHTML = html;
+}
+
+async function toggleLocationZone(locId, zoneId) {
+  const loc = _zoneMgrData.locations.find(l => l.id === locId);
+  if (!loc) return;
+  
+  const newZoneId = loc.zone_id === zoneId ? null : zoneId;
+  
+  try {
+    const { error } = await sb.from('location_master')
+      .update({ zone_id: newZoneId })
+      .eq('id', locId);
+    if (error) throw error;
+    
+    loc.zone_id = newZoneId;
+    
+    // Re-render
+    const search = document.getElementById('zoneLocSearch')?.value || '';
+    const filter = document.getElementById('zoneLocFilter')?.value || 'in_zone';
+    renderZoneLocationsList(search, filter);
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+async function toggleGroupInZone(groupKey, zoneId) {
+  const isLao = lang === 'lo';
+  const allLocs = _zoneMgrData?.locations || [];
+  
+  function parseCode(code) {
+    const upper = (code || '').toUpperCase().trim();
+    const numMatch = upper.match(/^(\d{2,})([A-Z]+)(\d+)$/);
+    if (numMatch) return numMatch[1];
+    const letterMatch = upper.match(/^([A-Z]+)(\d+)$/);
+    if (letterMatch) return 'z' + letterMatch[1];
+    return 'zzz';
+  }
+  
+  const inGroup = allLocs.filter(l => parseCode(l.location_code) === groupKey);
+  if (inGroup.length === 0) return;
+  
+  const allInZone = inGroup.every(l => l.zone_id === zoneId);
+  const newZoneId = allInZone ? null : zoneId;
+  
+  showToast(isLao ? '⏳ ກຳລັງອັບເດດ...' : '⏳ กำลังอัปเดต...', 'success');
+  
+  try {
+    const ids = inGroup.map(l => l.id);
+    const { error } = await sb.from('location_master')
+      .update({ zone_id: newZoneId })
+      .in('id', ids);
+    if (error) throw error;
+    
+    // Update local cache
+    inGroup.forEach(l => { l.zone_id = newZoneId; });
+    
+    const search = document.getElementById('zoneLocSearch')?.value || '';
+    const filter = document.getElementById('zoneLocFilter')?.value || 'in_zone';
+    renderZoneLocationsList(search, filter);
+    showToast(`✅ ${inGroup.length} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}`, 'success');
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+async function bulkAssignToZone(zoneId, useFilter) {
+  const isLao = lang === 'lo';
+  
+  if (!useFilter) return;
+  
+  const search = document.getElementById('zoneLocSearch')?.value || '';
+  const filter = document.getElementById('zoneLocFilter')?.value || 'all';
+  
+  // Re-compute filtered list (same as renderZoneLocationsList)
+  const allLocs = _zoneMgrData?.locations || [];
+  const targetZone = _zoneMgrSelectedZone;
+  const s = search.toLowerCase().trim();
+  
+  let filtered = allLocs;
+  if (filter === 'in_zone') filtered = allLocs.filter(l => l.zone_id === targetZone);
+  else if (filter === 'not_in_zone') filtered = allLocs.filter(l => l.zone_id !== targetZone);
+  else if (filter === 'no_zone') filtered = allLocs.filter(l => !l.zone_id);
+  
+  if (s) filtered = filtered.filter(l => (l.location_code || '').toLowerCase().includes(s));
+  
+  if (filtered.length === 0) {
+    showToast(isLao ? 'ບໍ່ມີຕຳແໜ່ງ' : 'ไม่มีตำแหน่ง', 'warning');
+    return;
+  }
+  
+  const action = zoneId === null 
+    ? (isLao ? 'ປົດອອກ' : 'ปลดออก')
+    : (isLao ? 'ກຳນົດໂຊນ' : 'กำหนดโซน');
+  
+  if (!confirm(`${action} ${filtered.length} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}?`)) return;
+  
+  try {
+    const ids = filtered.map(l => l.id);
+    // Use zoneId from arg (when assigning to current zone) OR null
+    const newZoneId = zoneId === null ? null : targetZone;
+    
+    const { error } = await sb.from('location_master')
+      .update({ zone_id: newZoneId })
+      .in('id', ids);
+    if (error) throw error;
+    
+    filtered.forEach(l => { l.zone_id = newZoneId; });
+    
+    renderZoneLocationsList(search, filter);
+    showToast(`✅ ${filtered.length} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}`, 'success');
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
 function adjustCount(delta) {
   const inp = document.getElementById('countInput');
   if (!inp) return;
@@ -9508,27 +10125,113 @@ function renderFloorMapContent(data) {
     display: display.length,
     wh1: wh1.length,
     wh2: wh2.length
+  }, getStatusCounts(data), data);
+}
+
+// คำนวณ status counts จากข้อมูลทั้งหมด
+function getStatusCounts(data) {
+  const all = [
+    ...(data.sale_floor || []),
+    ...(data.top_stock || []),
+    ...(data.display || []),
+    ...(data.warehouse || [])
+  ];
+  
+  const counts = {
+    counting: 0,
+    verifying: 0,
+    tiebreaker_needed: 0,
+    counted: 0,
+    open_for_verify: 0,
+    verified: 0,
+    tiebreaker: 0
+  };
+  
+  all.forEach(item => {
+    const s = item.workflow_status;
+    if (counts[s] !== undefined) counts[s]++;
   });
+  
+  return counts;
 }
 
 // ==================== QUICK NAV FAB ====================
-function renderQuickNav(counts) {
+function renderQuickNav(counts, statusCounts, allData) {
   // Remove existing
   const existing = document.getElementById('qnavWrap');
   if (existing) existing.remove();
   const existingBd = document.getElementById('qnavBackdrop');
   if (existingBd) existingBd.remove();
   
-  // If no sections at all, skip
-  const totalSections = (counts.sale > 0) + (counts.top > 0) + (counts.display > 0) + (counts.wh1 > 0) + (counts.wh2 > 0);
-  if (totalSections < 2) return; // ไม่ต้องโชว์ถ้ามีหมวดเดียว
+  // Cache data for jump-to-status feature
+  window._fmAllData = allData || null;
   
-  const items = [];
-  if (counts.sale > 0) items.push({ id: 'fmSecSale', icon: '🏬', cls: 'sale', label: T('sale_floor'), count: counts.sale });
-  if (counts.top > 0) items.push({ id: 'fmSecTop', icon: '📦', cls: 'top', label: T('top_stock_area'), count: counts.top });
-  if (counts.display > 0) items.push({ id: 'fmSecDisplay', icon: '🎯', cls: 'display', label: T('display_area'), count: counts.display });
-  if (counts.wh1 > 0) items.push({ id: 'fmSecWh1', icon: '🏭', cls: 'wh1', label: T('warehouse_1'), count: counts.wh1 });
-  if (counts.wh2 > 0) items.push({ id: 'fmSecWh2', icon: '🏭', cls: 'wh2', label: T('warehouse_2'), count: counts.wh2 });
+  const isLao = lang === 'lo';
+  
+  // Build Status quick-jump items
+  const statusItems = [];
+  if (statusCounts) {
+    if (statusCounts.counting > 0) statusItems.push({ 
+      type: 'status', key: 'counting', 
+      icon: '🔢', cls: 'status-counting',
+      label: isLao ? 'ກຳລັງນັບ' : 'กำลังนับ', 
+      count: statusCounts.counting,
+      bgColor: 'var(--teal-500)'
+    });
+    if (statusCounts.verifying > 0) statusItems.push({ 
+      type: 'status', key: 'verifying', 
+      icon: '🔍', cls: 'status-verifying',
+      label: isLao ? 'ກຳລັງກວດສອບ' : 'กำลังตรวจสอบ', 
+      count: statusCounts.verifying,
+      bgColor: 'var(--amber-500)'
+    });
+    if (statusCounts.tiebreaker_needed > 0) statusItems.push({ 
+      type: 'status', key: 'tiebreaker_needed', 
+      icon: '⚠️', cls: 'status-tiebreaker',
+      label: isLao ? 'ຕ້ອງກວດໃໝ່' : 'ต้องตรวจใหม่', 
+      count: statusCounts.tiebreaker_needed,
+      bgColor: 'var(--rose-500)'
+    });
+    if (statusCounts.counted > 0) statusItems.push({ 
+      type: 'status', key: 'counted', 
+      icon: '✓', cls: 'status-counted',
+      label: isLao ? 'ນັບແລ້ວ ລໍຖ້າຢືນຢັນ' : 'นับแล้ว รอยืนยัน', 
+      count: statusCounts.counted,
+      bgColor: 'var(--amber-500)'
+    });
+    if (statusCounts.open_for_verify > 0) statusItems.push({ 
+      type: 'status', key: 'open_for_verify', 
+      icon: '👁️', cls: 'status-open-verify',
+      label: isLao ? 'ເປີດກວດສອບ' : 'เปิดตรวจสอบ', 
+      count: statusCounts.open_for_verify,
+      bgColor: 'var(--amber-500)'
+    });
+    if (statusCounts.verified > 0) statusItems.push({ 
+      type: 'status', key: 'verified', 
+      icon: '☑️', cls: 'status-verified',
+      label: isLao ? 'ກວດສອບແລ້ວ' : 'ตรวจสอบแล้ว', 
+      count: statusCounts.verified,
+      bgColor: 'var(--violet-500)'
+    });
+    if (statusCounts.tiebreaker > 0) statusItems.push({ 
+      type: 'status', key: 'tiebreaker', 
+      icon: '🔄', cls: 'status-tiebreaker-active',
+      label: isLao ? 'ກຳລັງກວດໃໝ່' : 'กำลังตรวจใหม่', 
+      count: statusCounts.tiebreaker,
+      bgColor: 'var(--violet-600)'
+    });
+  }
+  
+  // Build Section items (existing logic)
+  const sectionItems = [];
+  if (counts.sale > 0) sectionItems.push({ type: 'section', id: 'fmSecSale', icon: '🏬', cls: 'sale', label: T('sale_floor'), count: counts.sale });
+  if (counts.top > 0) sectionItems.push({ type: 'section', id: 'fmSecTop', icon: '📦', cls: 'top', label: T('top_stock_area'), count: counts.top });
+  if (counts.display > 0) sectionItems.push({ type: 'section', id: 'fmSecDisplay', icon: '🎯', cls: 'display', label: T('display_area'), count: counts.display });
+  if (counts.wh1 > 0) sectionItems.push({ type: 'section', id: 'fmSecWh1', icon: '🏭', cls: 'wh1', label: T('warehouse_1'), count: counts.wh1 });
+  if (counts.wh2 > 0) sectionItems.push({ type: 'section', id: 'fmSecWh2', icon: '🏭', cls: 'wh2', label: T('warehouse_2'), count: counts.wh2 });
+  
+  // Skip if nothing to show
+  if (statusItems.length === 0 && sectionItems.length < 2) return;
   
   const backdrop = document.createElement('div');
   backdrop.className = 'qnav-backdrop';
@@ -9539,15 +10242,50 @@ function renderQuickNav(counts) {
   const wrap = document.createElement('div');
   wrap.className = 'qnav-wrap';
   wrap.id = 'qnavWrap';
-  wrap.innerHTML = `
-    <div class="qnav-menu" id="qnavMenu">
-      ${items.map(it => `
+  
+  let menuHtml = '';
+  
+  // Section: Status (priority)
+  if (statusItems.length > 0) {
+    menuHtml += `
+      <div class="qnav-section-label">
+        ⚡ ${isLao ? 'ໄປຫາສະຖານະ' : 'ไปยังสถานะ'}
+      </div>
+    `;
+    statusItems.forEach(it => {
+      menuHtml += `
+        <button class="qnav-item qnav-item-status" onclick="jumpToStatus('${it.key}')" style="border-left:3px solid ${it.bgColor};">
+          <span class="qnav-item-icon" style="background:${it.bgColor};color:white;">${it.icon}</span>
+          <span style="flex:1;text-align:left;">${it.label}</span>
+          <span class="qnav-item-count" style="background:${it.bgColor};color:white;">${it.count}</span>
+        </button>
+      `;
+    });
+  }
+  
+  // Section: Sections (existing)
+  if (sectionItems.length > 0) {
+    if (statusItems.length > 0) {
+      menuHtml += `
+        <div class="qnav-section-label">
+          📍 ${isLao ? 'ໄປຫາໝວດ' : 'ไปยังหมวด'}
+        </div>
+      `;
+    }
+    sectionItems.forEach(it => {
+      menuHtml += `
         <button class="qnav-item" onclick="jumpToSection('${it.id}')">
           <span class="qnav-item-icon ${it.cls}">${it.icon}</span>
-          <span>${it.label}</span>
+          <span style="flex:1;text-align:left;">${it.label}</span>
           <span class="qnav-item-count">${it.count}</span>
         </button>
-      `).join('')}
+      `;
+    });
+  }
+  
+  wrap.innerHTML = `
+    <div class="qnav-menu" id="qnavMenu">
+      ${menuHtml}
     </div>
     <button class="qnav-fab" id="qnavFab" onclick="toggleQuickNav()" aria-label="Quick Navigation" title="${T('quick_nav') || 'ໄປຫາໝວດ'}">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -9558,6 +10296,64 @@ function renderQuickNav(counts) {
     </button>
   `;
   document.body.appendChild(wrap);
+}
+
+// Jump to first location with the given status
+function jumpToStatus(status) {
+  toggleQuickNav(false);
+  
+  const data = window._fmAllData;
+  if (!data) return;
+  
+  // หา location แรกที่มี status นี้
+  const allLocations = [
+    ...(data.sale_floor || []),
+    ...(data.top_stock || []),
+    ...(data.display || []),
+    ...(data.warehouse || [])
+  ];
+  
+  const matches = allLocations.filter(l => l.workflow_status === status);
+  if (matches.length === 0) {
+    showToast(lang === 'lo' ? 'ບໍ່ພົບ' : 'ไม่พบ', 'warning');
+    return;
+  }
+  
+  const first = matches[0];
+  const cells = document.querySelectorAll(`.fm-cell`);
+  
+  // หา cell ตาม location_code
+  let foundCell = null;
+  cells.forEach(c => {
+    const codeEl = c.querySelector('.fm-code');
+    if (codeEl && codeEl.textContent.trim() === first.location_code) {
+      foundCell = c;
+    }
+  });
+  
+  if (foundCell) {
+    foundCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Flash highlight effect
+    foundCell.style.transition = 'transform 0.3s, box-shadow 0.3s';
+    foundCell.style.transform = 'scale(1.2)';
+    foundCell.style.boxShadow = '0 0 0 4px var(--violet-500), 0 8px 24px rgba(139,92,246,0.4)';
+    foundCell.style.zIndex = '10';
+    foundCell.style.position = 'relative';
+    
+    setTimeout(() => {
+      foundCell.style.transform = '';
+      foundCell.style.boxShadow = '';
+      setTimeout(() => {
+        foundCell.style.transition = '';
+        foundCell.style.zIndex = '';
+      }, 400);
+    }, 1000);
+    
+    // Toast แสดงผล
+    const statusLabel = T('status_' + status) || status;
+    showToast(`📍 ${first.location_code} • ${statusLabel} (${matches.length} ${lang === 'lo' ? 'ຈຸດ' : 'จุด'})`, 'success');
+  }
 }
 
 function toggleQuickNav(forceState) {
@@ -11126,6 +11922,34 @@ function renderSettingsPage() {
     </div>
     ` : ''}
     
+    ${['admin', 'scc', 'bcs'].includes(user.role) ? `
+    <!-- Zone Manager (Admin Only) -->
+    <div style="background:white;border:2px solid var(--sky-500);border-radius:14px;padding:16px;margin-top:14px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
+        <div style="background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">
+          🎨
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;color:var(--sky-600);font-size:14px;">${lang === 'lo' ? 'ຈັດການໂຊນ' : 'จัดการโซน'}</div>
+          <div style="font-size:11px;color:var(--slate-500);">
+            ${lang === 'lo' ? 'ແກ້ໄຂໂຊນ + ກຳນົດ Gondola' : 'แก้ไขโซน + กำหนด Gondola'}
+          </div>
+        </div>
+        <div id="zoneStatBadge" style="background:var(--sky-100);color:var(--sky-600);padding:4px 9px;border-radius:6px;font-size:11px;font-weight:700;font-family:'Space Grotesk',monospace;">
+          —
+        </div>
+      </div>
+      
+      <button class="btn" style="background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;font-size:12px;padding:11px;width:100%;" onclick="openZoneManager()">
+        🎨 ${lang === 'lo' ? 'ຈັດການໂຊນ' : 'จัดการโซน'}
+      </button>
+      
+      <div style="font-size:10px;color:var(--slate-500);margin-top:8px;line-height:1.5;">
+        💡 ${lang === 'lo' ? 'ແກ້ໄຂຊື່ໂຊນ + ມອບໝາຍ Gondola/Location ໃຫ້ໂຊນທີ່ຖືກຕ້ອງ' : 'แก้ไขชื่อโซน + กำหนด Gondola/Location ให้โซนที่ถูกต้อง'}
+      </div>
+    </div>
+    ` : ''}
+    
     ${['admin', 'scc', 'bcs', 'ctl', 'verifier', 'counter'].includes(user.role) ? `
     <!-- Pan-O-Gram Management -->
     <div style="background:white;border:2px solid var(--violet-500);border-radius:14px;padding:16px;margin-top:14px;">
@@ -11328,15 +12152,25 @@ async function loadSettingsStats() {
     .select('total_qty')
     .eq('branch_id', branch.id);
   
+  // Count zones + locations
+  const [zonesRes, locsRes] = await Promise.all([
+    sb.from('zones').select('*', { count: 'exact', head: true }).eq('branch_id', branch.id).eq('is_active', true),
+    sb.from('location_master').select('*', { count: 'exact', head: true }).eq('branch_id', branch.id).eq('is_active', true)
+  ]);
+  
   const ce = document.getElementById('settingsTotalCounts');
   const se = document.getElementById('settingsTotalSessions');
   const pe = document.getElementById('pogStatBadge');
+  const ze = document.getElementById('zoneStatBadge');
   if (ce) ce.textContent = (countsTotal || 0).toLocaleString();
   if (se) se.textContent = (sessionsTotal || 0).toLocaleString();
   if (pe) {
     const pogCount = pogs?.length || 0;
     const totalQty = (pogs || []).reduce((s, p) => s + (p.total_qty || 0), 0);
     pe.textContent = `${pogCount.toLocaleString()} / ${totalQty.toLocaleString()} pcs`;
+  }
+  if (ze) {
+    ze.textContent = `${zonesRes.count || 0} / ${locsRes.count || 0}`;
   }
 }
 
@@ -11577,6 +12411,17 @@ window.toggleZoneSelection = toggleZoneSelection;
 window.toggleLocationSelection = toggleLocationSelection;
 window.selectAllInCopy = selectAllInCopy;
 window.onCopySearchChange = onCopySearchChange;
+window.jumpToStatus = jumpToStatus;
+window.openZoneManager = openZoneManager;
+window.openCreateZoneModal = openCreateZoneModal;
+window.openEditZoneModal = openEditZoneModal;
+window.saveZone = saveZone;
+window.deleteZone = deleteZone;
+window.manageZoneLocations = manageZoneLocations;
+window.renderZoneLocationsList = renderZoneLocationsList;
+window.toggleLocationZone = toggleLocationZone;
+window.toggleGroupInZone = toggleGroupInZone;
+window.bulkAssignToZone = bulkAssignToZone;
 window.adjustCount = adjustCount;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
