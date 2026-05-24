@@ -9873,11 +9873,24 @@ function openAddGondolaModal() {
       `<option value="${z.code}">${z.code} - ${z.name_th || z.name_lo || ''}</option>`
     ).join('');
     
+    const isLao = lang === 'lo';
+    const branchName = branch ? (isLao ? (branch.name_lo || branch.code) : (branch.name_th || branch.code)) : '?';
+    
     showModal(`
       <h3>${T('add_location')}</h3>
       <p style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">
-        เพิ่ม Gondola/Location ใหม่
+        ${isLao ? 'ເພີ່ມ Gondola/Location ໃໝ່' : 'เพิ่ม Gondola/Location ใหม่'}
       </p>
+      
+      <!-- Branch indicator -->
+      <div style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));border:1px solid var(--violet-300);padding:8px 11px;border-radius:8px;margin-bottom:11px;display:flex;align-items:center;gap:8px;">
+        <span style="font-size:14px;">🏪</span>
+        <div style="flex:1;font-size:11px;">
+          <span style="color:var(--slate-600);">${isLao ? 'ສາຂາ' : 'สาขา'}:</span>
+          <strong style="color:var(--violet-600);">${branchName}</strong>
+          <span style="color:var(--slate-400);font-family:monospace;">(${branch?.code || '?'})</span>
+        </div>
+      </div>
       
       <div class="form-group">
         <label class="form-label">Location Code *</label>
@@ -9886,7 +9899,7 @@ function openAddGondolaModal() {
                autocomplete="off" autocapitalize="characters"
                style="text-transform:uppercase;text-align:center;letter-spacing:2px;font-weight:700;">
         <div style="font-size:9px;color:var(--slate-500);margin-top:3px;">
-          ตัวอย่าง: 01A01 (Gondola), W028 (Wall), 10AT01 (Top), WH050 (Warehouse)
+          ${isLao ? 'ຕົວຢ່າງ' : 'ตัวอย่าง'}: 01A01 (Gondola), W028 (Wall), 10AT01 (Top), WH050 (Warehouse)
         </div>
       </div>
       
