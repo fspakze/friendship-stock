@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="lo">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0d9488">
+<title>Friendship Stock — เลือก URL</title>
+
+<!-- PWA / iOS -->
+<link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxODAgMTgwIj48cmVjdCB3aWR0aD0iMTgwIiBoZWlnaHQ9IjE4MCIgcng9IjQwIiBmaWxsPSIjMGQ5NDg4Ii8+PHRleHQgeD0iOTAiIHk9IjEyMCIgZm9udC1zaXplPSI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfk5w8L3RleHQ+PC9zdmc+">
+
+<style>
+:root {
+  --teal-500: #14b8a6;
+  --teal-600: #0d9488;
+  --teal-700: #0f766e;
+  --emerald-500: #10b981;
+  --emerald-100: #d1fae5;
+  --rose-500: #f43f5e;
+  --rose-100: #ffe4e6;
+  --amber-500: #f59e0b;
+  --amber-100: #fef3c7;
+  --violet-500: #8b5cf6;
+  --violet-100: #ede9fe;
+  --sky-500: #0ea5e9;
+  --sky-100: #e0f2fe;
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-900: #0f172a;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans Lao', 'Noto Sans Thai', Roboto, sans-serif;
+  background: linear-gradient(135deg, #f0fdfa 0%, #ecfeff 50%, #f0f9ff 100%);
+  min-height: 100vh;
+  color: var(--slate-900);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 80px;
+}
+
+.container {
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Header */
+.header {
+  text-align: center;
+  margin: 20px 0 24px;
+}
+.logo {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 12px;
+  background: linear-gradient(135deg, var(--teal-500), var(--teal-700));
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  box-shadow: 0 10px 30px rgba(13, 148, 136, 0.3);
+}
+h1 {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--teal-700);
+  margin-bottom: 4px;
+  letter-spacing: -0.5px;
+}
+.subtitle {
+  font-size: 12px;
+  color: var(--slate-500);
+  font-weight: 500;
+}
+
+/* Language toggle */
+.lang-toggle {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: white;
+  border: 1px solid var(--slate-200);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--slate-700);
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  transition: all 0.2s;
+}
+.lang-toggle:hover {
+  background: var(--teal-100);
+  color: var(--teal-700);
+}
+
+/* Info banner */
+.info-banner {
+  background: linear-gradient(135deg, var(--violet-100), var(--sky-100));
+  border: 1px solid var(--violet-500);
+  border-radius: 12px;
+  padding: 11px 14px;
+  margin-bottom: 18px;
+  font-size: 11px;
+  color: var(--slate-700);
+  line-height: 1.5;
+  text-align: center;
+}
+.info-banner strong { color: var(--violet-500); }
+
+/* Status section */
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 11px;
+  color: var(--slate-500);
+}
+.status-bar .check-btn {
+  background: var(--teal-600);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.status-bar .check-btn:disabled { opacity: 0.5; cursor: wait; }
+.status-bar .check-btn:hover:not(:disabled) { background: var(--teal-700); }
+
+/* Server Card */
+.server-card {
+  background: white;
+  border: 2px solid var(--slate-200);
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  overflow: hidden;
+}
+.server-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(13, 148, 136, 0.15);
+  border-color: var(--teal-500);
+}
+.server-card:active { transform: translateY(0); }
+
+.server-card.online { border-color: var(--emerald-500); }
+.server-card.online::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--emerald-500), var(--teal-600));
+}
+.server-card.offline {
+  border-color: var(--rose-500);
+  opacity: 0.7;
+}
+.server-card.offline::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: var(--rose-500);
+}
+.server-card.checking {
+  border-color: var(--amber-500);
+}
+
+.server-rank {
+  background: linear-gradient(135deg, var(--slate-100), white);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  font-weight: 800;
+}
+.server-card.online .server-rank {
+  background: linear-gradient(135deg, var(--emerald-100), white);
+}
+.server-card.offline .server-rank {
+  background: linear-gradient(135deg, var(--rose-100), white);
+}
+
+.server-info {
+  flex: 1;
+  min-width: 0;
+}
+.server-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--slate-900);
+  margin-bottom: 2px;
+}
+.server-url {
+  font-size: 10px;
+  color: var(--slate-500);
+  font-family: 'Courier New', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.server-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+.status-badge.online { background: var(--emerald-100); color: var(--emerald-500); }
+.status-badge.offline { background: var(--rose-100); color: var(--rose-500); }
+.status-badge.checking { background: var(--amber-100); color: var(--amber-500); }
+.status-badge.unknown { background: var(--slate-100); color: var(--slate-500); }
+
+.response-time {
+  font-size: 9px;
+  color: var(--slate-400);
+  font-family: 'Courier New', monospace;
+}
+
+/* Pulse animation for checking */
+.pulse {
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Footer */
+.footer {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 10px;
+  color: var(--slate-400);
+  line-height: 1.6;
+}
+.footer strong { color: var(--teal-600); }
+
+/* Quick tip */
+.tip {
+  margin-top: 18px;
+  background: white;
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-size: 11px;
+  color: var(--slate-600);
+  line-height: 1.5;
+  border-left: 3px solid var(--amber-500);
+}
+.tip-title {
+  font-weight: 700;
+  color: var(--amber-500);
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+/* Install banner (PWA prompt) */
+.install-banner {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+  max-width: 460px;
+  margin: 0 auto;
+  background: linear-gradient(135deg, var(--teal-600), var(--teal-700));
+  color: white;
+  padding: 12px 16px;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(13, 148, 136, 0.4);
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 12px;
+  cursor: pointer;
+  z-index: 100;
+  animation: slideUp 0.4s ease;
+}
+@keyframes slideUp {
+  from { transform: translateY(100px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.install-banner .icon { font-size: 22px; }
+.install-banner .text { flex: 1; line-height: 1.4; }
+.install-banner .close-btn {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: white;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+}
+</style>
+</head>
+<body>
+
+<button class="lang-toggle" id="langBtn" onclick="toggleLang()">LO</button>
+
+<div class="container">
+  
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">📦</div>
+    <h1 id="title">Friendship Stock</h1>
+    <div class="subtitle" id="subtitle">ປາກເຊ • ລາວ • v4.0</div>
+  </div>
+  
+  <!-- Info banner -->
+  <div class="info-banner" id="infoBanner">
+    💡 <strong>3 servers</strong> — ໃຊ້ໄດ້ທຸກອັນ, ຂໍ້ມູນດຽວກັນ
+  </div>
+  
+  <!-- Status bar -->
+  <div class="status-bar">
+    <span id="lastCheck">ກຳລັງກວດສະຖານະ...</span>
+    <button class="check-btn" id="recheckBtn" onclick="checkAllServers()">
+      🔄 <span id="recheckText">ກວດໃໝ່</span>
+    </button>
+  </div>
+  
+  <!-- Server cards -->
+  <div id="serverList"></div>
+  
+  <!-- Tip -->
+  <div class="tip">
+    <div class="tip-title" id="tipTitle">💡 ເຄັດລັບ</div>
+    <div id="tipText">
+      ກົດ <strong>Add to Home Screen</strong> ໃນ browser ເພື່ອເພີ່ມໄອຄອນແອັບໃນໜ້າຈໍມືຖື
+    </div>
+  </div>
+  
+  <!-- Footer -->
+  <div class="footer">
+    <strong>Made with 💗 by Anya</strong><br>
+    <span id="footerText">ສຳລັບ Friendship Pakse</span>
+  </div>
+</div>
+
+<!-- Install banner (shows on first visit) -->
+<div class="install-banner" id="installBanner" style="display:none;" onclick="dismissInstall()">
+  <div class="icon">⭐</div>
+  <div class="text" id="installText">
+    Bookmark ໜ້ານີ້! ກົດ Ctrl+D (PC) ຫຼື Share → Add to Home (Mobile)
+  </div>
+  <button class="close-btn" onclick="event.stopPropagation();dismissInstall();">✕</button>
+</div>
+
+<script>
+// ==================== CONFIG ====================
+const SERVERS = [
+  {
+    rank: '🥇',
+    nameLo: 'Vercel (ຫຼັກ)',
+    nameTh: 'Vercel (หลัก)',
+    url: 'https://friendship-stock.vercel.app',
+    cdn: 'Cloudflare',
+  },
+  {
+    rank: '🥈',
+    nameLo: 'Netlify (ສຳຮອງ 1)',
+    nameTh: 'Netlify (สำรอง 1)',
+    url: 'https://friendship-stock.netlify.app',
+    cdn: 'AWS + Fastly',
+  },
+  {
+    rank: '🥉',
+    nameLo: 'GitHub Pages (ສຳຮອງ 2)',
+    nameTh: 'GitHub Pages (สำรอง 2)',
+    url: 'https://fspakze.github.io/friendship-stock/',
+    cdn: 'Fastly',
+  },
+];
+
+// ==================== i18n ====================
+let lang = localStorage.getItem('bm_lang') || 'lo';
+
+const I18N = {
+  lo: {
+    title: 'Friendship Stock',
+    subtitle: 'ປາກເຊ • ລາວ • v4.0',
+    info: '💡 <strong>3 servers</strong> — ໃຊ້ໄດ້ທຸກອັນ, ຂໍ້ມູນດຽວກັນ',
+    last_check: 'ກວດສະຖານະຄັ້ງສຸດທ້າຍ:',
+    checking: 'ກຳລັງກວດສະຖານະ...',
+    recheck: 'ກວດໃໝ່',
+    online: 'ໃຊ້ໄດ້',
+    offline: 'ໃຊ້ບໍ່ໄດ້',
+    checking_status: 'ກຳລັງກວດ',
+    unknown: 'ບໍ່ຮູ້',
+    tip_title: '💡 ເຄັດລັບ',
+    tip_text: 'ກົດ <strong>Add to Home Screen</strong> ໃນ browser ເພື່ອເພີ່ມໄອຄອນແອັບໃນໜ້າຈໍມືຖື',
+    footer_text: 'ສຳລັບ Friendship Pakse',
+    install_text: 'Bookmark ໜ້ານີ້! ກົດ Ctrl+D (PC) ຫຼື Share → Add to Home (Mobile)',
+    open_app: 'ເປີດແອັບ',
+  },
+  th: {
+    title: 'Friendship Stock',
+    subtitle: 'ปากเซ • ลาว • v4.0',
+    info: '💡 <strong>3 servers</strong> — ใช้ได้ทุกอัน, ข้อมูลเดียวกัน',
+    last_check: 'ตรวจสถานะครั้งล่าสุด:',
+    checking: 'กำลังตรวจสถานะ...',
+    recheck: 'ตรวจใหม่',
+    online: 'ใช้งานได้',
+    offline: 'ใช้งานไม่ได้',
+    checking_status: 'กำลังตรวจ',
+    unknown: 'ไม่ทราบ',
+    tip_title: '💡 เคล็ดลับ',
+    tip_text: 'กด <strong>Add to Home Screen</strong> ใน browser เพื่อเพิ่มไอคอนแอปในหน้าจอมือถือ',
+    footer_text: 'สำหรับ Friendship Pakse',
+    install_text: 'Bookmark หน้านี้! กด Ctrl+D (PC) หรือ Share → Add to Home (Mobile)',
+    open_app: 'เปิดแอป',
+  }
+};
+
+function T(key) { return I18N[lang][key] || key; }
+
+function toggleLang() {
+  lang = lang === 'lo' ? 'th' : 'lo';
+  localStorage.setItem('bm_lang', lang);
+  document.getElementById('langBtn').textContent = lang.toUpperCase();
+  applyI18n();
+  renderServers();
+}
+
+function applyI18n() {
+  document.title = T('title') + ' — Bookmark';
+  document.documentElement.lang = lang;
+  document.getElementById('title').textContent = T('title');
+  document.getElementById('subtitle').textContent = T('subtitle');
+  document.getElementById('infoBanner').innerHTML = T('info');
+  document.getElementById('recheckText').textContent = T('recheck');
+  document.getElementById('tipTitle').textContent = T('tip_title');
+  document.getElementById('tipText').innerHTML = T('tip_text');
+  document.getElementById('footerText').textContent = T('footer_text');
+  document.getElementById('installText').textContent = T('install_text');
+}
+
+// ==================== RENDER ====================
+function renderServers() {
+  const list = document.getElementById('serverList');
+  list.innerHTML = SERVERS.map((s, idx) => {
+    const status = s.status || 'unknown';
+    const responseTime = s.responseTime ? `${s.responseTime}ms` : '—';
+    const name = lang === 'lo' ? s.nameLo : s.nameTh;
+    
+    let statusText = T('unknown');
+    if (status === 'online') statusText = '✅ ' + T('online');
+    else if (status === 'offline') statusText = '❌ ' + T('offline');
+    else if (status === 'checking') statusText = '⏳ ' + T('checking_status');
+    
+    return `
+      <div class="server-card ${status} ${status === 'checking' ? 'pulse' : ''}" 
+           onclick="openServer('${s.url}')">
+        <div class="server-rank">${s.rank}</div>
+        <div class="server-info">
+          <div class="server-name">${name}</div>
+          <div class="server-url">${s.url.replace('https://', '')}</div>
+        </div>
+        <div class="server-status">
+          <span class="status-badge ${status}">${statusText}</span>
+          <span class="response-time">${s.cdn} • ${responseTime}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ==================== HEALTH CHECK ====================
+async function checkServer(server) {
+  server.status = 'checking';
+  server.responseTime = null;
+  renderServers();
+  
+  const startTime = performance.now();
+  
+  try {
+    // Use 'no-cors' mode + image load trick (most reliable cross-origin check)
+    await Promise.race([
+      fetch(server.url, { method: 'HEAD', mode: 'no-cors', cache: 'no-store' }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+    ]);
+    
+    const elapsed = Math.round(performance.now() - startTime);
+    server.status = 'online';
+    server.responseTime = elapsed;
+  } catch (e) {
+    server.status = 'offline';
+    server.responseTime = null;
+  }
+  
+  renderServers();
+}
+
+async function checkAllServers() {
+  const btn = document.getElementById('recheckBtn');
+  btn.disabled = true;
+  
+  document.getElementById('lastCheck').textContent = T('checking');
+  
+  // Check all servers in parallel
+  await Promise.all(SERVERS.map(checkServer));
+  
+  // Update last check time
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString(lang === 'lo' ? 'lo-LA' : 'th-TH', { 
+    hour: '2-digit', minute: '2-digit', second: '2-digit' 
+  });
+  document.getElementById('lastCheck').textContent = `${T('last_check')} ${timeStr}`;
+  
+  btn.disabled = false;
+}
+
+// ==================== OPEN SERVER ====================
+function openServer(url) {
+  // Save preference: which URL was last clicked
+  localStorage.setItem('bm_lastUrl', url);
+  // Open in same tab (user can use back button)
+  window.location.href = url;
+}
+
+// ==================== INSTALL BANNER ====================
+function showInstallBanner() {
+  if (localStorage.getItem('bm_installDismissed')) return;
+  
+  // Show banner after 3 seconds
+  setTimeout(() => {
+    document.getElementById('installBanner').style.display = 'flex';
+  }, 3000);
+}
+
+function dismissInstall() {
+  localStorage.setItem('bm_installDismissed', '1');
+  document.getElementById('installBanner').style.display = 'none';
+}
+
+// ==================== INIT ====================
+document.getElementById('langBtn').textContent = lang.toUpperCase();
+applyI18n();
+renderServers();
+checkAllServers();
+showInstallBanner();
+
+// Auto re-check every 60 seconds
+setInterval(checkAllServers, 60000);
+</script>
+
+</body>
+</html>
