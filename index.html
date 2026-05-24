@@ -845,6 +845,8 @@
   .fm-cell { aspect-ratio: 1; border-radius: 7px; padding: 4px; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; position: relative; border: 1px solid transparent; }
   .fm-cell:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.12); }
   .fm-cell.has-issues::after { content: '⚠'; position: absolute; top: 1px; right: 2px; font-size: 9px; color: var(--rose-500); }
+  .fm-cell.has-pog { border: 1.5px solid #8b5cf6; box-shadow: 0 0 0 1px rgba(139,92,246,0.15) inset; }
+  .fm-pog-badge { position: absolute; top: 1px; left: 2px; background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; font-size: 8px; font-weight: 800; padding: 1px 4px; border-radius: 4px; line-height: 1.2; box-shadow: 0 1px 3px rgba(139,92,246,0.4); z-index: 2; font-family: 'Space Grotesk', monospace; }
   
   .fm-code { font-family: 'Space Grotesk', monospace; font-size: 9px; font-weight: 700; line-height: 1; margin-bottom: 2px; }
   .fm-progress { font-size: 8px; opacity: 0.85; font-weight: 600; line-height: 1; }
@@ -3946,18 +3948,37 @@ async function openPanOGramModal(barcode, locationCode, editId = null) {
   
   const prodName = prod ? (isLao ? (prod.name_lo || prod.name_th) : (prod.name_th || prod.name_lo)) : barcode;
   
-  // โหลด PoGs ที่มีอยู่ใน location นี้ (เพื่อเสนอ next seq)
+  // โหลด PoGs ที่มีอยู่ใน location นี้ (เพื่อเสนอ next seq + cache total per shelf)
   const { data: existingAtLoc } = await sb
     .from('pan_o_grams').select('shelf, seq_in_shelf, total_in_shelf, barcode')
     .eq('branch_id', branch.id).eq('location_code', locationCode)
     .order('shelf').order('seq_in_shelf');
   
+  // Cache total_in_shelf per shelf (สำหรับ auto-fill เมื่อเปลี่ยนชั้น)
+  window._pogShelfTotalsCache = {};
+  window._pogShelfBarcodesCache = {}; // เพื่อนับ next seq
+  (existingAtLoc || []).forEach(p => {
+    if (!window._pogShelfTotalsCache[p.shelf]) {
+      window._pogShelfTotalsCache[p.shelf] = p.total_in_shelf;
+    }
+    if (!window._pogShelfBarcodesCache[p.shelf]) {
+      window._pogShelfBarcodesCache[p.shelf] = [];
+    }
+    window._pogShelfBarcodesCache[p.shelf].push(p.barcode);
+  });
+  
+  // Track ว่าผู้ใช้ได้แก้ "ทั้งหมด" เองหรือไม่
+  // ถ้ายังไม่แก้ → auto-fill เมื่อเปลี่ยนชั้น
+  // ถ้าแก้แล้ว → ไม่ override
+  window._pogTotalManuallyEdited = !!existing;
+  window._pogIsEditMode = !!existing;
+  
   // เสนอ default ตามข้อมูลเดิมหรือ next available
   const defaultShelf = existing?.shelf || (existingAtLoc?.length ? existingAtLoc[existingAtLoc.length - 1].shelf : 1);
   const defaultSeq = existing?.seq_in_shelf || 
-    ((existingAtLoc || []).filter(x => x.shelf === defaultShelf).length + 1);
+    ((window._pogShelfBarcodesCache[defaultShelf] || []).length + 1);
   const defaultTotal = existing?.total_in_shelf || 
-    ((existingAtLoc || []).filter(x => x.shelf === defaultShelf)[0]?.total_in_shelf || 1);
+    window._pogShelfTotalsCache[defaultShelf] || 1;
   
   showModal(`
     <h3 style="display:flex;align-items:center;gap:7px;">
@@ -3981,7 +4002,7 @@ async function openPanOGramModal(barcode, locationCode, editId = null) {
           ${isLao ? 'ຊັ້ນ' : 'ชั้น'}
         </label>
         <input type="number" id="pogShelf" value="${defaultShelf}" min="1" max="20" step="1"
-               oninput="updatePogCalc()"
+               oninput="onPogShelfChange(); updatePogCalc()"
                class="form-input" style="text-align:center;font-weight:700;font-size:16px;padding:8px;font-family:'Space Grotesk',monospace;">
       </div>
       <div>
@@ -3997,7 +4018,7 @@ async function openPanOGramModal(barcode, locationCode, editId = null) {
           ${isLao ? 'ທັງໝົດ' : 'ทั้งหมด'}
         </label>
         <input type="number" id="pogTotal" value="${defaultTotal}" min="1" max="50" step="1"
-               oninput="updatePogCalc()"
+               oninput="onPogTotalManualEdit(); updatePogCalc()"
                class="form-input" style="text-align:center;font-weight:700;font-size:16px;padding:8px;font-family:'Space Grotesk',monospace;">
       </div>
     </div>
@@ -4044,7 +4065,7 @@ async function openPanOGramModal(barcode, locationCode, editId = null) {
     <!-- Total Qty Preview -->
     <div style="background:linear-gradient(135deg,var(--emerald-100),var(--teal-100));padding:11px;border-radius:9px;margin-bottom:11px;text-align:center;">
       <div style="font-size:10px;color:var(--emerald-500);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
-        ${isLao ? 'ຈຳນວນຄາດເຄື່ອນ (Precount)' : 'จำนวนคาดเคลื่อน (Precount)'}
+        ${isLao ? 'ຈຳນວນສິນຄ້າລວມ' : 'จำนวนสินค้ารวม'}
       </div>
       <div id="pogTotalQty" style="font-size:26px;font-weight:800;color:var(--emerald-500);font-family:'Space Grotesk',monospace;">
         ${(existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1)}
@@ -4092,6 +4113,38 @@ function updatePogCalc() {
   const totalQty = facial * depth * stack;
   if (totalQtyEl) totalQtyEl.textContent = totalQty;
   if (formulaEl) formulaEl.textContent = `${facial} × ${depth} × ${stack}`;
+}
+
+// เมื่อผู้ใช้แก้ "ทั้งหมด" เอง → flag ไว้ ห้าม auto-fill ทับ
+function onPogTotalManualEdit() {
+  window._pogTotalManuallyEdited = true;
+}
+
+// เมื่อผู้ใช้เปลี่ยน "ชั้น" → ถ้ายังไม่ได้แก้ "ทั้งหมด" เอง → auto-fill จาก cache
+function onPogShelfChange() {
+  const shelfEl = document.getElementById('pogShelf');
+  const totalEl = document.getElementById('pogTotal');
+  const seqEl = document.getElementById('pogSeq');
+  if (!shelfEl || !totalEl) return;
+  
+  const newShelf = parseInt(shelfEl.value || 1);
+  const cache = window._pogShelfTotalsCache || {};
+  const seqCache = window._pogShelfBarcodesCache || {};
+  
+  // Auto-fill total เฉพาะเมื่อยังไม่ได้แก้ไขเอง
+  if (!window._pogTotalManuallyEdited && cache[newShelf]) {
+    totalEl.value = cache[newShelf];
+    // Visual feedback: highlight ช่วงสั้นๆ
+    totalEl.style.transition = 'background 0.4s';
+    totalEl.style.background = 'var(--emerald-100)';
+    setTimeout(() => { totalEl.style.background = ''; }, 600);
+  }
+  
+  // Auto-suggest seq เป็น next available ของชั้นนี้ (เฉพาะ create mode)
+  if (seqEl && !window._pogIsEditMode) {
+    const existingInShelf = (seqCache[newShelf] || []).length;
+    seqEl.value = existingInShelf + 1;
+  }
 }
 
 async function savePanOGram(barcode, locationCode, editId) {
@@ -4993,23 +5046,90 @@ async function loadSessionStats() {
 
 // ==================== HISTORY ====================
 function renderHistoryPage() {
+  const isLao = lang === 'lo';
   return `
-    <div class="history-card">
-      <div class="section-title">
-        ${T('my_counts')}
-        <span class="badge" id="histCount">0</span>
+    <!-- Sub Tabs -->
+    <div style="display:flex;gap:5px;margin-bottom:11px;background:var(--slate-100);padding:4px;border-radius:11px;">
+      <button id="histSubTabCounts" onclick="switchHistorySubTab('counts')" 
+              style="flex:1;padding:9px;border:none;border-radius:8px;background:var(--teal-600);color:white;font-weight:700;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all 0.2s;">
+        🔢 <span>${T('my_counts')}</span>
+        <span id="histSubBadgeCounts" style="background:rgba(255,255,255,0.3);padding:1px 7px;border-radius:8px;font-size:10px;">0</span>
+      </button>
+      <button id="histSubTabPog" onclick="switchHistorySubTab('pog')" 
+              style="flex:1;padding:9px;border:none;border-radius:8px;background:transparent;color:var(--slate-600);font-weight:700;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all 0.2s;">
+        📐 <span>Pan-O-Gram</span>
+        <span id="histSubBadgePog" style="background:var(--slate-300);color:var(--slate-700);padding:1px 7px;border-radius:8px;font-size:10px;">0</span>
+      </button>
+    </div>
+    
+    <!-- Counts Section -->
+    <div id="histSecCounts">
+      <div class="history-card">
+        <div class="section-title">
+          ${T('my_counts')}
+          <span class="badge" id="histCount">0</span>
+        </div>
+        <div class="hist-search-row" id="histSearchRow" style="display:none;">
+          <input type="text" class="hist-search-input" id="histSearchInput" 
+                 placeholder="${T('search_placeholder') || 'ค้นหาชื่อสินค้า / barcode / location...'}" 
+                 oninput="onHistorySearchInput(this.value)"
+                 autocomplete="off">
+          <button class="hist-search-clear" onclick="clearHistorySearch()" title="${T('clear') || 'ล้าง'}">✕</button>
+        </div>
+        <div class="hist-filter-bar" id="histFilterBar" style="display:none;"></div>
+        <div class="history-list" id="histList"></div>
       </div>
-      <div class="hist-search-row" id="histSearchRow" style="display:none;">
-        <input type="text" class="hist-search-input" id="histSearchInput" 
-               placeholder="${T('search_placeholder') || 'ค้นหาชื่อสินค้า / barcode / location...'}" 
-               oninput="onHistorySearchInput(this.value)"
-               autocomplete="off">
-        <button class="hist-search-clear" onclick="clearHistorySearch()" title="${T('clear') || 'ล้าง'}">✕</button>
+    </div>
+    
+    <!-- Pan-O-Gram Section -->
+    <div id="histSecPog" style="display:none;">
+      <div class="history-card">
+        <div class="section-title" style="color:var(--violet-600);">
+          📐 ${isLao ? 'Pan-O-Gram ທີ່ຂ້ອຍສ້າງ' : 'Pan-O-Gram ที่ฉันสร้าง'}
+          <span class="badge" id="histPogCount" style="background:var(--violet-100);color:var(--violet-600);">0</span>
+        </div>
+        <div style="padding:7px 14px;display:flex;gap:7px;align-items:center;">
+          <input type="text" class="hist-search-input" id="histPogSearch"
+                 placeholder="🔍 ${isLao ? 'ຄົ້ນຫາ...' : 'ค้นหา...'}"
+                 oninput="onHistoryPogSearchInput(this.value)"
+                 autocomplete="off"
+                 style="flex:1;">
+        </div>
+        <div class="history-list" id="histPogList"></div>
       </div>
-      <div class="hist-filter-bar" id="histFilterBar" style="display:none;"></div>
-      <div class="history-list" id="histList"></div>
     </div>
   `;
+}
+
+let _historySubTab = 'counts';
+
+function switchHistorySubTab(tab) {
+  _historySubTab = tab;
+  const tabBtnCounts = document.getElementById('histSubTabCounts');
+  const tabBtnPog = document.getElementById('histSubTabPog');
+  const secCounts = document.getElementById('histSecCounts');
+  const secPog = document.getElementById('histSecPog');
+  
+  if (tab === 'counts') {
+    tabBtnCounts.style.background = 'var(--teal-600)';
+    tabBtnCounts.style.color = 'white';
+    tabBtnPog.style.background = 'transparent';
+    tabBtnPog.style.color = 'var(--slate-600)';
+    if (secCounts) secCounts.style.display = '';
+    if (secPog) secPog.style.display = 'none';
+  } else {
+    tabBtnPog.style.background = 'var(--violet-500)';
+    tabBtnPog.style.color = 'white';
+    tabBtnCounts.style.background = 'transparent';
+    tabBtnCounts.style.color = 'var(--slate-600)';
+    if (secCounts) secCounts.style.display = 'none';
+    if (secPog) secPog.style.display = '';
+    
+    // Lazy load Pan-O-Gram list (only when switching to that tab)
+    if (!window._historyPogLoaded) {
+      loadHistoryPog();
+    }
+  }
 }
 
 // Apply both filter (zone) and search at the same time
@@ -5046,10 +5166,156 @@ function clearHistorySearch() {
   applyHistoryFilters();
 }
 
+// ==================== HISTORY: PAN-O-GRAM TAB ====================
+async function loadHistoryPogBadge() {
+  if (!branch || !user) return;
+  try {
+    const { count } = await sb.from('pan_o_grams')
+      .select('*', { count: 'exact', head: true })
+      .eq('branch_id', branch.id)
+      .eq('created_by', user.id);
+    
+    const badge = document.getElementById('histSubBadgePog');
+    if (badge) badge.textContent = count || 0;
+  } catch (e) {
+    log('loadHistoryPogBadge err:', e);
+  }
+}
+
+async function loadHistoryPog() {
+  if (!branch || !user) return;
+  const isLao = lang === 'lo';
+  
+  const list = document.getElementById('histPogList');
+  if (!list) return;
+  
+  list.innerHTML = `<div style="text-align:center;padding:30px;color:var(--slate-400);">
+    <div class="loader" style="margin:0 auto 8px;"></div>
+    <div style="font-size:11px;">${isLao ? 'ກຳລັງໂຫລດ...' : 'กำลังโหลด...'}</div>
+  </div>`;
+  
+  try {
+    const { data, error } = await sb.from('pan_o_grams')
+      .select('*, products(name_th, name_lo, unit_th, unit_lo)')
+      .eq('branch_id', branch.id)
+      .eq('created_by', user.id)
+      .order('updated_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    window._historyPogItems = data || [];
+    window._historyPogLoaded = true;
+    window._historyPogSearch = '';
+    
+    renderHistoryPogList(window._historyPogItems);
+  } catch (e) {
+    list.innerHTML = `<div style="text-align:center;padding:25px;color:var(--rose-500);font-size:11px;">
+      Error: ${e.message}
+    </div>`;
+  }
+}
+
+function onHistoryPogSearchInput(value) {
+  window._historyPogSearch = (value || '').toLowerCase().trim();
+  const items = window._historyPogItems || [];
+  if (!window._historyPogSearch) {
+    renderHistoryPogList(items);
+    return;
+  }
+  const filtered = items.filter(p => {
+    const s = window._historyPogSearch;
+    return (p.barcode || '').toLowerCase().includes(s) ||
+           (p.location_code || '').toLowerCase().includes(s) ||
+           (p.position_code || '').toLowerCase().includes(s) ||
+           (p.products?.name_lo || '').toLowerCase().includes(s) ||
+           (p.products?.name_th || '').toLowerCase().includes(s);
+  });
+  renderHistoryPogList(filtered);
+}
+
+function renderHistoryPogList(items) {
+  const isLao = lang === 'lo';
+  const list = document.getElementById('histPogList');
+  const count = document.getElementById('histPogCount');
+  if (!list) return;
+  
+  if (count) count.textContent = items.length;
+  
+  if (items.length === 0) {
+    list.innerHTML = `
+      <div style="text-align:center;padding:40px 20px;color:var(--slate-400);">
+        <div style="font-size:36px;margin-bottom:8px;">📐</div>
+        <div style="font-size:12px;font-weight:700;margin-bottom:3px;">
+          ${isLao ? 'ຍັງບໍ່ມີ Pan-O-Gram' : 'ยังไม่มี Pan-O-Gram'}
+        </div>
+        <div style="font-size:10px;">
+          ${isLao ? 'ໄປທີ່ Scan → ຍິງສິນຄ້າ → ສ້າງ Pan-O-Gram' : 'ไปที่ Scan → ยิงสินค้า → สร้าง Pan-O-Gram'}
+        </div>
+      </div>
+    `;
+    return;
+  }
+  
+  // Stats summary
+  const totalQty = items.reduce((s, p) => s + (p.total_qty || 0), 0);
+  const uniqueLocs = new Set(items.map(p => p.location_code)).size;
+  
+  let html = `
+    <div style="padding:9px 14px;background:var(--violet-100);border-bottom:1px solid var(--slate-200);display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;">
+      <div>
+        <div style="font-size:14px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;">${items.length}</div>
+        <div style="font-size:9px;color:var(--slate-600);">${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}</div>
+      </div>
+      <div>
+        <div style="font-size:14px;font-weight:800;color:var(--sky-600);font-family:'Space Grotesk',monospace;">${uniqueLocs}</div>
+        <div style="font-size:9px;color:var(--slate-600);">${isLao ? 'ສະຖານທີ່' : 'ตำแหน่ง'}</div>
+      </div>
+      <div>
+        <div style="font-size:14px;font-weight:800;color:var(--emerald-500);font-family:'Space Grotesk',monospace;">${totalQty.toLocaleString()}</div>
+        <div style="font-size:9px;color:var(--slate-600);">${isLao ? 'ຊິ້ນ' : 'ชิ้น'}</div>
+      </div>
+    </div>
+  `;
+  
+  // List items
+  items.forEach(p => {
+    const name = isLao ? (p.products?.name_lo || p.products?.name_th || p.barcode) : (p.products?.name_th || p.products?.name_lo || p.barcode);
+    const time = p.updated_at ? new Date(p.updated_at).toLocaleString(isLao ? 'lo-LA' : 'th-TH', {
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+    }) : '—';
+    
+    html += `
+      <div onclick="openPanOGramModal('${p.barcode}', '${p.location_code}', ${p.id})"
+           style="padding:9px 14px;border-bottom:1px solid var(--slate-100);cursor:pointer;display:flex;align-items:center;gap:9px;">
+        <div style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));border:1px solid var(--violet-300);padding:5px 8px;border-radius:6px;font-family:'Space Grotesk',monospace;font-weight:800;font-size:11px;color:var(--violet-600);min-width:90px;text-align:center;flex-shrink:0;">
+          ${p.position_code}
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</div>
+          <div style="font-size:10px;color:var(--slate-500);font-family:monospace;">${p.barcode} • ${time}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:9px;color:var(--slate-500);font-family:'Space Grotesk',monospace;">${p.facial}×${p.depth}×${p.stack}</div>
+          <div style="font-size:14px;font-weight:800;color:var(--emerald-500);font-family:'Space Grotesk',monospace;">${p.total_qty}</div>
+        </div>
+      </div>
+    `;
+  });
+  
+  list.innerHTML = html;
+}
+
 async function loadHistory() {
   if (!session) return;
   
   log('Loading history for user:', user.id);
+  
+  // Reset Pan-O-Gram cache when loading history
+  window._historyPogLoaded = false;
+  _historySubTab = 'counts';
+  
+  // Update Pan-O-Gram badge in tab header
+  loadHistoryPogBadge();
   
   const { data, error } = await sb.from('stock_counts')
     .select(`
@@ -8344,18 +8610,26 @@ async function loadFloorMap() {
   
   log('Loading floor map for branch:', branch.id);
   
-  const { data, error } = await sb.rpc('get_floor_map_data', {
-    p_branch_id: branch.id
-  });
+  // Parallel: floor map data + Pan-O-Gram counts per location
+  const [fmRes, pogRes] = await Promise.all([
+    sb.rpc('get_floor_map_data', { p_branch_id: branch.id }),
+    sb.from('pan_o_grams').select('location_code').eq('branch_id', branch.id)
+  ]);
   
-  if (error) {
-    log('Floor map error:', error);
-    showToast('Error: ' + error.message, 'error');
+  if (fmRes.error) {
+    log('Floor map error:', fmRes.error);
+    showToast('Error: ' + fmRes.error.message, 'error');
     return;
   }
   
-  log('Floor map data:', data);
-  renderFloorMapContent(data || {});
+  // Cache PoG count per location
+  window._pogCountByLoc = {};
+  (pogRes.data || []).forEach(p => {
+    window._pogCountByLoc[p.location_code] = (window._pogCountByLoc[p.location_code] || 0) + 1;
+  });
+  
+  log('Floor map data:', fmRes.data, 'PoG locations:', Object.keys(window._pogCountByLoc).length);
+  renderFloorMapContent(fmRes.data || {});
 }
 
 function renderFloorMapContent(data) {
@@ -8377,6 +8651,7 @@ function renderFloorMapContent(data) {
     const counted = item.counted_products || 0;
     const issues = item.issues_count || 0;
     const hasIssues = issues > 0 ? 'has-issues' : '';
+    const pogCount = (window._pogCountByLoc || {})[item.location_code] || 0;
     
     let progress = '';
     if (total > 0) {
@@ -8385,10 +8660,18 @@ function renderFloorMapContent(data) {
       progress = `<div class="fm-progress">${counted}</div>`;
     }
     
+    // Pan-O-Gram badge — แสดงเมื่อมี PoG ใน location นี้
+    const pogBadge = pogCount > 0 ? `
+      <div class="fm-pog-badge" title="${pogCount} Pan-O-Gram positions">
+        📐${pogCount}
+      </div>
+    ` : '';
+    
     return `
-      <div class="fm-cell s-${status} ${hasIssues}" 
+      <div class="fm-cell s-${status} ${hasIssues} ${pogCount > 0 ? 'has-pog' : ''}" 
            onclick="onFloorMapCellClick('${item.location_code}', '${status}')"
-           title="${item.location_code} - ${T('status_'+status)}${item.counter_name ? ' • Counter: '+item.counter_name : ''}${item.verifier_name ? ' • Verifier: '+item.verifier_name : ''}${issues>0 ? ' • Issues: '+issues : ''}">
+           title="${item.location_code} - ${T('status_'+status)}${item.counter_name ? ' • Counter: '+item.counter_name : ''}${item.verifier_name ? ' • Verifier: '+item.verifier_name : ''}${issues>0 ? ' • Issues: '+issues : ''}${pogCount>0 ? ' • 📐 Pan-O-Gram: '+pogCount : ''}">
+        ${pogBadge}
         <div class="fm-code">${item.location_code}</div>
         ${progress}
       </div>
@@ -10517,6 +10800,11 @@ window.onPogFilterChange = onPogFilterChange;
 window.onPogSearchChange = onPogSearchChange;
 window.setPogView = setPogView;
 window.usePogExpected = usePogExpected;
+window.onPogShelfChange = onPogShelfChange;
+window.onPogTotalManualEdit = onPogTotalManualEdit;
+window.switchHistorySubTab = switchHistorySubTab;
+window.loadHistoryPog = loadHistoryPog;
+window.onHistoryPogSearchInput = onHistoryPogSearchInput;
 window.adjustCount = adjustCount;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
