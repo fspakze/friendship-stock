@@ -2293,15 +2293,6 @@ async function loadZonesAndLocations() {
 async function showBranchSetupModal(branchName, zoneCount, locCount) {
   const isLao = lang === 'lo';
   
-  // โหลด stats ของ SUPERMART (สาขาต้นแบบ)
-  const [smZones, smLocs] = await Promise.all([
-    sb.from('zones').select('count', { count: 'exact', head: true }).eq('branch_id', 1).eq('is_active', true),
-    sb.from('location_master').select('count', { count: 'exact', head: true }).eq('branch_id', 1).eq('is_active', true)
-  ]);
-  
-  const smZoneCount = smZones.count || 0;
-  const smLocCount = smLocs.count || 0;
-  
   showModal(`
     <h3 style="display:flex;align-items:center;gap:7px;">
       ⚠️ ${isLao ? 'ສາຂາໃໝ່' : 'สาขาใหม่'}
@@ -2319,28 +2310,28 @@ async function showBranchSetupModal(branchName, zoneCount, locCount) {
       </div>
     </div>
     
-    <!-- Option A: Copy from SUPERMART -->
+    <!-- Option A: Select & Copy from SUPERMART -->
     <div style="background:white;border:2px solid var(--teal-500);border-radius:11px;padding:11px;margin-bottom:9px;">
       <div style="display:flex;align-items:center;gap:7px;margin-bottom:7px;">
         <span style="font-size:20px;">📋</span>
         <div style="flex:1;">
           <div style="font-weight:700;color:var(--teal-700);font-size:12px;">
-            ${isLao ? 'ສ້າງຈາກ SUPERMART' : 'สร้างจาก SUPERMART'}
+            ${isLao ? 'ເລືອກຈາກ SUPERMART' : 'เลือกจาก SUPERMART'}
           </div>
           <div style="font-size:10px;color:var(--slate-500);">
-            ${isLao ? 'ກ໊ອບປີ້' : 'คัดลอก'} ${smZoneCount} ${isLao ? 'ໂຊນ' : 'โซน'}, ${smLocCount} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}
+            ${isLao ? 'ເລືອກໂຊນ + ຕຳແໜ່ງທີ່ຕ້ອງການ' : 'เลือกโซน + ตำแหน่งที่ต้องการ'}
           </div>
         </div>
       </div>
       <button class="btn btn-primary" 
-              onclick="copyFromSupermart()" 
+              onclick="openSelectiveCopyModal()" 
               style="background:var(--teal-600);width:100%;font-size:12px;padding:9px;">
-        🚀 ${isLao ? 'ກ໊ອບປີ້ຈາກ SUPERMART' : 'คัดลอกจาก SUPERMART'}
+        🎯 ${isLao ? 'ເລືອກ ແລ້ວ ກ໊ອບປີ້' : 'เลือก แล้ว คัดลอก'}
       </button>
       <div style="font-size:9px;color:var(--slate-500);margin-top:5px;line-height:1.4;">
         ${isLao 
-          ? '💡 ໃຊ້ rotation/code/type ດຽວກັນ — ປັບແຕ່ງເພີ່ມພາຍຫຼັງ' 
-          : '💡 ใช้โครงสร้าง/code/type เดียวกัน — ปรับเพิ่มทีหลังได้'}
+          ? '💡 ເລືອກສະເພາະທີ່ຕ້ອງການ — ສາຂາໃໝ່ມັກບໍ່ມີ Gondola ໜຶ້ງເທື່ອ' 
+          : '💡 เลือกเฉพาะที่ต้องการ — สาขาใหม่มักไม่มี Gondola เยอะ'}
       </div>
     </div>
     
@@ -2354,7 +2345,7 @@ async function showBranchSetupModal(branchName, zoneCount, locCount) {
       </div>
       <div style="font-size:10px;color:var(--slate-500);margin-bottom:7px;line-height:1.4;">
         ${isLao 
-          ? 'ປິດໂມດອລ ແລ້ວເພີ່ມຕຳແໜ່ງເທື່ອລະອັນຈາກປຸ່ມ + Floor Map' 
+          ? 'ປິດ modal ແລ້ວເພີ່ມຕຳແໜ່ງເທື່ອລະອັນຈາກປຸ່ມ + Floor Map' 
           : 'ปิด modal แล้วเพิ่มทีละตำแหน่งจากปุ่ม + ใน Floor Map'}
       </div>
       <button class="btn btn-secondary" onclick="closeModal()" 
@@ -2365,97 +2356,380 @@ async function showBranchSetupModal(branchName, zoneCount, locCount) {
   `);
 }
 
-async function copyFromSupermart() {
+// State สำหรับ Selective Copy Modal
+let _copyState = {
+  zones: [],          // [{...zone, selected: bool, locations: [...]}]
+  locsByZone: {},     // zone_id → [locations]
+  search: ''
+};
+
+async function openSelectiveCopyModal() {
+  const isLao = lang === 'lo';
+  
+  // โหลด zones + locations ของ SUPERMART
+  const [zonesRes, locsRes] = await Promise.all([
+    sb.from('zones').select('*').eq('branch_id', 1).eq('is_active', true).order('sort_order').order('code'),
+    sb.from('location_master').select('*').eq('branch_id', 1).eq('is_active', true).order('location_code')
+  ]);
+  
+  if (zonesRes.error || locsRes.error) {
+    showToast('Error: ' + (zonesRes.error?.message || locsRes.error?.message), 'error');
+    return;
+  }
+  
+  const allZones = zonesRes.data || [];
+  const allLocs = locsRes.data || [];
+  
+  // Group locations by zone_id
+  _copyState.locsByZone = {};
+  allLocs.forEach(l => {
+    const zid = l.zone_id || 'no-zone';
+    if (!_copyState.locsByZone[zid]) _copyState.locsByZone[zid] = [];
+    _copyState.locsByZone[zid].push({ ...l, selected: false });
+  });
+  
+  // Locations without zone
+  if (_copyState.locsByZone['no-zone']) {
+    allZones.push({ id: 'no-zone', code: '?', name_lo: 'ບໍ່ມີໂຊນ', name_th: 'ไม่มีโซน' });
+  }
+  
+  _copyState.zones = allZones.map(z => ({ ...z, selected: false }));
+  _copyState.search = '';
+  
+  renderSelectiveCopyModal();
+}
+
+function renderSelectiveCopyModal() {
+  const isLao = lang === 'lo';
+  
+  // Apply search filter to locations
+  const search = (_copyState.search || '').toLowerCase().trim();
+  
+  // นับ stats
+  let selectedLocCount = 0;
+  let selectedZones = new Set();
+  let totalLocs = 0;
+  
+  _copyState.zones.forEach(z => {
+    const locs = _copyState.locsByZone[z.id] || [];
+    totalLocs += locs.length;
+    locs.forEach(l => {
+      if (l.selected) {
+        selectedLocCount++;
+        selectedZones.add(z.id);
+      }
+    });
+  });
+  
+  showModal(`
+    <h3 style="display:flex;align-items:center;gap:7px;">
+      🎯 ${isLao ? 'ເລືອກ Gondola ທີ່ຈະ Copy' : 'เลือก Gondola ที่จะ Copy'}
+      <span style="font-size:11px;color:var(--slate-500);font-weight:500;margin-left:auto;">
+        ${branch?.code || ''}
+      </span>
+    </h3>
+    
+    <!-- Search -->
+    <div style="margin-bottom:9px;">
+      <input type="text" id="copySearch" 
+             placeholder="🔍 ${isLao ? 'ຄົ້ນຫາ code...' : 'ค้นหา code...'}"
+             value="${_copyState.search}"
+             oninput="onCopySearchChange(this.value)"
+             class="form-input" style="font-size:11px;padding:7px 11px;">
+    </div>
+    
+    <!-- Stats Bar -->
+    <div style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));padding:9px 11px;border-radius:9px;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between;gap:9px;">
+      <div style="font-size:11px;color:var(--slate-700);">
+        ${isLao ? 'ເລືອກແລ້ວ' : 'เลือกแล้ว'}:
+      </div>
+      <div style="display:flex;gap:11px;align-items:center;">
+        <div style="font-size:12px;color:var(--violet-600);font-weight:700;">
+          <span style="font-family:'Space Grotesk',monospace;">${selectedZones.size}</span> 
+          <span style="font-size:10px;">${isLao ? 'ໂຊນ' : 'โซน'}</span>
+        </div>
+        <div style="font-size:12px;color:var(--teal-700);font-weight:700;">
+          <span style="font-family:'Space Grotesk',monospace;">${selectedLocCount}</span>
+          <span style="font-size:10px;">/ ${totalLocs} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:9px;">
+      <button onclick="selectAllInCopy(true)" class="btn btn-secondary" style="font-size:10px;padding:6px;">
+        ✅ ${isLao ? 'ເລືອກທັງໝົດ' : 'เลือกทั้งหมด'}
+      </button>
+      <button onclick="selectAllInCopy(false)" class="btn btn-secondary" style="font-size:10px;padding:6px;">
+        ❌ ${isLao ? 'ບໍ່ເລືອກ' : 'ไม่เลือก'}
+      </button>
+    </div>
+    
+    <!-- Zones + Locations List -->
+    <div id="copyList" style="max-height:380px;overflow-y:auto;border:1px solid var(--slate-200);border-radius:9px;padding:7px;background:var(--slate-50);">
+      ${renderCopyList(search)}
+    </div>
+    
+    <div class="action-row" style="margin-top:11px;">
+      <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;">${T('cancel')}</button>
+      <button class="btn btn-primary" 
+              onclick="executeCopyFromSupermart()" 
+              ${selectedLocCount === 0 ? 'disabled' : ''}
+              style="background:var(--teal-600);flex:2;${selectedLocCount === 0 ? 'opacity:0.5;cursor:not-allowed;' : ''}">
+        🚀 ${isLao ? 'Copy' : 'คัดลอก'} ${selectedLocCount > 0 ? `(${selectedLocCount})` : ''}
+      </button>
+    </div>
+  `);
+}
+
+function renderCopyList(search) {
+  const isLao = lang === 'lo';
+  let html = '';
+  let hasResults = false;
+  
+  _copyState.zones.forEach(zone => {
+    const allLocsInZone = _copyState.locsByZone[zone.id] || [];
+    
+    // Apply search filter
+    let locsInZone = allLocsInZone;
+    if (search) {
+      locsInZone = allLocsInZone.filter(l => 
+        (l.location_code || '').toLowerCase().includes(search)
+      );
+    }
+    
+    if (locsInZone.length === 0) return; // skip empty zones
+    hasResults = true;
+    
+    // Count selected in this zone
+    const selectedInZone = locsInZone.filter(l => l.selected).length;
+    const allSelected = locsInZone.length > 0 && selectedInZone === locsInZone.length;
+    const someSelected = selectedInZone > 0 && selectedInZone < locsInZone.length;
+    
+    const zoneName = isLao ? (zone.name_lo || zone.name_th || zone.code) : (zone.name_th || zone.name_lo || zone.code);
+    
+    // Zone header (clickable to toggle all)
+    html += `
+      <div style="margin-bottom:9px;">
+        <div onclick="toggleZoneSelection('${zone.id}')"
+             style="background:white;border:2px solid ${allSelected ? 'var(--teal-500)' : someSelected ? 'var(--amber-500)' : 'var(--slate-200)'};border-radius:9px;padding:9px 11px;display:flex;align-items:center;gap:9px;cursor:pointer;transition:all 0.15s;">
+          <div style="font-size:18px;flex-shrink:0;">
+            ${allSelected ? '✅' : someSelected ? '🟡' : '⬜'}
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:800;color:var(--slate-900);font-size:12px;font-family:'Space Grotesk',monospace;">
+              ${zone.code} - ${zoneName}
+            </div>
+            <div style="font-size:10px;color:var(--slate-500);">
+              ${selectedInZone}/${locsInZone.length} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}
+            </div>
+          </div>
+        </div>
+        
+        <!-- Locations in this zone -->
+        <div style="padding:5px 0 5px 21px;border-left:2px dashed var(--slate-200);margin-left:7px;">
+    `;
+    
+    // Show locations (limit display, but keep all in state)
+    const SHOW_LIMIT = 50; // แสดงสูงสุด 50 ต่อ zone
+    const locsToShow = locsInZone.slice(0, SHOW_LIMIT);
+    
+    locsToShow.forEach(loc => {
+      html += `
+        <div onclick="toggleLocationSelection('${zone.id}', ${loc.id})"
+             style="background:white;border:1px solid ${loc.selected ? 'var(--teal-500)' : 'var(--slate-200)'};border-radius:7px;padding:5px 9px;margin-bottom:3px;display:flex;align-items:center;gap:7px;cursor:pointer;transition:all 0.1s;${loc.selected ? 'background:var(--teal-100);' : ''}">
+          <div style="font-size:13px;flex-shrink:0;">
+            ${loc.selected ? '☑️' : '⬜'}
+          </div>
+          <div style="flex:1;min-width:0;display:flex;align-items:center;gap:7px;">
+            <span style="font-family:'Space Grotesk',monospace;font-size:11px;font-weight:700;color:var(--slate-900);">
+              ${loc.location_code}
+            </span>
+            <span style="font-size:9px;color:var(--slate-500);background:var(--slate-100);padding:1px 5px;border-radius:4px;">
+              ${loc.location_type}
+            </span>
+          </div>
+        </div>
+      `;
+    });
+    
+    if (locsInZone.length > SHOW_LIMIT) {
+      html += `
+        <div style="text-align:center;font-size:10px;color:var(--slate-500);font-style:italic;padding:5px;">
+          + ${locsInZone.length - SHOW_LIMIT} ${isLao ? 'ອື່ນໆ' : 'อื่นๆ'} (${isLao ? 'ໃຊ້ "ເລືອກທັງໝົດ"' : 'ใช้ "เลือกทั้งหมด"'})
+        </div>
+      `;
+    }
+    
+    html += '</div></div>';
+  });
+  
+  if (!hasResults) {
+    html = `<div style="text-align:center;padding:30px;color:var(--slate-400);font-size:11px;">
+      ${isLao ? 'ບໍ່ພົບ' : 'ไม่พบ'}
+    </div>`;
+  }
+  
+  return html;
+}
+
+function toggleZoneSelection(zoneId) {
+  // Find current state (consider all visible after search)
+  const search = (_copyState.search || '').toLowerCase().trim();
+  const allLocsInZone = _copyState.locsByZone[zoneId] || [];
+  
+  let visibleLocs = allLocsInZone;
+  if (search) {
+    visibleLocs = allLocsInZone.filter(l => (l.location_code || '').toLowerCase().includes(search));
+  }
+  
+  if (visibleLocs.length === 0) return;
+  
+  const allSelected = visibleLocs.every(l => l.selected);
+  const newState = !allSelected;
+  
+  // Toggle all VISIBLE locations
+  visibleLocs.forEach(l => {
+    l.selected = newState;
+  });
+  
+  renderSelectiveCopyModal();
+}
+
+function toggleLocationSelection(zoneId, locId) {
+  const locs = _copyState.locsByZone[zoneId] || [];
+  const loc = locs.find(l => l.id === locId);
+  if (loc) {
+    loc.selected = !loc.selected;
+    renderSelectiveCopyModal();
+  }
+}
+
+function selectAllInCopy(state) {
+  const search = (_copyState.search || '').toLowerCase().trim();
+  _copyState.zones.forEach(z => {
+    const allLocs = _copyState.locsByZone[z.id] || [];
+    allLocs.forEach(l => {
+      // Apply ตาม search filter ปัจจุบัน
+      if (search) {
+        if ((l.location_code || '').toLowerCase().includes(search)) {
+          l.selected = state;
+        }
+      } else {
+        l.selected = state;
+      }
+    });
+  });
+  renderSelectiveCopyModal();
+}
+
+function onCopySearchChange(value) {
+  _copyState.search = (value || '').trim();
+  // Debounce
+  clearTimeout(window._copySearchTimer);
+  window._copySearchTimer = setTimeout(() => {
+    const listEl = document.getElementById('copyList');
+    if (listEl) listEl.innerHTML = renderCopyList(_copyState.search.toLowerCase());
+  }, 150);
+}
+
+async function executeCopyFromSupermart() {
   const isLao = lang === 'lo';
   if (!branch || branch.id === 1) {
     showToast(isLao ? 'ບໍ່ສາມາດກ໊ອບປີ້ໃສ່ SUPERMART' : 'ไม่สามารถคัดลอกใส่ SUPERMART', 'error');
     return;
   }
   
+  // รวบรวม selected locations + their zones
+  const selectedLocs = [];
+  const selectedZoneIds = new Set();
+  
+  _copyState.zones.forEach(z => {
+    const locs = _copyState.locsByZone[z.id] || [];
+    locs.forEach(l => {
+      if (l.selected) {
+        selectedLocs.push(l);
+        if (z.id !== 'no-zone') selectedZoneIds.add(z.id);
+      }
+    });
+  });
+  
+  if (selectedLocs.length === 0) {
+    showToast(isLao ? 'ກະລຸນາເລືອກຢ່າງໜ້ອຍ 1 ຕຳແໜ່ງ' : 'กรุณาเลือกอย่างน้อย 1 ตำแหน่ง', 'warning');
+    return;
+  }
+  
   if (!confirm(isLao 
-    ? `ກ໊ອບປີ້ໂຊນ + ຕຳແໜ່ງຈາກ SUPERMART ມາ ${branch.code}?`
-    : `คัดลอกโซน + ตำแหน่งจาก SUPERMART มา ${branch.code}?`)) return;
+    ? `ກ໊ອບປີ້ ${selectedZoneIds.size} ໂຊນ + ${selectedLocs.length} ຕຳແໜ່ງ ມາ ${branch.code}?`
+    : `คัดลอก ${selectedZoneIds.size} โซน + ${selectedLocs.length} ตำแหน่ง มา ${branch.code}?`)) return;
   
   showToast(isLao ? '⏳ ກຳລັງກ໊ອບປີ້...' : '⏳ กำลังคัดลอก...', 'success');
   
   try {
-    // 1. Load SUPERMART zones
-    const { data: smZones, error: ze } = await sb
-      .from('zones').select('*')
-      .eq('branch_id', 1).eq('is_active', true);
-    if (ze) throw ze;
-    
-    // 2. Load SUPERMART locations
-    const { data: smLocs, error: le } = await sb
-      .from('location_master').select('*')
-      .eq('branch_id', 1).eq('is_active', true);
-    if (le) throw le;
-    
-    // 3. Copy zones (without id, with new branch_id)
+    // 1. Copy selected zones
     let zonesCopied = 0;
     const zoneIdMap = {}; // old_zone_id → new_zone_id
     
-    if (smZones && smZones.length > 0) {
-      // Insert one by one to get new IDs
-      for (const z of smZones) {
-        const newZone = {
-          branch_id: branch.id,
-          code: z.code,
-          name_th: z.name_th,
-          name_lo: z.name_lo,
-          sort_order: z.sort_order,
-          is_active: true
-        };
-        // Optional fields
-        if (z.color !== undefined) newZone.color = z.color;
-        if (z.description !== undefined) newZone.description = z.description;
-        
-        const { data: inserted, error: ie } = await sb
-          .from('zones').insert(newZone).select('id').single();
-        
-        if (ie) {
-          console.warn('[FS] Zone copy err:', ie.message);
-          // ลอง find existing zone ใน branch ใหม่ที่มี code เดียวกัน
-          const { data: existing } = await sb
-            .from('zones').select('id')
-            .eq('branch_id', branch.id).eq('code', z.code).maybeSingle();
-          if (existing) zoneIdMap[z.id] = existing.id;
-          continue;
-        }
-        zoneIdMap[z.id] = inserted.id;
-        zonesCopied++;
+    for (const zone of _copyState.zones) {
+      if (!selectedZoneIds.has(zone.id) || zone.id === 'no-zone') continue;
+      
+      // เช็คว่ามีอยู่แล้วใน branch นี้ไหม
+      const { data: existing } = await sb
+        .from('zones').select('id')
+        .eq('branch_id', branch.id).eq('code', zone.code).maybeSingle();
+      
+      if (existing) {
+        zoneIdMap[zone.id] = existing.id;
+        continue;
       }
+      
+      const newZone = {
+        branch_id: branch.id,
+        code: zone.code,
+        name_th: zone.name_th,
+        name_lo: zone.name_lo,
+        sort_order: zone.sort_order,
+        is_active: true
+      };
+      if (zone.color !== undefined) newZone.color = zone.color;
+      if (zone.description !== undefined) newZone.description = zone.description;
+      
+      const { data: inserted, error: ie } = await sb
+        .from('zones').insert(newZone).select('id').single();
+      
+      if (ie) {
+        console.warn('[FS] Zone copy err:', ie.message);
+        continue;
+      }
+      zoneIdMap[zone.id] = inserted.id;
+      zonesCopied++;
     }
     
-    // 4. Copy locations (use new zone_id from map)
+    // 2. Copy selected locations (batch insert)
     let locsCopied = 0;
     let locsFailed = 0;
+    const BATCH = 100;
     
-    if (smLocs && smLocs.length > 0) {
-      // Batch insert (faster) — แบ่งทีละ 100
-      const BATCH = 100;
-      for (let i = 0; i < smLocs.length; i += BATCH) {
-        const chunk = smLocs.slice(i, i + BATCH).map(l => {
-          const newLoc = {
-            branch_id: branch.id,
-            location_code: l.location_code,
-            location_type: l.location_type,
-            zone_id: zoneIdMap[l.zone_id] || null,
-            is_active: true
-          };
-          // Optional
-          if (l.description !== undefined) newLoc.description = l.description;
-          if (l.sort_order !== undefined) newLoc.sort_order = l.sort_order;
-          return newLoc;
-        });
-        
-        const { error: lie } = await sb.from('location_master').insert(chunk);
-        if (lie) {
-          console.warn('[FS] Location batch err:', lie.message);
-          locsFailed += chunk.length;
-        } else {
-          locsCopied += chunk.length;
-        }
+    for (let i = 0; i < selectedLocs.length; i += BATCH) {
+      const chunk = selectedLocs.slice(i, i + BATCH).map(l => {
+        const newLoc = {
+          branch_id: branch.id,
+          location_code: l.location_code,
+          location_type: l.location_type,
+          zone_id: zoneIdMap[l.zone_id] || null,
+          is_active: true
+        };
+        if (l.description !== undefined) newLoc.description = l.description;
+        if (l.sort_order !== undefined) newLoc.sort_order = l.sort_order;
+        return newLoc;
+      });
+      
+      const { error: lie } = await sb.from('location_master').insert(chunk);
+      if (lie) {
+        console.warn('[FS] Location batch err:', lie.message);
+        locsFailed += chunk.length;
+      } else {
+        locsCopied += chunk.length;
       }
     }
     
@@ -2466,17 +2740,24 @@ async function copyFromSupermart() {
       'success'
     );
     
-    // Reload everything
-    await loadZonesAndLocations();
+    // Clear state
+    _copyState = { zones: [], locsByZone: {}, search: '' };
     
-    // Reload floor map ถ้าเปิดอยู่
+    // Reload
+    await loadZonesAndLocations();
     const fmEl = document.getElementById('floorMapContent');
     if (fmEl) loadFloorMap();
     
   } catch (e) {
-    console.error('[FS] copyFromSupermart error:', e);
+    console.error('[FS] executeCopyFromSupermart error:', e);
     showToast('Error: ' + e.message, 'error');
   }
+}
+
+// Old function — kept for backward compat (auto-copy all)
+async function copyFromSupermart() {
+  // Now redirects to selective copy
+  await openSelectiveCopyModal();
 }
 
 function showZoneStep() {
@@ -11059,6 +11340,12 @@ window.loadHistoryPog = loadHistoryPog;
 window.onHistoryPogSearchInput = onHistoryPogSearchInput;
 window.showBranchSetupModal = showBranchSetupModal;
 window.copyFromSupermart = copyFromSupermart;
+window.openSelectiveCopyModal = openSelectiveCopyModal;
+window.executeCopyFromSupermart = executeCopyFromSupermart;
+window.toggleZoneSelection = toggleZoneSelection;
+window.toggleLocationSelection = toggleLocationSelection;
+window.selectAllInCopy = selectAllInCopy;
+window.onCopySearchChange = onCopySearchChange;
 window.adjustCount = adjustCount;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
