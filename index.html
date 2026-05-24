@@ -9820,6 +9820,7 @@ function buildExpirySheet(wb, expiries, newSkus) {
 
 // ==================== FLOOR MAP ====================
 function renderFloorMapPage() {
+  const isLao = lang === 'lo';
   return `
     <div class="banner violet">
       <div class="banner-icon">
@@ -9832,7 +9833,7 @@ function renderFloorMapPage() {
     </div>
     
     <!-- Top controls -->
-    <div style="display:flex;gap:9px;margin-bottom:13px;">
+    <div style="display:flex;gap:9px;margin-bottom:11px;">
       <button class="btn-add-gondola-big" style="flex:1;" onclick="openAddGondolaModal()">
         <span class="plus-icon">+</span>
         <span>${T('add_gondola')}</span>
@@ -9840,6 +9841,28 @@ function renderFloorMapPage() {
       <button class="btn-refresh-map-big" onclick="loadFloorMap()" title="${T('refresh_map')}" aria-label="${T('refresh_map')}">
         ⟲
       </button>
+    </div>
+    
+    <!-- 🔍 Search Bar -->
+    <div style="position:relative;margin-bottom:11px;">
+      <input type="text" id="fmSearchInput"
+             placeholder="🔍 ${isLao ? 'ຄົ້ນຫາ Gondola (ເຊັ່ນ: 01A01, 02, W028)...' : 'ค้นหา Gondola (เช่น: 01A01, 02, W028)...'}"
+             oninput="onFloorMapSearchInput(this.value)"
+             onkeydown="onFloorMapSearchKeydown(event)"
+             autocomplete="off"
+             autocapitalize="characters"
+             style="width:100%;padding:11px 36px 11px 13px;border:2px solid var(--violet-300);border-radius:11px;font-size:13px;font-weight:600;font-family:'Space Grotesk',monospace;letter-spacing:0.5px;text-transform:uppercase;background:white;box-shadow:0 2px 6px rgba(139,92,246,0.08);outline:none;transition:all 0.15s;"
+             onfocus="this.style.borderColor='var(--violet-500)';this.style.boxShadow='0 4px 12px rgba(139,92,246,0.18)';"
+             onblur="setTimeout(()=>{if(this.style.borderColor!=='var(--violet-500)')return;this.style.borderColor='var(--violet-300)';this.style.boxShadow='0 2px 6px rgba(139,92,246,0.08)';},150);">
+      <button id="fmSearchClear" onclick="clearFloorMapSearch()" 
+              style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);background:var(--rose-500);color:white;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;font-weight:700;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1;">
+        ✕
+      </button>
+      
+      <!-- Search Results Dropdown -->
+      <div id="fmSearchResults" 
+           style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:white;border:2px solid var(--violet-300);border-radius:11px;box-shadow:0 8px 24px rgba(0,0,0,0.15);max-height:380px;overflow-y:auto;z-index:50;">
+      </div>
     </div>
     
     <!-- Legend -->
@@ -10128,6 +10151,213 @@ function renderFloorMapContent(data) {
   }, getStatusCounts(data), data);
 }
 
+// ==================== FLOOR MAP SEARCH ====================
+let _fmSearchTimer = null;
+
+function onFloorMapSearchInput(value) {
+  const clearBtn = document.getElementById('fmSearchClear');
+  if (clearBtn) {
+    clearBtn.style.display = value.trim() ? 'flex' : 'none';
+  }
+  
+  clearTimeout(_fmSearchTimer);
+  _fmSearchTimer = setTimeout(() => {
+    renderFloorMapSearchResults(value.trim().toUpperCase());
+  }, 150);
+}
+
+function onFloorMapSearchKeydown(event) {
+  if (event.key === 'Escape') {
+    clearFloorMapSearch();
+  } else if (event.key === 'Enter') {
+    event.preventDefault();
+    // กด Enter → ถ้ามี 1 ผลลัพธ์เด่นๆ → กดเลย
+    const searchVal = event.target.value.trim().toUpperCase();
+    const matches = findFloorMapMatches(searchVal);
+    if (matches.length === 1) {
+      onFloorMapResultClick(matches[0].location_code);
+    } else if (matches.length > 0) {
+      // jump ไปอันแรกก่อน
+      jumpToFloorMapCell(matches[0].location_code);
+    }
+  }
+}
+
+function clearFloorMapSearch() {
+  const inp = document.getElementById('fmSearchInput');
+  const clearBtn = document.getElementById('fmSearchClear');
+  const results = document.getElementById('fmSearchResults');
+  if (inp) inp.value = '';
+  if (clearBtn) clearBtn.style.display = 'none';
+  if (results) {
+    results.style.display = 'none';
+    results.innerHTML = '';
+  }
+}
+
+function findFloorMapMatches(searchVal) {
+  if (!searchVal || !window._fmAllData) return [];
+  
+  const all = [
+    ...(window._fmAllData.sale_floor || []),
+    ...(window._fmAllData.top_stock || []),
+    ...(window._fmAllData.display || []),
+    ...(window._fmAllData.warehouse || [])
+  ];
+  
+  return all.filter(loc => (loc.location_code || '').toUpperCase().includes(searchVal));
+}
+
+function renderFloorMapSearchResults(searchVal) {
+  const resultsEl = document.getElementById('fmSearchResults');
+  if (!resultsEl) return;
+  
+  if (!searchVal) {
+    resultsEl.style.display = 'none';
+    resultsEl.innerHTML = '';
+    return;
+  }
+  
+  const matches = findFloorMapMatches(searchVal);
+  const isLao = lang === 'lo';
+  
+  if (matches.length === 0) {
+    resultsEl.style.display = 'block';
+    resultsEl.innerHTML = `
+      <div style="text-align:center;padding:20px;color:var(--slate-400);font-size:12px;">
+        ${isLao ? 'ບໍ່ພົບ' : 'ไม่พบ'} "${searchVal}"
+      </div>
+    `;
+    return;
+  }
+  
+  // Sort by exact match first
+  matches.sort((a, b) => {
+    const aExact = a.location_code.toUpperCase() === searchVal ? 0 : 1;
+    const bExact = b.location_code.toUpperCase() === searchVal ? 0 : 1;
+    if (aExact !== bExact) return aExact - bExact;
+    return (a.location_code || '').localeCompare(b.location_code || '', undefined, { numeric: true });
+  });
+  
+  // Status color/icon helpers
+  const statusInfo = (s) => {
+    const map = {
+      'closed': { color: 'var(--slate-400)', icon: '⚪', label: isLao ? 'ປິດ' : 'ปิด' },
+      'open_for_counting': { color: 'var(--teal-300)', icon: '🔵', label: isLao ? 'ເປີດໃຫ້ນັບ' : 'เปิดให้นับ' },
+      'counting': { color: 'var(--teal-500)', icon: '🔢', label: isLao ? 'ກຳລັງນັບ' : 'กำลังนับ' },
+      'counted': { color: 'var(--amber-500)', icon: '✓', label: isLao ? 'ນັບແລ້ວ' : 'นับแล้ว' },
+      'open_for_verify': { color: 'var(--amber-400)', icon: '👁️', label: isLao ? 'ເປີດກວດ' : 'เปิดตรวจ' },
+      'verifying': { color: 'var(--amber-500)', icon: '🔍', label: isLao ? 'ກຳລັງກວດ' : 'กำลังตรวจ' },
+      'verified': { color: 'var(--violet-500)', icon: '☑️', label: isLao ? 'ກວດແລ້ວ' : 'ตรวจแล้ว' },
+      'tiebreaker_needed': { color: 'var(--rose-500)', icon: '⚠️', label: isLao ? 'ກວດໃໝ່' : 'ตรวจใหม่' },
+      'tiebreaker': { color: 'var(--violet-600)', icon: '🔄', label: isLao ? 'ກຳລັງກວດໃໝ່' : 'กำลังตรวจใหม่' },
+      'completed': { color: 'var(--emerald-500)', icon: '✅', label: isLao ? 'ສຳເລັດ' : 'เสร็จ' }
+    };
+    return map[s] || { color: 'var(--slate-400)', icon: '⚪', label: s };
+  };
+  
+  // จำกัด 30 ผลลัพธ์
+  const limit = 30;
+  const showItems = matches.slice(0, limit);
+  
+  let html = `
+    <div style="padding:6px 11px;background:var(--violet-100);border-bottom:1px solid var(--slate-200);font-size:10px;color:var(--violet-600);font-weight:700;">
+      ${matches.length} ${isLao ? 'ຜົນລັບ' : 'ผลลัพธ์'}${matches.length > limit ? ` (${isLao ? 'ສະແດງ' : 'แสดง'} ${limit})` : ''}
+    </div>
+  `;
+  
+  showItems.forEach(loc => {
+    const status = loc.workflow_status || 'closed';
+    const si = statusInfo(status);
+    const total = loc.total_products || 0;
+    const counted = loc.counted_products || 0;
+    const pogCount = (window._pogCountByLoc || {})[loc.location_code] || 0;
+    
+    html += `
+      <div onclick="onFloorMapResultClick('${loc.location_code}')"
+           style="display:flex;align-items:center;gap:9px;padding:9px 11px;border-bottom:1px solid var(--slate-100);cursor:pointer;transition:background 0.1s;"
+           onmouseover="this.style.background='var(--violet-100)';"
+           onmouseout="this.style.background='white';">
+        <div style="background:${si.color};color:white;width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">
+          ${si.icon}
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-family:'Space Grotesk',monospace;font-weight:800;font-size:13px;color:var(--slate-900);">
+            ${loc.location_code}
+            ${pogCount > 0 ? `<span style="background:var(--violet-100);color:var(--violet-600);padding:1px 5px;border-radius:4px;font-size:9px;margin-left:5px;">📐${pogCount}</span>` : ''}
+          </div>
+          <div style="font-size:10px;color:var(--slate-500);">
+            ${si.label} ${total > 0 ? `• ${counted}/${total}` : ''}
+            ${loc.counter_name ? ` • 👤 ${loc.counter_name}` : ''}
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--violet-500);font-weight:700;flex-shrink:0;">
+          →
+        </div>
+      </div>
+    `;
+  });
+  
+  resultsEl.style.display = 'block';
+  resultsEl.innerHTML = html;
+}
+
+function onFloorMapResultClick(locationCode) {
+  // ปิด dropdown
+  const resultsEl = document.getElementById('fmSearchResults');
+  if (resultsEl) resultsEl.style.display = 'none';
+  
+  // หา status ของ location นี้
+  const all = [
+    ...(window._fmAllData?.sale_floor || []),
+    ...(window._fmAllData?.top_stock || []),
+    ...(window._fmAllData?.display || []),
+    ...(window._fmAllData?.warehouse || [])
+  ];
+  const loc = all.find(l => l.location_code === locationCode);
+  if (!loc) return;
+  
+  // Scroll ไปและ trigger click (เพื่อเปิด action modal)
+  jumpToFloorMapCell(locationCode);
+  
+  // หลังจาก scroll/flash เสร็จ → ค่อย trigger click เพื่อเปิด modal
+  setTimeout(() => {
+    onFloorMapCellClick(locationCode, loc.workflow_status || 'closed');
+  }, 700);
+}
+
+function jumpToFloorMapCell(locationCode) {
+  const cells = document.querySelectorAll('.fm-cell');
+  let foundCell = null;
+  cells.forEach(c => {
+    const codeEl = c.querySelector('.fm-code');
+    if (codeEl && codeEl.textContent.trim() === locationCode) {
+      foundCell = c;
+    }
+  });
+  
+  if (foundCell) {
+    foundCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Flash highlight
+    foundCell.style.transition = 'transform 0.3s, box-shadow 0.3s';
+    foundCell.style.transform = 'scale(1.2)';
+    foundCell.style.boxShadow = '0 0 0 4px var(--violet-500), 0 8px 24px rgba(139,92,246,0.4)';
+    foundCell.style.zIndex = '10';
+    foundCell.style.position = 'relative';
+    
+    setTimeout(() => {
+      foundCell.style.transform = '';
+      foundCell.style.boxShadow = '';
+      setTimeout(() => {
+        foundCell.style.transition = '';
+        foundCell.style.zIndex = '';
+      }, 400);
+    }, 1000);
+  }
+}
+
+// ==================== END FLOOR MAP SEARCH ====================
 // คำนวณ status counts จากข้อมูลทั้งหมด
 function getStatusCounts(data) {
   const all = [
@@ -12429,6 +12659,20 @@ window.toggleLocationSelection = toggleLocationSelection;
 window.selectAllInCopy = selectAllInCopy;
 window.onCopySearchChange = onCopySearchChange;
 window.jumpToStatus = jumpToStatus;
+window.onFloorMapSearchInput = onFloorMapSearchInput;
+window.onFloorMapSearchKeydown = onFloorMapSearchKeydown;
+window.clearFloorMapSearch = clearFloorMapSearch;
+window.onFloorMapResultClick = onFloorMapResultClick;
+window.jumpToFloorMapCell = jumpToFloorMapCell;
+
+// Click outside to close search dropdown
+document.addEventListener('click', (e) => {
+  const results = document.getElementById('fmSearchResults');
+  const input = document.getElementById('fmSearchInput');
+  if (results && results.style.display === 'block' && !results.contains(e.target) && e.target !== input) {
+    results.style.display = 'none';
+  }
+});
 window.openZoneManager = openZoneManager;
 window.openCreateZoneModal = openCreateZoneModal;
 window.openEditZoneModal = openEditZoneModal;
