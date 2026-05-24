@@ -2267,11 +2267,215 @@ async function loadZonesAndLocations() {
   log('Locations loaded:', allLocations.length);
   log('Location types:', Object.keys(locationsByType));
   
-  if (!allZones.length) {
-    showToast('ບໍ່ມີໂຊນ - ກະລຸນາໃຫ້ Admin ສ້າງໂຊນ', 'error');
+  const isLao = lang === 'lo';
+  const isAdmin = user && ['admin', 'scc', 'bcs'].includes(user.role);
+  
+  // ถ้า branch นี้ยังไม่มี zones หรือ locations
+  if (!allZones.length || !allLocations.length) {
+    const branchName = branch ? (isLao ? (branch.name_lo || branch.code) : (branch.name_th || branch.code)) : '?';
+    
+    if (isAdmin) {
+      // Admin → แสดง modal ตั้งค่าเริ่มต้น
+      showBranchSetupModal(branchName, allZones.length, allLocations.length);
+    } else {
+      // Non-admin → แค่ toast
+      showToast(
+        isLao 
+          ? `ສາຂາ ${branchName} ຍັງບໍ່ມີ${!allZones.length ? 'ໂຊນ' : 'ຕຳແໜ່ງ'} — ກະລຸນາແຈ້ງ Admin`
+          : `สาขา ${branchName} ยังไม่มี${!allZones.length ? 'โซน' : 'ตำแหน่ง'} — กรุณาแจ้ง Admin`,
+        'warning'
+      );
+    }
   }
-  if (!allLocations.length) {
-    showToast('ບໍ່ມີຕຳແໜ່ງ - ກະລຸນາ run SQL 19-add-full-locations.sql', 'error');
+}
+
+// ==================== BRANCH SETUP (เมื่อสาขาใหม่ยังไม่มีข้อมูล) ====================
+async function showBranchSetupModal(branchName, zoneCount, locCount) {
+  const isLao = lang === 'lo';
+  
+  // โหลด stats ของ SUPERMART (สาขาต้นแบบ)
+  const [smZones, smLocs] = await Promise.all([
+    sb.from('zones').select('count', { count: 'exact', head: true }).eq('branch_id', 1).eq('is_active', true),
+    sb.from('location_master').select('count', { count: 'exact', head: true }).eq('branch_id', 1).eq('is_active', true)
+  ]);
+  
+  const smZoneCount = smZones.count || 0;
+  const smLocCount = smLocs.count || 0;
+  
+  showModal(`
+    <h3 style="display:flex;align-items:center;gap:7px;">
+      ⚠️ ${isLao ? 'ສາຂາໃໝ່' : 'สาขาใหม่'}
+    </h3>
+    
+    <div style="background:var(--amber-100);border-left:3px solid var(--amber-500);padding:11px;border-radius:9px;margin-bottom:11px;">
+      <div style="font-size:13px;font-weight:700;color:#92400e;margin-bottom:5px;">
+        🏪 ${branchName}
+      </div>
+      <div style="font-size:11px;color:#92400e;line-height:1.5;">
+        ${isLao ? 'ສາຂານີ້ຍັງບໍ່ມີ' : 'สาขานี้ยังไม่มี'} 
+        ${zoneCount === 0 ? `<strong>${isLao ? 'ໂຊນ' : 'โซน'}</strong>` : ''}
+        ${zoneCount === 0 && locCount === 0 ? ' & ' : ''}
+        ${locCount === 0 ? `<strong>${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}</strong>` : ''}
+      </div>
+    </div>
+    
+    <!-- Option A: Copy from SUPERMART -->
+    <div style="background:white;border:2px solid var(--teal-500);border-radius:11px;padding:11px;margin-bottom:9px;">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:7px;">
+        <span style="font-size:20px;">📋</span>
+        <div style="flex:1;">
+          <div style="font-weight:700;color:var(--teal-700);font-size:12px;">
+            ${isLao ? 'ສ້າງຈາກ SUPERMART' : 'สร้างจาก SUPERMART'}
+          </div>
+          <div style="font-size:10px;color:var(--slate-500);">
+            ${isLao ? 'ກ໊ອບປີ້' : 'คัดลอก'} ${smZoneCount} ${isLao ? 'ໂຊນ' : 'โซน'}, ${smLocCount} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-primary" 
+              onclick="copyFromSupermart()" 
+              style="background:var(--teal-600);width:100%;font-size:12px;padding:9px;">
+        🚀 ${isLao ? 'ກ໊ອບປີ້ຈາກ SUPERMART' : 'คัดลอกจาก SUPERMART'}
+      </button>
+      <div style="font-size:9px;color:var(--slate-500);margin-top:5px;line-height:1.4;">
+        ${isLao 
+          ? '💡 ໃຊ້ rotation/code/type ດຽວກັນ — ປັບແຕ່ງເພີ່ມພາຍຫຼັງ' 
+          : '💡 ใช้โครงสร้าง/code/type เดียวกัน — ปรับเพิ่มทีหลังได้'}
+      </div>
+    </div>
+    
+    <!-- Option B: Manual -->
+    <div style="background:var(--slate-50);border:1px solid var(--slate-200);border-radius:11px;padding:11px;margin-bottom:9px;">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">
+        <span style="font-size:18px;">✋</span>
+        <div style="font-weight:700;color:var(--slate-700);font-size:12px;">
+          ${isLao ? 'ສ້າງເອງ' : 'สร้างเอง'}
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--slate-500);margin-bottom:7px;line-height:1.4;">
+        ${isLao 
+          ? 'ປິດໂມດອລ ແລ້ວເພີ່ມຕຳແໜ່ງເທື່ອລະອັນຈາກປຸ່ມ + Floor Map' 
+          : 'ปิด modal แล้วเพิ่มทีละตำแหน่งจากปุ่ม + ใน Floor Map'}
+      </div>
+      <button class="btn btn-secondary" onclick="closeModal()" 
+              style="width:100%;font-size:11px;padding:7px;">
+        ${isLao ? 'ປິດ' : 'ปิด'} & ${isLao ? 'ສ້າງເອງ' : 'ทำเอง'}
+      </button>
+    </div>
+  `);
+}
+
+async function copyFromSupermart() {
+  const isLao = lang === 'lo';
+  if (!branch || branch.id === 1) {
+    showToast(isLao ? 'ບໍ່ສາມາດກ໊ອບປີ້ໃສ່ SUPERMART' : 'ไม่สามารถคัดลอกใส่ SUPERMART', 'error');
+    return;
+  }
+  
+  if (!confirm(isLao 
+    ? `ກ໊ອບປີ້ໂຊນ + ຕຳແໜ່ງຈາກ SUPERMART ມາ ${branch.code}?`
+    : `คัดลอกโซน + ตำแหน่งจาก SUPERMART มา ${branch.code}?`)) return;
+  
+  showToast(isLao ? '⏳ ກຳລັງກ໊ອບປີ້...' : '⏳ กำลังคัดลอก...', 'success');
+  
+  try {
+    // 1. Load SUPERMART zones
+    const { data: smZones, error: ze } = await sb
+      .from('zones').select('*')
+      .eq('branch_id', 1).eq('is_active', true);
+    if (ze) throw ze;
+    
+    // 2. Load SUPERMART locations
+    const { data: smLocs, error: le } = await sb
+      .from('location_master').select('*')
+      .eq('branch_id', 1).eq('is_active', true);
+    if (le) throw le;
+    
+    // 3. Copy zones (without id, with new branch_id)
+    let zonesCopied = 0;
+    const zoneIdMap = {}; // old_zone_id → new_zone_id
+    
+    if (smZones && smZones.length > 0) {
+      // Insert one by one to get new IDs
+      for (const z of smZones) {
+        const newZone = {
+          branch_id: branch.id,
+          code: z.code,
+          name_th: z.name_th,
+          name_lo: z.name_lo,
+          sort_order: z.sort_order,
+          is_active: true
+        };
+        // Optional fields
+        if (z.color !== undefined) newZone.color = z.color;
+        if (z.description !== undefined) newZone.description = z.description;
+        
+        const { data: inserted, error: ie } = await sb
+          .from('zones').insert(newZone).select('id').single();
+        
+        if (ie) {
+          console.warn('[FS] Zone copy err:', ie.message);
+          // ลอง find existing zone ใน branch ใหม่ที่มี code เดียวกัน
+          const { data: existing } = await sb
+            .from('zones').select('id')
+            .eq('branch_id', branch.id).eq('code', z.code).maybeSingle();
+          if (existing) zoneIdMap[z.id] = existing.id;
+          continue;
+        }
+        zoneIdMap[z.id] = inserted.id;
+        zonesCopied++;
+      }
+    }
+    
+    // 4. Copy locations (use new zone_id from map)
+    let locsCopied = 0;
+    let locsFailed = 0;
+    
+    if (smLocs && smLocs.length > 0) {
+      // Batch insert (faster) — แบ่งทีละ 100
+      const BATCH = 100;
+      for (let i = 0; i < smLocs.length; i += BATCH) {
+        const chunk = smLocs.slice(i, i + BATCH).map(l => {
+          const newLoc = {
+            branch_id: branch.id,
+            location_code: l.location_code,
+            location_type: l.location_type,
+            zone_id: zoneIdMap[l.zone_id] || null,
+            is_active: true
+          };
+          // Optional
+          if (l.description !== undefined) newLoc.description = l.description;
+          if (l.sort_order !== undefined) newLoc.sort_order = l.sort_order;
+          return newLoc;
+        });
+        
+        const { error: lie } = await sb.from('location_master').insert(chunk);
+        if (lie) {
+          console.warn('[FS] Location batch err:', lie.message);
+          locsFailed += chunk.length;
+        } else {
+          locsCopied += chunk.length;
+        }
+      }
+    }
+    
+    closeModal();
+    showToast(
+      `✅ ${isLao ? 'ກ໊ອບປີ້ສຳເລັດ' : 'คัดลอกสำเร็จ'}: ${zonesCopied} ${isLao ? 'ໂຊນ' : 'โซน'}, ${locsCopied} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}` +
+      (locsFailed > 0 ? ` (${locsFailed} ${isLao ? 'ລົ້ມເຫລວ' : 'ล้มเหลว'})` : ''),
+      'success'
+    );
+    
+    // Reload everything
+    await loadZonesAndLocations();
+    
+    // Reload floor map ถ้าเปิดอยู่
+    const fmEl = document.getElementById('floorMapContent');
+    if (fmEl) loadFloorMap();
+    
+  } catch (e) {
+    console.error('[FS] copyFromSupermart error:', e);
+    showToast('Error: ' + e.message, 'error');
   }
 }
 
@@ -10853,6 +11057,8 @@ window.onPogTotalManualEdit = onPogTotalManualEdit;
 window.switchHistorySubTab = switchHistorySubTab;
 window.loadHistoryPog = loadHistoryPog;
 window.onHistoryPogSearchInput = onHistoryPogSearchInput;
+window.showBranchSetupModal = showBranchSetupModal;
+window.copyFromSupermart = copyFromSupermart;
 window.adjustCount = adjustCount;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
