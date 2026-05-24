@@ -3901,6 +3901,7 @@ async function loadPanOGramForProduct(product, locationCode) {
 function renderPogChip(pog, isCurrent) {
   const bgColor = isCurrent ? 'white' : 'var(--slate-50)';
   const borderColor = isCurrent ? 'var(--violet-500)' : 'var(--slate-300)';
+  const isLao = lang === 'lo';
   return `
     <div onclick="openPanOGramModal('${pog.barcode}', '${pog.location_code}', ${pog.id})"
          style="background:${bgColor};border:1px solid ${borderColor};border-radius:7px;padding:6px 9px;margin-bottom:4px;cursor:pointer;display:flex;align-items:center;gap:8px;">
@@ -3909,10 +3910,22 @@ function renderPogChip(pog, isCurrent) {
       </div>
       <div style="flex:1;font-size:10px;color:var(--slate-600);">
         ${pog.facial}×${pog.depth}×${pog.stack} = <strong>${pog.total_qty}</strong>
+        ${isCurrent ? `<button onclick="event.stopPropagation();usePogExpected(${pog.total_qty})" style="background:var(--emerald-500);color:white;border:none;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;margin-left:5px;cursor:pointer;">${isLao ? 'ໃຊ້' : 'ใช้'} →</button>` : ''}
       </div>
       <div style="font-size:9px;color:var(--violet-500);">✏️</div>
     </div>
   `;
+}
+
+// Apply Pan-O-Gram expected quantity to count input
+function usePogExpected(qty) {
+  const inp = document.getElementById('countInput');
+  if (inp) {
+    inp.value = qty;
+    inp.focus();
+    inp.select();
+    showToast(`✅ ${lang === 'lo' ? 'ໃຊ້ຄ່າ Pan-O-Gram' : 'ใช้ค่า Pan-O-Gram'}: ${qty}`, 'success');
+  }
 }
 
 async function openPanOGramModal(barcode, locationCode, editId = null) {
@@ -4201,6 +4214,602 @@ async function deletePanOGram(id) {
   } catch (e) {
     showToast('Error: ' + e.message, 'error');
   }
+}
+
+// ==================== PAN-O-GRAM MANAGER (Settings) ====================
+let _pogManagerData = null;
+let _pogManagerFilter = { location: null, shelf: null, search: '' };
+let _pogManagerView = 'list'; // 'list' | 'visual'
+
+async function openPanOGramManager() {
+  const isLao = lang === 'lo';
+  
+  showModal(`
+    <h3 style="display:flex;align-items:center;gap:7px;">
+      📐 ${isLao ? 'ຈັດການ Pan-O-Gram' : 'จัดการ Pan-O-Gram'}
+      <span style="font-size:11px;color:var(--slate-500);font-weight:500;margin-left:auto;">
+        ${branch?.code || ''}
+      </span>
+    </h3>
+    
+    <div id="pogMgrLoader" style="text-align:center;padding:30px;color:var(--slate-400);">
+      <div class="loader" style="margin:0 auto 9px;"></div>
+      <div style="font-size:11px;">${isLao ? 'ກຳລັງໂຫລດ...' : 'กำลังโหลด...'}</div>
+    </div>
+    
+    <div id="pogMgrContent" style="display:none;"></div>
+    
+    <div class="action-row" style="margin-top:11px;">
+      <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;">${T('cancel')}</button>
+      <button class="btn btn-primary" onclick="exportPanOGramExcel()" style="background:var(--emerald-500);flex:1;">
+        📥 Export
+      </button>
+    </div>
+  `);
+  
+  await loadPanOGramManager();
+}
+
+async function loadPanOGramManager() {
+  if (!branch) return;
+  
+  // Load all Pan-O-Grams for this branch + products info
+  const { data: pogs, error } = await sb
+    .from('pan_o_grams')
+    .select('*, products(name_th, name_lo, unit_th, unit_lo, sell_price)')
+    .eq('branch_id', branch.id)
+    .order('location_code')
+    .order('shelf')
+    .order('seq_in_shelf');
+  
+  if (error) {
+    document.getElementById('pogMgrLoader').innerHTML = '❌ Error: ' + error.message;
+    return;
+  }
+  
+  _pogManagerData = pogs || [];
+  document.getElementById('pogMgrLoader').style.display = 'none';
+  const content = document.getElementById('pogMgrContent');
+  content.style.display = 'block';
+  renderPanOGramManager();
+}
+
+function renderPanOGramManager() {
+  const isLao = lang === 'lo';
+  const all = _pogManagerData || [];
+  
+  // Apply filters
+  let filtered = all;
+  if (_pogManagerFilter.location) {
+    filtered = filtered.filter(p => p.location_code === _pogManagerFilter.location);
+  }
+  if (_pogManagerFilter.shelf !== null) {
+    filtered = filtered.filter(p => p.shelf === _pogManagerFilter.shelf);
+  }
+  if (_pogManagerFilter.search) {
+    const s = _pogManagerFilter.search.toLowerCase();
+    filtered = filtered.filter(p => 
+      (p.barcode || '').toLowerCase().includes(s) ||
+      (p.products?.name_lo || '').toLowerCase().includes(s) ||
+      (p.products?.name_th || '').toLowerCase().includes(s) ||
+      (p.location_code || '').toLowerCase().includes(s)
+    );
+  }
+  
+  // Stats
+  const totalQty = filtered.reduce((s, p) => s + (p.total_qty || 0), 0);
+  const uniqueLocations = new Set(filtered.map(p => p.location_code)).size;
+  const uniqueProducts = new Set(filtered.map(p => p.barcode)).size;
+  
+  // Get unique locations for filter
+  const allLocations = [...new Set(all.map(p => p.location_code))].sort();
+  
+  const content = document.getElementById('pogMgrContent');
+  
+  if (all.length === 0) {
+    content.innerHTML = `
+      <div style="text-align:center;padding:40px 20px;color:var(--slate-400);">
+        <div style="font-size:48px;margin-bottom:11px;">📐</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:5px;">
+          ${isLao ? 'ຍັງບໍ່ມີຂໍ້ມູນ Pan-O-Gram' : 'ยังไม่มีข้อมูล Pan-O-Gram'}
+        </div>
+        <div style="font-size:11px;">
+          ${isLao ? 'ໄປທີ່ Scan → ຍິງສິນຄ້າ → ກົດ Pan-O-Gram' : 'ไปที่ Scan → ยิงสินค้า → กดปุ่ม Pan-O-Gram'}
+        </div>
+      </div>
+    `;
+    return;
+  }
+  
+  content.innerHTML = `
+    <!-- Stats Bar -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:9px;">
+      <div style="background:var(--violet-100);padding:6px 4px;border-radius:7px;text-align:center;">
+        <div style="font-size:14px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;">${filtered.length.toLocaleString()}</div>
+        <div style="font-size:9px;color:var(--violet-600);">${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}</div>
+      </div>
+      <div style="background:var(--sky-100);padding:6px 4px;border-radius:7px;text-align:center;">
+        <div style="font-size:14px;font-weight:800;color:var(--sky-600);font-family:'Space Grotesk',monospace;">${uniqueProducts.toLocaleString()}</div>
+        <div style="font-size:9px;color:var(--sky-600);">${isLao ? 'ສິນຄ້າ' : 'สินค้า'}</div>
+      </div>
+      <div style="background:var(--emerald-100);padding:6px 4px;border-radius:7px;text-align:center;">
+        <div style="font-size:14px;font-weight:800;color:var(--emerald-500);font-family:'Space Grotesk',monospace;">${totalQty.toLocaleString()}</div>
+        <div style="font-size:9px;color:var(--emerald-500);">${isLao ? 'ຄາດເຄື່ອນ' : 'คาดเคลื่อน'}</div>
+      </div>
+    </div>
+    
+    <!-- Filters -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:9px;">
+      <select id="pogMgrFilterLoc" onchange="onPogFilterChange()" class="form-select" style="font-size:11px;padding:7px;">
+        <option value="">📍 ${isLao ? 'ທຸກສະຖານທີ່' : 'ทุกตำแหน่ง'}</option>
+        ${allLocations.map(l => `<option value="${l}" ${_pogManagerFilter.location === l ? 'selected' : ''}>${l}</option>`).join('')}
+      </select>
+      <input type="text" id="pogMgrSearch" placeholder="🔍 ${isLao ? 'ຄົ້ນຫາ...' : 'ค้นหา...'}"
+             value="${_pogManagerFilter.search}"
+             oninput="onPogSearchChange(this.value)"
+             class="form-input" style="font-size:11px;padding:7px;">
+    </div>
+    
+    <!-- View Toggle -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:9px;">
+      <button onclick="setPogView('list')" 
+              class="btn" style="padding:7px;font-size:11px;${_pogManagerView === 'list' ? 'background:var(--violet-500);color:white;' : 'background:var(--slate-100);color:var(--slate-600);'}">
+        📋 ${isLao ? 'ລາຍການ' : 'รายการ'}
+      </button>
+      <button onclick="setPogView('visual')" 
+              class="btn" style="padding:7px;font-size:11px;${_pogManagerView === 'visual' ? 'background:var(--violet-500);color:white;' : 'background:var(--slate-100);color:var(--slate-600);'}"
+              ${!_pogManagerFilter.location ? 'disabled title="' + (isLao ? 'ເລືອກສະຖານທີ່ກ່ອນ' : 'เลือกตำแหน่งก่อน') + '"' : ''}>
+        🎨 ${isLao ? 'ຮູບແບບ' : 'รูปแบบ'}
+      </button>
+    </div>
+    
+    <!-- Content -->
+    <div id="pogMgrList" style="max-height:380px;overflow-y:auto;border:1px solid var(--slate-200);border-radius:9px;padding:7px;background:var(--slate-50);">
+      ${_pogManagerView === 'visual' && _pogManagerFilter.location ? renderPogVisualLayout(filtered) : renderPogListView(filtered)}
+    </div>
+  `;
+}
+
+function renderPogListView(items) {
+  const isLao = lang === 'lo';
+  if (items.length === 0) {
+    return `<div style="text-align:center;padding:25px;color:var(--slate-400);font-size:11px;">
+      ${isLao ? 'ບໍ່ພົບ' : 'ไม่พบ'}
+    </div>`;
+  }
+  
+  // Group by location → shelf
+  const byLoc = {};
+  items.forEach(p => {
+    if (!byLoc[p.location_code]) byLoc[p.location_code] = {};
+    if (!byLoc[p.location_code][p.shelf]) byLoc[p.location_code][p.shelf] = [];
+    byLoc[p.location_code][p.shelf].push(p);
+  });
+  
+  let html = '';
+  for (const locCode of Object.keys(byLoc).sort()) {
+    const shelves = byLoc[locCode];
+    const allInLoc = Object.values(shelves).flat();
+    const locTotal = allInLoc.reduce((s, p) => s + (p.total_qty || 0), 0);
+    
+    html += `
+      <div style="margin-bottom:9px;">
+        <div style="background:linear-gradient(135deg,var(--sky-100),white);border:1px solid var(--sky-300);border-radius:8px;padding:6px 9px;margin-bottom:5px;display:flex;align-items:center;gap:7px;">
+          <span style="font-weight:800;color:var(--sky-600);font-family:'Space Grotesk',monospace;font-size:13px;">📍 ${locCode}</span>
+          <span style="font-size:10px;color:var(--slate-500);margin-left:auto;">
+            ${allInLoc.length} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'} • ${locTotal} ${isLao ? 'ຊິ້ນ' : 'ชิ้น'}
+          </span>
+        </div>
+    `;
+    
+    for (const shelf of Object.keys(shelves).sort((a, b) => parseInt(a) - parseInt(b))) {
+      const items = shelves[shelf];
+      const shelfTotal = items.reduce((s, p) => s + (p.total_qty || 0), 0);
+      html += `
+        <div style="padding-left:9px;border-left:3px solid var(--sky-300);margin-bottom:5px;">
+          <div style="font-size:10px;color:var(--slate-600);font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:5px;">
+            ${isLao ? 'ຊັ້ນ' : 'ชั้น'} <span style="background:var(--violet-100);color:var(--violet-600);padding:1px 6px;border-radius:4px;font-family:'Space Grotesk',monospace;">${shelf}</span>
+            <span style="font-weight:500;margin-left:auto;color:var(--slate-500);">${items.length} / ${items[0]?.total_in_shelf || '?'} • ${shelfTotal} ${isLao ? 'ຊິ້ນ' : 'ชิ้น'}</span>
+          </div>
+      `;
+      items.forEach(p => {
+        const name = isLao ? (p.products?.name_lo || p.products?.name_th || p.barcode) : (p.products?.name_th || p.products?.name_lo || p.barcode);
+        html += `
+          <div onclick="openPanOGramModal('${p.barcode}', '${p.location_code}', ${p.id})"
+               style="background:white;border:1px solid var(--slate-200);border-radius:7px;padding:6px 9px;margin-bottom:3px;cursor:pointer;display:flex;align-items:center;gap:8px;">
+            <div style="background:var(--violet-100);color:var(--violet-600);width:24px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;font-family:'Space Grotesk',monospace;flex-shrink:0;">
+              ${p.seq_in_shelf}
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:11px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</div>
+              <div style="font-size:9px;color:var(--slate-500);font-family:monospace;">${p.barcode}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">
+              <div style="font-size:10px;color:var(--slate-500);font-family:'Space Grotesk',monospace;">${p.facial}×${p.depth}×${p.stack}</div>
+              <div style="font-size:12px;font-weight:800;color:var(--emerald-500);font-family:'Space Grotesk',monospace;">${p.total_qty}</div>
+            </div>
+          </div>
+        `;
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
+function renderPogVisualLayout(items) {
+  const isLao = lang === 'lo';
+  if (items.length === 0) {
+    return `<div style="text-align:center;padding:25px;color:var(--slate-400);font-size:11px;">
+      ${isLao ? 'ບໍ່ພົບ' : 'ไม่พบ'}
+    </div>`;
+  }
+  
+  const locCode = items[0].location_code;
+  
+  // Group by shelf
+  const byShelf = {};
+  items.forEach(p => {
+    if (!byShelf[p.shelf]) byShelf[p.shelf] = [];
+    byShelf[p.shelf].push(p);
+  });
+  
+  // Sort shelves descending (top shelf first)
+  const sortedShelves = Object.keys(byShelf).sort((a, b) => parseInt(b) - parseInt(a));
+  
+  let html = `
+    <div style="margin-bottom:9px;text-align:center;background:linear-gradient(135deg,var(--violet-100),var(--sky-100));padding:8px;border-radius:9px;">
+      <div style="font-size:11px;color:var(--slate-600);font-weight:700;">${isLao ? 'ມຸມມອງຊັ້ນວາງ' : 'มุมมองชั้นวาง'}</div>
+      <div style="font-size:16px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;">📍 ${locCode}</div>
+    </div>
+    
+    <div style="background:#1e293b;padding:11px;border-radius:11px;">
+  `;
+  
+  sortedShelves.forEach(shelf => {
+    const shelfItems = byShelf[shelf].sort((a, b) => a.seq_in_shelf - b.seq_in_shelf);
+    const totalInShelf = shelfItems[0]?.total_in_shelf || shelfItems.length;
+    const shelfTotalQty = shelfItems.reduce((s, p) => s + (p.total_qty || 0), 0);
+    
+    // Build slots (filled + empty)
+    const slots = [];
+    for (let i = 1; i <= totalInShelf; i++) {
+      slots.push(shelfItems.find(x => x.seq_in_shelf === i) || null);
+    }
+    
+    html += `
+      <div style="background:#334155;padding:7px;border-radius:8px;margin-bottom:6px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+          <span style="color:#fbbf24;font-weight:800;font-size:11px;font-family:'Space Grotesk',monospace;">
+            ${isLao ? 'ຊັ້ນ' : 'ชั้น'} ${shelf}
+          </span>
+          <span style="color:#94a3b8;font-size:9px;">${shelfItems.length}/${totalInShelf} • ${shelfTotalQty} ${isLao ? 'ຊິ້ນ' : 'ชิ้น'}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(${Math.min(totalInShelf, 6)}, 1fr);gap:4px;">
+    `;
+    
+    slots.forEach((slot, i) => {
+      if (slot) {
+        const name = isLao ? (slot.products?.name_lo || slot.barcode) : (slot.products?.name_th || slot.barcode);
+        const shortName = (name || '').substring(0, 12);
+        // Color by stack height
+        const intensity = Math.min(slot.stack, 5);
+        const bgs = ['#10b981', '#0ea5e9', '#8b5cf6', '#f59e0b', '#ef4444'];
+        const bg = bgs[intensity - 1] || '#64748b';
+        
+        html += `
+          <button onclick="openPanOGramModal('${slot.barcode}', '${slot.location_code}', ${slot.id})"
+                  style="background:${bg};border:none;border-radius:6px;padding:5px 3px;text-align:center;cursor:pointer;color:white;overflow:hidden;min-height:50px;display:flex;flex-direction:column;justify-content:center;gap:1px;">
+            <div style="font-size:9px;font-weight:800;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${shortName}</div>
+            <div style="font-size:8px;opacity:0.9;font-family:'Space Grotesk',monospace;">${slot.facial}×${slot.depth}×${slot.stack}</div>
+            <div style="font-size:11px;font-weight:800;font-family:'Space Grotesk',monospace;">${slot.total_qty}</div>
+          </button>
+        `;
+      } else {
+        // Empty slot
+        html += `
+          <div style="background:rgba(255,255,255,0.05);border:1px dashed #475569;border-radius:6px;padding:5px 3px;text-align:center;min-height:50px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:10px;">
+            ⊘ ${i + 1}
+          </div>
+        `;
+      }
+    });
+    
+    html += `</div></div>`;
+  });
+  
+  html += `</div>
+    <div style="font-size:9px;color:var(--slate-500);margin-top:7px;text-align:center;">
+      💡 ${isLao ? 'ສີ = ຄວາມສູງຂັ້ນວາງ (ສີຂຽວ=1, ສີຟ້າ=2, ສີມ່ວງ=3, ສີເຫຼືອງ=4, ສີແດງ=5+)' : 'สี = ความสูงขั้นวาง (เขียว=1, ฟ้า=2, ม่วง=3, เหลือง=4, แดง=5+)'}
+    </div>
+  `;
+  
+  return html;
+}
+
+function onPogFilterChange() {
+  _pogManagerFilter.location = document.getElementById('pogMgrFilterLoc').value || null;
+  if (!_pogManagerFilter.location) _pogManagerView = 'list';
+  renderPanOGramManager();
+}
+
+function onPogSearchChange(value) {
+  _pogManagerFilter.search = value.trim();
+  // Debounce
+  clearTimeout(window._pogSearchTimer);
+  window._pogSearchTimer = setTimeout(() => renderPanOGramManager(), 200);
+}
+
+function setPogView(view) {
+  _pogManagerView = view;
+  renderPanOGramManager();
+}
+
+// ==================== EXPORT EXCEL ====================
+async function exportPanOGramExcel() {
+  const isLao = lang === 'lo';
+  showToast(isLao ? '⏳ ກຳລັງສ້າງ Excel...' : '⏳ กำลังสร้าง Excel...', 'success');
+  
+  try {
+    // Load all PoGs for this branch
+    const { data: pogs, error } = await sb
+      .from('pan_o_grams')
+      .select('*, products(name_th, name_lo, unit_th, unit_lo, sell_price, pos_qty)')
+      .eq('branch_id', branch.id)
+      .order('location_code').order('shelf').order('seq_in_shelf');
+    
+    if (error) throw error;
+    if (!pogs || pogs.length === 0) {
+      showToast(isLao ? '⚠️ ບໍ່ມີຂໍ້ມູນ' : '⚠️ ไม่มีข้อมูล', 'warning');
+      return;
+    }
+    
+    const wb = XLSX.utils.book_new();
+    
+    // Sheet 1: Pan-O-Gram (รายละเอียดเต็ม)
+    const sheet1 = [
+      ['Location', 'Shelf', 'Seq', 'Total in Shelf', 'Position Code',
+       'Barcode', 'Name LO', 'Name TH', 'Unit',
+       'Facial', 'Depth', 'Stack', 'Total Qty (Precount)',
+       'POS Qty', 'Sell Price (₭)', 'Total Value (₭)', 'Notes', 'Created']
+    ];
+    pogs.forEach(p => {
+      const sellPrice = p.products?.sell_price || 0;
+      const value = (p.total_qty || 0) * sellPrice;
+      sheet1.push([
+        p.location_code, p.shelf, p.seq_in_shelf, p.total_in_shelf, p.position_code,
+        p.barcode,
+        p.products?.name_lo || '',
+        p.products?.name_th || '',
+        p.products?.unit_lo || p.products?.unit_th || '',
+        p.facial, p.depth, p.stack, p.total_qty,
+        p.products?.pos_qty || 0, sellPrice, value,
+        p.notes || '',
+        p.created_at ? new Date(p.created_at).toLocaleString() : ''
+      ]);
+    });
+    const ws1 = XLSX.utils.aoa_to_sheet(sheet1);
+    ws1['!cols'] = [
+      {wch:9},{wch:6},{wch:5},{wch:7},{wch:14},
+      {wch:16},{wch:30},{wch:30},{wch:7},
+      {wch:6},{wch:6},{wch:6},{wch:12},
+      {wch:8},{wch:11},{wch:13},{wch:18},{wch:18}
+    ];
+    XLSX.utils.book_append_sheet(wb, ws1, 'Pan-O-Gram');
+    
+    // Sheet 2: Precount Template (สำหรับ Counter ใช้นับ)
+    const sheet2 = [
+      ['Position Code', 'Location', 'Shelf', 'Seq',
+       'Barcode', 'Name', 'Unit',
+       'Expected Qty (Pan-O-Gram)', 'Actual Count', 'Variance', 'Notes']
+    ];
+    pogs.forEach(p => {
+      const name = p.products?.name_lo || p.products?.name_th || p.barcode;
+      const unit = p.products?.unit_lo || p.products?.unit_th || '';
+      sheet2.push([
+        p.position_code, p.location_code, p.shelf, p.seq_in_shelf,
+        p.barcode, name, unit,
+        p.total_qty, '', '', ''
+      ]);
+    });
+    const ws2 = XLSX.utils.aoa_to_sheet(sheet2);
+    ws2['!cols'] = [
+      {wch:14},{wch:9},{wch:6},{wch:5},
+      {wch:16},{wch:30},{wch:7},
+      {wch:13},{wch:11},{wch:9},{wch:18}
+    ];
+    // Add formula for Variance column = Actual - Expected
+    for (let i = 2; i <= pogs.length + 1; i++) {
+      ws2[`J${i}`] = { t: 'n', f: `IF(I${i}="","",I${i}-H${i})` };
+    }
+    XLSX.utils.book_append_sheet(wb, ws2, 'Precount');
+    
+    // Sheet 3: Summary by Location
+    const byLoc = {};
+    pogs.forEach(p => {
+      if (!byLoc[p.location_code]) byLoc[p.location_code] = {
+        items: 0, totalQty: 0, totalValue: 0, shelves: new Set()
+      };
+      byLoc[p.location_code].items++;
+      byLoc[p.location_code].totalQty += (p.total_qty || 0);
+      byLoc[p.location_code].totalValue += (p.total_qty || 0) * (p.products?.sell_price || 0);
+      byLoc[p.location_code].shelves.add(p.shelf);
+    });
+    
+    const sheet3 = [['Location', 'Items', 'Shelves', 'Total Qty', 'Total Value (₭)']];
+    Object.keys(byLoc).sort().forEach(loc => {
+      const s = byLoc[loc];
+      sheet3.push([loc, s.items, s.shelves.size, s.totalQty, Math.round(s.totalValue)]);
+    });
+    // Total row
+    const totalItems = pogs.length;
+    const totalQty = pogs.reduce((s, p) => s + (p.total_qty || 0), 0);
+    const totalValue = pogs.reduce((s, p) => s + (p.total_qty || 0) * (p.products?.sell_price || 0), 0);
+    sheet3.push([]);
+    sheet3.push(['TOTAL', totalItems, '—', totalQty, Math.round(totalValue)]);
+    
+    const ws3 = XLSX.utils.aoa_to_sheet(sheet3);
+    ws3['!cols'] = [{wch:10},{wch:7},{wch:8},{wch:11},{wch:14}];
+    XLSX.utils.book_append_sheet(wb, ws3, 'Summary');
+    
+    const fileName = `Pan-O-Gram_${branch.code}_${new Date().toISOString().slice(0,10)}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    
+    showToast(`✅ ${isLao ? 'ດາວໂຫລດແລ້ວ' : 'ดาวน์โหลดแล้ว'} (${pogs.length} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'})`, 'success');
+  } catch (e) {
+    console.error('[FS] Export Pan-O-Gram error:', e);
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+// ==================== PRECOUNT REPORT ====================
+async function openPrecountReport() {
+  const isLao = lang === 'lo';
+  
+  showModal(`
+    <h3 style="display:flex;align-items:center;gap:7px;">
+      📊 Precount Report
+      <span style="font-size:11px;color:var(--slate-500);font-weight:500;margin-left:auto;">${branch?.code || ''}</span>
+    </h3>
+    
+    <div id="precountLoader" style="text-align:center;padding:25px;color:var(--slate-400);">
+      <div class="loader" style="margin:0 auto 9px;"></div>
+      <div style="font-size:11px;">${isLao ? 'ກຳລັງສ້າງລາຍງານ...' : 'กำลังสร้างรายงาน...'}</div>
+    </div>
+    
+    <div id="precountContent" style="display:none;"></div>
+    
+    <div class="action-row" style="margin-top:11px;">
+      <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;">${T('cancel')}</button>
+      <button class="btn btn-primary" onclick="exportPrecountExcel()" style="background:var(--emerald-500);flex:1;">
+        📥 Export Excel
+      </button>
+    </div>
+  `);
+  
+  await loadPrecountReport();
+}
+
+async function loadPrecountReport() {
+  if (!branch) return;
+  const isLao = lang === 'lo';
+  
+  try {
+    // Load all PoGs + latest stock counts
+    const { data: pogs } = await sb
+      .from('pan_o_grams')
+      .select('*, products(name_th, name_lo, unit_th, unit_lo, sell_price)')
+      .eq('branch_id', branch.id);
+    
+    if (!pogs || pogs.length === 0) {
+      document.getElementById('precountLoader').innerHTML = `
+        <div style="text-align:center;color:var(--slate-400);font-size:11px;">
+          ${isLao ? 'ບໍ່ມີຂໍ້ມູນ Pan-O-Gram' : 'ไม่มีข้อมูล Pan-O-Gram'}
+        </div>
+      `;
+      return;
+    }
+    
+    // Group by location → compute totals
+    const byLoc = {};
+    pogs.forEach(p => {
+      if (!byLoc[p.location_code]) byLoc[p.location_code] = {
+        positions: 0,
+        products: new Set(),
+        expectedQty: 0,
+        expectedValue: 0,
+        shelves: new Set()
+      };
+      const loc = byLoc[p.location_code];
+      loc.positions++;
+      loc.products.add(p.barcode);
+      loc.expectedQty += (p.total_qty || 0);
+      loc.expectedValue += (p.total_qty || 0) * (p.products?.sell_price || 0);
+      loc.shelves.add(p.shelf);
+    });
+    
+    const totals = {
+      positions: pogs.length,
+      products: new Set(pogs.map(p => p.barcode)).size,
+      locations: Object.keys(byLoc).length,
+      expectedQty: pogs.reduce((s, p) => s + (p.total_qty || 0), 0),
+      expectedValue: pogs.reduce((s, p) => s + (p.total_qty || 0) * (p.products?.sell_price || 0), 0)
+    };
+    
+    document.getElementById('precountLoader').style.display = 'none';
+    const content = document.getElementById('precountContent');
+    content.style.display = 'block';
+    
+    let html = `
+      <!-- Totals -->
+      <div style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));padding:11px;border-radius:11px;margin-bottom:11px;">
+        <div style="text-align:center;font-size:11px;color:var(--violet-600);font-weight:700;margin-bottom:5px;">
+          ${isLao ? 'ສະຫຼຸບລວມ' : 'สรุปรวม'}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:7px;text-align:center;">
+          <div style="background:white;padding:7px;border-radius:7px;">
+            <div style="font-size:9px;color:var(--slate-500);">${isLao ? 'ສະຖານທີ່' : 'ตำแหน่ง'}</div>
+            <div style="font-size:18px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;">${totals.locations}</div>
+          </div>
+          <div style="background:white;padding:7px;border-radius:7px;">
+            <div style="font-size:9px;color:var(--slate-500);">Pan-O-Gram</div>
+            <div style="font-size:18px;font-weight:800;color:var(--sky-600);font-family:'Space Grotesk',monospace;">${totals.positions}</div>
+          </div>
+          <div style="background:white;padding:7px;border-radius:7px;">
+            <div style="font-size:9px;color:var(--slate-500);">${isLao ? 'ສິນຄ້າ' : 'สินค้า'}</div>
+            <div style="font-size:18px;font-weight:800;color:var(--teal-700);font-family:'Space Grotesk',monospace;">${totals.products}</div>
+          </div>
+          <div style="background:white;padding:7px;border-radius:7px;">
+            <div style="font-size:9px;color:var(--slate-500);">${isLao ? 'ຄາດເຄື່ອນ' : 'คาดหวัง'}</div>
+            <div style="font-size:18px;font-weight:800;color:var(--emerald-500);font-family:'Space Grotesk',monospace;">${totals.expectedQty}</div>
+          </div>
+        </div>
+        <div style="margin-top:7px;text-align:center;background:white;padding:7px;border-radius:7px;">
+          <div style="font-size:9px;color:var(--slate-500);">${isLao ? 'ມູນຄ່າຄາດເຄື່ອນ' : 'มูลค่าคาดหวัง'}</div>
+          <div style="font-size:16px;font-weight:800;color:var(--emerald-500);font-family:'Space Grotesk',monospace;">₭ ${Math.round(totals.expectedValue).toLocaleString()}</div>
+        </div>
+      </div>
+      
+      <!-- By Location -->
+      <div style="font-size:11px;color:var(--slate-600);font-weight:700;margin-bottom:5px;">
+        ${isLao ? 'ສະຖານທີ່ (Top 20)' : 'ตำแหน่ง (Top 20)'}
+      </div>
+      <div style="max-height:280px;overflow-y:auto;background:var(--slate-50);border-radius:9px;padding:7px;">
+    `;
+    
+    const sortedLocs = Object.entries(byLoc)
+      .sort((a, b) => b[1].expectedQty - a[1].expectedQty)
+      .slice(0, 20);
+    
+    sortedLocs.forEach(([code, info]) => {
+      html += `
+        <div style="background:white;border:1px solid var(--slate-200);border-radius:7px;padding:7px 9px;margin-bottom:5px;display:flex;align-items:center;gap:8px;">
+          <div style="font-weight:800;color:var(--sky-600);font-family:'Space Grotesk',monospace;font-size:13px;min-width:55px;">📍 ${code}</div>
+          <div style="flex:1;display:grid;grid-template-columns:repeat(3, 1fr);gap:5px;font-size:10px;">
+            <div><span style="color:var(--slate-500);">${isLao ? 'ຊັ້ນ' : 'ชั้น'}:</span> <strong>${info.shelves.size}</strong></div>
+            <div><span style="color:var(--slate-500);">${isLao ? 'ສິນຄ້າ' : 'สินค้า'}:</span> <strong>${info.products.size}</strong></div>
+            <div><span style="color:var(--slate-500);">${isLao ? 'ຊິ້ນ' : 'ชิ้น'}:</span> <strong style="color:var(--emerald-500);font-family:'Space Grotesk',monospace;">${info.expectedQty}</strong></div>
+          </div>
+        </div>
+      `;
+    });
+    
+    if (Object.keys(byLoc).length > 20) {
+      html += `<div style="text-align:center;font-size:10px;color:var(--slate-500);font-style:italic;padding:5px;">
+        ... ${isLao ? 'ແລະອີກ' : 'และอีก'} ${Object.keys(byLoc).length - 20} ${isLao ? 'ສະຖານທີ່' : 'ตำแหน่ง'}
+      </div>`;
+    }
+    
+    html += `</div>`;
+    content.innerHTML = html;
+  } catch (e) {
+    document.getElementById('precountLoader').innerHTML = '❌ Error: ' + e.message;
+  }
+}
+
+async function exportPrecountExcel() {
+  await exportPanOGramExcel(); // ใช้ตัวเดียวกัน (มี Precount sheet อยู่แล้ว)
 }
 
 function adjustCount(delta) {
@@ -9470,6 +10079,43 @@ function renderSettingsPage() {
     </div>
     ` : ''}
     
+    ${['admin', 'scc', 'bcs', 'ctl', 'verifier', 'counter'].includes(user.role) ? `
+    <!-- Pan-O-Gram Management -->
+    <div style="background:white;border:2px solid var(--violet-500);border-radius:14px;padding:16px;margin-top:14px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
+        <div style="background:linear-gradient(135deg,var(--violet-500),var(--sky-500));color:white;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">
+          📐
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;color:var(--violet-600);font-size:14px;">Pan-O-Gram</div>
+          <div style="font-size:11px;color:var(--slate-500);">
+            ${lang === 'lo' ? 'ຈັດການແຜນຜັງສິນຄ້າ + Precount' : 'จัดการแผนผังสินค้า + Precount'}
+          </div>
+        </div>
+        <div id="pogStatBadge" style="background:var(--violet-100);color:var(--violet-600);padding:4px 9px;border-radius:6px;font-size:11px;font-weight:700;font-family:'Space Grotesk',monospace;">
+          —
+        </div>
+      </div>
+      
+      <button class="btn" style="background:linear-gradient(135deg,var(--violet-500),var(--sky-500));color:white;font-size:12px;padding:11px;width:100%;margin-bottom:7px;" onclick="openPanOGramManager()">
+        📋 ${lang === 'lo' ? 'ຈັດການ Pan-O-Gram' : 'จัดการ Pan-O-Gram'}
+      </button>
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
+        <button class="btn btn-secondary" style="font-size:11px;padding:9px;" onclick="exportPanOGramExcel()">
+          📥 Export Excel
+        </button>
+        <button class="btn btn-secondary" style="font-size:11px;padding:9px;" onclick="openPrecountReport()">
+          📊 Precount
+        </button>
+      </div>
+      
+      <div style="font-size:10px;color:var(--slate-500);margin-top:8px;line-height:1.5;">
+        💡 ${lang === 'lo' ? 'Pan-O-Gram ໃຊ້ກຳນົດຈຳນວນທີ່ຄາດໝາຍຂອງສິນຄ້າແຕ່ລະຕຳແໜ່ງ ສຳລັບການນັບສະຕ໋ອກລ່ວງໜ້າ' : 'Pan-O-Gram ใช้กำหนดจำนวนคาดหวังของสินค้าแต่ละตำแหน่ง สำหรับการนับสต๊อคล่วงหน้า'}
+      </div>
+    </div>
+    ` : ''}
+    
     <!-- Import POS Data Section -->
     <div style="background:white;border:2px solid var(--sky-500);border-radius:14px;padding:16px;margin-top:14px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
@@ -9630,10 +10276,21 @@ async function loadSettingsStats() {
     .select('*', { count: 'exact', head: true })
     .eq('branch_id', branch.id);
   
+  // Count Pan-O-Grams
+  const { data: pogs } = await sb.from('pan_o_grams')
+    .select('total_qty')
+    .eq('branch_id', branch.id);
+  
   const ce = document.getElementById('settingsTotalCounts');
   const se = document.getElementById('settingsTotalSessions');
+  const pe = document.getElementById('pogStatBadge');
   if (ce) ce.textContent = (countsTotal || 0).toLocaleString();
   if (se) se.textContent = (sessionsTotal || 0).toLocaleString();
+  if (pe) {
+    const pogCount = pogs?.length || 0;
+    const totalQty = (pogs || []).reduce((s, p) => s + (p.total_qty || 0), 0);
+    pe.textContent = `${pogCount.toLocaleString()} / ${totalQty.toLocaleString()} pcs`;
+  }
 }
 
 let resetMode = 'session';
@@ -9852,6 +10509,14 @@ window.updatePogCalc = updatePogCalc;
 window.savePanOGram = savePanOGram;
 window.deletePanOGram = deletePanOGram;
 window.loadPanOGramForProduct = loadPanOGramForProduct;
+window.openPanOGramManager = openPanOGramManager;
+window.exportPanOGramExcel = exportPanOGramExcel;
+window.openPrecountReport = openPrecountReport;
+window.exportPrecountExcel = exportPrecountExcel;
+window.onPogFilterChange = onPogFilterChange;
+window.onPogSearchChange = onPogSearchChange;
+window.setPogView = setPogView;
+window.usePogExpected = usePogExpected;
 window.adjustCount = adjustCount;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
