@@ -10138,13 +10138,15 @@ function getStatusCounts(data) {
   ];
   
   const counts = {
+    open_for_counting: 0,
     counting: 0,
-    verifying: 0,
-    tiebreaker_needed: 0,
     counted: 0,
     open_for_verify: 0,
+    verifying: 0,
     verified: 0,
-    tiebreaker: 0
+    tiebreaker_needed: 0,
+    tiebreaker: 0,
+    completed: 0
   };
   
   all.forEach(item => {
@@ -10171,26 +10173,20 @@ function renderQuickNav(counts, statusCounts, allData) {
   // Build Status quick-jump items
   const statusItems = [];
   if (statusCounts) {
+    // 🔵 เปิดให้นับ (พร้อมรอ Counter)
+    if (statusCounts.open_for_counting > 0) statusItems.push({ 
+      type: 'status', key: 'open_for_counting', 
+      icon: '🔵', cls: 'status-open-counting',
+      label: isLao ? 'ເປີດໃຫ້ນັບ (ລໍຖ້າ)' : 'เปิดให้นับ (รอ)', 
+      count: statusCounts.open_for_counting,
+      bgColor: 'var(--teal-300)'
+    });
     if (statusCounts.counting > 0) statusItems.push({ 
       type: 'status', key: 'counting', 
       icon: '🔢', cls: 'status-counting',
       label: isLao ? 'ກຳລັງນັບ' : 'กำลังนับ', 
       count: statusCounts.counting,
       bgColor: 'var(--teal-500)'
-    });
-    if (statusCounts.verifying > 0) statusItems.push({ 
-      type: 'status', key: 'verifying', 
-      icon: '🔍', cls: 'status-verifying',
-      label: isLao ? 'ກຳລັງກວດສອບ' : 'กำลังตรวจสอบ', 
-      count: statusCounts.verifying,
-      bgColor: 'var(--amber-500)'
-    });
-    if (statusCounts.tiebreaker_needed > 0) statusItems.push({ 
-      type: 'status', key: 'tiebreaker_needed', 
-      icon: '⚠️', cls: 'status-tiebreaker',
-      label: isLao ? 'ຕ້ອງກວດໃໝ່' : 'ต้องตรวจใหม่', 
-      count: statusCounts.tiebreaker_needed,
-      bgColor: 'var(--rose-500)'
     });
     if (statusCounts.counted > 0) statusItems.push({ 
       type: 'status', key: 'counted', 
@@ -10202,8 +10198,15 @@ function renderQuickNav(counts, statusCounts, allData) {
     if (statusCounts.open_for_verify > 0) statusItems.push({ 
       type: 'status', key: 'open_for_verify', 
       icon: '👁️', cls: 'status-open-verify',
-      label: isLao ? 'ເປີດກວດສອບ' : 'เปิดตรวจสอบ', 
+      label: isLao ? 'ເປີດໃຫ້ກວດສອບ (ລໍຖ້າ)' : 'เปิดให้ตรวจสอบ (รอ)', 
       count: statusCounts.open_for_verify,
+      bgColor: 'var(--amber-400)'
+    });
+    if (statusCounts.verifying > 0) statusItems.push({ 
+      type: 'status', key: 'verifying', 
+      icon: '🔍', cls: 'status-verifying',
+      label: isLao ? 'ກຳລັງກວດສອບ' : 'กำลังตรวจสอบ', 
+      count: statusCounts.verifying,
       bgColor: 'var(--amber-500)'
     });
     if (statusCounts.verified > 0) statusItems.push({ 
@@ -10213,12 +10216,26 @@ function renderQuickNav(counts, statusCounts, allData) {
       count: statusCounts.verified,
       bgColor: 'var(--violet-500)'
     });
+    if (statusCounts.tiebreaker_needed > 0) statusItems.push({ 
+      type: 'status', key: 'tiebreaker_needed', 
+      icon: '⚠️', cls: 'status-tiebreaker',
+      label: isLao ? 'ຕ້ອງກວດໃໝ່' : 'ต้องตรวจใหม่', 
+      count: statusCounts.tiebreaker_needed,
+      bgColor: 'var(--rose-500)'
+    });
     if (statusCounts.tiebreaker > 0) statusItems.push({ 
       type: 'status', key: 'tiebreaker', 
       icon: '🔄', cls: 'status-tiebreaker-active',
       label: isLao ? 'ກຳລັງກວດໃໝ່' : 'กำลังตรวจใหม่', 
       count: statusCounts.tiebreaker,
       bgColor: 'var(--violet-600)'
+    });
+    if (statusCounts.completed > 0) statusItems.push({ 
+      type: 'status', key: 'completed', 
+      icon: '✅', cls: 'status-completed',
+      label: isLao ? 'ສຳເລັດ' : 'เสร็จสมบูรณ์', 
+      count: statusCounts.completed,
+      bgColor: 'var(--emerald-500)'
     });
   }
   
