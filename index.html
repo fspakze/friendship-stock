@@ -848,6 +848,23 @@
   .fm-cell.has-pog { border: 1.5px solid #8b5cf6; box-shadow: 0 0 0 1px rgba(139,92,246,0.15) inset; }
   .fm-pog-badge { position: absolute; top: 1px; left: 2px; background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; font-size: 8px; font-weight: 800; padding: 1px 4px; border-radius: 4px; line-height: 1.2; box-shadow: 0 1px 3px rgba(139,92,246,0.4); z-index: 2; font-family: 'Space Grotesk', monospace; }
   
+  /* Gondola Group styles */
+  .fm-group { margin-bottom: 11px; padding: 8px; background: linear-gradient(135deg, var(--slate-50), white); border: 1px solid var(--slate-200); border-radius: 9px; }
+  .fm-group:last-child { margin-bottom: 0; }
+  .fm-group-header { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; padding: 4px 5px; }
+  .fm-group-title { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .fm-group-label { font-size: 12px; font-weight: 800; color: var(--violet-600); font-family: 'Space Grotesk', monospace; letter-spacing: 0.3px; }
+  .fm-group-count { background: var(--violet-100); color: var(--violet-600); padding: 1px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; font-family: 'Space Grotesk', monospace; }
+  .fm-group-progress-bar { flex: 1; height: 5px; background: var(--slate-200); border-radius: 3px; overflow: hidden; min-width: 40px; }
+  .fm-group-progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s ease; }
+  .fm-group-stats { display: flex; gap: 5px; align-items: center; flex-shrink: 0; }
+  .fm-group-stats > span { font-size: 9px; font-weight: 700; padding: 2px 5px; border-radius: 4px; font-family: 'Space Grotesk', monospace; line-height: 1.2; white-space: nowrap; }
+  .fm-group-stat-em { background: var(--emerald-100); color: var(--emerald-500); }
+  .fm-group-stat-tl { background: var(--teal-100); color: var(--teal-700); }
+  .fm-group-stat-am { background: var(--amber-100); color: #92400e; }
+  .fm-group-stat-rs { background: var(--rose-100); color: var(--rose-500); }
+  .fm-group-stat-vt { background: var(--violet-100); color: var(--violet-600); }
+  
   .fm-code { font-family: 'Space Grotesk', monospace; font-size: 9px; font-weight: 700; line-height: 1; margin-bottom: 2px; }
   .fm-progress { font-size: 8px; opacity: 0.85; font-weight: 600; line-height: 1; }
   
@@ -1043,6 +1060,13 @@
     .qnav-fab { width: 52px; height: 52px; font-size: 22px; }
     .qnav-item { font-size: 11px; padding: 8px 11px 8px 8px; }
     .qnav-item-icon { width: 28px; height: 28px; font-size: 14px; }
+    
+    /* fm-group mobile: stack header items */
+    .fm-group { padding: 6px; }
+    .fm-group-header { flex-wrap: wrap; gap: 6px; }
+    .fm-group-title { width: 100%; justify-content: space-between; }
+    .fm-group-progress-bar { width: 100%; flex: 1; }
+    .fm-group-stats { flex-wrap: wrap; }
   }
   
   /* Workflow Control */
@@ -9289,6 +9313,132 @@ function renderFloorMapContent(data) {
     `;
   };
   
+  // ==================== GROUP BY GONDOLA NUMBER ====================
+  // Pattern: 01A01 + 01B03 + 01E02 → Gondola 01 group
+  function parseFloorMapCode(code) {
+    const upper = (code || '').toUpperCase().trim();
+    
+    // 01A01, 02B03, 10AT05 → number-prefix
+    const numMatch = upper.match(/^(\d{2,})([A-Z]+)(\d+)$/);
+    if (numMatch) {
+      return {
+        groupKey: numMatch[1],
+        groupLabel: `Gondola ${numMatch[1]}`,
+        type: numMatch[2],
+        bay: parseInt(numMatch[3]) || 0
+      };
+    }
+    
+    // W028, WT028, WH050 → letter-prefix
+    const letterMatch = upper.match(/^([A-Z]+)(\d+)$/);
+    if (letterMatch) {
+      const prefix = letterMatch[1];
+      let label = prefix;
+      if (prefix === 'W') label = 'Wall';
+      else if (prefix === 'WT') label = 'Wall Top';
+      else if (prefix === 'WH') label = 'Warehouse';
+      else if (prefix === 'D') label = 'Display';
+      else if (prefix === 'C') label = 'Cashier';
+      else if (prefix === 'R') label = 'Rack';
+      return {
+        groupKey: 'z' + prefix,
+        groupLabel: label,
+        type: prefix,
+        bay: parseInt(letterMatch[2]) || 0
+      };
+    }
+    
+    return {
+      groupKey: 'zzz_other',
+      groupLabel: '?',
+      type: '?',
+      bay: 0
+    };
+  }
+  
+  // Render items grouped by Gondola Number
+  const renderGroupedCells = (items, gridClass = 'fm-grid') => {
+    if (!items || items.length === 0) return '';
+    
+    // Group by Gondola Number
+    const groups = {};
+    items.forEach(item => {
+      const parsed = parseFloorMapCode(item.location_code);
+      if (!groups[parsed.groupKey]) {
+        groups[parsed.groupKey] = {
+          key: parsed.groupKey,
+          label: parsed.groupLabel,
+          items: []
+        };
+      }
+      groups[parsed.groupKey].items.push({ ...item, _parsed: parsed });
+    });
+    
+    // Sort groups: numbers first (01, 02, 03...), then letters (zW, zWT...)
+    const sortedGroups = Object.values(groups).sort((a, b) => 
+      a.key.localeCompare(b.key, undefined, { numeric: true })
+    );
+    
+    // Sort items within group: by type (A → B → AT...), then bay (1, 2, 3, 10...)
+    sortedGroups.forEach(g => {
+      g.items.sort((a, b) => {
+        const tA = a._parsed.type || '';
+        const tB = b._parsed.type || '';
+        if (tA !== tB) return tA.localeCompare(tB);
+        return a._parsed.bay - b._parsed.bay;
+      });
+    });
+    
+    // If only one group with single type → just show flat grid (no need for grouping UI)
+    if (sortedGroups.length === 1) {
+      const onlyGroup = sortedGroups[0];
+      const uniqueTypes = new Set(onlyGroup.items.map(x => x._parsed.type));
+      if (uniqueTypes.size <= 1) {
+        return `<div class="${gridClass}">${onlyGroup.items.map(renderCell).join('')}</div>`;
+      }
+    }
+    
+    // Render grouped
+    return sortedGroups.map(group => {
+      // Stats per group
+      const total = group.items.length;
+      const completed = group.items.filter(x => x.workflow_status === 'completed').length;
+      const inProgress = group.items.filter(x => ['counting', 'verifying', 'tiebreaker'].includes(x.workflow_status)).length;
+      const pendingItems = group.items.filter(x => ['counted', 'open_for_verify', 'verified', 'tiebreaker_needed'].includes(x.workflow_status)).length;
+      const issuesCount = group.items.filter(x => (x.issues_count || 0) > 0).length;
+      const pogCount = group.items.filter(x => (window._pogCountByLoc || {})[x.location_code] > 0).length;
+      
+      // Progress bar color
+      let progressColor = 'var(--slate-300)';
+      const progressPct = total > 0 ? (completed / total) * 100 : 0;
+      if (progressPct === 100) progressColor = 'var(--emerald-500)';
+      else if (progressPct > 0) progressColor = 'var(--teal-500)';
+      else if (inProgress > 0 || pendingItems > 0) progressColor = 'var(--amber-500)';
+      
+      return `
+        <div class="fm-group">
+          <div class="fm-group-header">
+            <div class="fm-group-title">
+              <span class="fm-group-label">${group.label}</span>
+              <span class="fm-group-count">${total}</span>
+            </div>
+            <div class="fm-group-progress-bar">
+              <div class="fm-group-progress-fill" style="width:${progressPct}%;background:${progressColor};"></div>
+            </div>
+            <div class="fm-group-stats">
+              ${completed > 0 ? `<span class="fm-group-stat-em" title="Completed">✅ ${completed}</span>` : ''}
+              ${inProgress > 0 ? `<span class="fm-group-stat-tl" title="In Progress">⏳ ${inProgress}</span>` : ''}
+              ${pendingItems > 0 ? `<span class="fm-group-stat-am" title="Pending">⏸ ${pendingItems}</span>` : ''}
+              ${issuesCount > 0 ? `<span class="fm-group-stat-rs" title="Issues">⚠️ ${issuesCount}</span>` : ''}
+              ${pogCount > 0 ? `<span class="fm-group-stat-vt" title="Has Pan-O-Gram">📐 ${pogCount}</span>` : ''}
+            </div>
+          </div>
+          <div class="${gridClass}">${group.items.map(renderCell).join('')}</div>
+        </div>
+      `;
+    }).join('');
+  };
+  
   el.innerHTML = `
     <!-- Sale Floor -->
     ${saleFloor.length > 0 ? `
@@ -9298,9 +9448,7 @@ function renderFloorMapContent(data) {
           <span>${T('sale_floor')}</span>
           <span class="fm-title-count">${saleFloor.length} ${T('points') || 'จุด'}</span>
         </div>
-        <div class="fm-grid">
-          ${saleFloor.map(renderCell).join('')}
-        </div>
+        ${renderGroupedCells(saleFloor)}
       </div>
     ` : ''}
     
@@ -9312,9 +9460,7 @@ function renderFloorMapContent(data) {
           <span>${T('top_stock_area')}</span>
           <span class="fm-title-count">${topStock.length} ${T('points') || 'จุด'}</span>
         </div>
-        <div class="fm-grid">
-          ${topStock.map(renderCell).join('')}
-        </div>
+        ${renderGroupedCells(topStock)}
       </div>
     ` : ''}
     
@@ -9326,9 +9472,7 @@ function renderFloorMapContent(data) {
           <span>${T('display_area')}</span>
           <span class="fm-title-count">${display.length} ${T('points') || 'จุด'}</span>
         </div>
-        <div class="fm-grid">
-          ${display.map(renderCell).join('')}
-        </div>
+        ${renderGroupedCells(display)}
       </div>
     ` : ''}
     
@@ -9340,9 +9484,7 @@ function renderFloorMapContent(data) {
           <span>${T('warehouse_1')}</span>
           <span class="fm-title-count">${wh1.length} ${T('points') || 'จุด'}</span>
         </div>
-        <div class="fm-grid fm-grid-wh">
-          ${wh1.map(renderCell).join('')}
-        </div>
+        ${renderGroupedCells(wh1, 'fm-grid fm-grid-wh')}
       </div>
     ` : ''}
     
@@ -9354,9 +9496,7 @@ function renderFloorMapContent(data) {
           <span>${T('warehouse_2')}</span>
           <span class="fm-title-count">${wh2.length} ${T('points') || 'จุด'}</span>
         </div>
-        <div class="fm-grid fm-grid-wh">
-          ${wh2.map(renderCell).join('')}
-        </div>
+        ${renderGroupedCells(wh2, 'fm-grid fm-grid-wh')}
       </div>
     ` : ''}
   `;
