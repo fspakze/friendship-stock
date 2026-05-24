@@ -4410,15 +4410,14 @@ function renderPanOGramManager() {
         📋 ${isLao ? 'ລາຍການ' : 'รายการ'}
       </button>
       <button onclick="setPogView('visual')" 
-              class="btn" style="padding:7px;font-size:11px;${_pogManagerView === 'visual' ? 'background:var(--violet-500);color:white;' : 'background:var(--slate-100);color:var(--slate-600);'}"
-              ${!_pogManagerFilter.location ? 'disabled title="' + (isLao ? 'ເລືອກສະຖານທີ່ກ່ອນ' : 'เลือกตำแหน่งก่อน') + '"' : ''}>
+              class="btn" style="padding:7px;font-size:11px;${_pogManagerView === 'visual' ? 'background:var(--violet-500);color:white;' : 'background:var(--slate-100);color:var(--slate-600);'}">
         🎨 ${isLao ? 'ຮູບແບບ' : 'รูปแบบ'}
       </button>
     </div>
     
     <!-- Content -->
     <div id="pogMgrList" style="max-height:380px;overflow-y:auto;border:1px solid var(--slate-200);border-radius:9px;padding:7px;background:var(--slate-50);">
-      ${_pogManagerView === 'visual' && _pogManagerFilter.location ? renderPogVisualLayout(filtered) : renderPogListView(filtered)}
+      ${_pogManagerView === 'visual' ? renderPogVisualLayout(filtered) : renderPogListView(filtered)}
     </div>
   `;
 }
@@ -4499,82 +4498,118 @@ function renderPogVisualLayout(items) {
     </div>`;
   }
   
-  const locCode = items[0].location_code;
-  
-  // Group by shelf
-  const byShelf = {};
+  // Group by location
+  const byLoc = {};
   items.forEach(p => {
-    if (!byShelf[p.shelf]) byShelf[p.shelf] = [];
-    byShelf[p.shelf].push(p);
+    if (!byLoc[p.location_code]) byLoc[p.location_code] = [];
+    byLoc[p.location_code].push(p);
   });
   
-  // Sort shelves descending (top shelf first)
-  const sortedShelves = Object.keys(byShelf).sort((a, b) => parseInt(b) - parseInt(a));
+  const locCodes = Object.keys(byLoc).sort();
   
-  let html = `
-    <div style="margin-bottom:9px;text-align:center;background:linear-gradient(135deg,var(--violet-100),var(--sky-100));padding:8px;border-radius:9px;">
-      <div style="font-size:11px;color:var(--slate-600);font-weight:700;">${isLao ? 'ມຸມມອງຊັ້ນວາງ' : 'มุมมองชั้นวาง'}</div>
-      <div style="font-size:16px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;">📍 ${locCode}</div>
-    </div>
-    
-    <div style="background:#1e293b;padding:11px;border-radius:11px;">
-  `;
-  
-  sortedShelves.forEach(shelf => {
-    const shelfItems = byShelf[shelf].sort((a, b) => a.seq_in_shelf - b.seq_in_shelf);
-    const totalInShelf = shelfItems[0]?.total_in_shelf || shelfItems.length;
-    const shelfTotalQty = shelfItems.reduce((s, p) => s + (p.total_qty || 0), 0);
-    
-    // Build slots (filled + empty)
-    const slots = [];
-    for (let i = 1; i <= totalInShelf; i++) {
-      slots.push(shelfItems.find(x => x.seq_in_shelf === i) || null);
-    }
-    
-    html += `
-      <div style="background:#334155;padding:7px;border-radius:8px;margin-bottom:6px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
-          <span style="color:#fbbf24;font-weight:800;font-size:11px;font-family:'Space Grotesk',monospace;">
-            ${isLao ? 'ຊັ້ນ' : 'ชั้น'} ${shelf}
-          </span>
-          <span style="color:#94a3b8;font-size:9px;">${shelfItems.length}/${totalInShelf} • ${shelfTotalQty} ${isLao ? 'ຊິ້ນ' : 'ชิ้น'}</span>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(${Math.min(totalInShelf, 6)}, 1fr);gap:4px;">
-    `;
-    
-    slots.forEach((slot, i) => {
-      if (slot) {
-        const name = isLao ? (slot.products?.name_lo || slot.barcode) : (slot.products?.name_th || slot.barcode);
-        const shortName = (name || '').substring(0, 12);
-        // Color by stack height
-        const intensity = Math.min(slot.stack, 5);
-        const bgs = ['#10b981', '#0ea5e9', '#8b5cf6', '#f59e0b', '#ef4444'];
-        const bg = bgs[intensity - 1] || '#64748b';
-        
-        html += `
-          <button onclick="openPanOGramModal('${slot.barcode}', '${slot.location_code}', ${slot.id})"
-                  style="background:${bg};border:none;border-radius:6px;padding:5px 3px;text-align:center;cursor:pointer;color:white;overflow:hidden;min-height:50px;display:flex;flex-direction:column;justify-content:center;gap:1px;">
-            <div style="font-size:9px;font-weight:800;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${shortName}</div>
-            <div style="font-size:8px;opacity:0.9;font-family:'Space Grotesk',monospace;">${slot.facial}×${slot.depth}×${slot.stack}</div>
-            <div style="font-size:11px;font-weight:800;font-family:'Space Grotesk',monospace;">${slot.total_qty}</div>
-          </button>
-        `;
-      } else {
-        // Empty slot
-        html += `
-          <div style="background:rgba(255,255,255,0.05);border:1px dashed #475569;border-radius:6px;padding:5px 3px;text-align:center;min-height:50px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:10px;">
-            ⊘ ${i + 1}
-          </div>
-        `;
-      }
+  // Helper: render one location
+  const renderOneLocation = (locCode, locItems) => {
+    // Group by shelf
+    const byShelf = {};
+    locItems.forEach(p => {
+      if (!byShelf[p.shelf]) byShelf[p.shelf] = [];
+      byShelf[p.shelf].push(p);
     });
     
-    html += `</div></div>`;
+    // Sort shelves descending (top shelf first)
+    const sortedShelves = Object.keys(byShelf).sort((a, b) => parseInt(b) - parseInt(a));
+    const locTotalQty = locItems.reduce((s, p) => s + (p.total_qty || 0), 0);
+    
+    let html = `
+      <div style="margin-bottom:11px;text-align:center;background:linear-gradient(135deg,var(--violet-100),var(--sky-100));padding:8px;border-radius:9px;">
+        <div style="font-size:10px;color:var(--slate-600);font-weight:700;">${isLao ? 'ມຸມມອງຊັ້ນວາງ' : 'มุมมองชั้นวาง'}</div>
+        <div style="font-size:16px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;">📍 ${locCode}</div>
+        <div style="font-size:10px;color:var(--slate-600);">
+          ${locItems.length} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'} • ${locTotalQty} ${isLao ? 'ຊິ້ນ' : 'ชิ้น'}
+        </div>
+      </div>
+      
+      <div style="background:#1e293b;padding:11px;border-radius:11px;margin-bottom:14px;">
+    `;
+    
+    sortedShelves.forEach(shelf => {
+      const shelfItems = byShelf[shelf].sort((a, b) => a.seq_in_shelf - b.seq_in_shelf);
+      const totalInShelf = shelfItems[0]?.total_in_shelf || shelfItems.length;
+      const shelfTotalQty = shelfItems.reduce((s, p) => s + (p.total_qty || 0), 0);
+      
+      // Build slots (filled + empty)
+      const slots = [];
+      for (let i = 1; i <= totalInShelf; i++) {
+        slots.push(shelfItems.find(x => x.seq_in_shelf === i) || null);
+      }
+      
+      html += `
+        <div style="background:#334155;padding:7px;border-radius:8px;margin-bottom:6px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+            <span style="color:#fbbf24;font-weight:800;font-size:11px;font-family:'Space Grotesk',monospace;">
+              ${isLao ? 'ຊັ້ນ' : 'ชั้น'} ${shelf}
+            </span>
+            <span style="color:#94a3b8;font-size:9px;">${shelfItems.length}/${totalInShelf} • ${shelfTotalQty} ${isLao ? 'ຊິ້ນ' : 'ชิ้น'}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(${Math.min(totalInShelf, 6)}, 1fr);gap:4px;">
+      `;
+      
+      slots.forEach((slot, i) => {
+        if (slot) {
+          const name = isLao ? (slot.products?.name_lo || slot.barcode) : (slot.products?.name_th || slot.barcode);
+          const shortName = (name || '').substring(0, 12);
+          // Color by stack height
+          const intensity = Math.min(slot.stack, 5);
+          const bgs = ['#10b981', '#0ea5e9', '#8b5cf6', '#f59e0b', '#ef4444'];
+          const bg = bgs[intensity - 1] || '#64748b';
+          
+          html += `
+            <button onclick="openPanOGramModal('${slot.barcode}', '${slot.location_code}', ${slot.id})"
+                    style="background:${bg};border:none;border-radius:6px;padding:5px 3px;text-align:center;cursor:pointer;color:white;overflow:hidden;min-height:50px;display:flex;flex-direction:column;justify-content:center;gap:1px;">
+              <div style="font-size:9px;font-weight:800;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${shortName}</div>
+              <div style="font-size:8px;opacity:0.9;font-family:'Space Grotesk',monospace;">${slot.facial}×${slot.depth}×${slot.stack}</div>
+              <div style="font-size:11px;font-weight:800;font-family:'Space Grotesk',monospace;">${slot.total_qty}</div>
+            </button>
+          `;
+        } else {
+          // Empty slot
+          html += `
+            <div style="background:rgba(255,255,255,0.05);border:1px dashed #475569;border-radius:6px;padding:5px 3px;text-align:center;min-height:50px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:10px;">
+              ⊘ ${i + 1}
+            </div>
+          `;
+        }
+      });
+      
+      html += `</div></div>`;
+    });
+    
+    html += `</div>`;
+    return html;
+  };
+  
+  // Render all locations
+  let html = '';
+  if (locCodes.length > 1) {
+    html += `<div style="font-size:11px;color:var(--violet-600);font-weight:700;margin-bottom:7px;padding:5px 9px;background:var(--violet-100);border-radius:7px;">
+      📍 ${isLao ? 'ສະຖານທີ່' : 'ตำแหน่ง'} ${locCodes.length} ${isLao ? 'ຈຸດ' : 'จุด'} • 
+      ${isLao ? 'ກົດ filter ເພື່ອເບິ່ງສະຖານທີ່ດຽວ' : 'กด filter เพื่อดูตำแหน่งเดียว'}
+    </div>`;
+  }
+  
+  locCodes.forEach(code => {
+    html += renderOneLocation(code, byLoc[code]);
   });
   
-  html += `</div>
-    <div style="font-size:9px;color:var(--slate-500);margin-top:7px;text-align:center;">
-      💡 ${isLao ? 'ສີ = ຄວາມສູງຂັ້ນວາງ (ສີຂຽວ=1, ສີຟ້າ=2, ສີມ່ວງ=3, ສີເຫຼືອງ=4, ສີແດງ=5+)' : 'สี = ความสูงขั้นวาง (เขียว=1, ฟ้า=2, ม่วง=3, เหลือง=4, แดง=5+)'}
+  // Legend
+  html += `
+    <div style="font-size:9px;color:var(--slate-500);margin-top:7px;text-align:center;background:white;padding:6px;border-radius:7px;border:1px solid var(--slate-200);">
+      💡 ${isLao ? 'ສີ = ຄວາມສູງຂັ້ນວາງ' : 'สี = ความสูงขั้นวาง'}<br>
+      <span style="color:#10b981;font-weight:700;">🟢 1</span>
+      <span style="color:#0ea5e9;font-weight:700;">🔵 2</span>
+      <span style="color:#8b5cf6;font-weight:700;">🟣 3</span>
+      <span style="color:#f59e0b;font-weight:700;">🟡 4</span>
+      <span style="color:#ef4444;font-weight:700;">🔴 5+</span>
     </div>
   `;
   
