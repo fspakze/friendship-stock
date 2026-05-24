@@ -3762,6 +3762,7 @@ function renderProduct(p) {
   const isAdmin = ['admin', 'scc', 'bcs'].includes(r);
   const isVerifier = ['verifier', 'audit'].includes(r);
   const isCTL = r === 'ctl';
+  const canEditPog = ['admin', 'scc', 'bcs', 'ctl', 'verifier', 'counter'].includes(r);
   
   let labelText = T('count_label');
   let modeClass = '';
@@ -3789,6 +3790,10 @@ function renderProduct(p) {
       <div class="product-name">${name}</div>
       <div class="product-barcode">${p.barcode}</div>
       ${metaSection}
+      
+      <!-- Pan-O-Gram section (จะโหลดข้อมูล async) -->
+      <div id="pogSection" style="margin-top:9px;"></div>
+      
       <div class="count-section ${modeClass}">
         <div class="count-label">${labelText}</div>
         <div class="count-controls">
@@ -3808,6 +3813,394 @@ function renderProduct(p) {
     const inp = document.getElementById('countInput');
     if (inp) { inp.focus(); inp.select(); }
   }, 100);
+  
+  // Async: โหลดข้อมูล Pan-O-Gram ของสินค้านี้ที่ location ปัจจุบัน
+  if (canEditPog && loc?.location_code) {
+    loadPanOGramForProduct(p, loc.location_code);
+  }
+}
+
+// ==================== PAN-O-GRAM ====================
+// เก็บข้อมูล Pan-O-Gram ของ product ปัจจุบัน (cache ระหว่าง scan)
+let _currentPog = null;
+
+async function loadPanOGramForProduct(product, locationCode) {
+  const sec = document.getElementById('pogSection');
+  if (!sec) return;
+  
+  _currentPog = null;
+  
+  // โหลด Pan-O-Gram ทุกตำแหน่งของสินค้านี้ใน branch
+  // ไม่ filter location เพราะอยากเห็นถ้ามีหลาย location
+  const { data, error } = await sb
+    .from('pan_o_grams')
+    .select('*')
+    .eq('branch_id', branch.id)
+    .eq('barcode', product.barcode)
+    .order('location_code')
+    .order('shelf')
+    .order('seq_in_shelf');
+  
+  if (error) {
+    log('Load Pan-O-Gram error:', error);
+    return;
+  }
+  
+  const all = data || [];
+  const atCurrent = all.filter(p => p.location_code === locationCode);
+  const atOthers = all.filter(p => p.location_code !== locationCode);
+  
+  const isLao = lang === 'lo';
+  
+  let html = `
+    <div style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));border:1px solid var(--violet-300);border-radius:10px;padding:9px 11px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">
+        <div style="font-size:11px;font-weight:700;color:var(--violet-600);display:flex;align-items:center;gap:5px;">
+          📐 Pan-O-Gram
+        </div>
+        <button onclick="openPanOGramModal('${product.barcode}', '${locationCode}')" 
+                style="background:var(--violet-500);color:white;border:none;border-radius:5px;padding:4px 9px;font-size:10px;font-weight:700;cursor:pointer;">
+          ${atCurrent.length > 0 ? `+ ${isLao ? 'ເພີ່ມຕຳແໜ່ງ' : 'เพิ่มตำแหน่ง'}` : `+ ${isLao ? 'ສ້າງ' : 'สร้าง'}`}
+        </button>
+      </div>
+  `;
+  
+  if (atCurrent.length === 0 && atOthers.length === 0) {
+    html += `<div style="font-size:10px;color:var(--slate-500);font-style:italic;">
+      ${isLao ? 'ຍັງບໍ່ມີຂໍ້ມູນ Pan-O-Gram ສຳລັບສິນຄ້ານີ້' : 'ยังไม่มีข้อมูล Pan-O-Gram สำหรับสินค้านี้'}
+    </div>`;
+  } else {
+    // แสดงตำแหน่งใน location ปัจจุบัน
+    if (atCurrent.length > 0) {
+      html += `<div style="font-size:10px;color:var(--violet-600);font-weight:600;margin-bottom:4px;">
+        ${isLao ? 'ໃນ' : 'ใน'} ${locationCode}:
+      </div>`;
+      atCurrent.forEach(pog => {
+        html += renderPogChip(pog, true);
+      });
+    }
+    
+    // แสดงตำแหน่งใน location อื่นๆ (ถ้ามี)
+    if (atOthers.length > 0) {
+      html += `<div style="font-size:10px;color:var(--slate-500);font-weight:600;margin:7px 0 4px;">
+        ${isLao ? 'ຢູ່ບ່ອນອື່ນ' : 'อยู่ที่อื่น'} (${atOthers.length}):
+      </div>`;
+      atOthers.forEach(pog => {
+        html += renderPogChip(pog, false);
+      });
+    }
+  }
+  
+  html += '</div>';
+  sec.innerHTML = html;
+  
+  // Cache เพื่อใช้ใน save
+  _currentPog = atCurrent[0] || null;
+}
+
+function renderPogChip(pog, isCurrent) {
+  const bgColor = isCurrent ? 'white' : 'var(--slate-50)';
+  const borderColor = isCurrent ? 'var(--violet-500)' : 'var(--slate-300)';
+  return `
+    <div onclick="openPanOGramModal('${pog.barcode}', '${pog.location_code}', ${pog.id})"
+         style="background:${bgColor};border:1px solid ${borderColor};border-radius:7px;padding:6px 9px;margin-bottom:4px;cursor:pointer;display:flex;align-items:center;gap:8px;">
+      <div style="font-family:'Space Grotesk',monospace;font-size:11px;font-weight:700;color:var(--slate-900);">
+        ${pog.position_code}
+      </div>
+      <div style="flex:1;font-size:10px;color:var(--slate-600);">
+        ${pog.facial}×${pog.depth}×${pog.stack} = <strong>${pog.total_qty}</strong>
+      </div>
+      <div style="font-size:9px;color:var(--violet-500);">✏️</div>
+    </div>
+  `;
+}
+
+async function openPanOGramModal(barcode, locationCode, editId = null) {
+  const isLao = lang === 'lo';
+  const isEdit = !!editId;
+  
+  // ถ้า edit → โหลดข้อมูลเดิม
+  let existing = null;
+  if (isEdit) {
+    const { data } = await sb.from('pan_o_grams').select('*').eq('id', editId).maybeSingle();
+    existing = data;
+  }
+  
+  // โหลด product info
+  const { data: prod } = await sb
+    .from('products').select('*')
+    .eq('barcode', barcode).eq('branch_id', branch.id).maybeSingle();
+  
+  const prodName = prod ? (isLao ? (prod.name_lo || prod.name_th) : (prod.name_th || prod.name_lo)) : barcode;
+  
+  // โหลด PoGs ที่มีอยู่ใน location นี้ (เพื่อเสนอ next seq)
+  const { data: existingAtLoc } = await sb
+    .from('pan_o_grams').select('shelf, seq_in_shelf, total_in_shelf, barcode')
+    .eq('branch_id', branch.id).eq('location_code', locationCode)
+    .order('shelf').order('seq_in_shelf');
+  
+  // เสนอ default ตามข้อมูลเดิมหรือ next available
+  const defaultShelf = existing?.shelf || (existingAtLoc?.length ? existingAtLoc[existingAtLoc.length - 1].shelf : 1);
+  const defaultSeq = existing?.seq_in_shelf || 
+    ((existingAtLoc || []).filter(x => x.shelf === defaultShelf).length + 1);
+  const defaultTotal = existing?.total_in_shelf || 
+    ((existingAtLoc || []).filter(x => x.shelf === defaultShelf)[0]?.total_in_shelf || 1);
+  
+  showModal(`
+    <h3 style="display:flex;align-items:center;gap:7px;">
+      📐 Pan-O-Gram
+      ${isEdit ? `<span style="background:var(--amber-500);color:white;padding:2px 7px;border-radius:4px;font-size:10px;">${isLao ? 'ແກ້ໄຂ' : 'แก้ไข'}</span>` : ''}
+    </h3>
+    
+    <div style="background:var(--slate-50);padding:9px 11px;border-radius:8px;margin-bottom:11px;">
+      <div style="font-size:11px;font-weight:700;color:var(--slate-900);">${prodName}</div>
+      <div style="font-size:10px;color:var(--slate-500);font-family:monospace;">
+        ${barcode} • Loc: <strong>${locationCode}</strong>
+      </div>
+    </div>
+    
+    <div class="error-msg" id="pogErr"></div>
+    
+    <!-- Row 1: Shelf + Seq + Total -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:9px;">
+      <div>
+        <label style="font-size:10px;color:var(--slate-600);font-weight:700;display:block;margin-bottom:3px;">
+          ${isLao ? 'ຊັ້ນ' : 'ชั้น'}
+        </label>
+        <input type="number" id="pogShelf" value="${defaultShelf}" min="1" max="20" step="1"
+               oninput="updatePogCalc()"
+               class="form-input" style="text-align:center;font-weight:700;font-size:16px;padding:8px;font-family:'Space Grotesk',monospace;">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--slate-600);font-weight:700;display:block;margin-bottom:3px;">
+          ${isLao ? 'ລຳດັບ' : 'ลำดับ'}
+        </label>
+        <input type="number" id="pogSeq" value="${defaultSeq}" min="1" max="50" step="1"
+               oninput="updatePogCalc()"
+               class="form-input" style="text-align:center;font-weight:700;font-size:16px;padding:8px;font-family:'Space Grotesk',monospace;">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--slate-600);font-weight:700;display:block;margin-bottom:3px;">
+          ${isLao ? 'ທັງໝົດ' : 'ทั้งหมด'}
+        </label>
+        <input type="number" id="pogTotal" value="${defaultTotal}" min="1" max="50" step="1"
+               oninput="updatePogCalc()"
+               class="form-input" style="text-align:center;font-weight:700;font-size:16px;padding:8px;font-family:'Space Grotesk',monospace;">
+      </div>
+    </div>
+    
+    <!-- Position Code Preview -->
+    <div style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));padding:9px 11px;border-radius:8px;margin-bottom:11px;text-align:center;">
+      <div style="font-size:10px;color:var(--slate-600);font-weight:700;margin-bottom:2px;">${isLao ? 'ລະຫັດຕຳແໜ່ງ' : 'รหัสตำแหน่ง'}</div>
+      <div id="pogPosCode" style="font-size:18px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;letter-spacing:0.5px;">
+        ${locationCode}-${defaultShelf}-${defaultSeq}-${defaultTotal}
+      </div>
+    </div>
+    
+    <!-- Row 2: Facial + Depth + Stack -->
+    <div style="font-size:11px;color:var(--slate-600);font-weight:700;margin-bottom:5px;">
+      ${isLao ? 'ມິຕິການວາງ' : 'มิติการวาง'}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:9px;">
+      <div>
+        <label style="font-size:10px;color:var(--slate-600);font-weight:700;display:block;margin-bottom:3px;">
+          ${isLao ? 'ຂາ (Facial)' : 'หน้า (Facial)'}
+        </label>
+        <input type="number" id="pogFacial" value="${existing?.facial || 1}" min="1" max="20" step="1"
+               oninput="updatePogCalc()"
+               class="form-input" style="text-align:center;font-weight:700;font-size:16px;padding:8px;font-family:'Space Grotesk',monospace;">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--slate-600);font-weight:700;display:block;margin-bottom:3px;">
+          ${isLao ? 'ເລິກ' : 'ลึก'}
+        </label>
+        <input type="number" id="pogDepth" value="${existing?.depth || 1}" min="1" max="20" step="1"
+               oninput="updatePogCalc()"
+               class="form-input" style="text-align:center;font-weight:700;font-size:16px;padding:8px;font-family:'Space Grotesk',monospace;">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--slate-600);font-weight:700;display:block;margin-bottom:3px;">
+          ${isLao ? 'ຂັ້ນ' : 'ขั้น'}
+        </label>
+        <input type="number" id="pogStack" value="${existing?.stack || 1}" min="1" max="20" step="1"
+               oninput="updatePogCalc()"
+               class="form-input" style="text-align:center;font-weight:700;font-size:16px;padding:8px;font-family:'Space Grotesk',monospace;">
+      </div>
+    </div>
+    
+    <!-- Total Qty Preview -->
+    <div style="background:linear-gradient(135deg,var(--emerald-100),var(--teal-100));padding:11px;border-radius:9px;margin-bottom:11px;text-align:center;">
+      <div style="font-size:10px;color:var(--emerald-500);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
+        ${isLao ? 'ຈຳນວນຄາດເຄື່ອນ (Precount)' : 'จำนวนคาดเคลื่อน (Precount)'}
+      </div>
+      <div id="pogTotalQty" style="font-size:26px;font-weight:800;color:var(--emerald-500);font-family:'Space Grotesk',monospace;">
+        ${(existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1)}
+      </div>
+      <div id="pogFormula" style="font-size:11px;color:var(--slate-600);font-family:'Space Grotesk',monospace;">
+        ${existing?.facial || 1} × ${existing?.depth || 1} × ${existing?.stack || 1}
+      </div>
+    </div>
+    
+    <!-- Notes -->
+    <div class="form-group">
+      <label class="form-label" style="font-size:10px;">${isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ'}</label>
+      <textarea id="pogNotes" rows="2" class="form-input" style="font-size:11px;resize:vertical;">${existing?.notes || ''}</textarea>
+    </div>
+    
+    <div class="action-row">
+      ${isEdit ? `<button class="btn btn-danger" onclick="deletePanOGram(${editId})" style="background:var(--rose-500);">${isLao ? 'ລົບ' : 'ลบ'}</button>` : ''}
+      <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
+      <button class="btn btn-primary" id="pogSaveBtn" onclick="savePanOGram('${barcode}', '${locationCode}', ${editId || 'null'})" style="background:var(--violet-500);">
+        ${isLao ? 'ບັນທຶກ' : 'บันทึก'}
+      </button>
+    </div>
+  `);
+}
+
+function updatePogCalc() {
+  const shelf = parseInt(document.getElementById('pogShelf')?.value || 1);
+  const seq = parseInt(document.getElementById('pogSeq')?.value || 1);
+  const total = parseInt(document.getElementById('pogTotal')?.value || 1);
+  const facial = parseInt(document.getElementById('pogFacial')?.value || 1);
+  const depth = parseInt(document.getElementById('pogDepth')?.value || 1);
+  const stack = parseInt(document.getElementById('pogStack')?.value || 1);
+  
+  const posCodeEl = document.getElementById('pogPosCode');
+  const totalQtyEl = document.getElementById('pogTotalQty');
+  const formulaEl = document.getElementById('pogFormula');
+  
+  // ดึง location code จาก position code ปัจจุบัน
+  if (posCodeEl) {
+    const parts = posCodeEl.textContent.split('-');
+    const locCode = parts[0];
+    posCodeEl.textContent = `${locCode}-${shelf}-${seq}-${total}`;
+  }
+  
+  const totalQty = facial * depth * stack;
+  if (totalQtyEl) totalQtyEl.textContent = totalQty;
+  if (formulaEl) formulaEl.textContent = `${facial} × ${depth} × ${stack}`;
+}
+
+async function savePanOGram(barcode, locationCode, editId) {
+  const isLao = lang === 'lo';
+  const errEl = document.getElementById('pogErr');
+  const btn = document.getElementById('pogSaveBtn');
+  
+  const shelf = parseInt(document.getElementById('pogShelf').value);
+  const seq = parseInt(document.getElementById('pogSeq').value);
+  const total = parseInt(document.getElementById('pogTotal').value);
+  const facial = parseInt(document.getElementById('pogFacial').value);
+  const depth = parseInt(document.getElementById('pogDepth').value);
+  const stack = parseInt(document.getElementById('pogStack').value);
+  const notes = document.getElementById('pogNotes').value.trim();
+  
+  // Validation
+  if (!shelf || !seq || !total || !facial || !depth || !stack) {
+    errEl.textContent = isLao ? 'ກະລຸນາໃສ່ຄ່າທຸກຊ່ອງ' : 'กรุณาใส่ค่าทุกช่อง';
+    errEl.classList.add('show');
+    return;
+  }
+  if (seq > total) {
+    errEl.textContent = isLao 
+      ? `ລຳດັບ (${seq}) ບໍ່ສາມາດເກີນທັງໝົດ (${total})` 
+      : `ลำดับ (${seq}) ห้ามเกินทั้งหมด (${total})`;
+    errEl.classList.add('show');
+    return;
+  }
+  
+  btn.disabled = true;
+  
+  try {
+    // Look up product_id
+    const { data: prod } = await sb
+      .from('products').select('id')
+      .eq('barcode', barcode).eq('branch_id', branch.id).maybeSingle();
+    
+    const payload = {
+      branch_id: branch.id,
+      product_id: prod?.id || null,
+      barcode: barcode,
+      location_code: locationCode,
+      shelf, seq_in_shelf: seq, total_in_shelf: total,
+      facial, depth, stack,
+      notes: notes || null,
+      created_by: user.id,
+      updated_at: new Date().toISOString()
+    };
+    
+    if (editId) {
+      // UPDATE
+      const { error } = await sb.from('pan_o_grams').update(payload).eq('id', editId);
+      if (error) throw error;
+      showToast(isLao ? '✅ ບັນທຶກສຳເລັດ' : '✅ บันทึกสำเร็จ', 'success');
+    } else {
+      // เช็คว่ามีตำแหน่งนี้อยู่แล้วหรือไม่ (สินค้าใดก็ตาม)
+      const { data: existing } = await sb
+        .from('pan_o_grams').select('id, barcode')
+        .eq('branch_id', branch.id)
+        .eq('location_code', locationCode)
+        .eq('shelf', shelf)
+        .eq('seq_in_shelf', seq)
+        .maybeSingle();
+      
+      if (existing) {
+        // ตำแหน่งนี้มีคนใช้แล้ว
+        if (existing.barcode === barcode) {
+          // สินค้าเดียวกัน → ถามว่าจะ update หรือไม่
+          const confirmMsg = isLao 
+            ? `ສິນຄ້ານີ້ມີຢູ່ໃນຕຳແໜ່ງນີ້ແລ້ວ — ຕ້ອງການອັບເດດບໍ?`
+            : `สินค้านี้มีในตำแหน่งนี้แล้ว — ต้องการอัปเดตหรือไม่?`;
+          if (!confirm(confirmMsg)) {
+            btn.disabled = false;
+            return;
+          }
+          const { error } = await sb.from('pan_o_grams').update(payload).eq('id', existing.id);
+          if (error) throw error;
+          showToast(isLao ? '✅ ອັບເດດແລ້ວ' : '✅ อัปเดตแล้ว', 'success');
+        } else {
+          // สินค้าอื่นใช้ตำแหน่งนี้อยู่
+          errEl.textContent = isLao 
+            ? `ຕຳແໜ່ງນີ້ມີ ${existing.barcode} ໃຊ້ຢູ່ແລ້ວ` 
+            : `ตำแหน่งนี้มี ${existing.barcode} ใช้อยู่แล้ว`;
+          errEl.classList.add('show');
+          btn.disabled = false;
+          return;
+        }
+      } else {
+        // INSERT ใหม่
+        payload.created_at = new Date().toISOString();
+        const { error } = await sb.from('pan_o_grams').insert(payload);
+        if (error) throw error;
+        showToast(isLao ? '✅ ສ້າງສຳເລັດ' : '✅ สร้างสำเร็จ', 'success');
+      }
+    }
+    
+    closeModal();
+    // Refresh Pan-O-Gram section
+    if (curProduct) {
+      loadPanOGramForProduct(curProduct, locationCode);
+    }
+  } catch (e) {
+    console.error('[FS] savePanOGram error:', e);
+    errEl.textContent = e.message;
+    errEl.classList.add('show');
+    btn.disabled = false;
+  }
+}
+
+async function deletePanOGram(id) {
+  const isLao = lang === 'lo';
+  if (!confirm(isLao ? 'ລົບ Pan-O-Gram ນີ້?' : 'ลบ Pan-O-Gram นี้?')) return;
+  
+  try {
+    const { error } = await sb.from('pan_o_grams').delete().eq('id', id);
+    if (error) throw error;
+    showToast(isLao ? '🗑️ ລົບແລ້ວ' : '🗑️ ลบแล้ว', 'success');
+    closeModal();
+    if (curProduct) loadPanOGramForProduct(curProduct, loc?.location_code);
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  }
 }
 
 function adjustCount(delta) {
@@ -9454,6 +9847,11 @@ window.filterUsersList = filterUsersList;
 window.toggleUserView = toggleUserView;
 window.toggleBranchFilterFAB = toggleBranchFilterFAB;
 window.filterByBranch = filterByBranch;
+window.openPanOGramModal = openPanOGramModal;
+window.updatePogCalc = updatePogCalc;
+window.savePanOGram = savePanOGram;
+window.deletePanOGram = deletePanOGram;
+window.loadPanOGramForProduct = loadPanOGramForProduct;
 window.adjustCount = adjustCount;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
