@@ -5507,6 +5507,379 @@ async function exportPrecountExcel() {
   await exportPanOGramExcel(); // ใช้ตัวเดียวกัน (มี Precount sheet อยู่แล้ว)
 }
 
+// ==================== BACKUP MANAGER ====================
+const BACKUP_TABLES = [
+  { key: 'products',         label_lo: 'ສິນຄ້າ',         label_th: 'สินค้า',        icon: '📦', branchField: 'branch_id' },
+  { key: 'zones',            label_lo: 'ໂຊນ',            label_th: 'โซน',           icon: '🎨', branchField: 'branch_id' },
+  { key: 'location_master',  label_lo: 'ຕຳແໜ່ງ',         label_th: 'ตำแหน่ง',       icon: '📍', branchField: 'branch_id' },
+  { key: 'pan_o_grams',      label_lo: 'Pan-O-Gram',     label_th: 'Pan-O-Gram',    icon: '📐', branchField: 'branch_id' },
+  { key: 'stock_counts',     label_lo: 'ການນັບ',          label_th: 'การนับ',        icon: '🔢', branchField: 'branch_id' },
+  { key: 'stock_sessions',   label_lo: 'Sessions',       label_th: 'Sessions',      icon: '📋', branchField: 'branch_id' },
+  { key: 'users',            label_lo: 'ຜູ້ໃຊ້',          label_th: 'ผู้ใช้',         icon: '👥', branchField: null },
+  { key: 'branches',         label_lo: 'ສາຂາ',           label_th: 'สาขา',          icon: '🏪', branchField: null }
+];
+
+async function openBackupManager() {
+  const isLao = lang === 'lo';
+  
+  if (!['admin', 'scc', 'bcs'].includes(user.role)) {
+    showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error');
+    return;
+  }
+  
+  showModal(`
+    <h3 style="display:flex;align-items:center;gap:7px;">
+      💾 ${isLao ? 'ສຳຮອງຂໍ້ມູນ' : 'สำรองข้อมูล'}
+      <span style="font-size:11px;color:var(--slate-500);font-weight:500;margin-left:auto;">${branch?.code || ''}</span>
+    </h3>
+    
+    <div id="backupContent">
+      <div style="text-align:center;padding:25px;color:var(--slate-400);">
+        <div class="loader" style="margin:0 auto 8px;"></div>
+        <div style="font-size:11px;">${isLao ? 'ກຳລັງໂຫລດສະຖິຕິ...' : 'กำลังโหลดสถิติ...'}</div>
+      </div>
+    </div>
+    
+    <div class="action-row" style="margin-top:11px;">
+      <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;">${T('cancel')}</button>
+    </div>
+  `);
+  
+  await loadBackupManager();
+}
+
+async function loadBackupManager() {
+  if (!branch) return;
+  const isLao = lang === 'lo';
+  
+  // Get count per table (in current branch)
+  const counts = {};
+  await Promise.all(BACKUP_TABLES.map(async (t) => {
+    try {
+      let query = sb.from(t.key).select('*', { count: 'exact', head: true });
+      if (t.branchField) query = query.eq(t.branchField, branch.id);
+      const { count } = await query;
+      counts[t.key] = count || 0;
+    } catch (e) {
+      counts[t.key] = 0;
+    }
+  }));
+  
+  // Total records
+  const totalRecords = Object.values(counts).reduce((s, n) => s + n, 0);
+  
+  // Last backup info
+  const lastBackup = localStorage.getItem(`fs_last_backup_${branch.id}`);
+  const lastBackupDate = lastBackup ? new Date(lastBackup).toLocaleString(isLao ? 'lo-LA' : 'th-TH') : null;
+  
+  const content = document.getElementById('backupContent');
+  
+  content.innerHTML = `
+    <!-- Stats -->
+    <div style="background:linear-gradient(135deg,var(--emerald-100),var(--teal-100));padding:11px;border-radius:11px;margin-bottom:11px;">
+      <div style="text-align:center;font-size:11px;color:var(--emerald-500);font-weight:700;margin-bottom:5px;">
+        📊 ${isLao ? 'ສະຖິຕິຂໍ້ມູນ' : 'สถิติข้อมูล'}
+      </div>
+      <div style="font-size:24px;font-weight:800;color:var(--emerald-500);font-family:'Space Grotesk',monospace;text-align:center;">
+        ${totalRecords.toLocaleString()}
+      </div>
+      <div style="text-align:center;font-size:10px;color:var(--slate-600);">
+        ${isLao ? 'records ທັງໝົດ' : 'records ทั้งหมด'}
+      </div>
+    </div>
+    
+    ${lastBackupDate ? `
+      <div style="background:var(--violet-100);border-left:3px solid var(--violet-500);padding:8px 11px;border-radius:7px;margin-bottom:9px;font-size:11px;color:var(--slate-700);">
+        📅 ${isLao ? 'ສຳຮອງຄັ້ງສຸດທ້າຍ' : 'สำรองล่าสุด'}: <strong>${lastBackupDate}</strong>
+      </div>
+    ` : `
+      <div style="background:var(--rose-100);border-left:3px solid var(--rose-500);padding:8px 11px;border-radius:7px;margin-bottom:9px;font-size:11px;color:var(--rose-500);">
+        ⚠️ ${isLao ? 'ຍັງບໍ່ເຄີຍສຳຮອງ' : 'ยังไม่เคยสำรองข้อมูล'}
+      </div>
+    `}
+    
+    <!-- Quick Actions -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:11px;">
+      <button class="btn btn-primary" onclick="exportFullBackupJSON()"
+              style="background:linear-gradient(135deg,var(--emerald-500),var(--teal-500));font-size:12px;padding:11px;display:flex;flex-direction:column;align-items:center;gap:3px;">
+        <span style="font-size:18px;">💾</span>
+        <span>${isLao ? 'Full Backup' : 'Full Backup'}</span>
+        <span style="font-size:9px;font-weight:500;opacity:0.9;">JSON</span>
+      </button>
+      <button class="btn btn-primary" onclick="exportFullBackupExcel()"
+              style="background:linear-gradient(135deg,var(--violet-500),var(--sky-500));font-size:12px;padding:11px;display:flex;flex-direction:column;align-items:center;gap:3px;">
+        <span style="font-size:18px;">📊</span>
+        <span>${isLao ? 'Full Backup' : 'Full Backup'}</span>
+        <span style="font-size:9px;font-weight:500;opacity:0.9;">Excel</span>
+      </button>
+    </div>
+    
+    <!-- Tables List -->
+    <div style="font-size:11px;color:var(--slate-600);font-weight:700;margin-bottom:5px;">
+      📁 ${isLao ? 'Export ແຍກຕາມຕາຕະລາງ' : 'Export แยกตามตาราง'}
+    </div>
+    <div style="background:var(--slate-50);border-radius:9px;padding:7px;max-height:280px;overflow-y:auto;">
+      ${BACKUP_TABLES.map(t => {
+        const label = isLao ? t.label_lo : t.label_th;
+        const count = counts[t.key] || 0;
+        const noteBranch = t.branchField ? '' : `<span style="font-size:9px;color:var(--slate-400);">(${isLao ? 'ທຸກສາຂາ' : 'ทุกสาขา'})</span>`;
+        return `
+          <div style="background:white;border:1px solid var(--slate-200);border-radius:7px;padding:7px 9px;margin-bottom:5px;display:flex;align-items:center;gap:9px;">
+            <div style="font-size:20px;flex-shrink:0;">${t.icon}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:12px;font-weight:700;color:var(--slate-900);">${label} ${noteBranch}</div>
+              <div style="font-size:10px;color:var(--slate-500);font-family:'Space Grotesk',monospace;">
+                ${count.toLocaleString()} ${isLao ? 'ລາຍການ' : 'รายการ'}
+              </div>
+            </div>
+            <button onclick="exportTableJSON('${t.key}')" 
+                    ${count === 0 ? 'disabled' : ''}
+                    style="background:${count === 0 ? 'var(--slate-200)' : 'var(--violet-100)'};color:${count === 0 ? 'var(--slate-400)' : 'var(--violet-600)'};border:none;border-radius:5px;padding:5px 9px;font-size:10px;font-weight:700;cursor:${count === 0 ? 'not-allowed' : 'pointer'};font-family:monospace;">
+              JSON
+            </button>
+            <button onclick="exportTableExcel('${t.key}')" 
+                    ${count === 0 ? 'disabled' : ''}
+                    style="background:${count === 0 ? 'var(--slate-200)' : 'var(--emerald-100)'};color:${count === 0 ? 'var(--slate-400)' : 'var(--emerald-500)'};border:none;border-radius:5px;padding:5px 9px;font-size:10px;font-weight:700;cursor:${count === 0 ? 'not-allowed' : 'pointer'};font-family:monospace;">
+              XLSX
+            </button>
+          </div>
+        `;
+      }).join('')}
+    </div>
+    
+    <div style="font-size:9px;color:var(--slate-500);margin-top:9px;line-height:1.5;background:var(--amber-100);padding:7px 9px;border-radius:7px;border-left:3px solid var(--amber-500);">
+      💡 ${isLao 
+        ? 'ແນະນຳ: ສຳຮອງ JSON ກ່ອນທີ່ຈະນັບສະຕ໋ອກ ຫຼື import ໃໝ່ — ໃຊ້ສຳລັບ Restore ໄດ້' 
+        : 'แนะนำ: สำรอง JSON ก่อนนับสต๊อก หรือ import ใหม่ — ใช้สำหรับ Restore ได้'}
+    </div>
+  `;
+}
+
+// ==================== EXPORT FULL JSON ====================
+async function exportFullBackupJSON() {
+  const isLao = lang === 'lo';
+  showToast(isLao ? '⏳ ກຳລັງສ້າງ Full Backup...' : '⏳ กำลังสร้าง Full Backup...', 'success');
+  
+  try {
+    const backup = {
+      _meta: {
+        app: 'Friendship Stock',
+        version: '4.1',
+        branch_id: branch.id,
+        branch_code: branch.code,
+        branch_name: branch.name_th || branch.name_lo,
+        created_at: new Date().toISOString(),
+        created_by: user.username,
+        type: 'full',
+        tables: []
+      }
+    };
+    
+    let totalRecords = 0;
+    
+    for (const t of BACKUP_TABLES) {
+      let query = sb.from(t.key).select('*');
+      if (t.branchField) query = query.eq(t.branchField, branch.id);
+      
+      const { data, error } = await query;
+      if (error) {
+        console.warn(`[FS] Backup ${t.key} error:`, error);
+        backup[t.key] = { error: error.message };
+        continue;
+      }
+      
+      // Sanitize: remove password_hash from users
+      if (t.key === 'users' && data) {
+        backup[t.key] = data.map(u => {
+          const { password_hash, ...safe } = u;
+          return safe;
+        });
+      } else {
+        backup[t.key] = data || [];
+      }
+      
+      totalRecords += (data?.length || 0);
+      backup._meta.tables.push({ name: t.key, count: data?.length || 0 });
+    }
+    
+    backup._meta.total_records = totalRecords;
+    
+    // Download
+    const json = JSON.stringify(backup, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const fileName = `backup-${branch.code}-${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
+    
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    
+    // Save backup timestamp
+    localStorage.setItem(`fs_last_backup_${branch.id}`, new Date().toISOString());
+    
+    // Refresh manager
+    showToast(`✅ ${isLao ? 'ສຳຮອງສຳເລັດ' : 'สำรองสำเร็จ'}: ${totalRecords.toLocaleString()} records`, 'success');
+    loadBackupManager();
+  } catch (e) {
+    console.error('[FS] Full backup error:', e);
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+// ==================== EXPORT FULL EXCEL ====================
+async function exportFullBackupExcel() {
+  const isLao = lang === 'lo';
+  showToast(isLao ? '⏳ ກຳລັງສ້າງ Excel...' : '⏳ กำลังสร้าง Excel...', 'success');
+  
+  try {
+    const wb = XLSX.utils.book_new();
+    let totalRecords = 0;
+    
+    // Meta sheet
+    const metaSheet = [
+      ['Friendship Stock — Full Backup'],
+      [],
+      ['Branch', branch.code + ' - ' + (branch.name_th || branch.name_lo)],
+      ['Created', new Date().toLocaleString()],
+      ['Created by', user.username],
+      [],
+      ['Table', 'Count', 'Branch Filter']
+    ];
+    
+    for (const t of BACKUP_TABLES) {
+      let query = sb.from(t.key).select('*');
+      if (t.branchField) query = query.eq(t.branchField, branch.id);
+      
+      const { data, error } = await query;
+      if (error || !data) {
+        metaSheet.push([t.key, 0, error?.message || 'no data']);
+        continue;
+      }
+      
+      // Sanitize: remove password_hash
+      const sanitized = t.key === 'users' 
+        ? data.map(u => { const { password_hash, ...safe } = u; return safe; })
+        : data;
+      
+      if (sanitized.length > 0) {
+        const ws = XLSX.utils.json_to_sheet(sanitized);
+        XLSX.utils.book_append_sheet(wb, ws, t.key.substring(0, 30));
+      }
+      
+      totalRecords += sanitized.length;
+      metaSheet.push([t.key, sanitized.length, t.branchField ? branch.code : 'all']);
+    }
+    
+    metaSheet.push([]);
+    metaSheet.push(['TOTAL', totalRecords]);
+    
+    const wsMeta = XLSX.utils.aoa_to_sheet(metaSheet);
+    wsMeta['!cols'] = [{wch:25},{wch:12},{wch:18}];
+    XLSX.utils.book_append_sheet(wb, wsMeta, '_meta', true);
+    
+    const fileName = `backup-${branch.code}-${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    
+    localStorage.setItem(`fs_last_backup_${branch.id}`, new Date().toISOString());
+    showToast(`✅ ${isLao ? 'ສຳຮອງ Excel ສຳເລັດ' : 'สำรอง Excel สำเร็จ'}: ${totalRecords.toLocaleString()} records`, 'success');
+    loadBackupManager();
+  } catch (e) {
+    console.error('[FS] Excel backup error:', e);
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+// ==================== EXPORT SINGLE TABLE ====================
+async function exportTableJSON(tableName) {
+  const isLao = lang === 'lo';
+  const tableInfo = BACKUP_TABLES.find(t => t.key === tableName);
+  if (!tableInfo) return;
+  
+  showToast(isLao ? '⏳ ກຳລັງສ້າງ...' : '⏳ กำลังสร้าง...', 'success');
+  
+  try {
+    let query = sb.from(tableName).select('*');
+    if (tableInfo.branchField) query = query.eq(tableInfo.branchField, branch.id);
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      showToast(isLao ? '⚠️ ບໍ່ມີຂໍ້ມູນ' : '⚠️ ไม่มีข้อมูล', 'warning');
+      return;
+    }
+    
+    // Sanitize
+    const sanitized = tableName === 'users' 
+      ? data.map(u => { const { password_hash, ...safe } = u; return safe; })
+      : data;
+    
+    const exportData = {
+      _meta: {
+        app: 'Friendship Stock',
+        table: tableName,
+        branch_code: tableInfo.branchField ? branch.code : 'all',
+        count: sanitized.length,
+        created_at: new Date().toISOString()
+      },
+      data: sanitized
+    };
+    
+    const json = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const fileName = `${tableName}-${branch.code}-${new Date().toISOString().slice(0,10)}.json`;
+    
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    
+    showToast(`✅ ${sanitized.length.toLocaleString()} records`, 'success');
+  } catch (e) {
+    console.error('[FS] Table backup error:', e);
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+async function exportTableExcel(tableName) {
+  const isLao = lang === 'lo';
+  const tableInfo = BACKUP_TABLES.find(t => t.key === tableName);
+  if (!tableInfo) return;
+  
+  showToast(isLao ? '⏳ ກຳລັງສ້າງ Excel...' : '⏳ กำลังสร้าง Excel...', 'success');
+  
+  try {
+    let query = sb.from(tableName).select('*');
+    if (tableInfo.branchField) query = query.eq(tableInfo.branchField, branch.id);
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      showToast(isLao ? '⚠️ ບໍ່ມີຂໍ້ມູນ' : '⚠️ ไม่มีข้อมูล', 'warning');
+      return;
+    }
+    
+    // Sanitize
+    const sanitized = tableName === 'users' 
+      ? data.map(u => { const { password_hash, ...safe } = u; return safe; })
+      : data;
+    
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(sanitized);
+    XLSX.utils.book_append_sheet(wb, ws, tableName.substring(0, 30));
+    
+    const fileName = `${tableName}-${branch.code}-${new Date().toISOString().slice(0,10)}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    
+    showToast(`✅ ${sanitized.length.toLocaleString()} records`, 'success');
+  } catch (e) {
+    console.error('[FS] Table Excel error:', e);
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+// ==================== END BACKUP MANAGER ====================
+
 // ==================== ZONE MANAGER (Admin Only) ====================
 let _zoneMgrData = null;
 let _zoneMgrSelectedZone = null; // For viewing locations in a specific zone
@@ -12170,6 +12543,34 @@ function renderSettingsPage() {
     ` : ''}
     
     ${['admin', 'scc', 'bcs'].includes(user.role) ? `
+    <!-- Backup Manager (Admin Only) -->
+    <div style="background:white;border:2px solid var(--emerald-500);border-radius:14px;padding:16px;margin-top:14px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
+        <div style="background:linear-gradient(135deg,var(--emerald-500),var(--teal-500));color:white;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">
+          💾
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;color:var(--emerald-500);font-size:14px;">${lang === 'lo' ? 'ສຳຮອງຂໍ້ມູນ' : 'สำรองข้อมูล'}</div>
+          <div style="font-size:11px;color:var(--slate-500);">
+            ${lang === 'lo' ? 'Export ຂໍ້ມູນທັງໝົດ' : 'Export ข้อมูลทั้งหมด'}
+          </div>
+        </div>
+        <div id="backupLastStatBadge" style="background:var(--emerald-100);color:var(--emerald-500);padding:4px 9px;border-radius:6px;font-size:10px;font-weight:700;font-family:'Space Grotesk',monospace;">
+          —
+        </div>
+      </div>
+      
+      <button class="btn" style="background:linear-gradient(135deg,var(--emerald-500),var(--teal-500));color:white;font-size:12px;padding:11px;width:100%;" onclick="openBackupManager()">
+        💾 ${lang === 'lo' ? 'ສຳຮອງຂໍ້ມູນ' : 'สำรองข้อมูล'}
+      </button>
+      
+      <div style="font-size:10px;color:var(--slate-500);margin-top:8px;line-height:1.5;">
+        💡 ${lang === 'lo' ? 'ສຳຮອງເປັນ JSON ຫຼື Excel ກ່ອນທີ່ຈະນັບສະຕ໋ອກ ຫຼື ປ່ຽນແປງໃຫຍ່' : 'สำรองเป็น JSON หรือ Excel ก่อนนับสต๊อก หรือเปลี่ยนแปลงใหญ่'}
+      </div>
+    </div>
+    ` : ''}
+    
+    ${['admin', 'scc', 'bcs'].includes(user.role) ? `
     <!-- Zone Manager (Admin Only) -->
     <div style="background:white;border:2px solid var(--sky-500);border-radius:14px;padding:16px;margin-top:14px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
@@ -12418,6 +12819,41 @@ async function loadSettingsStats() {
   }
   if (ze) {
     ze.textContent = `${zonesRes.count || 0} / ${locsRes.count || 0}`;
+  }
+  
+  // Last backup time
+  const bb = document.getElementById('backupLastStatBadge');
+  if (bb) {
+    const lastBackup = localStorage.getItem(`fs_last_backup_${branch.id}`);
+    if (lastBackup) {
+      const t = new Date(lastBackup);
+      const now = new Date();
+      const diffMs = now - t;
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffMin = Math.floor(diffMs / (1000 * 60));
+      const isLao = lang === 'lo';
+      
+      let label = '';
+      if (diffMin < 1) label = isLao ? 'ຫາກໍ່' : 'เพิ่งทำ';
+      else if (diffMin < 60) label = `${diffMin} ${isLao ? 'ນທ' : 'นาที'}`;
+      else if (diffHrs < 24) label = `${diffHrs} ${isLao ? 'ຊມ' : 'ชม'}`;
+      else label = `${diffDays} ${isLao ? 'ມື້' : 'วัน'}`;
+      
+      bb.textContent = label;
+      // Warn if > 7 days
+      if (diffDays > 7) {
+        bb.style.background = 'var(--rose-100)';
+        bb.style.color = 'var(--rose-500)';
+      } else if (diffDays > 3) {
+        bb.style.background = 'var(--amber-100)';
+        bb.style.color = '#92400e';
+      }
+    } else {
+      bb.textContent = lang === 'lo' ? 'ບໍ່ມີ' : 'ไม่มี';
+      bb.style.background = 'var(--rose-100)';
+      bb.style.color = 'var(--rose-500)';
+    }
   }
 }
 
@@ -12683,6 +13119,11 @@ window.renderZoneLocationsList = renderZoneLocationsList;
 window.toggleLocationZone = toggleLocationZone;
 window.toggleGroupInZone = toggleGroupInZone;
 window.bulkAssignToZone = bulkAssignToZone;
+window.openBackupManager = openBackupManager;
+window.exportFullBackupJSON = exportFullBackupJSON;
+window.exportFullBackupExcel = exportFullBackupExcel;
+window.exportTableJSON = exportTableJSON;
+window.exportTableExcel = exportTableExcel;
 window.adjustCount = adjustCount;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
