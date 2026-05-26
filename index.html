@@ -4344,23 +4344,53 @@ async function lookupGapProduct(barcode) {
       return;
     }
     
-    // หา Pan-O-Gram (ความจุชั้นวาง) ของสินค้านี้ในตำแหน่งนี้
+    // หา Pan-O-Gram (ความจุชั้นวาง + min/max/reorder) ของสินค้านี้ในตำแหน่งนี้
     let shelfCapacity = 0;
+    let pogMinQty = 0;
+    let pogMaxQty = 0;
+    let pogReorderQty = 0;
     if (loc?.location_code) {
       const { data: pog } = await sb.from('pan_o_grams')
-        .select('total_qty')
+        .select('total_qty, min_qty, max_qty, reorder_qty')
         .eq('branch_id', branch.id)
         .eq('barcode', barcode)
         .eq('location_code', loc.location_code)
         .maybeSingle();
-      shelfCapacity = pog?.total_qty || 0;
+      if (pog) {
+        shelfCapacity = pog.total_qty || 0;
+        pogMinQty = pog.min_qty || 0;
+        pogMaxQty = pog.max_qty || pog.total_qty || 0;
+        pogReorderQty = pog.reorder_qty || pog.total_qty || 0;
+      }
+    }
+    
+    // 🆕 Duplicate Detection — เช็คว่ามี gap pending ของ barcode+gondola นี้ใน 4 ชม. ล่าสุดหรือไม่
+    let duplicateInfo = null;
+    if (loc?.location_code) {
+      const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
+      const { data: dupes } = await sb.from('gap_scans')
+        .select('id, gap_qty, created_at, users!user_id(full_name)')
+        .eq('branch_id', branch.id)
+        .eq('barcode', barcode)
+        .eq('gondola_code', loc.gondola_code || loc.location_code)
+        .eq('status', 'pending')
+        .gte('created_at', fourHoursAgo)
+        .order('created_at', { ascending: false });
+      
+      if (dupes && dupes.length > 0) {
+        duplicateInfo = dupes[0];  // เอา latest
+      }
     }
     
     // เก็บไว้สำหรับ submit
     _gapScanCurrent = {
       product,
       shelfCapacity,
-      barcode
+      pogMinQty,
+      pogMaxQty,
+      pogReorderQty,
+      barcode,
+      duplicateInfo
     };
     
     renderGapProductCard(product, shelfCapacity);
@@ -4379,6 +4409,12 @@ function renderGapProductCard(product, shelfCapacity) {
   const cardEl = document.getElementById('gapProductCard');
   if (!cardEl) return;
   
+  const cur = _gapScanCurrent || {};
+  const pogMinQty = cur.pogMinQty || 0;
+  const pogMaxQty = cur.pogMaxQty || shelfCapacity || 0;
+  const pogReorderQty = cur.pogReorderQty || shelfCapacity || 1;
+  const duplicateInfo = cur.duplicateInfo;
+  
   const name = isLao ? (product.name_lo || product.name_th) : (product.name_th || product.name_lo);
   const unit = isLao ? (product.unit_lo || 'ຊິ້ນ') : (product.unit_th || 'ชิ้น');
   const posQty = product.pos_qty || 0;
@@ -4394,12 +4430,29 @@ function renderGapProductCard(product, shelfCapacity) {
     ? (isLao ? 'ມີຢູ່ໃນຄັງ — ສົ່ງເຕີມໜ້າຮ້ານ' : 'มีอยู่ในคลัง — ส่งเติมหน้าร้าน')
     : (isLao ? 'ໝົດຄັງ — ສົ່ງຈັດຊື້ PO' : 'หมดคลัง — ส่งจัดซื้อ PO');
   
-  // Suggest gap qty: from shelf capacity (Pan-O-Gram)
-  // If no Pan-O-Gram → default 1
-  const suggestedQty = shelfCapacity > 0 ? shelfCapacity : 1;
+  // 🆕 Duplicate Warning HTML
+  const duplicateWarning = duplicateInfo ? `
+    <div style="background:linear-gradient(135deg,var(--amber-100),var(--rose-100));border:2px solid var(--amber-500);border-radius:11px;padding:11px;margin-bottom:11px;">
+      <div style="font-size:11px;font-weight:800;color:#9f1239;display:flex;align-items:center;gap:5px;margin-bottom:5px;">
+        ⚠️ ${isLao ? 'ມີການແຈ້ງຊ້ຳ!' : 'มีการแจ้งซ้ำ!'}
+      </div>
+      <div style="font-size:10px;color:#9f1239;line-height:1.5;">
+        ${isLao 
+          ? `ສິນຄ້ານີ້ໄດ້ຖືກແຈ້ງແລ້ວ <strong>${duplicateInfo.gap_qty} ${unit}</strong> ໂດຍ <strong>${duplicateInfo.users?.full_name || '?'}</strong> ເມື່ອ ${getTimeAgo(duplicateInfo.created_at, isLao)}` 
+          : `สินค้านี้ถูกแจ้งแล้ว <strong>${duplicateInfo.gap_qty} ${unit}</strong> โดย <strong>${duplicateInfo.users?.full_name || '?'}</strong> เมื่อ ${getTimeAgo(duplicateInfo.created_at, isLao)}`}
+      </div>
+      <div style="font-size:9px;color:var(--slate-700);margin-top:5px;line-height:1.5;background:rgba(255,255,255,0.5);padding:5px 7px;border-radius:5px;">
+        💡 ${isLao 
+          ? 'ກະລຸນາກວດສອບກ່ອນ — ຖ້າຍັງຂາດ ໃຫ້ສະແກນ, ຖ້າມີຄົນອື່ນແຈ້ງແລ້ວ ໃຫ້ຍົກເລີກ' 
+          : 'กรุณาตรวจสอบก่อน — ถ้ายังขาด ให้สแกน, ถ้ามีคนอื่นแจ้งแล้ว ให้ยกเลิก'}
+      </div>
+    </div>
+  ` : '';
   
   cardEl.innerHTML = `
     <div style="background:white;border:2px solid ${actionColor};border-radius:13px;padding:13px;">
+      ${duplicateWarning}
+      
       <!-- Product info -->
       <div style="margin-bottom:11px;">
         <div style="font-size:14px;font-weight:800;color:var(--slate-900);line-height:1.3;">${name}</div>
@@ -4411,39 +4464,64 @@ function renderGapProductCard(product, shelfCapacity) {
         ` : ''}
       </div>
       
-      <!-- Stock status (BIG) -->
+      <!-- Stock status -->
       <div style="background:${actionBg};border-left:4px solid ${actionColor};border-radius:9px;padding:11px;margin-bottom:11px;">
         <div style="font-size:11px;font-weight:800;color:${actionColor};display:flex;align-items:center;gap:7px;">
           ${actionIcon} ${actionTitle}
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:7px;">
-          <div style="background:white;padding:7px;border-radius:7px;text-align:center;">
-            <div style="font-size:9px;color:var(--slate-500);font-weight:700;text-transform:uppercase;">${isLao ? 'ໃນຄັງ POS' : 'ในคลัง POS'}</div>
-            <div style="font-size:22px;font-weight:800;color:${actionColor};font-family:'Space Grotesk',monospace;line-height:1;">${posQty}</div>
-            <div style="font-size:9px;color:var(--slate-500);">${unit}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-top:7px;">
+          <div style="background:white;padding:5px;border-radius:6px;text-align:center;">
+            <div style="font-size:8px;color:var(--slate-500);font-weight:700;text-transform:uppercase;">${isLao ? 'POS' : 'POS'}</div>
+            <div style="font-size:17px;font-weight:800;color:${actionColor};font-family:'Space Grotesk',monospace;line-height:1;">${posQty}</div>
           </div>
-          <div style="background:white;padding:7px;border-radius:7px;text-align:center;">
-            <div style="font-size:9px;color:var(--slate-500);font-weight:700;text-transform:uppercase;">${isLao ? 'ຄວາມຈຸຊັ້ນ' : 'ความจุชั้น'}</div>
-            <div style="font-size:22px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;line-height:1;">${shelfCapacity || '—'}</div>
-            <div style="font-size:9px;color:var(--slate-500);">${shelfCapacity > 0 ? unit : (isLao ? 'ບໍ່ມີຜັງ' : 'ไม่มีผัง')}</div>
+          <div style="background:white;padding:5px;border-radius:6px;text-align:center;">
+            <div style="font-size:8px;color:var(--slate-500);font-weight:700;text-transform:uppercase;">${isLao ? 'ຄວາມຈຸ' : 'ความจุ'}</div>
+            <div style="font-size:17px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;line-height:1;">${shelfCapacity || '—'}</div>
+          </div>
+          <div style="background:white;padding:5px;border-radius:6px;text-align:center;">
+            <div style="font-size:8px;color:var(--slate-500);font-weight:700;text-transform:uppercase;">Min</div>
+            <div style="font-size:17px;font-weight:800;color:var(--rose-600);font-family:'Space Grotesk',monospace;line-height:1;">${pogMinQty || '—'}</div>
           </div>
         </div>
       </div>
       
-      <!-- Gap quantity input -->
+      <!-- 🆕 On-Shelf qty input (เพื่อคำนวณ gap แม่นยำ) -->
+      ${shelfCapacity > 0 ? `
+        <div style="margin-bottom:11px;background:var(--slate-50);padding:9px;border-radius:9px;border-left:3px solid var(--sky-500);">
+          <label style="font-size:11px;font-weight:700;color:var(--sky-700);display:block;margin-bottom:5px;">
+            👀 ${isLao ? 'ຕອນນີ້ບົນຊັ້ນມີຈັກອັນ?' : 'ตอนนี้บนชั้นมีกี่ชิ้น?'} 
+            <span style="font-size:9px;font-weight:500;color:var(--slate-500);">(${isLao ? 'ບໍ່ບັງຄັບ' : 'ไม่บังคับ'})</span>
+          </label>
+          <div style="display:flex;gap:7px;align-items:center;">
+            <button onclick="adjustOnShelf(-1)" style="background:var(--slate-200);border:none;width:32px;height:32px;border-radius:6px;font-size:16px;font-weight:800;cursor:pointer;">−</button>
+            <input type="number" id="gapOnShelfInput" value="0" min="0" max="${shelfCapacity}" 
+                   oninput="onOnShelfChange()"
+                   style="flex:1;text-align:center;font-size:18px;font-weight:800;font-family:'Space Grotesk',monospace;color:var(--sky-700);padding:5px;border:2px solid var(--sky-300);border-radius:6px;background:white;">
+            <button onclick="adjustOnShelf(1)" style="background:var(--slate-200);border:none;width:32px;height:32px;border-radius:6px;font-size:16px;font-weight:800;cursor:pointer;">+</button>
+            <button onclick="setOnShelfMax()" 
+                    title="${isLao ? 'ເຕັມຊັ້ນ' : 'เต็มชั้น'}"
+                    style="background:var(--emerald-500);color:white;border:none;padding:5px 9px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;">MAX</button>
+          </div>
+          <div id="gapShelfHint" style="font-size:9px;color:var(--slate-500);margin-top:3px;text-align:center;">
+            ${isLao ? 'ປ່ອຍ 0 = ຫມົດເຮັຍບໍຮ້ອຍ' : 'ปล่อย 0 = หมดเรียบร้อย'}
+          </div>
+        </div>
+      ` : ''}
+      
+      <!-- Gap quantity (auto-calculated) -->
       <div style="margin-bottom:11px;">
         <label style="font-size:11px;font-weight:700;color:var(--slate-700);display:block;margin-bottom:5px;">
           📊 ${isLao ? 'ຈຳນວນທີ່ຕ້ອງເຕີມ' : 'จำนวนที่ต้องเติม'}
         </label>
         <div style="display:flex;gap:7px;align-items:center;">
           <button onclick="adjustGapQty(-1)" style="background:var(--slate-200);border:none;width:36px;height:36px;border-radius:7px;font-size:18px;font-weight:800;cursor:pointer;">−</button>
-          <input type="number" id="gapQtyInput" value="${suggestedQty}" min="1" 
+          <input type="number" id="gapQtyInput" value="${pogReorderQty}" min="1" 
                  style="flex:1;text-align:center;font-size:22px;font-weight:800;font-family:'Space Grotesk',monospace;color:${actionColor};padding:7px;border:2px solid ${actionColor};border-radius:7px;">
           <button onclick="adjustGapQty(1)" style="background:var(--slate-200);border:none;width:36px;height:36px;border-radius:7px;font-size:18px;font-weight:800;cursor:pointer;">+</button>
         </div>
-        ${shelfCapacity > 0 ? `
+        ${pogReorderQty > 0 ? `
           <div style="font-size:9px;color:var(--slate-500);margin-top:3px;text-align:center;">
-            💡 ${isLao ? 'ແນະນຳ' : 'แนะนำ'}: ${shelfCapacity} ${unit} (${isLao ? 'ຕາມຄວາມຈຸຊັ້ນ' : 'ตามความจุชั้น'})
+            💡 ${isLao ? 'ແນະນຳ' : 'แนะนำ'}: ${pogReorderQty} ${unit} (${isLao ? 'ຈາກ Pan-O-Gram' : 'จาก Pan-O-Gram'})
           </div>
         ` : ''}
       </div>
@@ -4474,6 +4552,74 @@ function renderGapProductCard(product, shelfCapacity) {
   `;
 }
 
+// ==================== HELPER: TIME AGO ====================
+function getTimeAgo(timestamp, isLao) {
+  const diff = Date.now() - new Date(timestamp).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return isLao ? 'ບໍ່ດົນ' : 'เพิ่งกี่นาที';
+  if (mins < 60) return isLao ? `${mins} ນາທີ` : `${mins} นาที`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return isLao ? `${hours} ຊົ່ວໂມງ` : `${hours} ชั่วโมง`;
+  const days = Math.floor(hours / 24);
+  return isLao ? `${days} ມື້` : `${days} วัน`;
+}
+
+// ==================== ON-SHELF QTY ADJUSTMENT ====================
+function adjustOnShelf(delta) {
+  const input = document.getElementById('gapOnShelfInput');
+  if (!input) return;
+  const max = parseInt(input.max) || 999;
+  const cur = parseInt(input.value) || 0;
+  const newVal = Math.max(0, Math.min(max, cur + delta));
+  input.value = newVal;
+  onOnShelfChange();
+}
+
+function setOnShelfMax() {
+  const input = document.getElementById('gapOnShelfInput');
+  if (!input) return;
+  input.value = input.max || 0;
+  onOnShelfChange();
+}
+
+// Auto-calculate gap_qty เมื่อเปลี่ยน on-shelf qty
+function onOnShelfChange() {
+  const isLao = lang === 'lo';
+  const onShelfInput = document.getElementById('gapOnShelfInput');
+  const gapInput = document.getElementById('gapQtyInput');
+  const hint = document.getElementById('gapShelfHint');
+  const cur = _gapScanCurrent || {};
+  
+  if (!onShelfInput || !gapInput || !cur) return;
+  
+  const onShelf = parseInt(onShelfInput.value) || 0;
+  const capacity = cur.shelfCapacity || 0;
+  
+  // Calculate gap = capacity - on_shelf
+  const calculatedGap = Math.max(1, capacity - onShelf);
+  gapInput.value = calculatedGap;
+  
+  // Update hint message
+  if (hint) {
+    if (onShelf === 0) {
+      hint.textContent = isLao 
+        ? `📭 ຫມົດເຮັຍບໍຮ້ອຍ → ເຕີມ ${calculatedGap}` 
+        : `📭 หมดเรียบร้อย → เติม ${calculatedGap}`;
+      hint.style.color = 'var(--rose-500)';
+    } else if (onShelf >= capacity) {
+      hint.textContent = isLao 
+        ? `✅ ເຕັມຊັ້ນແລ້ວ — ບໍ່ຕ້ອງເຕີມ?` 
+        : `✅ เต็มชั้นแล้ว — ไม่ต้องเติม?`;
+      hint.style.color = 'var(--emerald-600)';
+    } else {
+      hint.textContent = isLao 
+        ? `📊 ມີ ${onShelf}/${capacity} → ຕ້ອງເຕີມອີກ ${calculatedGap}` 
+        : `📊 มี ${onShelf}/${capacity} → ต้องเติมอีก ${calculatedGap}`;
+      hint.style.color = 'var(--sky-700)';
+    }
+  }
+}
+
 function adjustGapQty(delta) {
   const input = document.getElementById('gapQtyInput');
   if (!input) return;
@@ -4495,10 +4641,22 @@ async function submitGapScan() {
   
   const qtyInput = document.getElementById('gapQtyInput');
   const noteInput = document.getElementById('gapNoteInput');
+  const onShelfInput = document.getElementById('gapOnShelfInput');
   const gapQty = parseInt(qtyInput?.value) || 1;
   const note = noteInput?.value.trim() || null;
+  const onShelfQty = onShelfInput ? (parseInt(onShelfInput.value) || 0) : null;
   
-  const { product, shelfCapacity } = _gapScanCurrent;
+  const { product, shelfCapacity, duplicateInfo } = _gapScanCurrent;
+  
+  // 🆕 Confirm again if there's a duplicate
+  if (duplicateInfo) {
+    if (!confirm(isLao 
+      ? `⚠️ ມີການແຈ້ງຊ້ຳ! ຍັງຕ້ອງການແຈ້ງເພີ່ມບໍ?` 
+      : `⚠️ มีการแจ้งซ้ำ! ยังต้องการแจ้งเพิ่มหรือไม่?`)) {
+      return;
+    }
+  }
+  
   const actionType = product.pos_qty > 0 ? 'replenish' : 'purchase';
   
   // Save to DB
@@ -4519,6 +4677,14 @@ async function submitGapScan() {
       action_type: actionType,
       note: note
     };
+    
+    // เพิ่ม on_shelf_qty ใน note ถ้ามี
+    if (onShelfQty !== null && onShelfQty > 0) {
+      const shelfNote = isLao 
+        ? `[ບົນຊັ້ນ: ${onShelfQty}/${shelfCapacity}]` 
+        : `[บนชั้น: ${onShelfQty}/${shelfCapacity}]`;
+      insertData.note = note ? `${shelfNote} ${note}` : shelfNote;
+    }
     
     const { data, error } = await sb.from('gap_scans')
       .insert(insertData)
@@ -6392,13 +6558,64 @@ async function openPanOGramModal(barcode, locationCode, editId = null) {
     <!-- Total Qty Preview -->
     <div style="background:linear-gradient(135deg,var(--emerald-100),var(--teal-100));padding:11px;border-radius:9px;margin-bottom:11px;text-align:center;">
       <div style="font-size:10px;color:var(--emerald-500);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
-        ${isLao ? 'ຈຳນວນສິນຄ້າລວມ' : 'จำนวนสินค้ารวม'}
+        ${isLao ? 'ຈຳນວນສິນຄ້າລວມ (ຄວາມຈຸ)' : 'จำนวนสินค้ารวม (ความจุ)'}
       </div>
       <div id="pogTotalQty" style="font-size:26px;font-weight:800;color:var(--emerald-500);font-family:'Space Grotesk',monospace;">
         ${(existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1)}
       </div>
       <div id="pogFormula" style="font-size:11px;color:var(--slate-600);font-family:'Space Grotesk',monospace;">
         ${existing?.facial || 1} × ${existing?.depth || 1} × ${existing?.stack || 1}
+      </div>
+    </div>
+    
+    <!-- 🆕 Stock Levels Section -->
+    <div style="background:linear-gradient(135deg,var(--amber-100),var(--rose-100));border-left:4px solid var(--amber-500);padding:11px;border-radius:9px;margin-bottom:11px;">
+      <div style="font-size:11px;color:var(--amber-700);font-weight:800;text-transform:uppercase;margin-bottom:7px;display:flex;align-items:center;gap:5px;">
+        📊 ${isLao ? 'ລະດັບສະຕ໋ອກ (ສຳລັບ Gap Scan)' : 'ระดับสต๊อก (สำหรับ Gap Scan)'}
+      </div>
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <div>
+          <label style="font-size:9px;color:var(--rose-600);font-weight:700;display:block;margin-bottom:2px;">
+            🔻 ${isLao ? 'ຂັ້ນຕ່ຳ' : 'ขั้นต่ำ'} (Min)
+          </label>
+          <input type="number" id="pogMinQty" 
+                 value="${existing?.min_qty ?? Math.ceil(((existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1)) / 2)}" 
+                 min="0" step="1"
+                 class="form-input" 
+                 style="text-align:center;font-weight:700;font-size:14px;padding:7px;font-family:'Space Grotesk',monospace;background:white;">
+          <div style="font-size:9px;color:var(--slate-500);margin-top:2px;line-height:1.3;">
+            ${isLao ? 'ຕ່ຳກວ່ານີ້ = ຕ້ອງເຕີມ' : 'ต่ำกว่านี้ = ต้องเติม'}
+          </div>
+        </div>
+        
+        <div>
+          <label style="font-size:9px;color:var(--emerald-600);font-weight:700;display:block;margin-bottom:2px;">
+            🔺 ${isLao ? 'ສູງສຸດ' : 'สูงสุด'} (Max)
+          </label>
+          <input type="number" id="pogMaxQty" 
+                 value="${existing?.max_qty ?? ((existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1))}" 
+                 min="1" step="1"
+                 class="form-input" 
+                 style="text-align:center;font-weight:700;font-size:14px;padding:7px;font-family:'Space Grotesk',monospace;background:white;">
+          <div style="font-size:9px;color:var(--slate-500);margin-top:2px;line-height:1.3;">
+            ${isLao ? 'ສະຕ໋ອກສູງສຸດທີ່ຮັບໄດ້' : 'สต๊อกสูงสุดที่รับได้'}
+          </div>
+        </div>
+      </div>
+      
+      <div style="margin-top:7px;">
+        <label style="font-size:9px;color:var(--violet-600);font-weight:700;display:block;margin-bottom:2px;">
+          📦 ${isLao ? 'ຈຳນວນເຕີມແຕ່ລະຄັ້ງ' : 'จำนวนเติมแต่ละครั้ง'} (Reorder Qty)
+        </label>
+        <input type="number" id="pogReorderQty" 
+               value="${existing?.reorder_qty ?? ((existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1))}" 
+               min="1" step="1"
+               class="form-input" 
+               style="text-align:center;font-weight:700;font-size:14px;padding:7px;font-family:'Space Grotesk',monospace;background:white;">
+        <div style="font-size:9px;color:var(--slate-500);margin-top:2px;">
+          ${isLao ? 'Gap Scan ຈະແນະນຳຈຳນວນນີ້' : 'Gap Scan จะแนะนำจำนวนนี้'}
+        </div>
       </div>
     </div>
     
@@ -6533,8 +6750,13 @@ async function savePanOGram(barcode, locationCode, editId) {
       location_code: locationCode,
       shelf, seq_in_shelf: seq, total_in_shelf: total,
       facial, depth, stack,
+      min_qty: parseInt(document.getElementById('pogMinQty')?.value) || 0,
+      max_qty: parseInt(document.getElementById('pogMaxQty')?.value) || total,
+      reorder_qty: parseInt(document.getElementById('pogReorderQty')?.value) || total,
       notes: notes || null,
       created_by: user.id,
+      last_audited_at: new Date().toISOString(),
+      last_audited_by: user.id,
       updated_at: new Date().toISOString()
     };
     
@@ -18572,6 +18794,10 @@ window.selectAllGaps = selectAllGaps;
 window.setupGapRealtime = setupGapRealtime;
 window.teardownGapRealtime = teardownGapRealtime;
 window.requestNotificationPermission = requestNotificationPermission;
+window.getTimeAgo = getTimeAgo;
+window.adjustOnShelf = adjustOnShelf;
+window.setOnShelfMax = setOnShelfMax;
+window.onOnShelfChange = onOnShelfChange;
 window.cancelClonePrompt = cancelClonePrompt;
 window.confirmCloneFromOther = confirmCloneFromOther;
 window.adjustCount = adjustCount;
