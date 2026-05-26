@@ -884,6 +884,11 @@
   @keyframes pulse-teal { 0%,100%{box-shadow: 0 0 0 0 rgba(20,184,166,0.6);} 50%{box-shadow: 0 0 0 6px rgba(20,184,166,0);} }
   @keyframes pulse-amber { 0%,100%{box-shadow: 0 0 0 0 rgba(245,158,11,0.6);} 50%{box-shadow: 0 0 0 6px rgba(245,158,11,0);} }
   @keyframes pulse-violet { 0%,100%{box-shadow: 0 0 0 0 rgba(124,58,237,0.6);} 50%{box-shadow: 0 0 0 6px rgba(124,58,237,0);} }
+  @keyframes pulse-badge { 0%,100%{transform: translateX(18px) scale(1); box-shadow: 0 2px 6px rgba(244,63,94,0.3);} 50%{transform: translateX(18px) scale(1.15); box-shadow: 0 2px 10px rgba(244,63,94,0.6);} }
+  @keyframes shimmer { 0%{background-position:-200px 0;} 100%{background-position:calc(200px + 100%) 0;} }
+  .skeleton { background: linear-gradient(90deg, var(--slate-100) 0%, var(--slate-200) 50%, var(--slate-100) 100%); background-size: 200px 100%; animation: shimmer 1.5s infinite; border-radius: 6px; display: inline-block; }
+  .skeleton-line { height: 10px; margin: 4px 0; border-radius: 4px; }
+  .skeleton-block { height: 60px; border-radius: 9px; margin: 6px 0; }
   
   /* Legend */
   .fm-legend { display: flex; flex-wrap: wrap; gap: 6px; padding: 9px; background: var(--slate-50); border-radius: 9px; margin-bottom: 11px; font-size: 10px; }
@@ -2075,6 +2080,47 @@ function showToast(msg, type = '') {
   el.className = 'toast ' + type;
   setTimeout(() => el.classList.add('show'), 10);
   setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// Friendly error messages — translate Supabase errors to readable
+function friendlyError(err) {
+  const isLao = lang === 'lo';
+  const msg = err?.message || String(err) || 'Unknown error';
+  
+  // Network errors
+  if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('network')) {
+    return isLao ? '🌐 ບໍ່ສາມາດເຊື່ອມຕໍ່ກັບ server — ກວດສອບ internet' : '🌐 ไม่สามารถเชื่อมต่อ server — ตรวจสอบ internet';
+  }
+  // Duplicate key
+  if (msg.includes('duplicate key') || msg.includes('UNIQUE')) {
+    return isLao ? '⚠️ ຂໍ້ມູນຊ້ຳກັນ' : '⚠️ ข้อมูลซ้ำกัน';
+  }
+  // Permission / RLS
+  if (msg.includes('row-level security') || msg.includes('permission denied')) {
+    return isLao ? '🔒 ບໍ່ມີສິດດຳເນີນການນີ້' : '🔒 ไม่มีสิทธิ์ดำเนินการนี้';
+  }
+  // Foreign key
+  if (msg.includes('foreign key') || msg.includes('violates')) {
+    return isLao ? '🔗 ຂໍ້ມູນຍັງຖືກໃຊ້ຢູ່ — ບໍ່ສາມາດລົບໄດ້' : '🔗 ข้อมูลยังถูกใช้อยู่ — ลบไม่ได้';
+  }
+  // Timeout
+  if (msg.includes('timeout') || msg.includes('aborted')) {
+    return isLao ? '⏱️ ການເຮັດວຽກນານເກີນໄປ — ລອງໃໝ່' : '⏱️ ทำงานนานเกินไป — ลองใหม่';
+  }
+  // Auth
+  if (msg.includes('JWT') || msg.includes('Unauthorized') || msg.includes('401')) {
+    return isLao ? '🔐 Session ໝົດອາຍຸ — Login ໃໝ່' : '🔐 Session หมดอายุ — Login ใหม่';
+  }
+  // Default — short version
+  if (msg.length > 80) {
+    return (isLao ? '❌ ຜິດພາດ: ' : '❌ ผิดพลาด: ') + msg.substring(0, 80) + '...';
+  }
+  return (isLao ? '❌ ' : '❌ ') + msg;
+}
+
+// Wrapper สำหรับ toast error ที่ใช้บ่อย — show friendly message
+function toastError(err) {
+  showToast(friendlyError(err), 'error');
 }
 
 function beep() {
@@ -5313,7 +5359,27 @@ async function savePanOGram(barcode, locationCode, editId) {
 
 async function deletePanOGram(id) {
   const isLao = lang === 'lo';
-  if (!confirm(isLao ? 'ລົບ Pan-O-Gram ນີ້?' : 'ลบ Pan-O-Gram นี้?')) return;
+  
+  // ดึงรายละเอียดสินค้าก่อน confirm
+  const { data: pog } = await sb.from('pan_o_grams')
+    .select('*, products(name_th, name_lo)')
+    .eq('id', id)
+    .maybeSingle();
+  
+  if (!pog) {
+    showToast(isLao ? 'ບໍ່ພົບ Pan-O-Gram' : 'ไม่พบ Pan-O-Gram', 'error');
+    return;
+  }
+  
+  const prodName = isLao 
+    ? (pog.products?.name_lo || pog.products?.name_th || pog.barcode)
+    : (pog.products?.name_th || pog.products?.name_lo || pog.barcode);
+  
+  const confirmMsg = isLao
+    ? `🗑️ ລົບ Pan-O-Gram?\n\nສິນຄ້າ: ${prodName}\nຕຳແໜ່ງ: ${pog.location_code} ຊັ້ນ${pog.shelf} ລຳດັບ${pog.seq_in_shelf}\nຄວາມຈຸ: ${pog.total_qty} ຊິ້ນ\n\n⚠️ ການລົບ Pan-O-Gram ບໍ່ກະທົບກັບການນັບສະຕ໋ອກທີ່ບັນທຶກໄວ້ແລ້ວ`
+    : `🗑️ ลบ Pan-O-Gram?\n\nสินค้า: ${prodName}\nตำแหน่ง: ${pog.location_code} ชั้น${pog.shelf} ลำดับ${pog.seq_in_shelf}\nความจุ: ${pog.total_qty} ชิ้น\n\n⚠️ การลบ Pan-O-Gram ไม่กระทบกับการนับสต๊อกที่บันทึกไว้แล้ว`;
+  
+  if (!confirm(confirmMsg)) return;
   
   try {
     const { error } = await sb.from('pan_o_grams').delete().eq('id', id);
@@ -5322,7 +5388,7 @@ async function deletePanOGram(id) {
     closeModal();
     if (curProduct) loadPanOGramForProduct(curProduct, loc?.location_code);
   } catch (e) {
-    showToast('Error: ' + e.message, 'error');
+    toastError(e);
   }
 }
 
@@ -6601,8 +6667,8 @@ async function exportFullBackupJSON() {
     link.click();
     URL.revokeObjectURL(link.href);
     
-    // Save backup timestamp
-    localStorage.setItem(`fs_last_backup_${branch.id}`, new Date().toISOString());
+    // Save backup timestamp (epoch ms)
+    localStorage.setItem(`fs_last_backup_${branch.id}`, String(Date.now()));
     
     // Refresh manager
     showToast(`✅ ${isLao ? 'ສຳຮອງສຳເລັດ' : 'สำรองสำเร็จ'}: ${totalRecords.toLocaleString()} records`, 'success');
@@ -6667,7 +6733,7 @@ async function exportFullBackupExcel() {
     const fileName = `backup-${branch.code}-${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.xlsx`;
     XLSX.writeFile(wb, fileName);
     
-    localStorage.setItem(`fs_last_backup_${branch.id}`, new Date().toISOString());
+    localStorage.setItem(`fs_last_backup_${branch.id}`, String(Date.now()));
     showToast(`✅ ${isLao ? 'ສຳຮອງ Excel ສຳເລັດ' : 'สำรอง Excel สำเร็จ'}: ${totalRecords.toLocaleString()} records`, 'success');
     loadBackupManager();
   } catch (e) {
@@ -8469,8 +8535,14 @@ async function updateTbBadge() {
   
   const badge = document.getElementById('tabTbBadge');
   if (badge) {
-    if (count > 0) { badge.style.display = 'inline-block'; badge.textContent = count; }
-    else badge.style.display = 'none';
+    if (count > 0) { 
+      badge.style.display = 'inline-block'; 
+      badge.textContent = count;
+      badge.style.animation = 'pulse-badge 1.5s infinite';
+    } else {
+      badge.style.display = 'none';
+      badge.style.animation = '';
+    }
   }
 }
 
@@ -8791,6 +8863,146 @@ async function exportProductLocationsExcel() {
 }
 
 // ==================== DASHBOARD ====================
+// ==================== HEALTH ALERTS (Auto-Audit) ====================
+async function loadHealthAlerts() {
+  if (!branch || !['admin', 'scc', 'bcs'].includes(user.role)) return;
+  const isLao = lang === 'lo';
+  const container = document.getElementById('dashHealthAlerts');
+  if (!container) return;
+  
+  const alerts = [];
+  
+  try {
+    // 🔍 Check 1: Orphan stock_counts
+    const { count: orphanCount } = await sb.from('stock_counts')
+      .select('id', { count: 'exact', head: true })
+      .eq('branch_id', branch.id)
+      .is('product_id', null);
+    
+    // Check via SQL: stock_counts with deleted products
+    const { data: orphanCheck } = await sb.rpc('exec_sql', {
+      sql: `SELECT COUNT(*) as c FROM stock_counts sc 
+            LEFT JOIN products p ON p.id = sc.product_id 
+            WHERE sc.branch_id = ${branch.id} AND p.id IS NULL`
+    }).catch(() => ({ data: null }));
+    
+    // Fallback: query all stock_counts → product_ids → check missing
+    const { data: scIds } = await sb.from('stock_counts')
+      .select('product_id')
+      .eq('branch_id', branch.id)
+      .limit(5000);
+    
+    if (scIds && scIds.length > 0) {
+      const productIds = [...new Set(scIds.map(s => s.product_id).filter(Boolean))];
+      if (productIds.length > 0) {
+        const { data: existingProducts } = await sb.from('products')
+          .select('id')
+          .in('id', productIds);
+        const existingIds = new Set((existingProducts || []).map(p => p.id));
+        const orphanProductIds = productIds.filter(id => !existingIds.has(id));
+        if (orphanProductIds.length > 0) {
+          alerts.push({
+            type: 'warning',
+            icon: '👻',
+            title: isLao ? `ພົບ Orphan Data ${orphanProductIds.length} ສິນຄ້າ` : `พบ Orphan Data ${orphanProductIds.length} สินค้า`,
+            text: isLao ? 'ມີການນັບສິນຄ້າທີ່ຖືກລົບແລ້ວ — ໄປ Variance Report ເພື່ອລ້າງ' : 'มีการนับสินค้าที่ถูกลบไปแล้ว — ไป Variance Report เพื่อล้าง',
+            action: () => goPage('variance')
+          });
+        }
+      }
+    }
+    
+    // 🔍 Check 2: Backup reminder (last backup > 7 days)
+    const lastBackup = localStorage.getItem(`fs_last_backup_${branch.id}`);
+    if (lastBackup) {
+      const daysSince = Math.floor((Date.now() - parseInt(lastBackup)) / (1000 * 60 * 60 * 24));
+      if (daysSince > 7) {
+        alerts.push({
+          type: 'amber',
+          icon: '💾',
+          title: isLao ? `ບໍ່ໄດ້ສຳຮອງ ${daysSince} ມື້ແລ້ວ` : `ไม่ได้สำรอง ${daysSince} วันแล้ว`,
+          text: isLao ? 'ແນະນຳໃຫ້ສຳຮອງຂໍ້ມູນ' : 'แนะนำให้สำรองข้อมูล',
+          action: () => goPage('settings')
+        });
+      }
+    } else {
+      alerts.push({
+        type: 'amber',
+        icon: '💾',
+        title: isLao ? 'ຍັງບໍ່ເຄີຍສຳຮອງຂໍ້ມູນ' : 'ยังไม่เคยสำรองข้อมูล',
+        text: isLao ? 'ໄປ Settings → Backup Manager' : 'ไป Settings → Backup Manager',
+        action: () => goPage('settings')
+      });
+    }
+    
+    // 🔍 Check 3: Pending Tiebreakers
+    const { count: tbCount } = await sb.from('v_gondola_progress')
+      .select('id', { count: 'exact', head: true })
+      .eq('session_id', session?.id || 0)
+      .eq('status', 'tiebreaker_needed');
+    
+    if (tbCount && tbCount > 0) {
+      alerts.push({
+        type: 'rose',
+        icon: '⚠️',
+        title: isLao ? `${tbCount} Gondola ຕ້ອງນັບຊ້ຳ` : `${tbCount} Gondola ต้องนับซ้ำ`,
+        text: isLao ? 'ມີສິນຄ້ານັບບໍ່ກົງກັນ ຕ້ອງຕັດສິນ' : 'มีสินค้านับไม่ตรงกัน ต้องตัดสิน',
+        action: () => goPage('tiebreaker')
+      });
+    }
+    
+    // Render alerts
+    if (alerts.length === 0) {
+      container.innerHTML = `
+        <div style="background:var(--emerald-100);border-left:3px solid var(--emerald-500);padding:8px 11px;border-radius:9px;margin-bottom:11px;font-size:11px;color:var(--emerald-700);font-weight:600;">
+          ✅ ${isLao ? 'ລະບົບປົກກະຕິ' : 'ระบบปกติ'} — ${isLao ? 'ບໍ່ມີຂໍ້ຄວາມເຕືອນ' : 'ไม่มีข้อความเตือน'}
+        </div>
+      `;
+      return;
+    }
+    
+    const colorMap = {
+      warning: { bg: 'var(--amber-100)', border: 'var(--amber-500)', text: '#92400e' },
+      amber: { bg: 'var(--amber-100)', border: 'var(--amber-500)', text: '#92400e' },
+      rose: { bg: 'var(--rose-100)', border: 'var(--rose-500)', text: '#9f1239' }
+    };
+    
+    let html = '<div style="margin-bottom:11px;display:flex;flex-direction:column;gap:6px;">';
+    alerts.forEach((a, idx) => {
+      const c = colorMap[a.type] || colorMap.amber;
+      html += `
+        <div onclick="window._healthAction_${idx}()" 
+             style="background:${c.bg};border-left:4px solid ${c.border};padding:9px 11px;border-radius:9px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:transform 0.1s;"
+             onmouseover="this.style.transform='translateX(2px)'" onmouseout="this.style.transform='translateX(0)'">
+          <span style="font-size:18px;flex-shrink:0;">${a.icon}</span>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:800;color:${c.text};">${a.title}</div>
+            <div style="font-size:10px;color:${c.text};opacity:0.8;margin-top:1px;">${a.text}</div>
+          </div>
+          <svg width="14" height="14" fill="none" stroke="${c.text}" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        </div>
+      `;
+      // Register action
+      window[`_healthAction_${idx}`] = a.action;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  } catch (e) {
+    console.error('[FS] loadHealthAlerts error:', e);
+  }
+}
+
+function updateLastSync() {
+  const el = document.getElementById('dashLastSync');
+  if (!el) return;
+  const isLao = lang === 'lo';
+  const now = new Date();
+  const time = now.toLocaleTimeString(isLao ? 'lo-LA' : 'th-TH', { 
+    hour: '2-digit', minute: '2-digit', second: '2-digit' 
+  });
+  el.textContent = (isLao ? 'ຂໍ້ມູນລ່າສຸດ' : 'ข้อมูลล่าสุด') + ': ' + time;
+}
+
 function renderDashboardPage() {
   return `
     <div class="banner sky">
@@ -8799,9 +9011,12 @@ function renderDashboardPage() {
       </div>
       <div class="banner-text">
         <h4>${T('bcs_title')}</h4>
-        <p>${session?.session_name || ''}</p>
+        <p>${session?.session_name || ''} • <span style="font-size:9px;opacity:0.8;" id="dashLastSync">${lang === 'lo' ? 'ກຳລັງໂຫລດ...' : 'กำลังโหลด...'}</span></p>
       </div>
     </div>
+    
+    <!-- 🚨 Health Alerts Container (auto-populated) -->
+    <div id="dashHealthAlerts"></div>
     
     <!-- Workflow Progress (NEW) -->
     <div id="dashWfSummary"></div>
@@ -8845,6 +9060,10 @@ async function loadDashboard() {
   if (!session) return;
   
   log('Loading dashboard');
+  
+  // 🚨 Load Health Alerts ทันทีพร้อมกับ Dashboard
+  loadHealthAlerts();
+  updateLastSync();
   
   // Load workflow summary first
   const { data: wfItems } = await sb.from('v_gondola_progress')
@@ -10818,6 +11037,7 @@ function showImportPreview(products) {
         🏪 ${lang === 'lo' ? 'ສາຂາປາຍທາງ' : 'สาขาปลายทาง'} ${isAdmin ? '' : '(ໂດຍ default)'}
       </label>
       <select class="form-input" id="importBranchDest" ${!isAdmin ? 'disabled' : ''} 
+              onchange="checkBranchCodeMismatch()"
               style="font-family:inherit;cursor:${isAdmin ? 'pointer' : 'not-allowed'};background:white;">
         ${branchesOptions}
       </select>
@@ -10830,6 +11050,9 @@ function showImportPreview(products) {
           <br>→ ${lang === 'lo' ? 'ສິນຄ້າທີ່ມີ Branch Code ຈະໄປສາຂານັ້ນ, ສ່ວນທີ່ບໍ່ມີຈະໃຊ້ສາຂາປາຍທາງ' : 'สินค้าที่มี Branch Code จะไปสาขานั้น, ส่วนที่ไม่มีจะใช้สาขาปลายทาง'}
         </div>
       ` : ''}
+      
+      <!-- 🔥 Mismatch Warning Box (จะแสดงผ่าน JS) -->
+      <div id="branchMismatchWarning" style="display:none;margin-top:8px;"></div>
     </div>
     
     <div style="font-size:11px;color:var(--slate-600);margin-bottom:8px;">${lang === 'lo' ? 'ຕົວຢ່າງ 10 ລາຍການແຮກ:' : 'ตัวอย่าง 10 รายการแรก:'}</div>
@@ -10900,6 +11123,80 @@ function showImportPreview(products) {
       }
     });
   }
+  
+  // เรียก check mismatch ตอนเปิด preview ครั้งแรก
+  setTimeout(() => checkBranchCodeMismatch(), 300);
+}
+
+// ==================== BRANCH CODE MISMATCH CHECK ====================
+function checkBranchCodeMismatch() {
+  if (!_pendingImport) return;
+  const isLao = lang === 'lo';
+  const warnEl = document.getElementById('branchMismatchWarning');
+  const sel = document.getElementById('importBranchDest');
+  if (!warnEl || !sel) return;
+  
+  const destBranchId = parseInt(sel.value);
+  const destBranchOption = sel.options[sel.selectedIndex];
+  const destBranchText = destBranchOption?.text || '';
+  
+  // หา branch code จาก option text เช่น "FS-SUPERMART ปากเซ (SUPERMART)"
+  const destBranchCodeMatch = destBranchText.match(/\(([^)]+)\)/);
+  const destBranchCode = destBranchCodeMatch ? destBranchCodeMatch[1].replace(' ✓', '').trim() : '';
+  
+  // หา branch codes ใน file
+  const branchCodesInFile = [...new Set(
+    _pendingImport.map(p => p.branch_code).filter(x => x)
+  )];
+  
+  if (branchCodesInFile.length === 0) {
+    warnEl.style.display = 'none';
+    return;
+  }
+  
+  // ตรวจสอบความ match — ดู branch code ทั้ง direct match + partial match (เช่น file มี "FS-Express-TRADING-ໜ້າຮ້ານ")
+  const matchingCodes = branchCodesInFile.filter(fileCode => {
+    if (!fileCode || !destBranchCode) return false;
+    const fc = fileCode.toUpperCase();
+    const dc = destBranchCode.toUpperCase();
+    return fc === dc || fc.includes(dc) || dc.includes(fc);
+  });
+  
+  if (matchingCodes.length === branchCodesInFile.length) {
+    // Match — green
+    warnEl.style.display = 'block';
+    warnEl.innerHTML = `
+      <div style="background:var(--emerald-100);border-left:3px solid var(--emerald-500);padding:7px 9px;border-radius:6px;font-size:10px;color:var(--emerald-700);">
+        ✅ ${isLao 
+          ? 'Branch Code ໃນໄຟລ໌ ກົງກັບສາຂາປາຍທາງ' 
+          : 'Branch Code ในไฟล์ ตรงกับสาขาปลายทาง'}
+      </div>
+    `;
+  } else {
+    // Mismatch — red warning
+    warnEl.style.display = 'block';
+    warnEl.innerHTML = `
+      <div style="background:var(--rose-100);border:2px solid var(--rose-500);padding:9px 11px;border-radius:7px;color:#9f1239;">
+        <div style="font-size:11px;font-weight:800;display:flex;align-items:center;gap:5px;margin-bottom:4px;">
+          ⚠️ ${isLao ? 'ກວດສອບ: Branch Code ບໍ່ກົງກັນ!' : 'ตรวจสอบ: Branch Code ไม่ตรงกัน!'}
+        </div>
+        <div style="font-size:10px;line-height:1.6;">
+          • ${isLao ? 'ໄຟລ໌ມີ Branch Code' : 'ไฟล์มี Branch Code'}: <strong>${branchCodesInFile.join(', ')}</strong><br>
+          • ${isLao ? 'ສາຂາທີ່ເລືອກ' : 'สาขาที่เลือก'}: <strong>${destBranchCode}</strong><br>
+          <span style="color:#7f1d1d;font-weight:700;">
+            ⚠️ ${isLao 
+              ? 'ການ Import ອາດເຮັດໃຫ້ຂໍ້ມູນຜິດສາຂາ!' 
+              : 'การ Import อาจทำให้ข้อมูลผิดสาขา!'}
+          </span>
+        </div>
+        <div style="margin-top:7px;background:white;padding:6px 8px;border-radius:5px;font-size:9px;color:var(--slate-600);">
+          💡 ${isLao 
+            ? 'ກວດສອບ: 1) ໄຟລ໌ POS ຄືຂອງສາຂາໃດ 2) ເລືອກສາຂາໃຫ້ກົງກັນ' 
+            : 'ตรวจสอบ: 1) ไฟล์ POS เป็นของสาขาไหน 2) เลือกสาขาให้ตรงกัน'}
+        </div>
+      </div>
+    `;
+  }
 }
 
 async function executeImport() {
@@ -10914,6 +11211,17 @@ async function executeImport() {
   const destBranchName = branchDestEl 
     ? branchDestEl.options[branchDestEl.selectedIndex]?.text 
     : (branch?.code || '?');
+  
+  // 🛡️ Branch Code Mismatch Guard
+  const warnEl = document.getElementById('branchMismatchWarning');
+  const hasMismatchWarning = warnEl && warnEl.innerHTML.includes('rose-500');
+  if (hasMismatchWarning) {
+    const isLao = lang === 'lo';
+    const confirmed = confirm(isLao
+      ? `⚠️ ຄຳເຕືອນ!\n\nBranch Code ໃນໄຟລ໌ ບໍ່ກົງກັບສາຂາທີ່ເລືອກ\n\nການ Import ນີ້ ອາດເຮັດໃຫ້ຂໍ້ມູນ POS ຜິດສາຂາ!\n\nຕ້ອງການດຳເນີນຕໍ່ບໍ?`
+      : `⚠️ คำเตือน!\n\nBranch Code ในไฟล์ ไม่ตรงกับสาขาที่เลือก\n\nการ Import นี้ อาจทำให้ข้อมูล POS ผิดสาขา!\n\nต้องการดำเนินต่อหรือไม่?`);
+    if (!confirmed) return;
+  }
   
   const btn = document.getElementById('importBtn');
   const errEl = document.getElementById('importErr');
@@ -15588,6 +15896,11 @@ window.toggleVarianceGroup = toggleVarianceGroup;
 window.openVarianceDetail = openVarianceDetail;
 window.exportVarianceExcel = exportVarianceExcel;
 window.cleanupOrphanCounts = cleanupOrphanCounts;
+window.checkBranchCodeMismatch = checkBranchCodeMismatch;
+window.loadHealthAlerts = loadHealthAlerts;
+window.updateLastSync = updateLastSync;
+window.friendlyError = friendlyError;
+window.toastError = toastError;
 window.cancelClonePrompt = cancelClonePrompt;
 window.confirmCloneFromOther = confirmCloneFromOther;
 window.adjustCount = adjustCount;
