@@ -5540,8 +5540,9 @@ function renderPogVisualLayout(items) {
       byShelf[p.shelf].push(p);
     });
     
-    // Sort shelves descending (top shelf first)
-    const sortedShelves = Object.keys(byShelf).sort((a, b) => parseInt(b) - parseInt(a));
+    // Sort shelves ASCENDING (shelf 1 = top, shelf 2 = below, ...)
+    // ตามความเป็นจริงของชั้นวาง: ชั้น 1 อยู่บน
+    const sortedShelves = Object.keys(byShelf).sort((a, b) => parseInt(a) - parseInt(b));
     const locTotalQty = locItems.reduce((s, p) => s + (p.total_qty || 0), 0);
     
     let html = `
@@ -5575,13 +5576,14 @@ function renderPogVisualLayout(items) {
             </span>
             <span style="color:#94a3b8;font-size:9px;">${shelfItems.length}/${totalInShelf} • ${shelfTotalQty} ${isLao ? 'ຊິ້ນ' : 'ชิ้น'}</span>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(${Math.min(totalInShelf, 6)}, 1fr);gap:4px;">
+          <!-- Horizontal scroll: ชั้นวางจริง = แถวเดียวต่อชั้น -->
+          <div style="display:flex;gap:4px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:#475569 #1e293b;">
       `;
       
       slots.forEach((slot, i) => {
         if (slot) {
           const name = isLao ? (slot.products?.name_lo || slot.barcode) : (slot.products?.name_th || slot.barcode);
-          const shortName = (name || '').substring(0, 12);
+          const shortName = (name || '').substring(0, 14);
           // Color by stack height
           const intensity = Math.min(slot.stack, 5);
           const bgs = ['#10b981', '#0ea5e9', '#8b5cf6', '#f59e0b', '#ef4444'];
@@ -5589,7 +5591,8 @@ function renderPogVisualLayout(items) {
           
           html += `
             <button onclick="openPanOGramModal('${slot.barcode}', '${slot.location_code}', ${slot.id})"
-                    style="background:${bg};border:none;border-radius:6px;padding:5px 3px;text-align:center;cursor:pointer;color:white;overflow:hidden;min-height:50px;display:flex;flex-direction:column;justify-content:center;gap:1px;">
+                    title="${name} • ลำดับ ${slot.seq_in_shelf}/${totalInShelf}"
+                    style="background:${bg};border:none;border-radius:6px;padding:5px 4px;text-align:center;cursor:pointer;color:white;overflow:hidden;min-height:54px;min-width:68px;width:68px;flex-shrink:0;display:flex;flex-direction:column;justify-content:center;gap:1px;">
               <div style="font-size:9px;font-weight:800;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${shortName}</div>
               <div style="font-size:8px;opacity:0.9;font-family:'Space Grotesk',monospace;">${slot.facial}×${slot.depth}×${slot.stack}</div>
               <div style="font-size:11px;font-weight:800;font-family:'Space Grotesk',monospace;">${slot.total_qty}</div>
@@ -5598,8 +5601,10 @@ function renderPogVisualLayout(items) {
         } else {
           // Empty slot
           html += `
-            <div style="background:rgba(255,255,255,0.05);border:1px dashed #475569;border-radius:6px;padding:5px 3px;text-align:center;min-height:50px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:10px;">
-              ⊘ ${i + 1}
+            <div title="ตำแหน่งว่าง ลำดับ ${i + 1}" 
+                 style="background:rgba(255,255,255,0.05);border:1px dashed #475569;border-radius:6px;padding:5px 4px;text-align:center;min-height:54px;min-width:68px;width:68px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#475569;font-size:9px;gap:2px;">
+              <div style="font-size:14px;">⊘</div>
+              <div style="font-size:8px;font-family:'Space Grotesk',monospace;">${i + 1}</div>
             </div>
           `;
         }
@@ -5634,6 +5639,7 @@ function renderPogVisualLayout(items) {
       <span style="color:#8b5cf6;font-weight:700;">🟣 3</span>
       <span style="color:#f59e0b;font-weight:700;">🟡 4</span>
       <span style="color:#ef4444;font-weight:700;">🔴 5+</span>
+      <br><span style="font-size:8px;color:var(--slate-400);">↔️ ${isLao ? 'ເລື່ອນຊ້າຍ-ຂວາ ຖ້າມີຫລາຍຕຳແໜ່ງ' : 'เลื่อนซ้าย-ขวา ถ้ามีหลายตำแหน่ง'}</span>
     </div>
   `;
   
