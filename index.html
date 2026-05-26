@@ -4173,8 +4173,8 @@ function handleNewGapScan(gap) {
     try {
       const notif = new Notification(isLao ? 'Gap Scan ໃໝ່' : 'Gap Scan ใหม่', {
         body: isLao 
-          ? `${gap.product_name || gap.barcode}\nຈຳນວນ: ${gap.gap_qty}\n${isPurchase ? '🛒 ສັ່ງຊື້ PO' : '📦 ເຕີມຄັງ'}`
-          : `${gap.product_name || gap.barcode}\nจำนวน: ${gap.gap_qty}\n${isPurchase ? '🛒 สั่งซื้อ PO' : '📦 เติมคลัง'}`,
+          ? `${gap.product_name || gap.barcode}\nຈຳນວນ: ${gap.gap_qty}\n${isPurchase ? '📤 ສົ່ງຈັດຊື້' : '📦 ເຕີມຄັງ'}`
+          : `${gap.product_name || gap.barcode}\nจำนวน: ${gap.gap_qty}\n${isPurchase ? '📤 ส่งจัดซื้อ' : '📦 เติมคลัง'}`,
         icon: '/favicon.ico',
         tag: `gap-${gap.id}`,
         requireInteraction: false
@@ -4208,7 +4208,7 @@ async function requestNotificationPermission() {
 
 // ==================== GAP SCAN MODULE ====================
 // Gap Scan = สแกนหน้าชั้นวางเพื่อหาสินค้าที่ขาด (ช่องว่าง)
-// ถ้ามีในคลัง → ส่งคลังเติม | ถ้าหมด → ส่งจัดซื้อ PO
+// ถ้ามีในคลัง → ส่งคลังเติม | ถ้าหมด → ส่งจัดซื้อ
 
 let _gapScanCurrent = null;  // product ที่กำลังจะ submit
 
@@ -4438,10 +4438,10 @@ function renderGapProductCard(product, shelfCapacity) {
   const actionBg = isReplenish 
     ? 'linear-gradient(135deg,var(--amber-100),var(--amber-50))' 
     : 'linear-gradient(135deg,var(--rose-100),var(--rose-50))';
-  const actionIcon = isReplenish ? '📦' : '🛒';
+  const actionIcon = isReplenish ? '📦' : '📤';
   const actionTitle = isReplenish 
     ? (isLao ? 'ມີຢູ່ໃນຄັງ — ສົ່ງເຕີມໜ້າຮ້ານ' : 'มีอยู่ในคลัง — ส่งเติมหน้าร้าน')
-    : (isLao ? 'ໝົດຄັງ — ສົ່ງຈັດຊື້ PO' : 'หมดคลัง — ส่งจัดซื้อ PO');
+    : (isLao ? 'ໝົດຄັງ — ສົ່ງຈັດຊື້' : 'หมดคลัง — ส่งจัดซื้อ');
   
   // 🆕 Duplicate Warning HTML
   const duplicateWarning = duplicateInfo ? `
@@ -4558,7 +4558,7 @@ function renderGapProductCard(product, shelfCapacity) {
                 style="flex:1.5;padding:13px;background:linear-gradient(135deg,${actionColor},${actionColor});font-weight:800;">
           ${actionIcon} ${isReplenish 
             ? (isLao ? 'ສ່ົງເຕີມ' : 'ส่งเติม') 
-            : (isLao ? 'ສ່ົງສັ່ງຊື້' : 'ส่งสั่งซื้อ')}
+            : (isLao ? 'ສົ່ງຈັດຊື້' : 'ส่งจัดซื้อ')}
         </button>
       </div>
     </div>
@@ -4709,7 +4709,7 @@ async function submitGapScan() {
     beep();
     const successMsg = actionType === 'replenish'
       ? (isLao ? '✅ ສົ່ງເຕີມຄັງ' : '✅ ส่งเติมคลัง')
-      : (isLao ? '✅ ສ່ົງສັ່ງຊື້ PO' : '✅ ส่งสั่งซื้อ PO');
+      : (isLao ? '✅ ສົ່ງຈັດຊື້' : '✅ ส่งจัดซื้อ');
     showToast(successMsg, 'success');
     
     // Clear card + refresh list
@@ -4762,9 +4762,9 @@ async function loadGapScanRecent() {
       const isPurchase = g.action_type === 'purchase';
       const color = isPurchase ? 'var(--rose-500)' : 'var(--amber-500)';
       const bg = isPurchase ? 'var(--rose-50)' : 'var(--amber-50)';
-      const icon = isPurchase ? '🛒' : '📦';
+      const icon = isPurchase ? '📤' : '📦';
       const actionLabel = isPurchase 
-        ? (isLao ? 'PO' : 'PO') 
+        ? (isLao ? 'ຈັດຊື້' : 'จัดซื้อ') 
         : (isLao ? 'ເຕີມ' : 'เติม');
       
       html += `
@@ -4907,6 +4907,8 @@ async function logInventoryMovement(gap, movementType, qtyChange, note) {
  * Uses native prompt() for simplicity; returns null if cancelled, '' allowed (no PO).
  * @param {string} [currentPO] - existing PO number to prefill
  * @returns {string|null}
+ * @deprecated Phase B revised — buyer department issues PO, not admin. 
+ *             Kept for future "Receive PO" feature.
  */
 function promptPONumber(currentPO) {
   const isLao = lang === 'lo';
@@ -4915,6 +4917,22 @@ function promptPONumber(currentPO) {
     : 'หมายเลข PO (ไม่บังคับ — กด OK เพื่อข้าม):';
   const result = window.prompt(msg, currentPO || '');
   // null = cancelled, '' = OK with empty input (allowed for optional)
+  if (result === null) return null;
+  return result.trim();
+}
+
+/**
+ * Prompt user for a short note to the purchasing department (optional).
+ * Used when admin/scc marks a gap as 'ordered' (forwarded to buyers).
+ * Example notes: 'urgent', 'special order', 'customer waiting'
+ * @returns {string|null} - null if cancelled, '' or note string otherwise
+ */
+function promptBuyerNote() {
+  const isLao = lang === 'lo';
+  const msg = isLao
+    ? 'ໂນ້ດເຖິງຝ່າຍຈັດຊື້ (ບໍ່ບັງຄັບ — ກົດ OK ເພື່ອຂ້າມ)\nຕົວຢ່າງ: ດ່ວນ, ສັ່ງພິເສດ, ລູກຄ້າລໍຖ້າ'
+    : 'โน้ตถึงฝ่ายจัดซื้อ (ไม่บังคับ — กด OK เพื่อข้าม)\nตัวอย่าง: ด่วน, สั่งพิเศษ, ลูกค้ารอ';
+  const result = window.prompt(msg, '');
   if (result === null) return null;
   return result.trim();
 }
@@ -4961,8 +4979,8 @@ function renderGapReportPage() {
       </h2>
       <p style="font-size:11px;color:var(--slate-500);margin:0;">
         ${isLao 
-          ? 'ສິນຄ້າທີ່ຕ້ອງເຕີມໜ້າຮ້ານ ແລະ ສິນຄ້າທີ່ຕ້ອງສັ່ງຊື້' 
-          : 'สินค้าที่ต้องเติมหน้าร้าน และ สินค้าที่ต้องสั่งซื้อ'}
+          ? 'ສິນຄ້າທີ່ຕ້ອງເຕີມໜ້າຮ້ານ ແລະ ສິນຄ້າທີ່ຕ້ອງສົ່ງຈັດຊື້' 
+          : 'สินค้าที่ต้องเติมหน้าร้าน และ สินค้าที่ต้องส่งจัดซื้อ'}
       </p>
     </div>
     
@@ -4998,7 +5016,7 @@ function renderGapReportPage() {
       </button>
       <button onclick="setGapAction('purchase')" id="gapTabPurchase" class="gap-tab-btn"
               style="padding:9px;border:none;border-radius:9px;background:white;border:2px solid var(--slate-200);color:var(--slate-600);font-size:12px;font-weight:800;cursor:pointer;">
-        🛒 ${isLao ? 'ສັ່ງຊື້ PO' : 'สั่งซื้อ PO'} (<span id="gapCountPur">0</span>)
+        📤 ${isLao ? 'ສົ່ງຈັດຊື້' : 'ส่งจัดซื้อ'} (<span id="gapCountPur">0</span>)
       </button>
     </div>
     
@@ -5119,7 +5137,7 @@ function renderGapSummary() {
     <div onclick="setGapAction('purchase')" 
          style="background:linear-gradient(135deg,var(--rose-100),var(--rose-50));padding:11px;border-radius:11px;border:1px solid var(--rose-300);cursor:pointer;">
       <div style="font-size:9px;color:var(--rose-700);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
-        🛒 ${isLao ? 'ສັ່ງຊື້ PO' : 'สั่งซื้อ PO'}
+        📤 ${isLao ? 'ສົ່ງຈັດຊື້' : 'ส่งจัดซื้อ'}
       </div>
       <div style="font-size:22px;font-weight:800;color:var(--rose-500);font-family:'Space Grotesk',monospace;line-height:1;">
         ${aggPurchase.length}
@@ -5326,12 +5344,14 @@ async function resolveSingleGap(gapId, newStatus, event) {
       finalStatus = gap.action_type === 'purchase' ? 'ordered' : 'replenished';
     }
     
-    // Phase B: Optional PO number prompt for 'ordered' status
-    let poNumber = null;
+    // Phase B (revised 2026-05-27): Optional NOTE prompt for 'ordered' status
+    // เปลี่ยนจาก PO number → note ถึงฝ่ายจัดซื้อ (เช่น 'urgent', 'special order')
+    // เพราะจริงๆ ฝ่ายจัดซื้อเป็นคนออก PO เอง — admin/scc แค่ส่งรายการให้
+    let buyerNote = null;
     if (finalStatus === 'ordered') {
-      poNumber = promptPONumber(gap.po_number);
+      buyerNote = promptBuyerNote();
       // null = user cancelled the dialog → abort
-      if (poNumber === null) return;
+      if (buyerNote === null) return;
       // '' = OK with empty (allowed as optional)
     }
     
@@ -5342,7 +5362,15 @@ async function resolveSingleGap(gapId, newStatus, event) {
       resolved_by: user.id,
       workflow_stage: 'closed'
     };
-    if (poNumber) updatePayload.po_number = poNumber;
+    // Append buyerNote ต่อ note เดิมของ counter (ไม่ overwrite — เก็บ context ทั้งคู่)
+    if (buyerNote) {
+      const existing = (gap.note || '').trim();
+      const buyerPrefix = (lang === 'lo' ? '📤 ສົ່ງຈັດຊື້: ' : '📤 ส่งจัดซื้อ: ');
+      const combinedNote = existing
+        ? `${existing}\n${buyerPrefix}${buyerNote}`
+        : `${buyerPrefix}${buyerNote}`;
+      updatePayload.note = combinedNote;
+    }
     
     const { error } = await sb.from('gap_scans')
       .update(updatePayload)
@@ -5482,11 +5510,9 @@ function renderGapReportList() {
       if (g.status === 'replenished') {
         statusBadge = `<span style="background:var(--emerald-100);color:var(--emerald-700);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;">${isLao ? '✅ ເຕີມແລ້ວ' : '✅ เติมแล้ว'}</span>`;
       } else if (g.status === 'ordered') {
-        statusBadge = `<span style="background:var(--sky-100);color:var(--sky-700);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;">${isLao ? '🛒 ສັ່ງແລ້ວ' : '🛒 สั่งแล้ว'}</span>`;
-        // Phase B: show PO number if available
-        if (g.po_number) {
-          statusBadge += `<span style="background:var(--sky-50);color:var(--sky-700);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;font-family:monospace;">PO:${g.po_number}</span>`;
-        }
+        statusBadge = `<span style="background:var(--sky-100);color:var(--sky-700);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;">${isLao ? '📤 ສົ່ງຈັດຊື້ແລ້ວ' : '📤 ส่งจัดซื้อแล้ว'}</span>`;
+        // Phase B revised: PO number column still exists in DB for future use,
+        // but no longer displayed here (buyer dept issues PO, not admin)
       } else if (g.status === 'cancelled') {
         statusBadge = `<span style="background:var(--slate-200);color:var(--slate-600);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;">${isLao ? '❌ ຍົກເລີກ' : '❌ ยกเลิก'}</span>`;
       }
@@ -5628,7 +5654,7 @@ async function exportGapExcel() {
       XLSX.utils.book_append_sheet(wb, ws1, 'เติมจากคลัง');
     }
     
-    // Sheet 2: Purchase Order (สั่งซื้อ)
+    // Sheet 2: ส่งจัดซื้อ (forward to purchasing department — buyers issue PO)
     const purchase = _gapReportData.filter(g => g.action_type === 'purchase');
     const aggPur = aggregateGaps(purchase);
     const purRows = aggPur.map(a => ({
@@ -5645,12 +5671,12 @@ async function exportGapExcel() {
     }));
     if (purRows.length > 0) {
       const ws2 = XLSX.utils.json_to_sheet(purRows);
-      XLSX.utils.book_append_sheet(wb, ws2, 'สั่งซื้อ PO');
+      XLSX.utils.book_append_sheet(wb, ws2, 'ส่งจัดซื้อ');
     }
     
     // Sheet 3: All Detail
     const allRows = _gapReportData.map(g => ({
-      Type: g.action_type === 'replenish' ? 'เติม' : 'สั่งซื้อ',
+      Type: g.action_type === 'replenish' ? 'เติม' : 'ส่งจัดซื้อ',
       Barcode: g.barcode,
       'ชื่อสินค้า': g.product_name || '',
       'ตำแหน่ง': g.gondola_code || g.location_code || '',
@@ -11339,8 +11365,8 @@ async function loadHealthAlerts() {
             ? `${gapPending.length} ຊ່ອງວ່າງ ລໍຖ້າດຳເນີນການ` 
             : `${gapPending.length} ช่องว่าง รอดำเนินการ`,
           text: isLao 
-            ? `📦 ເຕີມຄັງ: ${replCount} • 🛒 ສັ່ງຊື້: ${purCount}` 
-            : `📦 เติมคลัง: ${replCount} • 🛒 สั่งซื้อ: ${purCount}`,
+            ? `📦 ເຕີມຄັງ: ${replCount} • 📤 ສົ່ງຈັດຊື້: ${purCount}` 
+            : `📦 เติมคลัง: ${replCount} • 📤 ส่งจัดซื้อ: ${purCount}`,
           action: () => goPage('gapreport')
         });
       }
@@ -15872,7 +15898,7 @@ function renderFloorMapContent(data) {
     
     // Gap badge — แสดงเมื่อมี gap pending ที่ gondola นี้
     const gapBadge = hasGap ? `
-      <div class="fm-gap-badge" title="Gap pending: ${gapInfo.total} (เติม ${gapInfo.replenish} | PO ${gapInfo.purchase})">
+      <div class="fm-gap-badge" title="Gap pending: ${gapInfo.total} (เติม ${gapInfo.replenish} | จัดซื้อ ${gapInfo.purchase})">
         🛒${gapInfo.total}
       </div>
     ` : '';
