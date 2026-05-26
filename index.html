@@ -2264,17 +2264,29 @@ async function afterLogin() {
   // โหลด zones+locations เสมอ (เพื่อให้ Floor Map + Workflow Control ใช้)
   await loadZonesAndLocations();
   
-  // ถ้า branch ปิด zones → ข้าม zone step (ใช้ default zone ถ้ามี)
   const branchUseZones = branch?.use_zones !== false;
   
-  if (needsZone && branchUseZones) {
-    showZoneStep();
-  } else {
-    // ถ้าปิด zones → set default zone อัตโนมัติ (เผื่อ code อื่นต้องใช้)
-    if (!branchUseZones && allZones && allZones.length > 0) {
-      zone = allZones[0]; // ใช้ zone แรกเป็น default
-      log('Branch use_zones=false, auto-set default zone:', zone.code);
+  if (needsZone) {
+    if (branchUseZones) {
+      // มีระบบ zone → flow ปกติ: เลือก zone + location
+      showZoneStep();
+    } else {
+      // ไม่มี zone → ยังต้องเลือก Gondola (เพื่อผูก scan/Pan-O-Gram กับ location)
+      // Set default zone อัตโนมัติ
+      if (allZones && allZones.length > 0) {
+        zone = allZones[0];
+        log('Branch use_zones=false, default zone:', zone.code);
+      }
+      // เข้า app แล้วเปิด Gondola Picker ทันที
+      enterApp();
+      // หลัง render เสร็จ → เปิด picker (ยกเว้นมี loc อยู่แล้ว)
+      setTimeout(() => {
+        if (!loc) {
+          openQuickLocPicker(true); // true = force mode (must select)
+        }
+      }, 400);
     }
+  } else {
     enterApp();
   }
 }
@@ -3553,7 +3565,7 @@ async function selectQuickZone(zoneId) {
 
 // ==================== QUICK LOCATION PICKER (for no-zone branches) ====================
 // สำหรับสาขาที่ปิด zones — ให้ Counter เลือก location ตรงจาก scan page
-async function openQuickLocPicker() {
+async function openQuickLocPicker(forceMode = false) {
   const isLao = lang === 'lo';
   
   if (!allLocations || allLocations.length === 0) {
@@ -3610,7 +3622,19 @@ async function openQuickLocPicker() {
     .filter(Boolean);
   
   let html = `
-    <h3>📍 ${isLao ? 'ເລືອກຕຳແໜ່ງ' : 'เลือกตำแหน่ง'}</h3>
+    <h3 style="display:flex;align-items:center;gap:7px;">
+      📍 ${forceMode 
+        ? (isLao ? 'ກະລຸນາເລືອກ Gondola' : 'กรุณาเลือก Gondola') 
+        : (isLao ? 'ເລືອກຕຳແໜ່ງ' : 'เลือกตำแหน่ง')}
+    </h3>
+    
+    ${forceMode ? `
+      <p style="font-size:11px;color:var(--violet-600);margin-bottom:9px;background:var(--violet-100);padding:7px 11px;border-radius:7px;border-left:3px solid var(--violet-500);">
+        🎯 ${isLao 
+          ? 'ເລືອກ Gondola ທີ່ຈະເຂົ້ານັບ/ສະແກນ — ທຸກສິນຄ້າທີ່ສະແກນຈະຜູກກັບ Gondola ນີ້' 
+          : 'เลือก Gondola ที่จะเข้านับ/สแกน — ทุกสินค้าที่สแกนจะผูกกับ Gondola นี้'}
+      </p>
+    ` : ''}
     
     <!-- Search -->
     <div style="margin-bottom:9px;">
@@ -3666,7 +3690,15 @@ async function openQuickLocPicker() {
   });
   
   html += '</div>';
-  html += `<button class="btn btn-secondary" onclick="closeModal()" style="width:100%;margin-top:11px;">${T('cancel')}</button>`;
+  
+  // ใน force mode → ไม่มีปุ่ม cancel (ต้องเลือก) | normal → มี cancel
+  if (!forceMode) {
+    html += `<button class="btn btn-secondary" onclick="closeModal()" style="width:100%;margin-top:11px;">${T('cancel')}</button>`;
+  } else {
+    html += `<div style="margin-top:11px;font-size:10px;color:var(--slate-500);text-align:center;font-style:italic;">
+      💡 ${isLao ? 'ຕ້ອງເລືອກ Gondola ກ່ອນຈິ່ງສະແກນໄດ້' : 'ต้องเลือก Gondola ก่อนถึงสแกนได้'}
+    </div>`;
+  }
   
   showModal(html);
   
@@ -4805,6 +4837,25 @@ async function loadPanOGramForProduct(product, locationCode) {
   
   // Cache เพื่อใช้ใน save
   _currentPog = atCurrent[0] || null;
+  
+  // 🎯 Auto-open Pan-O-Gram modal เมื่อ:
+  // 1. สินค้านี้ยังไม่มี PoG ที่ location ปัจจุบัน (atCurrent.length === 0)
+  // 2. และยังไม่เคยปฏิเสธสำหรับสินค้านี้ใน session
+  // 3. และผู้ใช้มีสิทธิ์ (canEditPog แล้วเช็คตอน caller)
+  if (atCurrent.length === 0) {
+    const skipKey = `pog_skip_${branch.id}_${product.barcode}_${locationCode}`;
+    const recentlyDeclined = sessionStorage.getItem(skipKey);
+    
+    if (!recentlyDeclined) {
+      // หน่วงเวลา 600ms ให้ render เสร็จก่อน + ผู้ใช้เห็น product card
+      setTimeout(() => {
+        // Double-check: ผู้ใช้ยังอยู่หน้านี้และ product ตัวเดิม
+        if (curProduct && curProduct.barcode === product.barcode) {
+          openPanOGramModal(product.barcode, locationCode);
+        }
+      }, 600);
+    }
+  }
 }
 
 function renderPogChip(pog, isCurrent) {
@@ -4990,12 +5041,29 @@ async function openPanOGramModal(barcode, locationCode, editId = null) {
     
     <div class="action-row">
       ${isEdit ? `<button class="btn btn-danger" onclick="deletePanOGram(${editId})" style="background:var(--rose-500);">${isLao ? 'ລົບ' : 'ลบ'}</button>` : ''}
-      <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
+      <button class="btn btn-secondary" onclick="dismissPogModal('${barcode}', '${locationCode}', false)">${T('cancel')}</button>
       <button class="btn btn-primary" id="pogSaveBtn" onclick="savePanOGram('${barcode}', '${locationCode}', ${editId || 'null'})" style="background:var(--violet-500);">
         ${isLao ? 'ບັນທຶກ' : 'บันทึก'}
       </button>
     </div>
+    ${!isEdit ? `
+      <div style="text-align:center;margin-top:8px;">
+        <button onclick="dismissPogModal('${barcode}', '${locationCode}', true)" 
+                style="background:none;border:none;color:var(--slate-400);font-size:10px;cursor:pointer;text-decoration:underline;">
+          ${isLao ? 'ບໍ່ສ້າງ Pan-O-Gram ສຳລັບສິນຄ້ານີ້' : 'ไม่สร้าง Pan-O-Gram สำหรับสินค้านี้'}
+        </button>
+      </div>
+    ` : ''}
   `);
+}
+
+// Dismiss PoG modal — if "skipForSession" → remember not to auto-open again in this session
+function dismissPogModal(barcode, locationCode, skipForSession) {
+  if (skipForSession && branch && barcode && locationCode) {
+    const skipKey = `pog_skip_${branch.id}_${barcode}_${locationCode}`;
+    sessionStorage.setItem(skipKey, '1');
+  }
+  closeModal();
 }
 
 function updatePogCalc() {
@@ -14006,6 +14074,7 @@ window.toggleBranchUseZones = toggleBranchUseZones;
 window.openQuickLocPicker = openQuickLocPicker;
 window.filterQuickLocList = filterQuickLocList;
 window.selectQuickLoc = selectQuickLoc;
+window.dismissPogModal = dismissPogModal;
 window.adjustCount = adjustCount;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
@@ -14130,6 +14199,7 @@ if (typeof isPWAMode === 'function') {
       const branchUseZones = branch?.use_zones !== false;
       
       if (needsZone && branchUseZones) {
+        // โหมดมี zone
         if (ctx.zone) zone = allZones.find(z => z.id == ctx.zone);
         if (ctx.locType) currentLocType = ctx.locType;
         if (ctx.location) loc = allLocations.find(l => l.location_code === ctx.location);
@@ -14139,12 +14209,24 @@ if (typeof isPWAMode === 'function') {
         } else {
           enterApp();
         }
-      } else {
-        // ถ้าปิด zones → set default zone อัตโนมัติ (เผื่อ code อื่นต้องใช้)
-        if (!branchUseZones && allZones && allZones.length > 0) {
+      } else if (needsZone && !branchUseZones) {
+        // โหมดปิด zone — ต้องเลือก Gondola
+        if (allZones && allZones.length > 0) {
           zone = allZones[0];
-          log('Auto-login: branch use_zones=false, default zone:', zone.code);
         }
+        // ลอง resume location จาก localStorage
+        if (ctx.location) {
+          loc = allLocations.find(l => l.location_code === ctx.location);
+        }
+        enterApp();
+        // ถ้าไม่มี loc → เปิด picker
+        setTimeout(() => {
+          if (!loc) {
+            openQuickLocPicker(true);
+          }
+        }, 400);
+      } else {
+        // Admin/CTL/BCS — ไม่ต้องเลือก
         enterApp();
       }
     } catch(e) {
