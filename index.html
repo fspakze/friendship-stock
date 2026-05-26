@@ -4136,15 +4136,17 @@ function renderGapScanPage() {
           <p>${isLao ? 'ກົດປຸ່ມເພື່ອເລີ່ມ Gap Scan' : 'กดปุ่มเพื่อเริ่ม Gap Scan'}</p>
         </div>
       </div>
-      <div class="scan-controls">
+      <div class="scan-controls" style="display:flex;flex-direction:column;gap:9px;padding:11px;">
         <input type="text" id="gapBarcodeInput" 
-               placeholder="${isLao ? 'ໃສ່ Barcode...' : 'ใส่ Barcode...'}"
+               placeholder="${isLao ? '⌨️ ໃສ່ Barcode ຫຼື ສະແກນ...' : '⌨️ ใส่ Barcode หรือ สแกน...'}"
                onkeypress="if(event.key==='Enter')onGapBarcodeEnter()"
-               style="font-family:'Space Grotesk',monospace;">
+               style="width:100%;padding:13px 14px;border:2px solid var(--slate-200);border-radius:11px;font-size:15px;font-family:'Space Grotesk',monospace;font-weight:600;background:white;transition:border-color 0.2s;outline:none;"
+               onfocus="this.style.borderColor='var(--amber-500)';"
+               onblur="this.style.borderColor='var(--slate-200)';">
         <button class="btn btn-primary" id="gapScanBtn" 
-                style="background:linear-gradient(135deg,var(--amber-500),var(--rose-500));"
+                style="background:linear-gradient(135deg,var(--amber-500),var(--rose-500));padding:13px;font-size:14px;font-weight:800;border-radius:11px;width:100%;"
                 onclick="toggleGapScan()">
-          📷 ${isLao ? 'ສະແກນ' : 'สแกน'}
+          📷 ${isLao ? 'ສະແກນດ້ວຍກ້ອງ' : 'สแกนด้วยกล้อง'}
         </button>
       </div>
     </div>
