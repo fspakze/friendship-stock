@@ -3890,6 +3890,10 @@ function renderShell() {
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V6a2 2 0 012-2h2M4 16v2a2 2 0 002 2h2"/></svg>
         <span>${T('tab_scan')}</span>
       </button>
+      <button class="tab" data-page="gapscan" onclick="goPage('gapscan')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span>${lang === 'lo' ? 'ຊ່ອງວ່າງ' : 'ช่องว่าง'}</span>
+      </button>
       <button class="tab" data-page="history" onclick="goPage('history')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12"/></svg>
         <span>${T('tab_history')}</span>
@@ -3944,6 +3948,11 @@ function renderShell() {
       <button class="tab" data-page="variance" onclick="goPage('variance')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
         <span>${lang === 'lo' ? 'ຂາດເຄື່ອນ' : 'คลาดเคลื่อน'}</span>
+      </button>
+      <button class="tab" data-page="gapreport" onclick="goPage('gapreport')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        <span>${lang === 'lo' ? 'ຊ່ອງວ່າງ' : 'ช่องว่าง'}</span>
+        <span class="tab-badge" id="tabGapBadge" style="display:none;background:var(--amber-500);">0</span>
       </button>
       <button class="tab" data-page="tiebreaker" onclick="goPage('tiebreaker')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/></svg>
@@ -4043,6 +4052,12 @@ function goPage(page) {
   } else if (page === 'variance') {
     c.innerHTML = renderVariancePage();
     loadVarianceReport();
+  } else if (page === 'gapscan') {
+    c.innerHTML = renderGapScanPage();
+    setTimeout(() => loadGapScanRecent(), 100);
+  } else if (page === 'gapreport') {
+    c.innerHTML = renderGapReportPage();
+    loadGapReport();
   } else if (page === 'users') {
     c.innerHTML = renderUsersPage();
     loadUsers();
@@ -4061,6 +4076,815 @@ function goPage(page) {
 }
 
 // ==================== SCAN PAGE ====================
+// ==================== GAP SCAN MODULE ====================
+// Gap Scan = สแกนหน้าชั้นวางเพื่อหาสินค้าที่ขาด (ช่องว่าง)
+// ถ้ามีในคลัง → ส่งคลังเติม | ถ้าหมด → ส่งจัดซื้อ PO
+
+let _gapScanCurrent = null;  // product ที่กำลังจะ submit
+
+function renderGapScanPage() {
+  const isLao = lang === 'lo';
+  const r = user.role;
+  const noZones = branch?.use_zones === false;
+  
+  const locPickerHtml = noZones ? `
+    <div style="background:linear-gradient(135deg,var(--amber-100),var(--rose-100));border:2px solid var(--amber-300);border-radius:11px;padding:11px;margin-bottom:11px;">
+      <div style="display:flex;align-items:center;gap:9px;">
+        <span style="font-size:18px;">📍</span>
+        <div style="flex:1;font-size:11px;color:var(--slate-700);">
+          ${isLao ? 'Gondola ປະຈຸບັນ' : 'Gondola ปัจจุบัน'}:
+        </div>
+        ${loc ? `
+          <span style="background:var(--amber-500);color:white;padding:4px 11px;border-radius:7px;font-family:'Space Grotesk',monospace;font-weight:800;font-size:13px;">
+            ${loc.location_code}
+          </span>
+        ` : `
+          <span style="background:var(--rose-100);color:var(--rose-500);padding:4px 11px;border-radius:7px;font-size:11px;font-weight:700;">
+            ${isLao ? 'ຍັງບໍ່ໄດ້ເລືອກ' : 'ยังไม่ได้เลือก'}
+          </span>
+        `}
+      </div>
+      <button onclick="openQuickLocPicker()" 
+              style="margin-top:7px;width:100%;background:var(--amber-500);color:white;border:none;border-radius:7px;padding:8px 11px;font-size:11px;font-weight:700;cursor:pointer;">
+        ${loc 
+          ? `🔄 ${isLao ? 'ປ່ຽນຕຳແໜ່ງ' : 'เปลี่ยนตำแหน่ง'}`
+          : `📍 ${isLao ? 'ເລືອກຕຳແໜ່ງ' : 'เลือกตำแหน่ง'}`}
+      </button>
+    </div>
+  ` : '';
+  
+  return `
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,var(--amber-500),var(--rose-500));color:white;border-radius:13px;padding:13px;margin-bottom:11px;">
+      <div style="font-size:18px;font-weight:800;display:flex;align-items:center;gap:9px;">
+        🛒 ${isLao ? 'ສະແກນຊ່ອງວ່າງ' : 'สแกนช่องว่าง'}
+      </div>
+      <div style="font-size:11px;opacity:0.95;margin-top:3px;line-height:1.4;">
+        ${isLao 
+          ? 'ສະແກນສິນຄ້າທີ່ຂາດໜ້າຊັ້ນວາງ — ລະບົບຈະແຈ້ງເຕືອນວ່າມີໃນຄັງຫຼືບໍ່' 
+          : 'สแกนสินค้าที่ขาดหน้าชั้นวาง — ระบบจะแจ้งเตือนว่ามีในคลังหรือไม่'}
+      </div>
+    </div>
+    
+    ${locPickerHtml}
+    
+    <!-- Scan card -->
+    <div class="scan-card">
+      <div class="scan-frame" id="gapScanFrame">
+        <div class="scan-placeholder" id="gapScanPlaceholder">
+          <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="color:var(--amber-500);"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <p>${isLao ? 'ກົດປຸ່ມເພື່ອສະແກນຊ່ອງວ່າງ' : 'กดปุ่มเพื่อสแกนช่องว่าง'}</p>
+        </div>
+      </div>
+      <div class="scan-controls">
+        <input type="text" id="gapBarcodeInput" 
+               placeholder="${isLao ? 'ໃສ່ Barcode...' : 'ใส่ Barcode...'}"
+               onkeypress="if(event.key==='Enter')onGapBarcodeEnter()"
+               style="font-family:'Space Grotesk',monospace;">
+        <button class="btn btn-primary" id="gapScanBtn" 
+                style="background:linear-gradient(135deg,var(--amber-500),var(--rose-500));"
+                onclick="toggleGapScan()">
+          📷 ${isLao ? 'ສະແກນ' : 'สแกน'}
+        </button>
+      </div>
+    </div>
+    
+    <!-- Product detail card (will appear after scan) -->
+    <div id="gapProductCard" style="margin-top:11px;"></div>
+    
+    <!-- Recent gap scans (last 10) -->
+    <div style="margin-top:11px;">
+      <div style="font-size:11px;font-weight:700;color:var(--slate-700);margin-bottom:5px;display:flex;align-items:center;justify-content:space-between;">
+        <span>📋 ${isLao ? 'ການສະແກນລ່າສຸດ' : 'การสแกนล่าสุด'}</span>
+        <span id="gapRecentCount" style="background:var(--amber-100);color:var(--amber-600);padding:2px 7px;border-radius:5px;font-size:10px;">0</span>
+      </div>
+      <div id="gapRecentList"></div>
+    </div>
+  `;
+}
+
+// ==================== GAP SCAN: LOOKUP ====================
+async function onGapBarcodeEnter() {
+  const input = document.getElementById('gapBarcodeInput');
+  if (!input) return;
+  const barcode = input.value.trim();
+  if (!barcode) return;
+  await lookupGapProduct(barcode);
+  input.value = '';
+}
+
+async function lookupGapProduct(barcode) {
+  const isLao = lang === 'lo';
+  const cardEl = document.getElementById('gapProductCard');
+  if (!cardEl) return;
+  
+  // Check location (สาขาเล็ก)
+  const noZones = branch?.use_zones === false;
+  if (noZones && !loc) {
+    showToast(isLao ? 'ກະລຸນາເລືອກຕຳແໜ່ງ' : 'กรุณาเลือกตำแหน่ง', 'error');
+    return;
+  }
+  
+  cardEl.innerHTML = `
+    <div style="background:white;border-radius:11px;padding:14px;text-align:center;">
+      <div class="loader" style="margin:0 auto;"></div>
+      <div style="font-size:11px;color:var(--slate-500);margin-top:7px;">${isLao ? 'ກຳລັງຄົ້ນຫາ...' : 'กำลังค้นหา...'}</div>
+    </div>
+  `;
+  
+  try {
+    // 1. หาสินค้าใน branch ปัจจุบัน
+    const { data: product, error } = await sb.from('products')
+      .select('*')
+      .eq('branch_id', branch.id)
+      .eq('barcode', barcode)
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    if (error) throw error;
+    
+    if (!product) {
+      cardEl.innerHTML = `
+        <div style="background:var(--rose-100);border:2px solid var(--rose-500);border-radius:11px;padding:13px;">
+          <div style="font-size:14px;font-weight:800;color:var(--rose-500);display:flex;align-items:center;gap:7px;">
+            ⚠️ ${isLao ? 'ບໍ່ພົບສິນຄ້ານີ້ ໃນສາຂາ' : 'ไม่พบสินค้านี้ ในสาขา'}
+          </div>
+          <div style="font-size:11px;color:var(--slate-500);font-family:monospace;margin-top:5px;">${barcode}</div>
+          <div style="font-size:10px;color:var(--slate-600);margin-top:7px;line-height:1.5;">
+            ${isLao 
+              ? '💡 ສິນຄ້ານີ້ບໍ່ໄດ້ນຳເຂົ້າໃນ POS — ກະລຸນາສະແກນສິນຄ້າອື່ນ' 
+              : '💡 สินค้านี้ไม่ได้นำเข้าใน POS — กรุณาสแกนสินค้าอื่น'}
+          </div>
+        </div>
+      `;
+      return;
+    }
+    
+    // หา Pan-O-Gram (ความจุชั้นวาง) ของสินค้านี้ในตำแหน่งนี้
+    let shelfCapacity = 0;
+    if (loc?.location_code) {
+      const { data: pog } = await sb.from('pan_o_grams')
+        .select('total_qty')
+        .eq('branch_id', branch.id)
+        .eq('barcode', barcode)
+        .eq('location_code', loc.location_code)
+        .maybeSingle();
+      shelfCapacity = pog?.total_qty || 0;
+    }
+    
+    // เก็บไว้สำหรับ submit
+    _gapScanCurrent = {
+      product,
+      shelfCapacity,
+      barcode
+    };
+    
+    renderGapProductCard(product, shelfCapacity);
+  } catch (e) {
+    console.error('[FS] lookupGapProduct error:', e);
+    cardEl.innerHTML = `
+      <div style="background:var(--rose-100);color:var(--rose-500);padding:11px;border-radius:9px;font-size:11px;">
+        ❌ ${friendlyError(e)}
+      </div>
+    `;
+  }
+}
+
+function renderGapProductCard(product, shelfCapacity) {
+  const isLao = lang === 'lo';
+  const cardEl = document.getElementById('gapProductCard');
+  if (!cardEl) return;
+  
+  const name = isLao ? (product.name_lo || product.name_th) : (product.name_th || product.name_lo);
+  const unit = isLao ? (product.unit_lo || 'ຊິ້ນ') : (product.unit_th || 'ชิ้น');
+  const posQty = product.pos_qty || 0;
+  
+  // Determine action: replenish (มีในคลัง) vs purchase (หมดต้อง PO)
+  const isReplenish = posQty > 0;
+  const actionColor = isReplenish ? 'var(--amber-500)' : 'var(--rose-500)';
+  const actionBg = isReplenish 
+    ? 'linear-gradient(135deg,var(--amber-100),var(--amber-50))' 
+    : 'linear-gradient(135deg,var(--rose-100),var(--rose-50))';
+  const actionIcon = isReplenish ? '📦' : '🛒';
+  const actionTitle = isReplenish 
+    ? (isLao ? 'ມີຢູ່ໃນຄັງ — ສົ່ງເຕີມໜ້າຮ້ານ' : 'มีอยู่ในคลัง — ส่งเติมหน้าร้าน')
+    : (isLao ? 'ໝົດຄັງ — ສົ່ງຈັດຊື້ PO' : 'หมดคลัง — ส่งจัดซื้อ PO');
+  
+  // Suggest gap qty: from shelf capacity (Pan-O-Gram)
+  // If no Pan-O-Gram → default 1
+  const suggestedQty = shelfCapacity > 0 ? shelfCapacity : 1;
+  
+  cardEl.innerHTML = `
+    <div style="background:white;border:2px solid ${actionColor};border-radius:13px;padding:13px;">
+      <!-- Product info -->
+      <div style="margin-bottom:11px;">
+        <div style="font-size:14px;font-weight:800;color:var(--slate-900);line-height:1.3;">${name}</div>
+        <div style="font-size:10px;color:var(--slate-500);font-family:monospace;margin-top:2px;">${product.barcode}</div>
+        ${loc?.location_code ? `
+          <div style="display:inline-block;background:var(--violet-100);color:var(--violet-600);padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700;font-family:'Space Grotesk',monospace;margin-top:5px;">
+            📍 ${loc.location_code}
+          </div>
+        ` : ''}
+      </div>
+      
+      <!-- Stock status (BIG) -->
+      <div style="background:${actionBg};border-left:4px solid ${actionColor};border-radius:9px;padding:11px;margin-bottom:11px;">
+        <div style="font-size:11px;font-weight:800;color:${actionColor};display:flex;align-items:center;gap:7px;">
+          ${actionIcon} ${actionTitle}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:7px;">
+          <div style="background:white;padding:7px;border-radius:7px;text-align:center;">
+            <div style="font-size:9px;color:var(--slate-500);font-weight:700;text-transform:uppercase;">${isLao ? 'ໃນຄັງ POS' : 'ในคลัง POS'}</div>
+            <div style="font-size:22px;font-weight:800;color:${actionColor};font-family:'Space Grotesk',monospace;line-height:1;">${posQty}</div>
+            <div style="font-size:9px;color:var(--slate-500);">${unit}</div>
+          </div>
+          <div style="background:white;padding:7px;border-radius:7px;text-align:center;">
+            <div style="font-size:9px;color:var(--slate-500);font-weight:700;text-transform:uppercase;">${isLao ? 'ຄວາມຈຸຊັ້ນ' : 'ความจุชั้น'}</div>
+            <div style="font-size:22px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;line-height:1;">${shelfCapacity || '—'}</div>
+            <div style="font-size:9px;color:var(--slate-500);">${shelfCapacity > 0 ? unit : (isLao ? 'ບໍ່ມີຜັງ' : 'ไม่มีผัง')}</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Gap quantity input -->
+      <div style="margin-bottom:11px;">
+        <label style="font-size:11px;font-weight:700;color:var(--slate-700);display:block;margin-bottom:5px;">
+          📊 ${isLao ? 'ຈຳນວນທີ່ຕ້ອງເຕີມ' : 'จำนวนที่ต้องเติม'}
+        </label>
+        <div style="display:flex;gap:7px;align-items:center;">
+          <button onclick="adjustGapQty(-1)" style="background:var(--slate-200);border:none;width:36px;height:36px;border-radius:7px;font-size:18px;font-weight:800;cursor:pointer;">−</button>
+          <input type="number" id="gapQtyInput" value="${suggestedQty}" min="1" 
+                 style="flex:1;text-align:center;font-size:22px;font-weight:800;font-family:'Space Grotesk',monospace;color:${actionColor};padding:7px;border:2px solid ${actionColor};border-radius:7px;">
+          <button onclick="adjustGapQty(1)" style="background:var(--slate-200);border:none;width:36px;height:36px;border-radius:7px;font-size:18px;font-weight:800;cursor:pointer;">+</button>
+        </div>
+        ${shelfCapacity > 0 ? `
+          <div style="font-size:9px;color:var(--slate-500);margin-top:3px;text-align:center;">
+            💡 ${isLao ? 'ແນະນຳ' : 'แนะนำ'}: ${shelfCapacity} ${unit} (${isLao ? 'ຕາມຄວາມຈຸຊັ້ນ' : 'ตามความจุชั้น'})
+          </div>
+        ` : ''}
+      </div>
+      
+      <!-- Note -->
+      <div style="margin-bottom:11px;">
+        <label style="font-size:11px;font-weight:700;color:var(--slate-700);display:block;margin-bottom:3px;">
+          📝 ${isLao ? 'ໝາຍເຫດ (ບໍ່ບັງຄັບ)' : 'หมายเหตุ (ไม่บังคับ)'}
+        </label>
+        <input type="text" id="gapNoteInput" 
+               placeholder="${isLao ? 'ເຊັ່ນ: ດ່ວນ, ສິນຄ້າຂາຍດີ...' : 'เช่น: ด่วน, สินค้าขายดี...'}"
+               class="form-input" style="font-size:11px;padding:8px;">
+      </div>
+      
+      <!-- Actions -->
+      <div style="display:flex;gap:7px;">
+        <button class="btn btn-secondary" onclick="cancelGapScan()" style="flex:1;padding:13px;">
+          ${isLao ? 'ຍົກເລີກ' : 'ยกเลิก'}
+        </button>
+        <button class="btn btn-primary" onclick="submitGapScan()" 
+                style="flex:1.5;padding:13px;background:linear-gradient(135deg,${actionColor},${actionColor});font-weight:800;">
+          ${actionIcon} ${isReplenish 
+            ? (isLao ? 'ສ່ົງເຕີມ' : 'ส่งเติม') 
+            : (isLao ? 'ສ່ົງສັ່ງຊື້' : 'ส่งสั่งซื้อ')}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function adjustGapQty(delta) {
+  const input = document.getElementById('gapQtyInput');
+  if (!input) return;
+  const cur = parseInt(input.value) || 0;
+  const newVal = Math.max(1, cur + delta);
+  input.value = newVal;
+}
+
+function cancelGapScan() {
+  _gapScanCurrent = null;
+  const cardEl = document.getElementById('gapProductCard');
+  if (cardEl) cardEl.innerHTML = '';
+}
+
+// ==================== GAP SCAN: SUBMIT ====================
+async function submitGapScan() {
+  const isLao = lang === 'lo';
+  if (!_gapScanCurrent) return;
+  
+  const qtyInput = document.getElementById('gapQtyInput');
+  const noteInput = document.getElementById('gapNoteInput');
+  const gapQty = parseInt(qtyInput?.value) || 1;
+  const note = noteInput?.value.trim() || null;
+  
+  const { product, shelfCapacity } = _gapScanCurrent;
+  const actionType = product.pos_qty > 0 ? 'replenish' : 'purchase';
+  
+  // Save to DB
+  try {
+    const insertData = {
+      branch_id: branch.id,
+      session_id: session?.id || null,
+      user_id: user.id,
+      product_id: product.id,
+      barcode: product.barcode,
+      product_name: isLao ? (product.name_lo || product.name_th) : (product.name_th || product.name_lo),
+      location_code: loc?.location_code || null,
+      gondola_code: loc?.gondola_code || loc?.location_code || null,
+      gap_qty: gapQty,
+      pos_qty_at_scan: product.pos_qty || 0,
+      shelf_capacity: shelfCapacity,
+      status: 'pending',
+      action_type: actionType,
+      note: note
+    };
+    
+    const { data, error } = await sb.from('gap_scans')
+      .insert(insertData)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    beep();
+    const successMsg = actionType === 'replenish'
+      ? (isLao ? '✅ ສົ່ງເຕີມຄັງ' : '✅ ส่งเติมคลัง')
+      : (isLao ? '✅ ສ່ົງສັ່ງຊື້ PO' : '✅ ส่งสั่งซื้อ PO');
+    showToast(successMsg, 'success');
+    
+    // Clear card + refresh list
+    _gapScanCurrent = null;
+    const cardEl = document.getElementById('gapProductCard');
+    if (cardEl) cardEl.innerHTML = '';
+    loadGapScanRecent();
+  } catch (e) {
+    console.error('[FS] submitGapScan error:', e);
+    toastError(e);
+  }
+}
+
+// ==================== GAP SCAN: RECENT LIST ====================
+async function loadGapScanRecent() {
+  const isLao = lang === 'lo';
+  const listEl = document.getElementById('gapRecentList');
+  const countEl = document.getElementById('gapRecentCount');
+  if (!listEl) return;
+  
+  try {
+    const { data, error } = await sb.from('gap_scans')
+      .select('*, users(full_name)')
+      .eq('branch_id', branch.id)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    
+    if (error) throw error;
+    
+    if (countEl) countEl.textContent = (data || []).length;
+    
+    if (!data || data.length === 0) {
+      listEl.innerHTML = `
+        <div style="text-align:center;padding:25px;color:var(--slate-400);background:white;border-radius:9px;">
+          <div style="font-size:32px;margin-bottom:5px;">📭</div>
+          <div style="font-size:11px;color:var(--slate-500);">
+            ${isLao ? 'ຍັງບໍ່ມີຂໍ້ມູນ' : 'ยังไม่มีข้อมูล'}
+          </div>
+        </div>
+      `;
+      return;
+    }
+    
+    let html = '';
+    data.forEach(g => {
+      const time = new Date(g.created_at).toLocaleString(isLao ? 'lo-LA' : 'th-TH', { 
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+      });
+      const isPurchase = g.action_type === 'purchase';
+      const color = isPurchase ? 'var(--rose-500)' : 'var(--amber-500)';
+      const bg = isPurchase ? 'var(--rose-50)' : 'var(--amber-50)';
+      const icon = isPurchase ? '🛒' : '📦';
+      const actionLabel = isPurchase 
+        ? (isLao ? 'PO' : 'PO') 
+        : (isLao ? 'ເຕີມ' : 'เติม');
+      
+      html += `
+        <div style="background:${bg};border-left:3px solid ${color};border-radius:7px;padding:7px 9px;margin-bottom:5px;display:flex;align-items:center;gap:7px;font-size:10px;">
+          <div style="font-size:16px;flex-shrink:0;">${icon}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              ${g.product_name || g.barcode}
+            </div>
+            <div style="font-size:9px;color:var(--slate-500);">
+              ${g.location_code ? `📍 ${g.location_code} • ` : ''}${time}
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            <div style="background:${color};color:white;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800;">${actionLabel}</div>
+            <div style="font-size:11px;font-weight:800;color:${color};font-family:'Space Grotesk',monospace;margin-top:2px;">
+              ${g.gap_qty}
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    listEl.innerHTML = html;
+  } catch (e) {
+    console.error('[FS] loadGapScanRecent error:', e);
+    listEl.innerHTML = `
+      <div style="background:var(--rose-100);color:var(--rose-500);padding:9px;border-radius:7px;font-size:10px;">
+        ❌ ${friendlyError(e)}
+      </div>
+    `;
+  }
+}
+
+// ==================== GAP SCAN: CAMERA ====================
+async function toggleGapScan() {
+  const btn = document.getElementById('gapScanBtn');
+  const frame = document.getElementById('gapScanFrame');
+  const placeholder = document.getElementById('gapScanPlaceholder');
+  const isLao = lang === 'lo';
+  
+  if (window._gapScanner && window._gapScanner.isScanning) {
+    // Stop
+    try {
+      await window._gapScanner.stop();
+      window._gapScanner = null;
+    } catch(e) {}
+    if (placeholder) placeholder.style.display = 'flex';
+    if (btn) btn.innerHTML = `📷 ${isLao ? 'ສະແກນ' : 'สแกน'}`;
+    return;
+  }
+  
+  // Start
+  if (!window.Html5Qrcode) {
+    showToast('Camera library not loaded', 'error');
+    return;
+  }
+  
+  if (placeholder) placeholder.style.display = 'none';
+  if (btn) btn.innerHTML = `⏹ ${isLao ? 'ຢຸດ' : 'หยุด'}`;
+  
+  // Create scanner container
+  let scannerEl = document.getElementById('gapScannerInner');
+  if (!scannerEl) {
+    scannerEl = document.createElement('div');
+    scannerEl.id = 'gapScannerInner';
+    scannerEl.style.cssText = 'width:100%;height:100%;';
+    frame.appendChild(scannerEl);
+  }
+  
+  try {
+    window._gapScanner = new Html5Qrcode('gapScannerInner');
+    await window._gapScanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 250, height: 100 } },
+      async (decoded) => {
+        await window._gapScanner.stop();
+        window._gapScanner = null;
+        if (placeholder) placeholder.style.display = 'flex';
+        if (btn) btn.innerHTML = `📷 ${isLao ? 'ສະແກນ' : 'สแกน'}`;
+        await lookupGapProduct(decoded);
+      },
+      () => {}
+    );
+  } catch (e) {
+    console.error('[FS] Gap camera error:', e);
+    showToast(friendlyError(e), 'error');
+    if (placeholder) placeholder.style.display = 'flex';
+    if (btn) btn.innerHTML = `📷 ${isLao ? 'ສະແກນ' : 'สแกน'}`;
+  }
+}
+// ==================== END GAP SCAN ====================
+
+// ==================== GAP REPORT PAGE (Phase 2) ====================
+function renderGapReportPage() {
+  const isLao = lang === 'lo';
+  return `
+    <div style="margin-bottom:11px;">
+      <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">
+        🛒 ${isLao ? 'ລາຍງານຊ່ອງວ່າງ' : 'รายงานช่องว่าง'}
+      </h2>
+      <p style="font-size:11px;color:var(--slate-500);margin:0;">
+        ${isLao 
+          ? 'ສິນຄ້າທີ່ຕ້ອງເຕີມໜ້າຮ້ານ ແລະ ສິນຄ້າທີ່ຕ້ອງສັ່ງຊື້' 
+          : 'สินค้าที่ต้องเติมหน้าร้าน และ สินค้าที่ต้องสั่งซื้อ'}
+      </p>
+    </div>
+    
+    <!-- Summary Cards -->
+    <div id="gapSummary" style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:11px;">
+      <div style="background:linear-gradient(135deg,var(--amber-100),var(--amber-50));padding:11px;border-radius:11px;text-align:center;">
+        <div class="loader" style="margin:0 auto;"></div>
+      </div>
+      <div style="background:linear-gradient(135deg,var(--rose-100),var(--rose-50));padding:11px;border-radius:11px;text-align:center;">
+        <div class="loader" style="margin:0 auto;"></div>
+      </div>
+    </div>
+    
+    <!-- Action tabs -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:9px;">
+      <button onclick="setGapAction('replenish')" id="gapTabReplenish" class="gap-tab-btn"
+              style="padding:9px;border:none;border-radius:9px;background:var(--amber-500);color:white;font-size:12px;font-weight:800;cursor:pointer;">
+        📦 ${isLao ? 'ເຕີມຄັງ' : 'เติมคลัง'} (<span id="gapCountRep">0</span>)
+      </button>
+      <button onclick="setGapAction('purchase')" id="gapTabPurchase" class="gap-tab-btn"
+              style="padding:9px;border:none;border-radius:9px;background:white;border:2px solid var(--slate-200);color:var(--slate-600);font-size:12px;font-weight:800;cursor:pointer;">
+        🛒 ${isLao ? 'ສັ່ງຊື້ PO' : 'สั่งซื้อ PO'} (<span id="gapCountPur">0</span>)
+      </button>
+    </div>
+    
+    <!-- Export buttons -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:9px;">
+      <button onclick="exportGapExcel()" 
+              style="background:var(--emerald-500);color:white;border:none;border-radius:7px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;">
+        📊 ${isLao ? 'Export Excel' : 'Export Excel'}
+      </button>
+      <button onclick="loadGapReport()" 
+              style="background:var(--violet-100);color:var(--violet-600);border:1px solid var(--violet-300);border-radius:7px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;">
+        🔄 ${isLao ? 'ໂຫລດໃໝ່' : 'โหลดใหม่'}
+      </button>
+    </div>
+    
+    <!-- List -->
+    <div id="gapReportList" style="background:white;border-radius:11px;padding:9px;min-height:200px;padding-bottom:80px;">
+      <div style="text-align:center;padding:30px;color:var(--slate-400);">
+        <div class="loader" style="margin:0 auto 8px;"></div>
+        <div style="font-size:11px;">${isLao ? 'ກຳລັງໂຫລດ...' : 'กำลังโหลด...'}</div>
+      </div>
+    </div>
+  `;
+}
+
+let _gapReportData = null;
+let _gapReportFilter = { action: 'replenish' };
+
+async function loadGapReport() {
+  const isLao = lang === 'lo';
+  try {
+    const { data, error } = await sb.from('gap_scans')
+      .select('*, users(full_name), products(name_th, name_lo, unit_th, unit_lo, cost_price, sell_price, pos_qty)')
+      .eq('branch_id', branch.id)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    _gapReportData = data || [];
+    renderGapSummary();
+    renderGapReportList();
+    updateGapBadge();
+  } catch (e) {
+    console.error('[FS] loadGapReport error:', e);
+    const listEl = document.getElementById('gapReportList');
+    if (listEl) listEl.innerHTML = `
+      <div style="text-align:center;padding:25px;color:var(--rose-500);font-size:11px;">
+        ❌ ${friendlyError(e)}
+      </div>
+    `;
+  }
+}
+
+function renderGapSummary() {
+  if (!_gapReportData) return;
+  const isLao = lang === 'lo';
+  const fmt = new Intl.NumberFormat('th-TH');
+  
+  const replenish = _gapReportData.filter(g => g.action_type === 'replenish');
+  const purchase = _gapReportData.filter(g => g.action_type === 'purchase');
+  
+  // Aggregate by product (rolled up)
+  const aggReplenish = aggregateGaps(replenish);
+  const aggPurchase = aggregateGaps(purchase);
+  
+  const replValue = replenish.reduce((s, g) => s + (g.gap_qty * (g.products?.cost_price || 0)), 0);
+  const purValue = purchase.reduce((s, g) => s + (g.gap_qty * (g.products?.cost_price || 0)), 0);
+  
+  document.getElementById('gapSummary').innerHTML = `
+    <div onclick="setGapAction('replenish')" 
+         style="background:linear-gradient(135deg,var(--amber-100),var(--amber-50));padding:11px;border-radius:11px;border:1px solid var(--amber-300);cursor:pointer;">
+      <div style="font-size:9px;color:var(--amber-700);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
+        📦 ${isLao ? 'ເຕີມຈາກຄັງ' : 'เติมจากคลัง'}
+      </div>
+      <div style="font-size:22px;font-weight:800;color:var(--amber-500);font-family:'Space Grotesk',monospace;line-height:1;">
+        ${aggReplenish.length}
+      </div>
+      <div style="font-size:10px;color:var(--slate-600);margin-top:3px;font-family:'Space Grotesk',monospace;">
+        ${replenish.length} ${isLao ? 'ການແຈ້ງ' : 'การแจ้ง'} • ₭ ${fmt.format(replValue)}
+      </div>
+    </div>
+    
+    <div onclick="setGapAction('purchase')" 
+         style="background:linear-gradient(135deg,var(--rose-100),var(--rose-50));padding:11px;border-radius:11px;border:1px solid var(--rose-300);cursor:pointer;">
+      <div style="font-size:9px;color:var(--rose-700);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
+        🛒 ${isLao ? 'ສັ່ງຊື້ PO' : 'สั่งซื้อ PO'}
+      </div>
+      <div style="font-size:22px;font-weight:800;color:var(--rose-500);font-family:'Space Grotesk',monospace;line-height:1;">
+        ${aggPurchase.length}
+      </div>
+      <div style="font-size:10px;color:var(--slate-600);margin-top:3px;font-family:'Space Grotesk',monospace;">
+        ${purchase.length} ${isLao ? 'ການແຈ້ງ' : 'การแจ้ง'} • ₭ ${fmt.format(purValue)}
+      </div>
+    </div>
+  `;
+  
+  document.getElementById('gapCountRep').textContent = replenish.length;
+  document.getElementById('gapCountPur').textContent = purchase.length;
+}
+
+// Aggregate gaps by product (รวมหลาย gap entry ของ product เดียวกัน)
+function aggregateGaps(gaps) {
+  const agg = {};
+  gaps.forEach(g => {
+    const key = g.product_id || g.barcode;
+    if (!agg[key]) {
+      agg[key] = {
+        product_id: g.product_id,
+        barcode: g.barcode,
+        product_name: g.product_name,
+        product: g.products,
+        total_gap_qty: 0,
+        entries: [],
+        gondolas: new Set()
+      };
+    }
+    agg[key].total_gap_qty += (g.gap_qty || 0);
+    agg[key].entries.push(g);
+    if (g.gondola_code) agg[key].gondolas.add(g.gondola_code);
+  });
+  return Object.values(agg).map(a => ({ ...a, gondolas: Array.from(a.gondolas) }));
+}
+
+function setGapAction(action) {
+  _gapReportFilter.action = action;
+  const rep = document.getElementById('gapTabReplenish');
+  const pur = document.getElementById('gapTabPurchase');
+  if (action === 'replenish') {
+    if (rep) { rep.style.background = 'var(--amber-500)'; rep.style.color = 'white'; rep.style.border = 'none'; }
+    if (pur) { pur.style.background = 'white'; pur.style.color = 'var(--slate-600)'; pur.style.border = '2px solid var(--slate-200)'; }
+  } else {
+    if (pur) { pur.style.background = 'var(--rose-500)'; pur.style.color = 'white'; pur.style.border = 'none'; }
+    if (rep) { rep.style.background = 'white'; rep.style.color = 'var(--slate-600)'; rep.style.border = '2px solid var(--slate-200)'; }
+  }
+  renderGapReportList();
+}
+
+function renderGapReportList() {
+  if (!_gapReportData) return;
+  const isLao = lang === 'lo';
+  const fmt = new Intl.NumberFormat('th-TH');
+  
+  const filtered = _gapReportData.filter(g => g.action_type === _gapReportFilter.action);
+  const agg = aggregateGaps(filtered);
+  
+  const listEl = document.getElementById('gapReportList');
+  if (!listEl) return;
+  
+  if (agg.length === 0) {
+    listEl.innerHTML = `
+      <div style="text-align:center;padding:35px;color:var(--slate-400);">
+        <div style="font-size:42px;margin-bottom:9px;">${_gapReportFilter.action === 'replenish' ? '📦' : '🛒'}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--slate-600);">
+          ${isLao ? 'ບໍ່ມີລາຍການ' : 'ไม่มีรายการ'}
+        </div>
+      </div>
+    `;
+    return;
+  }
+  
+  // Sort by total_gap_qty desc
+  agg.sort((a, b) => b.total_gap_qty - a.total_gap_qty);
+  
+  const actionColor = _gapReportFilter.action === 'replenish' ? 'var(--amber-500)' : 'var(--rose-500)';
+  const actionBg = _gapReportFilter.action === 'replenish' ? 'var(--amber-50)' : 'var(--rose-50)';
+  
+  let html = '';
+  agg.forEach(a => {
+    const name = isLao ? (a.product?.name_lo || a.product_name) : (a.product?.name_th || a.product_name);
+    const unit = isLao ? (a.product?.unit_lo || 'ຊິ້ນ') : (a.product?.unit_th || 'ชิ้น');
+    const value = a.total_gap_qty * (a.product?.cost_price || 0);
+    
+    html += `
+      <div style="background:${actionBg};border-left:4px solid ${actionColor};border-radius:9px;padding:9px 11px;margin-bottom:5px;display:flex;align-items:center;gap:9px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:700;color:var(--slate-900);">${name}</div>
+          <div style="font-size:9px;color:var(--slate-500);font-family:monospace;">${a.barcode}</div>
+          ${a.gondolas.length > 0 ? `
+            <div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:3px;">
+              ${a.gondolas.map(g => `<span style="background:var(--violet-100);color:var(--violet-600);padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;font-family:monospace;">📍 ${g}</span>`).join('')}
+            </div>
+          ` : ''}
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:18px;font-weight:800;color:${actionColor};font-family:'Space Grotesk',monospace;line-height:1;">
+            ${a.total_gap_qty}
+          </div>
+          <div style="font-size:9px;color:var(--slate-500);">${unit}</div>
+          ${value > 0 ? `<div style="font-size:9px;color:${actionColor};font-family:'Space Grotesk',monospace;font-weight:700;margin-top:1px;">₭${fmt.format(value)}</div>` : ''}
+        </div>
+      </div>
+    `;
+  });
+  listEl.innerHTML = html;
+}
+
+async function exportGapExcel() {
+  const isLao = lang === 'lo';
+  if (!_gapReportData || _gapReportData.length === 0) {
+    showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning');
+    return;
+  }
+  
+  showToast(isLao ? '⏳ ກຳລັງສ້າງ Excel...' : '⏳ กำลังสร้าง Excel...', 'success');
+  
+  try {
+    const wb = XLSX.utils.book_new();
+    
+    // Sheet 1: Replenishment (เติมจากคลัง)
+    const replenish = _gapReportData.filter(g => g.action_type === 'replenish');
+    const aggRepl = aggregateGaps(replenish);
+    const replRows = aggRepl.map(a => ({
+      Barcode: a.barcode,
+      'ชื่อสินค้า': a.product?.name_th || a.product_name || '',
+      'Name LO': a.product?.name_lo || '',
+      'หน่วย': a.product?.unit_th || a.product?.unit_lo || '',
+      'ตำแหน่ง': a.gondolas.join(', '),
+      'จำนวนที่ต้องเติม': a.total_gap_qty,
+      'POS ปัจจุบัน': a.product?.pos_qty || 0,
+      'ต้นทุน (₭)': a.product?.cost_price || 0,
+      'มูลค่ารวม (₭)': a.total_gap_qty * (a.product?.cost_price || 0),
+      'จำนวนการแจ้ง': a.entries.length
+    }));
+    if (replRows.length > 0) {
+      const ws1 = XLSX.utils.json_to_sheet(replRows);
+      XLSX.utils.book_append_sheet(wb, ws1, 'เติมจากคลัง');
+    }
+    
+    // Sheet 2: Purchase Order (สั่งซื้อ)
+    const purchase = _gapReportData.filter(g => g.action_type === 'purchase');
+    const aggPur = aggregateGaps(purchase);
+    const purRows = aggPur.map(a => ({
+      Barcode: a.barcode,
+      'ชื่อสินค้า': a.product?.name_th || a.product_name || '',
+      'Name LO': a.product?.name_lo || '',
+      'หน่วย': a.product?.unit_th || a.product?.unit_lo || '',
+      'ตำแหน่ง': a.gondolas.join(', '),
+      'จำนวนที่ต้องสั่ง': a.total_gap_qty,
+      'ราคาขาย (₭)': a.product?.sell_price || 0,
+      'ต้นทุน (₭)': a.product?.cost_price || 0,
+      'มูลค่ารวม (₭)': a.total_gap_qty * (a.product?.cost_price || 0),
+      'จำนวนการแจ้ง': a.entries.length
+    }));
+    if (purRows.length > 0) {
+      const ws2 = XLSX.utils.json_to_sheet(purRows);
+      XLSX.utils.book_append_sheet(wb, ws2, 'สั่งซื้อ PO');
+    }
+    
+    // Sheet 3: All Detail
+    const allRows = _gapReportData.map(g => ({
+      Type: g.action_type === 'replenish' ? 'เติม' : 'สั่งซื้อ',
+      Barcode: g.barcode,
+      'ชื่อสินค้า': g.product_name || '',
+      'ตำแหน่ง': g.gondola_code || g.location_code || '',
+      'จำนวน': g.gap_qty,
+      'POS ตอน scan': g.pos_qty_at_scan,
+      'ความจุชั้น': g.shelf_capacity,
+      'ผู้แจ้ง': g.users?.full_name || '',
+      'หมายเหตุ': g.note || '',
+      'เวลา': new Date(g.created_at).toLocaleString()
+    }));
+    if (allRows.length > 0) {
+      const ws3 = XLSX.utils.json_to_sheet(allRows);
+      XLSX.utils.book_append_sheet(wb, ws3, 'ทั้งหมด');
+    }
+    
+    const fileName = `gap-${branch.code}-${new Date().toISOString().slice(0,10)}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    
+    showToast(`✅ ${aggRepl.length + aggPur.length} ${isLao ? 'ສິນຄ້າ' : 'สินค้า'}`, 'success');
+  } catch (e) {
+    console.error('[FS] exportGapExcel error:', e);
+    toastError(e);
+  }
+}
+
+async function updateGapBadge() {
+  try {
+    const { count } = await sb.from('gap_scans')
+      .select('id', { count: 'exact', head: true })
+      .eq('branch_id', branch.id)
+      .eq('status', 'pending');
+    
+    const badge = document.getElementById('tabGapBadge');
+    if (badge) {
+      if (count && count > 0) {
+        badge.style.display = 'inline-block';
+        badge.textContent = count;
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  } catch (e) {}
+}
+// ==================== END GAP REPORT ====================
+
 function renderScanPage() {
   const r = user.role;
   const isLao = lang === 'lo';
@@ -17255,6 +18079,21 @@ window.executeRestore = executeRestore;
 window.quickBackup = quickBackup;
 window.saveBackupReminder = saveBackupReminder;
 window.getBackupReminderInterval = getBackupReminderInterval;
+
+// Gap Scan
+window.renderGapScanPage = renderGapScanPage;
+window.onGapBarcodeEnter = onGapBarcodeEnter;
+window.lookupGapProduct = lookupGapProduct;
+window.adjustGapQty = adjustGapQty;
+window.cancelGapScan = cancelGapScan;
+window.submitGapScan = submitGapScan;
+window.loadGapScanRecent = loadGapScanRecent;
+window.toggleGapScan = toggleGapScan;
+window.renderGapReportPage = renderGapReportPage;
+window.loadGapReport = loadGapReport;
+window.setGapAction = setGapAction;
+window.exportGapExcel = exportGapExcel;
+window.updateGapBadge = updateGapBadge;
 window.cancelClonePrompt = cancelClonePrompt;
 window.confirmCloneFromOther = confirmCloneFromOther;
 window.adjustCount = adjustCount;
