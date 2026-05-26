@@ -11196,7 +11196,7 @@ function downloadImportTemplate() {
   // Sheet 2: Branches Reference (11 สาขา — ตามรหัสจริงในระบบ)
   const branchData = [
     ['Branch Code', 'Name', 'Type'],
-    ['SUPERMART', 'FS-SUPERMART ปากเซ', 'ສາຂາຫຼັກ / สาขาหลัก'],
+    ['SUPERMART', 'FS-SUPERMART', 'ສາຂາຫຼັກ / สาขาหลัก'],
     ['TRADING-WH', 'FS-TRADING ສາງຫຼັງຮ້ານ', 'ຄັງສິນຄ້າ / คลังสินค้า'],
     ['MALL', 'FS-MALL', 'Mini Mart'],
     ['EXP-LUK7', 'FS-Express ຫລັກ 7', 'Mini Mart'],
@@ -11204,7 +11204,7 @@ function downloadImportTemplate() {
     ['MINI-PHONBOK', 'FSMINI ໂພນບົກ', 'Mini Mart'],
     ['MINI-PHONSA-AT', 'FSMINI ໂພນສະອາດ', 'Mini Mart'],
     ['MINI-PHONSAVANH', 'FSMINI ໂພນສະຫວັນ', 'Mini Mart'],
-    ['MINI-SALAKHAM', 'FSMINI ສາລະຄຳ', 'Mini Mart'],
+    ['MINI-SALAKHAM', 'FSMINI ສາລາຄຳ', 'Mini Mart'],
     ['MINI-THAHIN', 'FSMINI ທ່າຫີນ', 'Mini Mart'],
     ['MINI-THALUNG', 'FSMINI ທ່າຫລວງ', 'Mini Mart'],
   ];
@@ -11454,7 +11454,7 @@ function checkBranchCodeMismatch() {
   const destBranchOption = sel.options[sel.selectedIndex];
   const destBranchText = destBranchOption?.text || '';
   
-  // หา branch code จาก option text เช่น "FS-SUPERMART ปากเซ (SUPERMART)"
+  // หา branch code จาก option text เช่น "FS-SUPERMART (SUPERMART)"
   const destBranchCodeMatch = destBranchText.match(/\(([^)]+)\)/);
   const destBranchCode = destBranchCodeMatch ? destBranchCodeMatch[1].replace(' ✓', '').trim() : '';
   
