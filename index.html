@@ -4620,7 +4620,7 @@ async function lookupProduct(barcode) {
     return;
   }
   
-  // STEP 2: ไม่เจอในสาขาตัวเอง → หาในสาขาอื่นๆ
+  // STEP 2: ไม่เจอในสาขาตัวเอง → หาในสาขาอื่นเพื่อช่วยตัดสินใจ
   log('Not found in own branch, searching other branches...');
   const { data: otherData, error: otherErr } = await sb
     .from('products')
@@ -4636,54 +4636,62 @@ async function lookupProduct(barcode) {
     log('Other branch lookup error:', otherErr);
   }
   
+  const isLao = lang === 'lo';
+  
   if (otherData) {
-    log('Found in other branch:', otherData.branches?.code, '→ auto-cloning to', branch.code);
+    // ✋ ไม่ auto-clone แล้ว — แสดงข้อมูลให้ Counter ตัดสินใจเอง
+    log('Found in other branch:', otherData.branches?.code, '— prompting user');
     
-    // STEP 3: Auto-clone เข้าสาขาตัวเอง
-    // ใช้ชื่อ/หน่วย/ราคา จากสาขาอื่น แต่ pos_qty = 0 (เพราะยังไม่มีในสาขานี้)
-    const cloneData = {
-      barcode: otherData.barcode,
-      name_th: otherData.name_th,
-      name_lo: otherData.name_lo,
-      unit_th: otherData.unit_th,
-      unit_lo: otherData.unit_lo,
-      category_id: otherData.category_id,
-      cost_price: otherData.cost_price,
-      sell_price: otherData.sell_price,
-      pos_qty: 0,  // เริ่มที่ 0 — เพราะ POS ของสาขานี้ไม่มีสินค้านี้
-      is_active: true,
-      is_markdown: otherData.is_markdown,
-      gondola_code: null,  // ไม่ clone gondola — แต่ละสาขามี layout ต่างกัน
-      branch_id: branch.id
-    };
-    
-    const { data: cloned, error: cloneErr } = await sb
-      .from('products')
-      .insert(cloneData)
-      .select()
-      .single();
-    
-    if (cloneErr) {
-      log('Clone failed:', cloneErr);
-      // ถ้า clone ไม่ได้ — ก็ยังใช้ otherData แสดงได้ แต่ save count อาจไม่ link ถูก
-      showToast(lang === 'lo' 
-        ? `⚠️ ພົບໃນ ${otherData.branches?.code} ແຕ່ບໍ່ສາມາດເພີ່ມໃນສາຂານີ້ໄດ້`
-        : `⚠️ พบใน ${otherData.branches?.code} แต่ไม่สามารถเพิ่มในสาขานี้ได้`, 'warning');
-      curProduct = otherData;
-      renderProduct(otherData);
-      return;
-    }
-    
-    // Show toast แจ้งให้ทราบว่า clone จากสาขาอื่น
-    const sourceName = lang === 'lo' 
+    const sourceName = isLao 
       ? (otherData.branches?.name_lo || otherData.branches?.code) 
       : (otherData.branches?.name_th || otherData.branches?.code);
-    showToast(lang === 'lo' 
-      ? `📋 ດຶງຂໍ້ມູນຈາກ ${sourceName} ມາໃຊ້`
-      : `📋 ดึงข้อมูลจาก ${sourceName} มาใช้`, 'success');
+    const prodName = isLao ? (otherData.name_lo || otherData.name_th) : (otherData.name_th || otherData.name_lo);
+    const unit = isLao ? (otherData.unit_lo || 'pcs') : (otherData.unit_th || 'ชิ้น');
     
-    curProduct = cloned;
-    renderProduct(cloned);
+    // Cache otherData ไว้สำหรับใช้ตอน confirm
+    window._pendingCloneData = otherData;
+    
+    document.getElementById('productCard').innerHTML = `
+      <div class="product-card" style="border-left-color: var(--amber-500);background:var(--amber-50);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <span style="font-size:20px;">⚠️</span>
+          <div style="flex:1;">
+            <div style="font-size:12px;font-weight:800;color:#92400e;">
+              ${isLao ? 'ບໍ່ມີໃນສະຕ໋ອກສາຂານີ້' : 'ไม่มีในสต๊อกสาขานี้'}
+            </div>
+            <div style="font-size:10px;color:#92400e;">
+              ${isLao ? `ບໍ່ມີ POS ໃນ ${branch.code}` : `ไม่มี POS ใน ${branch.code}`}
+            </div>
+          </div>
+        </div>
+        
+        <div style="background:white;border:1px solid var(--amber-300);border-radius:9px;padding:9px;margin-bottom:9px;">
+          <div style="font-size:11px;color:var(--slate-600);margin-bottom:3px;">
+            🔍 ${isLao ? 'ພົບໃນສາຂາອື່ນ' : 'พบในสาขาอื่น'}: <strong style="color:var(--violet-600);">${sourceName}</strong>
+          </div>
+          <div style="font-size:13px;font-weight:700;color:var(--slate-900);">${prodName}</div>
+          <div style="font-size:10px;color:var(--slate-500);font-family:monospace;">${barcode} • ${unit}</div>
+          ${otherData.sell_price ? `<div style="font-size:10px;color:var(--slate-500);">${isLao ? 'ລາຄາ' : 'ราคา'}: ₭${Number(otherData.sell_price).toLocaleString()}</div>` : ''}
+        </div>
+        
+        <div style="font-size:10px;color:var(--slate-600);margin-bottom:9px;line-height:1.5;background:white;padding:7px 9px;border-radius:7px;border-left:3px solid var(--violet-500);">
+          💡 ${isLao 
+            ? 'ສິນຄ້ານີ້ບໍ່ໄດ້ນຳເຂົ້າໃນ POS ສາຂາ ' + branch.code + '<br>ຖ້າຕ້ອງການນັບໃຫ້ກົດ "ເພີ່ມເຂົ້າສາຂາ" (POS = 0)' 
+            : 'สินค้านี้ไม่ได้นำเข้าใน POS สาขา ' + branch.code + '<br>ถ้าต้องการนับให้กด "เพิ่มเข้าสาขา" (POS = 0)'}
+        </div>
+        
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-secondary" onclick="cancelClonePrompt()" 
+                  style="flex:1;padding:11px;font-size:11px;font-weight:700;">
+            ${isLao ? 'ຍົກເລີກ' : 'ยกเลิก'}
+          </button>
+          <button class="btn btn-primary" onclick="confirmCloneFromOther()" 
+                  style="flex:1.5;padding:11px;font-size:11px;font-weight:800;background:linear-gradient(135deg,var(--amber-500),var(--rose-500));">
+            ➕ ${isLao ? 'ເພີ່ມເຂົ້າສາຂາ' : 'เพิ่มเข้าสาขา'}
+          </button>
+        </div>
+      </div>
+    `;
     return;
   }
   
@@ -4694,7 +4702,7 @@ async function lookupProduct(barcode) {
       <div class="product-name" style="color: var(--rose-500);">⚠️ ${T('product_not_found')}</div>
       <div class="product-barcode">${barcode}</div>
       <div style="font-size:10px;color:var(--slate-500);margin-top:6px;">
-        ${lang === 'lo' ? `ບໍ່ພົບໃນ ${branch.code} ແລະບໍ່ມີໃນສາຂາອື່ນ` : `ไม่พบใน ${branch.code} และไม่มีในสาขาอื่น`}
+        ${isLao ? `ບໍ່ພົບໃນ ${branch.code} ແລະບໍ່ມີໃນສາຂາອື່ນ` : `ไม่พบใน ${branch.code} และไม่มีในสาขาอื่น`}
       </div>
       <button class="btn btn-amber" onclick="openNewSKUModal('${barcode}')" style="margin-top:8px;">
         ${T('add_new_sku')}
@@ -4702,6 +4710,61 @@ async function lookupProduct(barcode) {
     </div>
   `;
 }
+
+// ==================== CLONE FROM OTHER BRANCH (Manual Confirm) ====================
+function cancelClonePrompt() {
+  window._pendingCloneData = null;
+  document.getElementById('productCard').innerHTML = '';
+  curProduct = null;
+  showToast(lang === 'lo' ? '↩️ ຍົກເລີກ' : '↩️ ยกเลิก', 'success');
+}
+
+async function confirmCloneFromOther() {
+  const otherData = window._pendingCloneData;
+  if (!otherData) return;
+  const isLao = lang === 'lo';
+  
+  try {
+    const cloneData = {
+      barcode: otherData.barcode,
+      name_th: otherData.name_th,
+      name_lo: otherData.name_lo,
+      unit_th: otherData.unit_th,
+      unit_lo: otherData.unit_lo,
+      category_id: otherData.category_id,
+      cost_price: otherData.cost_price,
+      sell_price: otherData.sell_price,
+      pos_qty: 0,  // เริ่มที่ 0 — ของสาขานี้ไม่มี POS data
+      is_active: true,
+      is_markdown: otherData.is_markdown,
+      gondola_code: null,
+      branch_id: branch.id
+    };
+    
+    const { data: cloned, error: cloneErr } = await sb
+      .from('products')
+      .insert(cloneData)
+      .select()
+      .single();
+    
+    if (cloneErr) {
+      showToast(`Error: ${cloneErr.message}`, 'error');
+      return;
+    }
+    
+    window._pendingCloneData = null;
+    showToast(isLao 
+      ? `✅ ເພີ່ມໃນ ${branch.code} ແລ້ວ (POS=0)` 
+      : `✅ เพิ่มใน ${branch.code} แล้ว (POS=0)`, 'success');
+    
+    curProduct = cloned;
+    renderProduct(cloned);
+  } catch (e) {
+    console.error('[FS] confirmCloneFromOther error:', e);
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+// ==================== END CLONE PROMPT ====================
 
 function renderProduct(p) {
   const name = lang === 'lo' ? (p.name_lo || p.name_th) : (p.name_th || p.name_lo);
@@ -15327,6 +15390,8 @@ window.onVarianceSearchInput = onVarianceSearchInput;
 window.toggleVarianceGroup = toggleVarianceGroup;
 window.openVarianceDetail = openVarianceDetail;
 window.exportVarianceExcel = exportVarianceExcel;
+window.cancelClonePrompt = cancelClonePrompt;
+window.confirmCloneFromOther = confirmCloneFromOther;
 window.adjustCount = adjustCount;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
