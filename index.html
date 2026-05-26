@@ -3506,21 +3506,24 @@ async function switchBranch(newBranchId) {
     
     // Clear caches that are branch-specific
     window._productCache = null;
+    window._varianceData = null;
+    window._varianceAllData = null;
+    session = null; // clear old session — โหลดใหม่ตามสาขา
     
     closeModal();
     showToast('✅ ' + (lang === 'lo' ? `ປ່ຽນເປັນ ${br.name_lo || br.code}` : `เปลี่ยนเป็น ${br.name_th || br.code}`), 'success');
     
-    // Re-render app (รีเฟรชหน้าทั้งหมด)
-    document.getElementById('app').innerHTML = renderApp();
+    // โหลด zones + session + locations ของสาขาใหม่
+    await loadZonesAndLocations();
+    await ensureSession();
     
-    // Re-enter current page
-    const activeTab = document.querySelector('.tab.active');
-    const currentPage = activeTab?.dataset.page || 'scan';
-    setTimeout(() => goPage(currentPage), 50);
+    // Re-render app (รีเฟรชหน้าทั้งหมด)
+    // ⚠️ renderApp() ไม่ return อะไร — มัน mutate DOM เอง
+    renderApp();
     
   } catch (e) {
     console.error('[FS] switchBranch error:', e);
-    showToast('Error: ' + (e.message || e), 'error');
+    toastError(e);
   }
 }
 
