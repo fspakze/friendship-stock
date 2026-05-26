@@ -5306,6 +5306,9 @@ function renderPanOGramManager() {
   const isLao = lang === 'lo';
   const all = _pogManagerData || [];
   
+  // Init bulk selection state
+  if (!_pogMgrSelected) _pogMgrSelected = new Set();
+  
   // Apply filters
   let filtered = all;
   if (_pogManagerFilter.location) {
@@ -5328,6 +5331,7 @@ function renderPanOGramManager() {
   const totalQty = filtered.reduce((s, p) => s + (p.total_qty || 0), 0);
   const uniqueLocations = new Set(filtered.map(p => p.location_code)).size;
   const uniqueProducts = new Set(filtered.map(p => p.barcode)).size;
+  const selectedCount = _pogMgrSelected.size;
   
   // Get unique locations for filter
   const allLocations = [...new Set(all.map(p => p.location_code))].sort();
@@ -5378,6 +5382,31 @@ function renderPanOGramManager() {
              class="form-input" style="font-size:11px;padding:7px;">
     </div>
     
+    <!-- Bulk Actions Bar -->
+    <div style="background:${selectedCount > 0 ? 'var(--rose-100)' : 'var(--slate-100)'};border:1px solid ${selectedCount > 0 ? 'var(--rose-300)' : 'var(--slate-200)'};border-radius:9px;padding:7px 9px;margin-bottom:9px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;transition:all 0.15s;">
+      <div style="font-size:11px;color:${selectedCount > 0 ? 'var(--rose-500)' : 'var(--slate-600)'};font-weight:700;flex:1;min-width:90px;">
+        ${selectedCount > 0 
+          ? `✓ ${isLao ? 'ເລືອກ' : 'เลือก'} ${selectedCount}` 
+          : `☐ ${isLao ? 'ບໍ່ໄດ້ເລືອກ' : 'ยังไม่ได้เลือก'}`}
+      </div>
+      <button onclick="toggleAllPogSelect()" 
+              style="background:white;color:var(--slate-700);border:1px solid var(--slate-300);border-radius:5px;padding:5px 9px;font-size:10px;font-weight:700;cursor:pointer;">
+        ${selectedCount === filtered.length && filtered.length > 0
+          ? (isLao ? '☐ ບໍ່ເລືອກ' : '☐ ไม่เลือก') 
+          : (isLao ? '☑️ ເລືອກໝົດ' : '☑️ เลือกหมด')}
+      </button>
+      <button onclick="bulkMovePogToLocation()" 
+              ${selectedCount === 0 ? 'disabled' : ''}
+              style="background:${selectedCount > 0 ? 'var(--sky-500)' : 'var(--slate-300)'};color:white;border:none;border-radius:5px;padding:5px 9px;font-size:10px;font-weight:700;cursor:${selectedCount > 0 ? 'pointer' : 'not-allowed'};">
+        🔄 ${isLao ? 'ຍ້າຍ Gondola' : 'ย้าย Gondola'}
+      </button>
+      <button onclick="bulkDeletePog()" 
+              ${selectedCount === 0 ? 'disabled' : ''}
+              style="background:${selectedCount > 0 ? 'var(--rose-500)' : 'var(--slate-300)'};color:white;border:none;border-radius:5px;padding:5px 9px;font-size:10px;font-weight:700;cursor:${selectedCount > 0 ? 'pointer' : 'not-allowed'};">
+        🗑️ ${isLao ? 'ລົບ' : 'ลบ'}${selectedCount > 0 ? ` (${selectedCount})` : ''}
+      </button>
+    </div>
+    
     <!-- View Toggle -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:9px;">
       <button onclick="setPogView('list')" 
@@ -5419,10 +5448,25 @@ function renderPogListView(items) {
     const allInLoc = Object.values(shelves).flat();
     const locTotal = allInLoc.reduce((s, p) => s + (p.total_qty || 0), 0);
     
+    // เช็คว่าใน loc นี้เลือกทั้งหมดไหม
+    const idsInLoc = allInLoc.map(p => p.id);
+    const allSelected = idsInLoc.length > 0 && idsInLoc.every(id => _pogMgrSelected.has(id));
+    const someSelected = idsInLoc.some(id => _pogMgrSelected.has(id));
+    
     html += `
       <div style="margin-bottom:9px;">
         <div style="background:linear-gradient(135deg,var(--sky-100),white);border:1px solid var(--sky-300);border-radius:8px;padding:6px 9px;margin-bottom:5px;display:flex;align-items:center;gap:7px;">
+          <div onclick="togglePogLocationSelect('${locCode}')" 
+               style="cursor:pointer;font-size:16px;user-select:none;flex-shrink:0;"
+               title="${isLao ? 'ເລືອກທັງໝົດ' : 'เลือกทั้งหมด'}">
+            ${allSelected ? '☑️' : someSelected ? '🟡' : '⬜'}
+          </div>
           <span style="font-weight:800;color:var(--sky-600);font-family:'Space Grotesk',monospace;font-size:13px;">📍 ${locCode}</span>
+          <button onclick="event.stopPropagation();openEditPogLocationModal('${locCode}')"
+                  title="${isLao ? 'ປ່ຽນ Gondola' : 'เปลี่ยน Gondola'}"
+                  style="background:var(--sky-100);color:var(--sky-600);border:1px solid var(--sky-300);border-radius:5px;padding:2px 7px;font-size:10px;font-weight:700;cursor:pointer;">
+            ✏️ ${isLao ? 'ປ່ຽນ' : 'เปลี่ยน'}
+          </button>
           <span style="font-size:10px;color:var(--slate-500);margin-left:auto;">
             ${allInLoc.length} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'} • ${locTotal} ${isLao ? 'ຊິ້ນ' : 'ชิ้น'}
           </span>
@@ -5441,17 +5485,21 @@ function renderPogListView(items) {
       `;
       items.forEach(p => {
         const name = isLao ? (p.products?.name_lo || p.products?.name_th || p.barcode) : (p.products?.name_th || p.products?.name_lo || p.barcode);
+        const isSelected = _pogMgrSelected.has(p.id);
         html += `
-          <div onclick="openPanOGramModal('${p.barcode}', '${p.location_code}', ${p.id})"
-               style="background:white;border:1px solid var(--slate-200);border-radius:7px;padding:6px 9px;margin-bottom:3px;cursor:pointer;display:flex;align-items:center;gap:8px;">
-            <div style="background:var(--violet-100);color:var(--violet-600);width:24px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;font-family:'Space Grotesk',monospace;flex-shrink:0;">
+          <div style="background:${isSelected ? 'var(--rose-50)' : 'white'};border:1px solid ${isSelected ? 'var(--rose-300)' : 'var(--slate-200)'};border-radius:7px;padding:6px 9px;margin-bottom:3px;display:flex;align-items:center;gap:8px;transition:all 0.1s;">
+            <div onclick="togglePogSelect(${p.id})" style="cursor:pointer;font-size:14px;flex-shrink:0;user-select:none;">
+              ${isSelected ? '☑️' : '⬜'}
+            </div>
+            <div onclick="openPanOGramModal('${p.barcode}', '${p.location_code}', ${p.id})" 
+                 style="background:var(--violet-100);color:var(--violet-600);width:24px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;font-family:'Space Grotesk',monospace;flex-shrink:0;cursor:pointer;">
               ${p.seq_in_shelf}
             </div>
-            <div style="flex:1;min-width:0;">
+            <div onclick="openPanOGramModal('${p.barcode}', '${p.location_code}', ${p.id})" style="flex:1;min-width:0;cursor:pointer;">
               <div style="font-size:11px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</div>
               <div style="font-size:9px;color:var(--slate-500);font-family:monospace;">${p.barcode}</div>
             </div>
-            <div style="text-align:right;flex-shrink:0;">
+            <div onclick="openPanOGramModal('${p.barcode}', '${p.location_code}', ${p.id})" style="text-align:right;flex-shrink:0;cursor:pointer;">
               <div style="font-size:10px;color:var(--slate-500);font-family:'Space Grotesk',monospace;">${p.facial}×${p.depth}×${p.stack}</div>
               <div style="font-size:12px;font-weight:800;color:var(--emerald-500);font-family:'Space Grotesk',monospace;">${p.total_qty}</div>
             </div>
@@ -5607,6 +5655,382 @@ function onPogSearchChange(value) {
 function setPogView(view) {
   _pogManagerView = view;
   renderPanOGramManager();
+}
+
+// ==================== POG BULK SELECT ====================
+let _pogMgrSelected = new Set();
+
+function togglePogSelect(id) {
+  if (_pogMgrSelected.has(id)) {
+    _pogMgrSelected.delete(id);
+  } else {
+    _pogMgrSelected.add(id);
+  }
+  renderPanOGramManager();
+}
+
+function togglePogLocationSelect(locCode) {
+  // เลือก/ยกเลิกทุก PoG ใน location นี้
+  const items = (_pogManagerData || []).filter(p => p.location_code === locCode);
+  const ids = items.map(p => p.id);
+  const allSelected = ids.every(id => _pogMgrSelected.has(id));
+  
+  if (allSelected) {
+    ids.forEach(id => _pogMgrSelected.delete(id));
+  } else {
+    ids.forEach(id => _pogMgrSelected.add(id));
+  }
+  renderPanOGramManager();
+}
+
+function toggleAllPogSelect() {
+  // Apply ตาม current filter
+  const all = _pogManagerData || [];
+  let filtered = all;
+  if (_pogManagerFilter.location) filtered = filtered.filter(p => p.location_code === _pogManagerFilter.location);
+  if (_pogManagerFilter.search) {
+    const s = _pogManagerFilter.search.toLowerCase();
+    filtered = filtered.filter(p => 
+      (p.barcode || '').toLowerCase().includes(s) ||
+      (p.products?.name_lo || '').toLowerCase().includes(s) ||
+      (p.products?.name_th || '').toLowerCase().includes(s) ||
+      (p.location_code || '').toLowerCase().includes(s)
+    );
+  }
+  
+  const allSelected = filtered.length > 0 && filtered.every(p => _pogMgrSelected.has(p.id));
+  if (allSelected) {
+    _pogMgrSelected.clear();
+  } else {
+    filtered.forEach(p => _pogMgrSelected.add(p.id));
+  }
+  renderPanOGramManager();
+}
+
+async function bulkDeletePog() {
+  const isLao = lang === 'lo';
+  if (_pogMgrSelected.size === 0) return;
+  
+  const ids = Array.from(_pogMgrSelected);
+  const items = (_pogManagerData || []).filter(p => ids.includes(p.id));
+  
+  // Preview
+  const preview = items.slice(0, 5).map(p => `${p.position_code} (${p.barcode})`).join('\n');
+  const more = items.length > 5 ? `\n... +${items.length - 5} ${isLao ? 'ອື່ນໆ' : 'อื่นๆ'}` : '';
+  
+  const msg = isLao 
+    ? `ລົບ ${items.length} ຕຳແໜ່ງ Pan-O-Gram?\n\n${preview}${more}`
+    : `ลบ ${items.length} ตำแหน่ง Pan-O-Gram?\n\n${preview}${more}`;
+  
+  if (!confirm(msg)) return;
+  
+  showToast(isLao ? '⏳ ກຳລັງລົບ...' : '⏳ กำลังลบ...', 'success');
+  
+  try {
+    const { error } = await sb.from('pan_o_grams').delete().in('id', ids);
+    if (error) throw error;
+    
+    _pogMgrSelected.clear();
+    showToast(`🗑️ ${isLao ? 'ລົບແລ້ວ' : 'ลบแล้ว'} ${ids.length} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}`, 'success');
+    
+    // Reload
+    await loadPanOGramManager();
+    loadSettingsStats();
+  } catch (e) {
+    console.error('[FS] bulkDeletePog error:', e);
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+async function bulkMovePogToLocation() {
+  const isLao = lang === 'lo';
+  if (_pogMgrSelected.size === 0) return;
+  
+  const ids = Array.from(_pogMgrSelected);
+  const items = (_pogManagerData || []).filter(p => ids.includes(p.id));
+  
+  // Load available locations
+  if (!allLocations || allLocations.length === 0) {
+    await loadZonesAndLocations();
+  }
+  
+  // Group locations by Gondola number for display
+  function parseCode(code) {
+    const upper = (code || '').toUpperCase().trim();
+    const numMatch = upper.match(/^(\d{2,})([A-Z]+)(\d+)$/);
+    if (numMatch) return { groupKey: numMatch[1], groupLabel: `Gondola ${numMatch[1]}` };
+    const letterMatch = upper.match(/^([A-Z]+)(\d+)$/);
+    if (letterMatch) {
+      const prefix = letterMatch[1];
+      let label = prefix;
+      if (prefix === 'W') label = 'Wall';
+      else if (prefix === 'WT') label = 'Wall Top';
+      else if (prefix === 'WH') label = 'Warehouse';
+      return { groupKey: 'z' + prefix, groupLabel: label };
+    }
+    return { groupKey: 'zzz', groupLabel: '?' };
+  }
+  
+  const groups = {};
+  (allLocations || []).forEach(l => {
+    const p = parseCode(l.location_code);
+    if (!groups[p.groupKey]) groups[p.groupKey] = { label: p.groupLabel, items: [] };
+    groups[p.groupKey].items.push(l);
+  });
+  const sortedGroups = Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+  
+  // List of unique source locations
+  const sourceLocs = [...new Set(items.map(p => p.location_code))];
+  
+  showModal(`
+    <h3>🔄 ${isLao ? 'ຍ້າຍ Pan-O-Gram' : 'ย้าย Pan-O-Gram'}</h3>
+    
+    <div style="background:var(--violet-100);border-left:3px solid var(--violet-500);padding:9px 11px;border-radius:7px;margin-bottom:11px;">
+      <div style="font-size:11px;color:var(--violet-600);font-weight:700;margin-bottom:5px;">
+        🎯 ${isLao ? 'ຍ້າຍ' : 'ย้าย'} <strong>${items.length}</strong> ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}
+      </div>
+      <div style="font-size:10px;color:var(--slate-700);">
+        ${isLao ? 'ຈາກ' : 'จาก'}: ${sourceLocs.slice(0, 3).join(', ')}${sourceLocs.length > 3 ? `, +${sourceLocs.length - 3}` : ''}
+      </div>
+    </div>
+    
+    <p style="font-size:11px;color:var(--slate-600);margin-bottom:9px;">
+      ${isLao ? 'ເລືອກ Gondola ປາຍທາງ' : 'เลือก Gondola ปลายทาง'}:
+    </p>
+    
+    <div style="margin-bottom:9px;">
+      <input type="text" id="movePogSearch" 
+             placeholder="🔍 ${isLao ? 'ຄົ້ນຫາ...' : 'ค้นหา...'}"
+             oninput="filterMovePogList(this.value)"
+             autocomplete="off" autocapitalize="characters"
+             style="width:100%;padding:8px 11px;border:2px solid var(--violet-300);border-radius:8px;font-size:12px;font-weight:600;font-family:'Space Grotesk',monospace;text-transform:uppercase;">
+    </div>
+    
+    <div id="movePogList" style="max-height:340px;overflow-y:auto;background:var(--slate-50);border-radius:9px;padding:7px;">
+      ${sortedGroups.map(([_, g]) => `
+        <div style="margin-bottom:9px;">
+          <div style="font-size:11px;color:var(--violet-600);font-weight:800;padding:4px 7px;background:var(--violet-100);border-radius:5px;display:inline-block;margin-bottom:5px;">
+            ${g.label} (${g.items.length})
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(80px, 1fr));gap:4px;">
+            ${g.items.map(l => `
+              <button onclick="confirmMovePog('${l.location_code}')" 
+                      class="move-pog-item" data-code="${l.location_code}"
+                      style="background:white;color:var(--slate-900);border:1px solid var(--slate-200);border-radius:6px;padding:7px 5px;font-family:'Space Grotesk',monospace;font-size:11px;font-weight:700;cursor:pointer;text-align:center;">
+                ${l.location_code}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    
+    <button class="btn btn-secondary" onclick="closeModal()" style="width:100%;margin-top:11px;">${T('cancel')}</button>
+  `);
+}
+
+function filterMovePogList(val) {
+  const search = (val || '').toLowerCase().trim();
+  const items = document.querySelectorAll('.move-pog-item');
+  items.forEach(it => {
+    const code = (it.dataset.code || '').toLowerCase();
+    it.style.display = code.includes(search) ? '' : 'none';
+  });
+  document.querySelectorAll('#movePogList > div').forEach(group => {
+    const visible = group.querySelectorAll('.move-pog-item:not([style*="display: none"])');
+    group.style.display = visible.length > 0 ? '' : 'none';
+  });
+}
+
+async function confirmMovePog(targetLocCode) {
+  const isLao = lang === 'lo';
+  const ids = Array.from(_pogMgrSelected);
+  const items = (_pogManagerData || []).filter(p => ids.includes(p.id));
+  
+  if (!confirm(isLao 
+    ? `ຍ້າຍ ${items.length} ຕຳແໜ່ງໄປ ${targetLocCode}?\n\n⚠️ shelf/seq ຈະຄົງເດີມ — ກວດເບິ່ງວ່າບໍ່ມີ conflict`
+    : `ย้าย ${items.length} ตำแหน่งไป ${targetLocCode}?\n\n⚠️ shelf/seq จะคงเดิม — ตรวจดูว่าไม่มี conflict`)) return;
+  
+  showToast(isLao ? '⏳ ກຳລັງຍ້າຍ...' : '⏳ กำลังย้าย...', 'success');
+  
+  try {
+    let movedCount = 0;
+    let failedCount = 0;
+    
+    // Update one by one (เพราะอาจ conflict กับ unique constraint)
+    for (const id of ids) {
+      try {
+        const { error } = await sb.from('pan_o_grams')
+          .update({ location_code: targetLocCode })
+          .eq('id', id);
+        if (error) {
+          console.warn('[FS] Move PoG err:', error);
+          failedCount++;
+        } else {
+          movedCount++;
+        }
+      } catch (e) {
+        failedCount++;
+      }
+    }
+    
+    closeModal();
+    _pogMgrSelected.clear();
+    
+    showToast(
+      `✅ ${isLao ? 'ຍ້າຍແລ້ວ' : 'ย้ายแล้ว'} ${movedCount}/${ids.length}` +
+      (failedCount > 0 ? ` (${failedCount} ${isLao ? 'ລົ້ມເຫລວ - ມີ conflict' : 'ล้มเหลว - มี conflict'})` : ''),
+      failedCount > 0 ? 'warning' : 'success'
+    );
+    
+    await loadPanOGramManager();
+    loadSettingsStats();
+  } catch (e) {
+    console.error('[FS] confirmMovePog error:', e);
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+// ==================== EDIT GONDOLA OF EXISTING POG ====================
+async function openEditPogLocationModal(currentLocCode) {
+  const isLao = lang === 'lo';
+  
+  // Count items in this location
+  const itemsInLoc = (_pogManagerData || []).filter(p => p.location_code === currentLocCode);
+  
+  if (!allLocations || allLocations.length === 0) {
+    await loadZonesAndLocations();
+  }
+  
+  // Group locations
+  function parseCode(code) {
+    const upper = (code || '').toUpperCase().trim();
+    const numMatch = upper.match(/^(\d{2,})([A-Z]+)(\d+)$/);
+    if (numMatch) return { groupKey: numMatch[1], groupLabel: `Gondola ${numMatch[1]}` };
+    const letterMatch = upper.match(/^([A-Z]+)(\d+)$/);
+    if (letterMatch) {
+      const prefix = letterMatch[1];
+      let label = prefix;
+      if (prefix === 'W') label = 'Wall';
+      else if (prefix === 'WT') label = 'Wall Top';
+      else if (prefix === 'WH') label = 'Warehouse';
+      return { groupKey: 'z' + prefix, groupLabel: label };
+    }
+    return { groupKey: 'zzz', groupLabel: '?' };
+  }
+  
+  const groups = {};
+  (allLocations || []).forEach(l => {
+    if (l.location_code === currentLocCode) return; // skip current
+    const p = parseCode(l.location_code);
+    if (!groups[p.groupKey]) groups[p.groupKey] = { label: p.groupLabel, items: [] };
+    groups[p.groupKey].items.push(l);
+  });
+  const sortedGroups = Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+  
+  showModal(`
+    <h3>✏️ ${isLao ? 'ປ່ຽນ Gondola' : 'เปลี่ยน Gondola'}</h3>
+    
+    <div style="background:var(--violet-100);border-left:3px solid var(--violet-500);padding:9px 11px;border-radius:7px;margin-bottom:11px;">
+      <div style="font-size:11px;color:var(--violet-600);font-weight:700;margin-bottom:5px;">
+        📍 ${isLao ? 'ຈາກ' : 'จาก'}: <strong style="font-family:'Space Grotesk',monospace;">${currentLocCode}</strong>
+      </div>
+      <div style="font-size:10px;color:var(--slate-700);">
+        ${itemsInLoc.length} ${isLao ? 'ຕຳແໜ່ງ Pan-O-Gram' : 'ตำแหน่ง Pan-O-Gram'}
+      </div>
+    </div>
+    
+    <p style="font-size:11px;color:var(--slate-600);margin-bottom:9px;">
+      🔄 ${isLao ? 'ເລືອກ Gondola ໃໝ່' : 'เลือก Gondola ใหม่'}:
+    </p>
+    
+    <div style="margin-bottom:9px;">
+      <input type="text" id="editLocSearch" 
+             placeholder="🔍 ${isLao ? 'ຄົ້ນຫາ...' : 'ค้นหา...'}"
+             oninput="filterEditLocList(this.value)"
+             autocomplete="off" autocapitalize="characters"
+             style="width:100%;padding:8px 11px;border:2px solid var(--sky-300);border-radius:8px;font-size:12px;font-weight:600;font-family:'Space Grotesk',monospace;text-transform:uppercase;">
+    </div>
+    
+    <div id="editLocList" style="max-height:340px;overflow-y:auto;background:var(--slate-50);border-radius:9px;padding:7px;">
+      ${sortedGroups.map(([_, g]) => `
+        <div style="margin-bottom:9px;">
+          <div style="font-size:11px;color:var(--sky-600);font-weight:800;padding:4px 7px;background:var(--sky-100);border-radius:5px;display:inline-block;margin-bottom:5px;">
+            ${g.label} (${g.items.length})
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(80px, 1fr));gap:4px;">
+            ${g.items.map(l => `
+              <button onclick="confirmEditPogLocation('${currentLocCode}', '${l.location_code}')" 
+                      class="edit-loc-item" data-code="${l.location_code}"
+                      style="background:white;color:var(--slate-900);border:1px solid var(--slate-200);border-radius:6px;padding:7px 5px;font-family:'Space Grotesk',monospace;font-size:11px;font-weight:700;cursor:pointer;text-align:center;">
+                ${l.location_code}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    
+    <button class="btn btn-secondary" onclick="closeModal()" style="width:100%;margin-top:11px;">${T('cancel')}</button>
+  `);
+}
+
+function filterEditLocList(val) {
+  const search = (val || '').toLowerCase().trim();
+  const items = document.querySelectorAll('.edit-loc-item');
+  items.forEach(it => {
+    const code = (it.dataset.code || '').toLowerCase();
+    it.style.display = code.includes(search) ? '' : 'none';
+  });
+  document.querySelectorAll('#editLocList > div').forEach(group => {
+    const visible = group.querySelectorAll('.edit-loc-item:not([style*="display: none"])');
+    group.style.display = visible.length > 0 ? '' : 'none';
+  });
+}
+
+async function confirmEditPogLocation(fromLocCode, toLocCode) {
+  const isLao = lang === 'lo';
+  const items = (_pogManagerData || []).filter(p => p.location_code === fromLocCode);
+  
+  if (!confirm(isLao 
+    ? `ປ່ຽນ ${items.length} ຕຳແໜ່ງ Pan-O-Gram\n\n${fromLocCode} → ${toLocCode}?`
+    : `เปลี่ยน ${items.length} ตำแหน่ง Pan-O-Gram\n\n${fromLocCode} → ${toLocCode}?`)) return;
+  
+  showToast(isLao ? '⏳ ກຳລັງປ່ຽນ...' : '⏳ กำลังเปลี่ยน...', 'success');
+  
+  try {
+    let movedCount = 0;
+    let failedCount = 0;
+    
+    for (const item of items) {
+      try {
+        const { error } = await sb.from('pan_o_grams')
+          .update({ location_code: toLocCode })
+          .eq('id', item.id);
+        if (error) {
+          console.warn('[FS] Edit loc err:', error);
+          failedCount++;
+        } else {
+          movedCount++;
+        }
+      } catch (e) {
+        failedCount++;
+      }
+    }
+    
+    closeModal();
+    showToast(
+      `✅ ${isLao ? 'ປ່ຽນແລ້ວ' : 'เปลี่ยนแล้ว'} ${movedCount}/${items.length}` +
+      (failedCount > 0 ? ` (${failedCount} ${isLao ? 'ລົ້ມເຫລວ' : 'ล้มเหลว'})` : ''),
+      failedCount > 0 ? 'warning' : 'success'
+    );
+    
+    await loadPanOGramManager();
+    loadSettingsStats();
+  } catch (e) {
+    console.error('[FS] confirmEditPogLocation error:', e);
+    showToast('Error: ' + e.message, 'error');
+  }
 }
 
 // ==================== EXPORT EXCEL ====================
@@ -14075,6 +14499,16 @@ window.openQuickLocPicker = openQuickLocPicker;
 window.filterQuickLocList = filterQuickLocList;
 window.selectQuickLoc = selectQuickLoc;
 window.dismissPogModal = dismissPogModal;
+window.togglePogSelect = togglePogSelect;
+window.togglePogLocationSelect = togglePogLocationSelect;
+window.toggleAllPogSelect = toggleAllPogSelect;
+window.bulkDeletePog = bulkDeletePog;
+window.bulkMovePogToLocation = bulkMovePogToLocation;
+window.filterMovePogList = filterMovePogList;
+window.confirmMovePog = confirmMovePog;
+window.openEditPogLocationModal = openEditPogLocationModal;
+window.filterEditLocList = filterEditLocList;
+window.confirmEditPogLocation = confirmEditPogLocation;
 window.adjustCount = adjustCount;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
