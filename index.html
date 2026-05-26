@@ -6216,12 +6216,10 @@ async function toggleBranchUseZones() {
   const branchName = isLao ? (branch.name_lo || branch.code) : (branch.name_th || branch.code);
   let msg;
   if (newValue) {
-    // เปิด
     msg = isLao 
       ? `ເປີດລະບົບໂຊນ ສຳລັບ ${branchName}?\n\nCounter ຈະຕ້ອງເລືອກໂຊນກ່ອນສະແກນ`
       : `เปิดระบบโซน สำหรับ ${branchName}?\n\nCounter จะต้องเลือกโซนก่อนสแกน`;
   } else {
-    // ปิด
     msg = isLao 
       ? `ປິດລະບົບໂຊນ ສຳລັບ ${branchName}?\n\n✅ Counter ສະແກນໄດ້ໄວຂຶ້ນ ບໍ່ຕ້ອງເລືອກໂຊນ\n✅ ໂຊນທີ່ມີຍັງເກັບໄວ້ (ບໍ່ໄດ້ລົບ)\n✅ Pan-O-Gram + Stock Counts ຍັງເຮັດວຽກປົກກະຕິ`
       : `ปิดระบบโซน สำหรับ ${branchName}?\n\n✅ Counter สแกนได้เร็วขึ้น ไม่ต้องเลือกโซน\n✅ โซนที่มียังเก็บไว้ (ไม่ได้ลบ)\n✅ Pan-O-Gram + Stock Counts ยังทำงานปกติ`;
@@ -6230,22 +6228,44 @@ async function toggleBranchUseZones() {
   if (!confirm(msg)) return;
   
   try {
-    const { error } = await sb.from('branches')
+    // 1. Update DB + return data เพื่อ verify
+    const { data: updatedRows, error } = await sb.from('branches')
       .update({ use_zones: newValue })
-      .eq('id', branch.id);
+      .eq('id', branch.id)
+      .select();
     
-    if (error) throw error;
-    
-    // Update local branch object
-    branch.use_zones = newValue;
-    
-    // Update localStorage session
-    try {
-      const sessionData = JSON.parse(localStorage.getItem('fs_session') || '{}');
-      if (sessionData.branch) {
-        sessionData.branch.use_zones = newValue;
-        localStorage.setItem('fs_session', JSON.stringify(sessionData));
+    if (error) {
+      console.error('[FS] DB update error:', error);
+      
+      // ถ้าเป็น error column ไม่มี → แจ้ง admin ต้องรัน SQL
+      if (error.message && (error.message.includes('use_zones') || error.message.includes('column'))) {
+        showToast(
+          isLao 
+            ? '❌ ກະລຸນາ run SQL 28-branches-use-zones.sql ກ່ອນ' 
+            : '❌ กรุณา run SQL 28-branches-use-zones.sql ก่อน', 
+          'error'
+        );
+      } else {
+        showToast('DB Error: ' + error.message, 'error');
       }
+      return;
+    }
+    
+    // 2. Verify ว่าได้ update จริง
+    if (!updatedRows || updatedRows.length === 0) {
+      showToast(isLao ? '❌ ບໍ່ສາມາດອັບເດດໄດ້' : '❌ ไม่สามารถอัปเดตได้', 'error');
+      return;
+    }
+    
+    const verifiedRow = updatedRows[0];
+    log('Branch updated:', verifiedRow.code, 'use_zones:', verifiedRow.use_zones);
+    
+    // 3. Update local branch object (ใช้ค่าจริงจาก DB)
+    branch.use_zones = verifiedRow.use_zones;
+    
+    // 4. Update localStorage — key ถูกต้องคือ "fs_branch"
+    try {
+      localStorage.setItem('fs_branch', JSON.stringify(branch));
     } catch (e) {
       log('localStorage update warning:', e);
     }
