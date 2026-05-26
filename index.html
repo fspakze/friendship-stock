@@ -13904,7 +13904,10 @@ if (typeof isPWAMode === 'function') {
       // โหลด zones+locations เสมอ
       await loadZonesAndLocations();
       
-      if (needsZone) {
+      // เช็ค use_zones ของ branch (per-branch toggle)
+      const branchUseZones = branch?.use_zones !== false;
+      
+      if (needsZone && branchUseZones) {
         if (ctx.zone) zone = allZones.find(z => z.id == ctx.zone);
         if (ctx.locType) currentLocType = ctx.locType;
         if (ctx.location) loc = allLocations.find(l => l.location_code === ctx.location);
@@ -13915,6 +13918,11 @@ if (typeof isPWAMode === 'function') {
           enterApp();
         }
       } else {
+        // ถ้าปิด zones → set default zone อัตโนมัติ (เผื่อ code อื่นต้องใช้)
+        if (!branchUseZones && allZones && allZones.length > 0) {
+          zone = allZones[0];
+          log('Auto-login: branch use_zones=false, default zone:', zone.code);
+        }
         enterApp();
       }
     } catch(e) {
