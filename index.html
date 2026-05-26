@@ -4674,10 +4674,21 @@ async function lookupProduct(barcode) {
           ${otherData.sell_price ? `<div style="font-size:10px;color:var(--slate-500);">${isLao ? 'ລາຄາ' : 'ราคา'}: ₭${Number(otherData.sell_price).toLocaleString()}</div>` : ''}
         </div>
         
-        <div style="font-size:10px;color:var(--slate-600);margin-bottom:9px;line-height:1.5;background:white;padding:7px 9px;border-radius:7px;border-left:3px solid var(--violet-500);">
-          💡 ${isLao 
-            ? 'ສິນຄ້ານີ້ບໍ່ໄດ້ນຳເຂົ້າໃນ POS ສາຂາ ' + branch.code + '<br>ຖ້າຕ້ອງການນັບໃຫ້ກົດ "ເພີ່ມເຂົ້າສາຂາ" (POS = 0)' 
-            : 'สินค้านี้ไม่ได้นำเข้าใน POS สาขา ' + branch.code + '<br>ถ้าต้องการนับให้กด "เพิ่มเข้าสาขา" (POS = 0)'}
+        <div style="font-size:10px;color:var(--slate-600);margin-bottom:9px;line-height:1.5;background:white;padding:9px 11px;border-radius:7px;border-left:3px solid var(--violet-500);">
+          <div style="font-weight:700;color:var(--violet-600);margin-bottom:4px;">
+            💡 ${isLao ? 'ໃຊ້ສຳລັບ' : 'ใช้สำหรับ'}:
+          </div>
+          <div style="margin-bottom:3px;">
+            • 📐 ${isLao ? 'ສ້າງ Pan-O-Gram (ສິນຄ້າ out of stock ແຕ່ມີຊັ້ນວາງ)' : 'สร้าง Pan-O-Gram (สินค้า out of stock แต่มีชั้นวาง)'}
+          </div>
+          <div style="margin-bottom:3px;">
+            • 🔢 ${isLao ? 'ນັບສະຕ໋ອກ ສິນຄ້າທີ່ບໍ່ໄດ້ນຳເຂົ້າ POS' : 'นับสต๊อก สินค้าที่ไม่ได้นำเข้า POS'}
+          </div>
+          <div style="font-size:9px;color:var(--slate-500);margin-top:5px;padding-top:5px;border-top:1px dashed var(--slate-200);">
+            ⚠️ ${isLao 
+              ? 'ດຶງເຊພາະຊື່/ຫົວໜ່ວຍ/ລາຄາ — POS = 0 (ບໍ່ດຶງສະຕ໋ອກຈາກ ' + sourceName + ')' 
+              : 'ดึงเฉพาะชื่อ/หน่วย/ราคา — POS = 0 (ไม่ดึงสต๊อกจาก ' + sourceName + ')'}
+          </div>
         </div>
         
         <div style="display:flex;gap:6px;">
@@ -4687,7 +4698,7 @@ async function lookupProduct(barcode) {
           </button>
           <button class="btn btn-primary" onclick="confirmCloneFromOther()" 
                   style="flex:1.5;padding:11px;font-size:11px;font-weight:800;background:linear-gradient(135deg,var(--amber-500),var(--rose-500));">
-            ➕ ${isLao ? 'ເພີ່ມເຂົ້າສາຂາ' : 'เพิ่มเข้าสาขา'}
+            ➕ ${isLao ? 'ເພີ່ມເຂົ້າສາຂາ' : 'เพิ่มเข้าสาขา'} (POS=0)
           </button>
         </div>
       </div>
