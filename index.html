@@ -848,6 +848,9 @@
   .fm-cell.has-issues::after { content: '⚠'; position: absolute; top: 1px; right: 2px; font-size: 9px; color: var(--rose-500); }
   .fm-cell.has-pog { border: 1.5px solid #8b5cf6; box-shadow: 0 0 0 1px rgba(139,92,246,0.15) inset; }
   .fm-pog-badge { position: absolute; top: 1px; left: 2px; background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; font-size: 8px; font-weight: 800; padding: 1px 4px; border-radius: 4px; line-height: 1.2; box-shadow: 0 1px 3px rgba(139,92,246,0.4); z-index: 2; font-family: 'Space Grotesk', monospace; }
+  .fm-gap-badge { position: absolute; top: 1px; right: 2px; background: linear-gradient(135deg, #f59e0b, #f43f5e); color: white; font-size: 8px; font-weight: 800; padding: 1px 4px; border-radius: 4px; line-height: 1.2; box-shadow: 0 1px 3px rgba(244,63,94,0.4); z-index: 2; font-family: 'Space Grotesk', monospace; animation: pulse-gap 2s infinite; }
+  .fm-cell.has-gap { box-shadow: inset 0 0 0 2px rgba(245,158,11,0.6); }
+  @keyframes pulse-gap { 0%,100%{transform: scale(1);} 50%{transform: scale(1.1);} }
   
   /* Gondola Group styles */
   .fm-group { margin-bottom: 11px; padding: 8px; background: linear-gradient(135deg, var(--slate-50), white); border: 1px solid var(--slate-200); border-radius: 9px; }
@@ -3521,6 +3524,11 @@ async function switchBranch(newBranchId) {
     // ⚠️ renderApp() ไม่ return อะไร — มัน mutate DOM เอง
     renderApp();
     
+    // 🔔 Re-setup realtime สำหรับ branch ใหม่
+    if (['admin', 'scc', 'bcs'].includes(user.role)) {
+      setupGapRealtime();
+    }
+    
   } catch (e) {
     console.error('[FS] switchBranch error:', e);
     toastError(e);
@@ -3866,6 +3874,13 @@ async function enterApp() {
   
   await ensureSession();
   renderApp();
+  
+  // 🔔 Setup realtime + request notification permission (admin/scc/bcs only)
+  if (['admin', 'scc', 'bcs'].includes(user.role)) {
+    setupGapRealtime();
+    // Request permission แค่ครั้งเดียว (ไม่บังคับ)
+    setTimeout(() => requestNotificationPermission(), 2000);
+  }
 }
 
 function renderApp() {
@@ -4076,6 +4091,113 @@ function goPage(page) {
 }
 
 // ==================== SCAN PAGE ====================
+// ==================== REALTIME NOTIFICATIONS ====================
+// ใช้ Supabase Realtime เพื่อ subscribe gap_scans changes
+let _gapRealtimeChannel = null;
+let _lastNotifyTime = 0;
+
+function setupGapRealtime() {
+  if (!sb || !branch) return;
+  if (_gapRealtimeChannel) {
+    try { sb.removeChannel(_gapRealtimeChannel); } catch(e) {}
+    _gapRealtimeChannel = null;
+  }
+  
+  // เฉพาะ admin/scc/bcs ที่จะได้รับ notification
+  if (!['admin', 'scc', 'bcs'].includes(user.role)) return;
+  
+  try {
+    _gapRealtimeChannel = sb.channel(`gap_scans_branch_${branch.id}`)
+      .on('postgres_changes', 
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'gap_scans',
+          filter: `branch_id=eq.${branch.id}`
+        }, 
+        (payload) => {
+          handleNewGapScan(payload.new);
+        }
+      )
+      .subscribe((status) => {
+        console.log('[FS] Gap realtime status:', status);
+      });
+    
+    log('Gap realtime subscribed for branch:', branch.id);
+  } catch (e) {
+    console.warn('[FS] Realtime setup failed:', e.message);
+  }
+}
+
+function handleNewGapScan(gap) {
+  const isLao = lang === 'lo';
+  
+  // Throttle notifications (max 1 per 2 seconds)
+  const now = Date.now();
+  if (now - _lastNotifyTime < 2000) return;
+  _lastNotifyTime = now;
+  
+  // ไม่แจ้งเตือนถ้าเป็นคนตัวเอง
+  if (gap.user_id === user.id) return;
+  
+  // Play sound
+  try { beep(); } catch(e) {}
+  
+  // Show toast
+  const isPurchase = gap.action_type === 'purchase';
+  const icon = isPurchase ? '🛒' : '📦';
+  const msg = isLao
+    ? `${icon} Gap ໃໝ່: ${gap.product_name || gap.barcode} (${gap.gap_qty} ຊິ້ນ)`
+    : `${icon} Gap ใหม่: ${gap.product_name || gap.barcode} (${gap.gap_qty} ชิ้น)`;
+  showToast(msg, 'success');
+  
+  // Update badge ทันที
+  updateGapBadge();
+  
+  // ถ้าอยู่ในหน้า Gap Report → reload
+  const activeTab = document.querySelector('.tab.active');
+  if (activeTab?.dataset.page === 'gapreport') {
+    setTimeout(() => loadGapReport(), 500);
+  }
+  
+  // Show browser notification (ถ้าได้รับ permission)
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      const notif = new Notification(isLao ? 'Gap Scan ໃໝ່' : 'Gap Scan ใหม่', {
+        body: isLao 
+          ? `${gap.product_name || gap.barcode}\nຈຳນວນ: ${gap.gap_qty}\n${isPurchase ? '🛒 ສັ່ງຊື້ PO' : '📦 ເຕີມຄັງ'}`
+          : `${gap.product_name || gap.barcode}\nจำนวน: ${gap.gap_qty}\n${isPurchase ? '🛒 สั่งซื้อ PO' : '📦 เติมคลัง'}`,
+        icon: '/favicon.ico',
+        tag: `gap-${gap.id}`,
+        requireInteraction: false
+      });
+      setTimeout(() => notif.close(), 5000);
+      notif.onclick = () => {
+        window.focus();
+        goPage('gapreport');
+        notif.close();
+      };
+    } catch(e) {}
+  }
+}
+
+function teardownGapRealtime() {
+  if (_gapRealtimeChannel) {
+    try { sb.removeChannel(_gapRealtimeChannel); } catch(e) {}
+    _gapRealtimeChannel = null;
+  }
+}
+
+// Request notification permission (เรียกครั้งเดียวตอน admin login)
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    try {
+      await Notification.requestPermission();
+    } catch(e) {}
+  }
+}
+
 // ==================== GAP SCAN MODULE ====================
 // Gap Scan = สแกนหน้าชั้นวางเพื่อหาสินค้าที่ขาด (ช่องว่าง)
 // ถ้ามีในคลัง → ส่งคลังเติม | ถ้าหมด → ส่งจัดซื้อ PO
@@ -15058,10 +15180,14 @@ async function loadFloorMap() {
   
   log('Loading floor map for branch:', branch.id);
   
-  // Parallel: floor map data + Pan-O-Gram counts per location
-  const [fmRes, pogRes] = await Promise.all([
+  // Parallel: floor map data + Pan-O-Gram counts + Gap counts per location
+  const [fmRes, pogRes, gapRes] = await Promise.all([
     sb.rpc('get_floor_map_data', { p_branch_id: branch.id }),
-    sb.from('pan_o_grams').select('location_code').eq('branch_id', branch.id)
+    sb.from('pan_o_grams').select('location_code').eq('branch_id', branch.id),
+    sb.from('gap_scans')
+      .select('gondola_code, action_type')
+      .eq('branch_id', branch.id)
+      .eq('status', 'pending')
   ]);
   
   if (fmRes.error) {
@@ -15076,7 +15202,23 @@ async function loadFloorMap() {
     window._pogCountByLoc[p.location_code] = (window._pogCountByLoc[p.location_code] || 0) + 1;
   });
   
-  log('Floor map data:', fmRes.data, 'PoG locations:', Object.keys(window._pogCountByLoc).length);
+  // Cache Gap count per gondola
+  window._gapCountByLoc = {};
+  (gapRes.data || []).forEach(g => {
+    const code = g.gondola_code;
+    if (!code) return;
+    if (!window._gapCountByLoc[code]) {
+      window._gapCountByLoc[code] = { total: 0, replenish: 0, purchase: 0 };
+    }
+    window._gapCountByLoc[code].total++;
+    if (g.action_type === 'purchase') {
+      window._gapCountByLoc[code].purchase++;
+    } else {
+      window._gapCountByLoc[code].replenish++;
+    }
+  });
+  
+  log('Floor map data:', fmRes.data, 'PoG locations:', Object.keys(window._pogCountByLoc).length, 'Gap locations:', Object.keys(window._gapCountByLoc).length);
   renderFloorMapContent(fmRes.data || {});
 }
 
@@ -15100,6 +15242,8 @@ function renderFloorMapContent(data) {
     const issues = item.issues_count || 0;
     const hasIssues = issues > 0 ? 'has-issues' : '';
     const pogCount = (window._pogCountByLoc || {})[item.location_code] || 0;
+    const gapInfo = (window._gapCountByLoc || {})[item.location_code] || null;
+    const hasGap = gapInfo && gapInfo.total > 0;
     
     let progress = '';
     if (total > 0) {
@@ -15115,11 +15259,19 @@ function renderFloorMapContent(data) {
       </div>
     ` : '';
     
+    // Gap badge — แสดงเมื่อมี gap pending ที่ gondola นี้
+    const gapBadge = hasGap ? `
+      <div class="fm-gap-badge" title="Gap pending: ${gapInfo.total} (เติม ${gapInfo.replenish} | PO ${gapInfo.purchase})">
+        🛒${gapInfo.total}
+      </div>
+    ` : '';
+    
     return `
-      <div class="fm-cell s-${status} ${hasIssues} ${pogCount > 0 ? 'has-pog' : ''}" 
+      <div class="fm-cell s-${status} ${hasIssues} ${pogCount > 0 ? 'has-pog' : ''} ${hasGap ? 'has-gap' : ''}" 
            onclick="onFloorMapCellClick('${item.location_code}', '${status}')"
-           title="${item.location_code} - ${T('status_'+status)}${item.counter_name ? ' • Counter: '+item.counter_name : ''}${item.verifier_name ? ' • Verifier: '+item.verifier_name : ''}${issues>0 ? ' • Issues: '+issues : ''}${pogCount>0 ? ' • 📐 Pan-O-Gram: '+pogCount : ''}">
+           title="${item.location_code} - ${T('status_'+status)}${item.counter_name ? ' • Counter: '+item.counter_name : ''}${item.verifier_name ? ' • Verifier: '+item.verifier_name : ''}${issues>0 ? ' • Issues: '+issues : ''}${pogCount>0 ? ' • 📐 Pan-O-Gram: '+pogCount : ''}${hasGap ? ' • 🛒 Gap: '+gapInfo.total : ''}">
         ${pogBadge}
+        ${gapBadge}
         <div class="fm-code">${item.location_code}</div>
         ${progress}
       </div>
@@ -18417,6 +18569,9 @@ window.updateGapBulkBar = updateGapBulkBar;
 window.bulkResolveGaps = bulkResolveGaps;
 window.resolveSingleGap = resolveSingleGap;
 window.selectAllGaps = selectAllGaps;
+window.setupGapRealtime = setupGapRealtime;
+window.teardownGapRealtime = teardownGapRealtime;
+window.requestNotificationPermission = requestNotificationPermission;
 window.cancelClonePrompt = cancelClonePrompt;
 window.confirmCloneFromOther = confirmCloneFromOther;
 window.adjustCount = adjustCount;
