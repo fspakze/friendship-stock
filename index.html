@@ -3551,6 +3551,173 @@ async function selectQuickZone(zoneId) {
   }, 200);
 }
 
+// ==================== QUICK LOCATION PICKER (for no-zone branches) ====================
+// สำหรับสาขาที่ปิด zones — ให้ Counter เลือก location ตรงจาก scan page
+async function openQuickLocPicker() {
+  const isLao = lang === 'lo';
+  
+  if (!allLocations || allLocations.length === 0) {
+    showToast(isLao ? 'ບໍ່ມີຕຳແໜ່ງ' : 'ไม่มีตำแหน่ง', 'warning');
+    return;
+  }
+  
+  // Group by Gondola number (same logic as Floor Map)
+  function parseCode(code) {
+    const upper = (code || '').toUpperCase().trim();
+    const numMatch = upper.match(/^(\d{2,})([A-Z]+)(\d+)$/);
+    if (numMatch) return { 
+      groupKey: numMatch[1], 
+      groupLabel: `Gondola ${numMatch[1]}`,
+      type: numMatch[2], 
+      bay: parseInt(numMatch[3]) || 0 
+    };
+    const letterMatch = upper.match(/^([A-Z]+)(\d+)$/);
+    if (letterMatch) {
+      const prefix = letterMatch[1];
+      let label = prefix;
+      if (prefix === 'W') label = 'Wall';
+      else if (prefix === 'WT') label = 'Wall Top';
+      else if (prefix === 'WH') label = 'Warehouse';
+      else if (prefix === 'D') label = 'Display';
+      else if (prefix === 'C') label = 'Cashier';
+      else if (prefix === 'R') label = 'Rack';
+      return { groupKey: 'z' + prefix, groupLabel: label, type: prefix, bay: parseInt(letterMatch[2]) || 0 };
+    }
+    return { groupKey: 'zzz', groupLabel: '?', type: '?', bay: 0 };
+  }
+  
+  // Group locations
+  const groups = {};
+  allLocations.forEach(l => {
+    const p = parseCode(l.location_code);
+    if (!groups[p.groupKey]) groups[p.groupKey] = { label: p.groupLabel, items: [] };
+    groups[p.groupKey].items.push({ ...l, _parsed: p });
+  });
+  
+  // Sort
+  const sortedGroups = Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+  sortedGroups.forEach(([_, g]) => {
+    g.items.sort((a, b) => {
+      if (a._parsed.type !== b._parsed.type) return a._parsed.type.localeCompare(b._parsed.type);
+      return a._parsed.bay - b._parsed.bay;
+    });
+  });
+  
+  // Recent locations (last 5)
+  const recentCodes = JSON.parse(localStorage.getItem('fs_loc_recent') || '[]');
+  const recentLocs = recentCodes.slice(0, 5)
+    .map(code => allLocations.find(l => l.location_code === code))
+    .filter(Boolean);
+  
+  let html = `
+    <h3>📍 ${isLao ? 'ເລືອກຕຳແໜ່ງ' : 'เลือกตำแหน่ง'}</h3>
+    
+    <!-- Search -->
+    <div style="margin-bottom:9px;">
+      <input type="text" id="quickLocSearch" 
+             placeholder="🔍 ${isLao ? 'ຄົ້ນຫາ (ເຊັ່ນ: 01A01, W028)...' : 'ค้นหา (เช่น: 01A01, W028)...'}"
+             oninput="filterQuickLocList(this.value)"
+             autocomplete="off" autocapitalize="characters"
+             style="width:100%;padding:9px 12px;border:2px solid var(--violet-300);border-radius:9px;font-size:13px;font-weight:600;font-family:'Space Grotesk',monospace;text-transform:uppercase;letter-spacing:1px;">
+    </div>
+  `;
+  
+  // Recent section
+  if (recentLocs.length > 0) {
+    html += `
+      <div style="margin-bottom:11px;">
+        <div style="font-size:10px;color:var(--slate-500);font-weight:700;text-transform:uppercase;margin-bottom:5px;">
+          🕐 ${isLao ? 'ໃຊ້ລ່າສຸດ' : 'ใช้ล่าสุด'}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;">
+          ${recentLocs.map(l => `
+            <button onclick="selectQuickLoc('${l.location_code}')" 
+                    style="background:var(--amber-100);color:var(--amber-500);border:1px solid var(--amber-300);border-radius:6px;padding:5px 11px;font-family:'Space Grotesk',monospace;font-size:11px;font-weight:700;cursor:pointer;">
+              ${l.location_code}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+  
+  // Groups
+  html += `<div id="quickLocList" style="max-height:340px;overflow-y:auto;background:var(--slate-50);border-radius:9px;padding:7px;">`;
+  
+  sortedGroups.forEach(([_, group]) => {
+    html += `
+      <div style="margin-bottom:9px;">
+        <div style="font-size:11px;color:var(--violet-600);font-weight:800;font-family:'Space Grotesk',monospace;padding:4px 7px;background:var(--violet-100);border-radius:5px;display:inline-block;margin-bottom:5px;">
+          ${group.label} (${group.items.length})
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(80px, 1fr));gap:4px;">
+    `;
+    group.items.forEach(l => {
+      const isCurrent = loc && loc.location_code === l.location_code;
+      html += `
+        <button onclick="selectQuickLoc('${l.location_code}')" 
+                class="qloc-item" data-code="${l.location_code}"
+                style="background:${isCurrent ? 'var(--violet-500)' : 'white'};color:${isCurrent ? 'white' : 'var(--slate-900)'};border:1px solid ${isCurrent ? 'var(--violet-500)' : 'var(--slate-200)'};border-radius:6px;padding:7px 5px;font-family:'Space Grotesk',monospace;font-size:11px;font-weight:700;cursor:pointer;text-align:center;">
+          ${l.location_code}
+        </button>
+      `;
+    });
+    html += '</div></div>';
+  });
+  
+  html += '</div>';
+  html += `<button class="btn btn-secondary" onclick="closeModal()" style="width:100%;margin-top:11px;">${T('cancel')}</button>`;
+  
+  showModal(html);
+  
+  setTimeout(() => {
+    document.getElementById('quickLocSearch')?.focus();
+  }, 100);
+}
+
+function filterQuickLocList(searchVal) {
+  const search = (searchVal || '').toLowerCase().trim();
+  const items = document.querySelectorAll('.qloc-item');
+  items.forEach(it => {
+    const code = (it.dataset.code || '').toLowerCase();
+    it.style.display = code.includes(search) ? '' : 'none';
+  });
+  // Hide empty groups
+  document.querySelectorAll('#quickLocList > div').forEach(group => {
+    const visibleItems = group.querySelectorAll('.qloc-item:not([style*="display: none"])');
+    group.style.display = visibleItems.length > 0 ? '' : 'none';
+  });
+}
+
+function selectQuickLoc(locationCode) {
+  const newLoc = allLocations.find(l => l.location_code === locationCode);
+  if (!newLoc) return;
+  
+  loc = newLoc;
+  
+  // Save to recent (max 8)
+  let recent = JSON.parse(localStorage.getItem('fs_loc_recent') || '[]');
+  recent = [locationCode, ...recent.filter(c => c !== locationCode)].slice(0, 8);
+  localStorage.setItem('fs_loc_recent', JSON.stringify(recent));
+  
+  // Save to fs_context
+  const ctx = JSON.parse(localStorage.getItem('fs_context') || '{}');
+  ctx.location = locationCode;
+  localStorage.setItem('fs_context', JSON.stringify(ctx));
+  
+  closeModal();
+  showToast(`📍 ${locationCode}`, 'success');
+  
+  // Re-render scan page to update the location badge
+  if (typeof goPage === 'function') {
+    const activeTab = document.querySelector('.tab.active');
+    if (activeTab?.dataset.page === 'scan') {
+      goPage('scan');
+    }
+  }
+}
+// ==================== END QUICK LOCATION PICKER ====================
+
 // ==================== SESSION ====================
 async function ensureSession() {
   if (!branch) {
@@ -3807,6 +3974,36 @@ function goPage(page) {
 // ==================== SCAN PAGE ====================
 function renderScanPage() {
   const r = user.role;
+  const isLao = lang === 'lo';
+  const noZones = branch?.use_zones === false;
+  
+  // Location picker เฉพาะเมื่อปิด zones (สาขาเล็ก)
+  // Counter ต้องเลือก location ก่อน scan/save
+  const locPickerHtml = noZones ? `
+    <div style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));border:2px solid var(--violet-300);border-radius:11px;padding:11px;margin-bottom:11px;">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;">
+        <span style="font-size:18px;">📍</span>
+        <div style="flex:1;font-size:11px;color:var(--slate-700);">
+          ${isLao ? 'ຕຳແໜ່ງປະຈຸບັນ' : 'ตำแหน่งปัจจุบัน'}:
+        </div>
+        ${loc ? `
+          <span id="scanLocBadge" style="background:var(--violet-600);color:white;padding:4px 11px;border-radius:7px;font-family:'Space Grotesk',monospace;font-weight:800;font-size:13px;">
+            ${loc.location_code}
+          </span>
+        ` : `
+          <span style="background:var(--rose-100);color:var(--rose-500);padding:4px 11px;border-radius:7px;font-size:11px;font-weight:700;">
+            ${isLao ? 'ຍັງບໍ່ໄດ້ເລືອກ' : 'ยังไม่ได้เลือก'}
+          </span>
+        `}
+      </div>
+      <button onclick="openQuickLocPicker()" 
+              style="width:100%;background:var(--violet-500);color:white;border:none;border-radius:7px;padding:8px 11px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+        ${loc 
+          ? `🔄 ${isLao ? 'ປ່ຽນຕຳແໜ່ງ' : 'เปลี่ยนตำแหน่ง'}`
+          : `📍 ${isLao ? 'ເລືອກຕຳແໜ່ງ' : 'เลือกตำแหน่ง'}`}
+      </button>
+    </div>
+  ` : '';
   
   return `
     <div class="session-card r-${r}">
@@ -3818,6 +4015,8 @@ function renderScanPage() {
         <div class="session-stat" id="statDiffCard"><div class="num" id="statDiff">-</div><div class="lbl">${T('diff')}</div></div>
       </div>
     </div>
+    
+    ${locPickerHtml}
     
     <div class="scan-card">
       <div class="scan-frame" id="scanFrame">
@@ -13804,6 +14003,9 @@ window.toggleZoneSelect = toggleZoneSelect;
 window.toggleAllZoneSelect = toggleAllZoneSelect;
 window.bulkDeleteZones = bulkDeleteZones;
 window.toggleBranchUseZones = toggleBranchUseZones;
+window.openQuickLocPicker = openQuickLocPicker;
+window.filterQuickLocList = filterQuickLocList;
+window.selectQuickLoc = selectQuickLoc;
 window.adjustCount = adjustCount;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
