@@ -2888,12 +2888,99 @@ function showZoneStep() {
   document.getElementById('zoneStepGreeting').textContent = 
     `ສະບາຍດີ ${user.full_name} (${user.role.toUpperCase()})`;
   
+  const isLao = lang === 'lo';
+  const isAdmin = ['admin', 'scc', 'bcs'].includes(user.role);
+  const branchName = branch ? (isLao ? (branch.name_lo || branch.code) : (branch.name_th || branch.code)) : '?';
+  
+  // ถ้าไม่มี zones → แสดงข้อความช่วยเหลือ + ปุ่มจัดการ
+  if (!allZones || allZones.length === 0) {
+    document.getElementById('zoneGrid').innerHTML = `
+      <div style="grid-column:1/-1;background:linear-gradient(135deg,var(--amber-100),var(--rose-100));border:2px solid var(--amber-500);border-radius:13px;padding:20px;text-align:center;">
+        <div style="font-size:48px;margin-bottom:10px;">⚠️</div>
+        <div style="font-size:15px;font-weight:800;color:#92400e;margin-bottom:6px;">
+          ${isLao ? 'ສາຂານີ້ຍັງບໍ່ມີໂຊນ' : 'สาขานี้ยังไม่มีโซน'}
+        </div>
+        <div style="font-size:12px;color:#92400e;line-height:1.5;margin-bottom:14px;">
+          🏪 <strong>${branchName}</strong>
+          ${isLao 
+            ? '<br>ຍັງບໍ່ໄດ້ຕັ້ງຄ່າໂຊນ ແລະ ຕຳແໜ່ງ' 
+            : '<br>ยังไม่ได้ตั้งค่าโซน และตำแหน่ง'}
+        </div>
+        
+        ${isAdmin ? `
+          <!-- Admin Setup Options -->
+          <div style="display:grid;gap:8px;max-width:320px;margin:0 auto;">
+            <button onclick="logoutForSetup()" 
+                    style="background:linear-gradient(135deg,var(--teal-500),var(--emerald-500));color:white;border:none;border-radius:10px;padding:13px;font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 4px 12px rgba(16,185,129,0.3);">
+              📋 ${isLao ? 'Copy ຈາກ SUPERMART' : 'Copy จาก SUPERMART'}
+            </button>
+            <button onclick="logoutForSetup()" 
+                    style="background:white;color:var(--violet-600);border:2px solid var(--violet-500);border-radius:10px;padding:11px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">
+              ⚙️ ${isLao ? 'ໄປຫາ Settings ເພື່ອຕັ້ງຄ່າເອງ' : 'ไปยัง Settings เพื่อตั้งค่าเอง'}
+            </button>
+          </div>
+          <div style="font-size:10px;color:var(--slate-500);margin-top:11px;line-height:1.5;">
+            💡 ${isLao 
+              ? 'ກົດປຸ່ມຂ້າງເທິງ ເພື່ອກັບໄປໜ້າ Login ແລະເຂົ້າ SUPERMART ກ່ອນ' 
+              : 'กดปุ่มด้านบน เพื่อกลับไปหน้า Login และเข้า SUPERMART ก่อน'}
+          </div>
+        ` : `
+          <!-- Non-Admin: ขอให้แจ้ง Admin -->
+          <div style="background:white;border:1px solid var(--slate-200);border-radius:10px;padding:11px;text-align:left;font-size:11px;color:var(--slate-700);line-height:1.6;">
+            <div style="font-weight:700;color:var(--rose-500);margin-bottom:5px;">
+              📞 ${isLao ? 'ກະລຸນາແຈ້ງ Admin' : 'กรุณาแจ้ง Admin'}
+            </div>
+            <div>
+              ${isLao 
+                ? 'Admin ຕ້ອງຕັ້ງຄ່າໂຊນ ແລະ ຕຳແໜ່ງຂອງສາຂາ ${branchName} ກ່ອນ' 
+                : `Admin ต้องตั้งค่าโซนและตำแหน่งของสาขา ${branchName} ก่อน`}
+            </div>
+            <div style="margin-top:7px;padding-top:7px;border-top:1px dashed var(--slate-200);font-size:10px;color:var(--slate-500);">
+              💡 ${isLao ? 'ບອກ Admin ໃຫ້:' : 'บอก Admin ให้:'}
+              <br>1. Login ເຂົ້າ${branchName}
+              <br>2. ${isLao ? 'ໄປ Settings → 🎨 ຈັດການໂຊນ' : 'ไป Settings → 🎨 จัดการโซน'}
+              <br>3. ${isLao ? 'ສ້າງໂຊນ ຫຼື Copy ຈາກ SUPERMART' : 'สร้างโซน หรือ Copy จาก SUPERMART'}
+            </div>
+          </div>
+          <button onclick="logoutForSetup()" 
+                  style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:9px 14px;font-size:11px;font-weight:700;cursor:pointer;margin-top:11px;">
+            ← ${isLao ? 'ກັບໄປໜ້າ Login' : 'กลับไปหน้า Login'}
+          </button>
+        `}
+      </div>
+    `;
+    
+    // ซ่อนส่วน location grid + recent (เพราะใช้ไม่ได้อยู่ดี)
+    const locTypesEl = document.getElementById('locTypeTabs');
+    if (locTypesEl) locTypesEl.style.display = 'none';
+    const locRecent = document.getElementById('locRecentRow');
+    if (locRecent) locRecent.style.display = 'none';
+    const locGrid = document.getElementById('locGrid');
+    if (locGrid) locGrid.style.display = 'none';
+    const locInputWrap = document.querySelector('.loc-input-wrap');
+    if (locInputWrap) locInputWrap.style.display = 'none';
+    const continueBtn = document.querySelector('.zone-continue-btn');
+    if (continueBtn) continueBtn.style.display = 'none';
+    return;
+  }
+  
+  // ปกติ — มี zones
   document.getElementById('zoneGrid').innerHTML = allZones.map(z => `
     <div class="zone-card" data-zone="${z.id}" onclick="selectZone(${z.id})">
       <div class="zone-code">${z.code}</div>
       <div class="zone-name">${lang === 'lo' ? z.name_lo : z.name_th}</div>
     </div>
-  `).join('') || '<div style="padding:20px;text-align:center;color:var(--slate-500);font-size:12px;">No zones available</div>';
+  `).join('');
+  
+  // Restore visibility (ในกรณีที่เคยซ่อนไว้)
+  const locTypesEl = document.getElementById('locTypeTabs');
+  if (locTypesEl) locTypesEl.style.display = '';
+  const locGrid = document.getElementById('locGrid');
+  if (locGrid) locGrid.style.display = '';
+  const locInputWrap = document.querySelector('.loc-input-wrap');
+  if (locInputWrap) locInputWrap.style.display = '';
+  const continueBtn = document.querySelector('.zone-continue-btn');
+  if (continueBtn) continueBtn.style.display = '';
   
   // Update placeholder
   const inp = document.getElementById('locInput');
@@ -2920,6 +3007,12 @@ function showZoneStep() {
     }
   }
   renderLocationGrid();
+}
+
+// Logout เร็วเพื่อให้ Admin login กลับเข้า SUPERMART หรือ branch อื่น
+async function logoutForSetup() {
+  showToast(lang === 'lo' ? '↩️ ກັບໄປໜ້າ Login' : '↩️ กลับไปหน้า Login', 'success');
+  setTimeout(() => logout(), 400);
 }
 
 function renderRecentLocations() {
@@ -13474,6 +13567,7 @@ window.openEditGondolaModal = openEditGondolaModal;
 window.saveEditGondola = saveEditGondola;
 window.confirmDeleteGondola = confirmDeleteGondola;
 window.executeDeleteGondola = executeDeleteGondola;
+window.logoutForSetup = logoutForSetup;
 window.adjustCount = adjustCount;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
