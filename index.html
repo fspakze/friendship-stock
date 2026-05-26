@@ -6569,6 +6569,43 @@ async function loadBackupManager() {
       </button>
     </div>
     
+    <!-- Restore + History buttons -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:11px;">
+      <button class="btn" onclick="openRestoreModal()" ${user.role !== 'admin' ? 'disabled' : ''}
+              style="background:${user.role === 'admin' ? 'linear-gradient(135deg,var(--amber-500),var(--rose-500))' : 'var(--slate-200)'};color:${user.role === 'admin' ? 'white' : 'var(--slate-400)'};font-size:12px;padding:10px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:700;border:none;cursor:${user.role === 'admin' ? 'pointer' : 'not-allowed'};">
+        🔄 ${isLao ? 'ກູ້ຄືນ' : 'กู้คืน'} ${user.role !== 'admin' ? '🔒' : ''}
+      </button>
+      <button class="btn btn-secondary" onclick="showBackupHistory()"
+              style="font-size:12px;padding:10px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:700;">
+        📜 ${isLao ? 'ປະຫວັດ' : 'ประวัติ'}
+        <span id="bkHistCount" style="background:var(--violet-500);color:white;padding:1px 6px;border-radius:9px;font-size:10px;">0</span>
+      </button>
+    </div>
+    
+    <!-- Reminder Schedule -->
+    <div style="background:linear-gradient(135deg,var(--sky-100),var(--violet-100));border-radius:9px;padding:9px 11px;margin-bottom:11px;">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">
+        <span style="font-size:18px;">⏰</span>
+        <div style="flex:1;">
+          <div style="font-size:11px;font-weight:800;color:var(--sky-700);">
+            ${isLao ? 'ການແຈ້ງເຕືອນ' : 'การแจ้งเตือน'}
+          </div>
+          <div style="font-size:9px;color:var(--slate-600);">
+            ${isLao ? 'ແຈ້ງເຕືອນຖ້າບໍ່ໄດ້ສຳຮອງເກີນ...' : 'แจ้งเตือนถ้าไม่ได้สำรองเกิน...'}
+          </div>
+        </div>
+      </div>
+      <select id="backupReminderInterval" onchange="saveBackupReminder()" 
+              class="form-input" style="font-size:11px;padding:6px 9px;background:white;">
+        <option value="1">${isLao ? '1 ມື້' : '1 วัน'} (${isLao ? 'ທຸກວັນ' : 'ทุกวัน'})</option>
+        <option value="3">${isLao ? '3 ມື້' : '3 วัน'}</option>
+        <option value="7" selected>${isLao ? '7 ມື້ (ສ້າງມາດຕະຖານ)' : '7 วัน (ค่าเริ่มต้น)'}</option>
+        <option value="14">${isLao ? '14 ມື້' : '14 วัน'}</option>
+        <option value="30">${isLao ? '30 ມື້' : '30 วัน'}</option>
+        <option value="0">${isLao ? 'ປິດ' : 'ปิด'}</option>
+      </select>
+    </div>
+    
     <!-- Tables List -->
     <div style="font-size:11px;color:var(--slate-600);font-weight:700;margin-bottom:5px;">
       📁 ${isLao ? 'Export ແຍກຕາມຕາຕະລາງ' : 'Export แยกตามตาราง'}
@@ -6608,6 +6645,84 @@ async function loadBackupManager() {
         : 'แนะนำ: สำรอง JSON ก่อนนับสต๊อก หรือ import ใหม่ — ใช้สำหรับ Restore ได้'}
     </div>
   `;
+  
+  // Update history badge count
+  const histCount = loadBackupHistory().length;
+  const badgeEl = document.getElementById('bkHistCount');
+  if (badgeEl) badgeEl.textContent = histCount;
+  
+  // Load reminder interval
+  const intervalEl = document.getElementById('backupReminderInterval');
+  if (intervalEl) intervalEl.value = String(getBackupReminderInterval());
+}
+
+// ==================== QUICK BACKUP (One-Click) ====================
+async function quickBackup() {
+  const isLao = lang === 'lo';
+  
+  if (!['admin', 'scc', 'bcs'].includes(user.role)) {
+    showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error');
+    return;
+  }
+  
+  // Confirm
+  if (!confirm(isLao 
+    ? '💾 ສຳຮອງດ່ວນ?\n\nຈະດາວໂຫລດ Full Backup JSON ທັນທີ' 
+    : '💾 สำรองด่วน?\n\nจะดาวน์โหลด Full Backup JSON ทันที')) return;
+  
+  // เรียก exportFullBackupJSON ที่มีอยู่แล้ว
+  await exportFullBackupJSON();
+}
+
+// ==================== BACKUP REMINDER ====================
+function getBackupReminderInterval() {
+  const v = localStorage.getItem('fs_backup_reminder_interval');
+  return v !== null ? parseInt(v) : 7; // default 7 days
+}
+
+function saveBackupReminder() {
+  const sel = document.getElementById('backupReminderInterval');
+  if (!sel) return;
+  localStorage.setItem('fs_backup_reminder_interval', sel.value);
+  const isLao = lang === 'lo';
+  const val = parseInt(sel.value);
+  const msg = val === 0 
+    ? (isLao ? '🔕 ປິດການແຈ້ງເຕືອນ' : '🔕 ปิดการแจ้งเตือน')
+    : (isLao ? `⏰ ແຈ້ງເຕືອນທຸກ ${val} ມື້` : `⏰ แจ้งเตือนทุก ${val} วัน`);
+  showToast(msg, 'success');
+}
+
+// ==================== BACKUP HISTORY HELPERS ====================
+function getBackupHistoryKey() {
+  return `fs_backup_history_${branch?.id || 'global'}`;
+}
+
+function loadBackupHistory() {
+  try {
+    const raw = localStorage.getItem(getBackupHistoryKey());
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+
+function addBackupHistoryEntry(entry) {
+  try {
+    const history = loadBackupHistory();
+    // Generate checksum from entry size + timestamp (lightweight)
+    const newEntry = {
+      timestamp: Date.now(),
+      created_at: new Date().toISOString(),
+      created_by: user?.username || 'unknown',
+      branch_id: branch?.id,
+      branch_code: branch?.code,
+      ...entry
+    };
+    history.unshift(newEntry);
+    // เก็บแค่ 20 รายการล่าสุด (กัน localStorage เต็ม)
+    const trimmed = history.slice(0, 20);
+    localStorage.setItem(getBackupHistoryKey(), JSON.stringify(trimmed));
+  } catch (e) {
+    console.error('[FS] addBackupHistoryEntry error:', e);
+  }
 }
 
 // ==================== EXPORT FULL JSON ====================
@@ -6673,6 +6788,15 @@ async function exportFullBackupJSON() {
     // Save backup timestamp (epoch ms)
     localStorage.setItem(`fs_last_backup_${branch.id}`, String(Date.now()));
     
+    // Add to history
+    addBackupHistoryEntry({
+      type: 'json',
+      filename: fileName,
+      total_records: totalRecords,
+      size_kb: Math.round(json.length / 1024),
+      tables: Object.keys(backup).filter(k => k !== '_meta').length
+    });
+    
     // Refresh manager
     showToast(`✅ ${isLao ? 'ສຳຮອງສຳເລັດ' : 'สำรองสำเร็จ'}: ${totalRecords.toLocaleString()} records`, 'success');
     loadBackupManager();
@@ -6737,12 +6861,407 @@ async function exportFullBackupExcel() {
     XLSX.writeFile(wb, fileName);
     
     localStorage.setItem(`fs_last_backup_${branch.id}`, String(Date.now()));
+    
+    // Add to history
+    addBackupHistoryEntry({
+      type: 'excel',
+      filename: fileName,
+      total_records: totalRecords,
+      size_kb: 0,  // ไม่รู้ขนาดตอนนี้
+      tables: BACKUP_TABLES.length
+    });
+    
     showToast(`✅ ${isLao ? 'ສຳຮອງ Excel ສຳເລັດ' : 'สำรอง Excel สำเร็จ'}: ${totalRecords.toLocaleString()} records`, 'success');
     loadBackupManager();
   } catch (e) {
     console.error('[FS] Excel backup error:', e);
     showToast('Error: ' + e.message, 'error');
   }
+}
+
+// ==================== BACKUP HISTORY MODAL ====================
+async function showBackupHistory() {
+  const isLao = lang === 'lo';
+  const history = loadBackupHistory();
+  
+  showModal(`
+    <h3 style="display:flex;align-items:center;gap:7px;">
+      📜 ${isLao ? 'ປະຫວັດການສຳຮອງ' : 'ประวัติการสำรอง'}
+      <span style="font-size:11px;color:var(--slate-500);font-weight:500;margin-left:auto;">${branch?.code || ''}</span>
+    </h3>
+    
+    <div style="background:var(--violet-100);border-left:3px solid var(--violet-500);padding:7px 9px;border-radius:7px;margin-bottom:11px;font-size:10px;color:var(--slate-700);">
+      💡 ${isLao 
+        ? `${history.length} ການສຳຮອງລ່າສຸດ — ເກັບໃນ browser, ບໍ່ໄດ້ເກັບ file ຈິງ` 
+        : `${history.length} การสำรองล่าสุด — เก็บใน browser, ไม่ได้เก็บไฟล์จริง`}
+    </div>
+    
+    ${history.length === 0 ? `
+      <div style="text-align:center;padding:30px;color:var(--slate-400);">
+        <div style="font-size:42px;margin-bottom:9px;">📭</div>
+        <div style="font-size:12px;color:var(--slate-600);font-weight:700;">
+          ${isLao ? 'ຍັງບໍ່ມີປະຫວັດ' : 'ยังไม่มีประวัติ'}
+        </div>
+        <div style="font-size:10px;color:var(--slate-500);margin-top:3px;">
+          ${isLao ? 'ກົດ Full Backup ເພື່ອເລີ່ມ' : 'กด Full Backup เพื่อเริ่ม'}
+        </div>
+      </div>
+    ` : `
+      <div style="background:var(--slate-50);border-radius:9px;padding:7px;max-height:340px;overflow-y:auto;">
+        ${history.map((h, idx) => {
+          const date = new Date(h.timestamp);
+          const dateStr = date.toLocaleString(isLao ? 'lo-LA' : 'th-TH', { 
+            year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' 
+          });
+          const typeIcon = h.type === 'json' ? '💾' : '📊';
+          const typeColor = h.type === 'json' ? 'var(--emerald-500)' : 'var(--violet-500)';
+          const sizeStr = h.size_kb > 0 ? `${h.size_kb.toLocaleString()} KB` : '—';
+          return `
+            <div style="background:white;border:1px solid var(--slate-200);border-radius:7px;padding:9px 11px;margin-bottom:5px;display:flex;align-items:center;gap:9px;">
+              <div style="font-size:22px;flex-shrink:0;">${typeIcon}</div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:11px;font-weight:700;color:var(--slate-900);">
+                  ${h.type.toUpperCase()} • ${dateStr}
+                </div>
+                <div style="font-size:9px;color:var(--slate-500);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                  ${h.filename || 'unknown.json'}
+                </div>
+                <div style="font-size:9px;color:var(--slate-600);margin-top:2px;">
+                  <span style="color:${typeColor};font-weight:700;">${(h.total_records || 0).toLocaleString()}</span> records • 
+                  ${sizeStr} • 
+                  👤 ${h.created_by || '?'}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+      
+      <button onclick="clearBackupHistory()" 
+              style="margin-top:9px;background:var(--rose-100);color:var(--rose-500);border:none;border-radius:7px;padding:8px;width:100%;font-size:11px;font-weight:700;cursor:pointer;">
+        🗑️ ${isLao ? 'ລ້າງປະຫວັດ' : 'ล้างประวัติ'}
+      </button>
+    `}
+    
+    <div class="action-row" style="margin-top:11px;">
+      <button class="btn btn-secondary" onclick="closeModal(); openBackupManager();" style="flex:1;">${isLao ? 'ກັບໄປ' : 'กลับ'}</button>
+    </div>
+  `);
+}
+
+function clearBackupHistory() {
+  const isLao = lang === 'lo';
+  if (!confirm(isLao ? 'ລ້າງປະຫວັດການສຳຮອງທັງໝົດ?' : 'ล้างประวัติการสำรองทั้งหมด?')) return;
+  localStorage.removeItem(getBackupHistoryKey());
+  showToast(isLao ? '🗑️ ລ້າງແລ້ວ' : '🗑️ ล้างแล้ว', 'success');
+  showBackupHistory();
+}
+
+// ==================== RESTORE FROM JSON ====================
+function openRestoreModal() {
+  const isLao = lang === 'lo';
+  
+  if (user.role !== 'admin') {
+    showToast(isLao ? 'ສະເພາະ Admin' : 'เฉพาะ Admin', 'error');
+    return;
+  }
+  
+  showModal(`
+    <h3 style="display:flex;align-items:center;gap:7px;color:var(--rose-500);">
+      🔄 ${isLao ? 'ກູ້ຄືນຂໍ້ມູນ' : 'กู้คืนข้อมูล'}
+      <span style="font-size:10px;background:var(--rose-100);color:var(--rose-500);padding:2px 7px;border-radius:5px;margin-left:auto;font-weight:800;">⚠️ DANGER</span>
+    </h3>
+    
+    <div style="background:var(--rose-100);border:2px solid var(--rose-500);padding:11px;border-radius:9px;margin-bottom:11px;">
+      <div style="font-size:12px;font-weight:800;color:#9f1239;margin-bottom:5px;">
+        ⚠️ ${isLao ? 'ຄຳເຕືອນ ສຳຄັນ!' : 'คำเตือน สำคัญ!'}
+      </div>
+      <div style="font-size:10px;color:#9f1239;line-height:1.6;">
+        ${isLao 
+          ? '• ການກູ້ຄືນຈະ <strong>ທັບຂໍ້ມູນ</strong> ປະຈຸບັນ<br>• ກ່ອນກູ້ຄືນ — ແນະນຳໃຫ້ Backup ປະຈຸບັນກ່ອນ<br>• Restore ສະເພາະ Admin ເທົ່ານັ້ນ<br>• ບໍ່ສາມາດ undo ໄດ້'
+          : '• การกู้คืนจะ <strong>ทับข้อมูล</strong> ปัจจุบัน<br>• ก่อนกู้คืน — แนะนำให้ Backup ปัจจุบันก่อน<br>• Restore เฉพาะ Admin เท่านั้น<br>• ไม่สามารถ undo ได้'}
+      </div>
+    </div>
+    
+    <div class="form-group">
+      <label class="form-label">📁 ${isLao ? 'ເລືອກໄຟລ໌ Backup JSON' : 'เลือกไฟล์ Backup JSON'}</label>
+      <input type="file" id="restoreFile" accept=".json,application/json" 
+             onchange="onRestoreFileSelected(event)"
+             style="width:100%;padding:10px;border:2px dashed var(--violet-300);border-radius:9px;font-size:11px;cursor:pointer;background:var(--violet-50);">
+    </div>
+    
+    <div id="restorePreview" style="display:none;"></div>
+    
+    <div class="action-row" style="margin-top:11px;">
+      <button class="btn btn-secondary" onclick="closeModal(); openBackupManager();" style="flex:1;">${T('cancel')}</button>
+    </div>
+  `);
+}
+
+async function onRestoreFileSelected(event) {
+  const isLao = lang === 'lo';
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const previewEl = document.getElementById('restorePreview');
+  previewEl.style.display = 'block';
+  previewEl.innerHTML = `
+    <div style="text-align:center;padding:15px;color:var(--slate-400);">
+      <div class="loader" style="margin:0 auto 8px;"></div>
+      <div style="font-size:11px;">${isLao ? 'ກຳລັງອ່ານໄຟລ໌...' : 'กำลังอ่านไฟล์...'}</div>
+    </div>
+  `;
+  
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    
+    // Validate structure
+    if (!data._meta) {
+      throw new Error(isLao ? 'ໄຟລ໌ບໍ່ຖືກຕ້ອງ — ບໍ່ມີ metadata' : 'ไฟล์ไม่ถูกต้อง — ไม่มี metadata');
+    }
+    
+    // Store for confirmation
+    window._restoreData = data;
+    
+    // Count records per table
+    const tableCounts = {};
+    let totalRecords = 0;
+    BACKUP_TABLES.forEach(t => {
+      const records = data[t.key];
+      if (Array.isArray(records)) {
+        tableCounts[t.key] = records.length;
+        totalRecords += records.length;
+      } else {
+        tableCounts[t.key] = 0;
+      }
+    });
+    
+    const meta = data._meta;
+    const backupDate = meta.created_at ? new Date(meta.created_at).toLocaleString(isLao ? 'lo-LA' : 'th-TH') : '?';
+    
+    // Check branch match
+    const branchMatch = !meta.branch_id || meta.branch_id === branch.id;
+    const branchWarning = !branchMatch ? `
+      <div style="background:var(--amber-100);border-left:3px solid var(--amber-500);padding:7px 9px;border-radius:6px;margin-bottom:9px;font-size:10px;color:#92400e;">
+        ⚠️ ${isLao 
+          ? `ໄຟລ໌ນີ້ມາຈາກສາຂາ <strong>${meta.branch_code || '?'}</strong> ແຕ່ປະຈຸບັນທ່ານຢູ່ສາຂາ <strong>${branch.code}</strong>` 
+          : `ไฟล์นี้มาจากสาขา <strong>${meta.branch_code || '?'}</strong> แต่ปัจจุบันคุณอยู่สาขา <strong>${branch.code}</strong>`}
+      </div>
+    ` : '';
+    
+    previewEl.innerHTML = `
+      <div style="background:var(--slate-50);padding:11px;border-radius:9px;margin-bottom:11px;">
+        <div style="font-size:11px;font-weight:800;color:var(--slate-700);margin-bottom:7px;">
+          📄 ${isLao ? 'ຂໍ້ມູນໄຟລ໌' : 'ข้อมูลไฟล์'}
+        </div>
+        <div style="font-size:10px;color:var(--slate-700);line-height:1.7;">
+          • ${isLao ? 'ສາຂາ' : 'สาขา'}: <strong>${meta.branch_code || '?'}</strong> (${meta.branch_name || '?'})<br>
+          • ${isLao ? 'ສ້າງເມື່ອ' : 'สร้างเมื่อ'}: ${backupDate}<br>
+          • ${isLao ? 'ສ້າງໂດຍ' : 'สร้างโดย'}: ${meta.created_by || '?'}<br>
+          • ${isLao ? 'ລວມ records' : 'รวม records'}: <strong style="color:var(--violet-600);font-family:'Space Grotesk',monospace;">${totalRecords.toLocaleString()}</strong>
+        </div>
+      </div>
+      
+      ${branchWarning}
+      
+      <div style="font-size:11px;color:var(--slate-700);font-weight:700;margin-bottom:5px;">
+        📊 ${isLao ? 'ເລືອກຕາຕະລາງທີ່ຈະກູ້ຄືນ' : 'เลือกตารางที่จะกู้คืน'}:
+      </div>
+      <div style="background:var(--slate-50);border-radius:8px;padding:5px;max-height:200px;overflow-y:auto;">
+        ${BACKUP_TABLES.map(t => {
+          const count = tableCounts[t.key] || 0;
+          const label = isLao ? t.label_lo : t.label_th;
+          const disabled = count === 0;
+          // Default: only restore products, zones, pan_o_grams, location_master
+          const defaultChecked = ['products', 'zones', 'pan_o_grams', 'location_master'].includes(t.key) && count > 0;
+          return `
+            <label style="background:white;border:1px solid var(--slate-200);border-radius:6px;padding:6px 9px;margin-bottom:3px;display:flex;align-items:center;gap:7px;cursor:${disabled ? 'not-allowed' : 'pointer'};opacity:${disabled ? '0.5' : '1'};">
+              <input type="checkbox" class="restoreTableCb" value="${t.key}" ${defaultChecked ? 'checked' : ''} ${disabled ? 'disabled' : ''} style="cursor:${disabled ? 'not-allowed' : 'pointer'};">
+              <span style="font-size:16px;flex-shrink:0;">${t.icon}</span>
+              <div style="flex:1;font-size:11px;font-weight:700;color:var(--slate-900);">${label}</div>
+              <div style="font-size:10px;color:var(--slate-500);font-family:'Space Grotesk',monospace;">
+                ${count.toLocaleString()}
+              </div>
+            </label>
+          `;
+        }).join('')}
+      </div>
+      
+      <div style="background:var(--rose-100);border-left:3px solid var(--rose-500);padding:9px 11px;border-radius:7px;margin-top:11px;">
+        <div style="font-size:11px;font-weight:700;color:#9f1239;margin-bottom:5px;">
+          🔐 ${isLao ? 'ຍືນຍັນດ້ວຍ password Admin' : 'ยืนยันด้วย password Admin'}:
+        </div>
+        <input type="password" id="restorePwd" class="form-input" placeholder="${isLao ? 'Password' : 'รหัสผ่าน'}" style="font-size:11px;padding:8px;background:white;">
+        <input type="text" id="restoreConfirm" class="form-input" placeholder='${isLao ? 'ພິມ "RESTORE"' : 'พิมพ์ "RESTORE"'}' style="font-size:11px;padding:8px;background:white;margin-top:5px;font-family:'Space Grotesk',monospace;text-transform:uppercase;">
+      </div>
+      
+      <div id="restoreErr" style="background:var(--rose-100);color:var(--rose-500);padding:7px 9px;border-radius:6px;font-size:11px;display:none;margin-top:7px;"></div>
+      
+      <button class="btn btn-danger" onclick="executeRestore()" 
+              style="width:100%;margin-top:11px;padding:12px;font-size:13px;font-weight:800;background:linear-gradient(135deg,var(--rose-500),var(--rose-600));">
+        🔄 ${isLao ? 'ດຳເນີນການກູ້ຄືນ' : 'ดำเนินการกู้คืน'}
+      </button>
+    `;
+  } catch (e) {
+    previewEl.innerHTML = `
+      <div style="background:var(--rose-100);color:var(--rose-500);padding:11px;border-radius:9px;font-size:11px;">
+        ❌ ${friendlyError(e)}
+      </div>
+    `;
+  }
+}
+
+async function executeRestore() {
+  const isLao = lang === 'lo';
+  const errEl = document.getElementById('restoreErr');
+  const pwd = document.getElementById('restorePwd').value;
+  const confirmText = document.getElementById('restoreConfirm').value.trim().toUpperCase();
+  
+  // Validate
+  if (!pwd) {
+    errEl.textContent = isLao ? 'ກະລຸນາໃສ່ password' : 'กรุณาใส่ password';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (confirmText !== 'RESTORE') {
+    errEl.textContent = isLao ? 'ກະລຸນາພິມ "RESTORE"' : 'กรุณาพิมพ์ "RESTORE"';
+    errEl.style.display = 'block';
+    return;
+  }
+  
+  // Get selected tables
+  const checked = Array.from(document.querySelectorAll('.restoreTableCb:checked')).map(cb => cb.value);
+  if (checked.length === 0) {
+    errEl.textContent = isLao ? 'ກະລຸນາເລືອກຕາຕະລາງ' : 'กรุณาเลือกตาราง';
+    errEl.style.display = 'block';
+    return;
+  }
+  
+  // Verify admin password
+  try {
+    const hash = await hashPassword(pwd);
+    const { data: adminCheck } = await sb.from('users')
+      .select('id, role, username')
+      .eq('username', user.username)
+      .eq('password_hash', hash)
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    if (!adminCheck || adminCheck.role !== 'admin') {
+      errEl.textContent = isLao ? 'Password ບໍ່ຖືກຕ້ອງ ຫຼື ບໍ່ມີສິດ' : 'Password ไม่ถูกต้อง หรือไม่มีสิทธิ์';
+      errEl.style.display = 'block';
+      return;
+    }
+  } catch (e) {
+    errEl.textContent = friendlyError(e);
+    errEl.style.display = 'block';
+    return;
+  }
+  
+  const data = window._restoreData;
+  if (!data) {
+    errEl.textContent = isLao ? 'ບໍ່ມີຂໍ້ມູນ — ກະລຸນາເລືອກໄຟລ໌ໃໝ່' : 'ไม่มีข้อมูล — กรุณาเลือกไฟล์ใหม่';
+    errEl.style.display = 'block';
+    return;
+  }
+  
+  log('Executing restore for tables:', checked);
+  
+  // Show progress
+  closeModal();
+  showModal(`
+    <h3>🔄 ${isLao ? 'ກຳລັງກູ້ຄືນ' : 'กำลังกู้คืน'}</h3>
+    <div id="restoreStatus" style="margin-top:11px;font-size:11px;color:var(--slate-600);text-align:center;">
+      ${isLao ? 'ກຳລັງເລີ່ມ...' : 'กำลังเริ่ม...'}
+    </div>
+    <div id="restoreList" style="margin-top:11px;background:var(--slate-50);border-radius:7px;padding:5px;max-height:250px;overflow-y:auto;"></div>
+  `);
+  
+  const stats = { success: 0, fail: 0, totalInserted: 0 };
+  const listEl = document.getElementById('restoreList');
+  const statusEl = document.getElementById('restoreStatus');
+  
+  for (const tableKey of checked) {
+    const tableMeta = BACKUP_TABLES.find(t => t.key === tableKey);
+    const records = data[tableKey];
+    if (!Array.isArray(records) || records.length === 0) continue;
+    
+    const label = isLao ? tableMeta.label_lo : tableMeta.label_th;
+    statusEl.textContent = `⏳ ${label}: ${records.length.toLocaleString()} records`;
+    
+    let tableSuccess = true;
+    let inserted = 0;
+    
+    try {
+      // Filter by branch_id ถ้าตาราง branch-specific
+      let recordsToRestore = records;
+      if (tableMeta.branchField) {
+        // Filter ให้เหลือเฉพาะ branch ปัจจุบัน + override branch_id
+        recordsToRestore = records
+          .filter(r => !r[tableMeta.branchField] || r[tableMeta.branchField] === branch.id || r[tableMeta.branchField] === data._meta?.branch_id)
+          .map(r => ({ ...r, [tableMeta.branchField]: branch.id }));
+      }
+      
+      // Strip id เพื่อ upsert ใหม่ (ป้องกัน conflict)
+      // ✅ ใช้ upsert ตาม unique constraint
+      // เป็น batch ของ 100 records ต่อครั้ง
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < recordsToRestore.length; i += BATCH_SIZE) {
+        const batch = recordsToRestore.slice(i, i + BATCH_SIZE);
+        // Strip id field ก่อน upsert (ให้ DB generate ใหม่ หรือ upsert ตาม unique key)
+        const cleaned = batch.map(r => {
+          const { id, ...rest } = r;
+          return rest;
+        });
+        
+        const { error } = await sb.from(tableKey).insert(cleaned);
+        if (error) {
+          log('Restore error for', tableKey, error.message);
+          // ลองใหม่แบบ upsert ถ้า insert fail
+          throw error;
+        }
+        inserted += batch.length;
+      }
+      
+      stats.success++;
+      stats.totalInserted += inserted;
+      listEl.innerHTML += `
+        <div style="background:var(--emerald-50);border-left:3px solid var(--emerald-500);padding:5px 9px;margin-bottom:3px;border-radius:5px;font-size:10px;">
+          ✅ ${tableMeta.icon} ${label}: ${inserted.toLocaleString()} ${isLao ? 'ກູ້ຄືນແລ້ວ' : 'กู้คืนแล้ว'}
+        </div>
+      `;
+    } catch (e) {
+      stats.fail++;
+      listEl.innerHTML += `
+        <div style="background:var(--rose-50);border-left:3px solid var(--rose-500);padding:5px 9px;margin-bottom:3px;border-radius:5px;font-size:10px;">
+          ❌ ${tableMeta.icon} ${label}: ${e.message?.substring(0, 60) || 'failed'}
+        </div>
+      `;
+    }
+  }
+  
+  statusEl.textContent = isLao ? '✅ ກູ້ຄືນສຳເລັດ' : '✅ กู้คืนสำเร็จ';
+  
+  await new Promise(r => setTimeout(r, 1500));
+  closeModal();
+  
+  showModal(`
+    <div style="text-align:center;margin-bottom:14px;">
+      <div style="font-size:42px;">${stats.fail === 0 ? '✅' : '⚠️'}</div>
+      <h3 style="margin-top:5px;">${isLao ? 'ກູ້ຄືນສຳເລັດ' : 'กู้คืนสำเร็จ'}</h3>
+    </div>
+    <div style="background:var(--slate-50);padding:11px;border-radius:9px;font-size:11px;text-align:center;">
+      <strong style="color:var(--emerald-500);">${stats.success}</strong> ${isLao ? 'ສຳເລັດ' : 'สำเร็จ'} • 
+      <strong style="color:var(--rose-500);">${stats.fail}</strong> ${isLao ? 'ຜິດພາດ' : 'ผิดพลาด'}<br>
+      ${isLao ? 'ລວມ' : 'รวม'} <strong>${stats.totalInserted.toLocaleString()}</strong> records
+    </div>
+    <button class="btn btn-primary" onclick="closeModal(); location.reload();" style="width:100%;margin-top:11px;">
+      🔄 ${isLao ? 'Reload App' : 'Reload App'}
+    </button>
+  `);
+  
+  window._restoreData = null;
 }
 
 // ==================== EXPORT SINGLE TABLE ====================
@@ -8915,27 +9434,30 @@ async function loadHealthAlerts() {
       }
     }
     
-    // 🔍 Check 2: Backup reminder (last backup > 7 days)
+    // 🔍 Check 2: Backup reminder (last backup > interval setting)
+    const reminderDays = (typeof getBackupReminderInterval === 'function') ? getBackupReminderInterval() : 7;
     const lastBackup = localStorage.getItem(`fs_last_backup_${branch.id}`);
-    if (lastBackup) {
-      const daysSince = Math.floor((Date.now() - parseInt(lastBackup)) / (1000 * 60 * 60 * 24));
-      if (daysSince > 7) {
+    if (reminderDays > 0) {  // ไม่ปิด reminder
+      if (lastBackup) {
+        const daysSince = Math.floor((Date.now() - parseInt(lastBackup)) / (1000 * 60 * 60 * 24));
+        if (daysSince > reminderDays) {
+          alerts.push({
+            type: 'amber',
+            icon: '💾',
+            title: isLao ? `ບໍ່ໄດ້ສຳຮອງ ${daysSince} ມື້ແລ້ວ` : `ไม่ได้สำรอง ${daysSince} วันแล้ว`,
+            text: isLao ? `ກຳນົດເຕືອນ ທຸກ ${reminderDays} ມື້` : `กำหนดเตือนทุก ${reminderDays} วัน`,
+            action: () => goPage('settings')
+          });
+        }
+      } else {
         alerts.push({
           type: 'amber',
           icon: '💾',
-          title: isLao ? `ບໍ່ໄດ້ສຳຮອງ ${daysSince} ມື້ແລ້ວ` : `ไม่ได้สำรอง ${daysSince} วันแล้ว`,
-          text: isLao ? 'ແນະນຳໃຫ້ສຳຮອງຂໍ້ມູນ' : 'แนะนำให้สำรองข้อมูล',
+          title: isLao ? 'ຍັງບໍ່ເຄີຍສຳຮອງຂໍ້ມູນ' : 'ยังไม่เคยสำรองข้อมูล',
+          text: isLao ? 'ໄປ Settings → Backup Manager' : 'ไป Settings → Backup Manager',
           action: () => goPage('settings')
         });
       }
-    } else {
-      alerts.push({
-        type: 'amber',
-        icon: '💾',
-        title: isLao ? 'ຍັງບໍ່ເຄີຍສຳຮອງຂໍ້ມູນ' : 'ยังไม่เคยสำรองข้อมูล',
-        text: isLao ? 'ໄປ Settings → Backup Manager' : 'ไป Settings → Backup Manager',
-        action: () => goPage('settings')
-      });
     }
     
     // 🔍 Check 3: Pending Tiebreakers
@@ -9007,6 +9529,7 @@ function updateLastSync() {
 }
 
 function renderDashboardPage() {
+  const showQuickBackup = ['admin', 'scc', 'bcs'].includes(user.role);
   return `
     <div class="banner sky">
       <div class="banner-icon">
@@ -9016,6 +9539,13 @@ function renderDashboardPage() {
         <h4>${T('bcs_title')}</h4>
         <p>${session?.session_name || ''} • <span style="font-size:9px;opacity:0.8;" id="dashLastSync">${lang === 'lo' ? 'ກຳລັງໂຫລດ...' : 'กำลังโหลด...'}</span></p>
       </div>
+      ${showQuickBackup ? `
+        <button onclick="quickBackup()" 
+                title="${lang === 'lo' ? 'ສຳຮອງດ່ວນ' : 'สำรองด่วน'}"
+                style="background:rgba(255,255,255,0.25);border:1px solid rgba(255,255,255,0.4);color:white;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;margin-left:auto;flex-shrink:0;">
+          💾
+        </button>
+      ` : ''}
     </div>
     
     <!-- 🚨 Health Alerts Container (auto-populated) -->
@@ -11306,6 +11836,26 @@ function onPosFileSelected(event) {
 }
 
 function showImportPreview(products) {
+  // 🛡️ Backup reminder ก่อน Import (เพราะ Import POS จะ update sản products เยอะ)
+  const lastBackup = localStorage.getItem(`fs_last_backup_${branch.id}`);
+  const isLaoChk = lang === 'lo';
+  if (!lastBackup) {
+    if (!confirm(isLaoChk 
+      ? '⚠️ ທ່ານຍັງບໍ່ເຄີຍສຳຮອງຂໍ້ມູນ!\n\nການ Import POS ຈະອັບເດດ products ຫຼາຍລາຍການ.\nແນະນຳໃຫ້ Backup ກ່ອນ.\n\nຕ້ອງການດຳເນີນຕໍ່ບໍ?' 
+      : '⚠️ คุณยังไม่เคยสำรองข้อมูล!\n\nการ Import POS จะอัพเดต products หลายรายการ\nแนะนำให้ Backup ก่อน\n\nต้องการดำเนินต่อหรือไม่?')) {
+      return;
+    }
+  } else {
+    const days = Math.floor((Date.now() - parseInt(lastBackup)) / (1000 * 60 * 60 * 24));
+    if (days > 7) {
+      if (!confirm(isLaoChk 
+        ? `⚠️ ສຳຮອງລ່າສຸດ ${days} ມື້ແລ້ວ\n\nແນະນຳໃຫ້ Backup ໃໝ່ກ່ອນ Import.\n\nຕ້ອງການດຳເນີນຕໍ່ບໍ?` 
+        : `⚠️ สำรองล่าสุด ${days} วันแล้ว\n\nแนะนำให้ Backup ใหม่ก่อน Import\n\nต้องการดำเนินต่อหรือไม่?`)) {
+        return;
+      }
+    }
+  }
+  
   const sample = products.slice(0, 10);
   
   const totalValue = products.reduce((s, p) => s + (p.pos_qty * p.sell_price), 0);
@@ -16366,6 +16916,30 @@ async function loadSettingsStats() {
 let resetMode = 'session';
 
 async function openResetModal(mode) {
+  // 🛡️ Backup reminder ก่อน Reset
+  const lastBackup = localStorage.getItem(`fs_last_backup_${branch.id}`);
+  const isLao = lang === 'lo';
+  let daysSinceBackup = null;
+  if (lastBackup) {
+    daysSinceBackup = Math.floor((Date.now() - parseInt(lastBackup)) / (1000 * 60 * 60 * 24));
+  }
+  
+  // เตือนถ้าไม่เคย backup หรือ backup เก่ากว่า 3 วัน
+  if (!lastBackup || daysSinceBackup > 3) {
+    const msg = !lastBackup 
+      ? (isLao 
+          ? '⚠️ ທ່ານຍັງບໍ່ເຄີຍສຳຮອງຂໍ້ມູນ!\n\nແນະນຳໃຫ້ Backup ກ່ອນ Reset.\nຕ້ອງການໄປ Backup ກ່ອນບໍ?' 
+          : '⚠️ คุณยังไม่เคยสำรองข้อมูล!\n\nแนะนำให้ Backup ก่อน Reset.\nต้องการไป Backup ก่อนหรือไม่?')
+      : (isLao 
+          ? `⚠️ ສຳຮອງລ່າສຸດ ${daysSinceBackup} ມື້ແລ້ວ!\n\nແນະນຳໃຫ້ Backup ໃໝ່ກ່ອນ Reset.\nຕ້ອງການໄປ Backup ກ່ອນບໍ?` 
+          : `⚠️ สำรองล่าสุด ${daysSinceBackup} วันแล้ว!\n\nแนะนำให้ Backup ใหม่ก่อน Reset.\nต้องการไป Backup ก่อนหรือไม่?`);
+    
+    if (confirm(msg)) {
+      openBackupManager();
+      return;
+    }
+  }
+  
   resetMode = mode;
   
   // Get counts for warning
@@ -16673,6 +17247,14 @@ window.renderAdvancedKPI = renderAdvancedKPI;
 window.onMultiBranchToggle = onMultiBranchToggle;
 window.executeMultiBranchImport = executeMultiBranchImport;
 window.matchBranchByCode = matchBranchByCode;
+window.showBackupHistory = showBackupHistory;
+window.clearBackupHistory = clearBackupHistory;
+window.openRestoreModal = openRestoreModal;
+window.onRestoreFileSelected = onRestoreFileSelected;
+window.executeRestore = executeRestore;
+window.quickBackup = quickBackup;
+window.saveBackupReminder = saveBackupReminder;
+window.getBackupReminderInterval = getBackupReminderInterval;
 window.cancelClonePrompt = cancelClonePrompt;
 window.confirmCloneFromOther = confirmCloneFromOther;
 window.adjustCount = adjustCount;
