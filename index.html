@@ -11345,8 +11345,32 @@ function showImportPreview(products) {
       </div>
     </div>
     
+    <!-- 🌐 Multi-Branch Mode Toggle (เฉพาะถ้ามี Branch Code ในไฟล์) -->
+    ${rowsWithBranchCode > 0 && isAdmin ? `
+      <div style="background:linear-gradient(135deg,var(--sky-100),var(--violet-100));border:2px solid var(--sky-500);border-radius:10px;padding:11px;margin-bottom:11px;">
+        <label style="display:flex;align-items:center;gap:9px;cursor:pointer;">
+          <input type="checkbox" id="multiBranchMode" 
+                 onchange="onMultiBranchToggle()"
+                 style="width:18px;height:18px;cursor:pointer;flex-shrink:0;">
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:800;color:var(--sky-700);">
+              🌐 ${lang === 'lo' ? 'Multi-Branch Mode' : 'โหมดหลายสาขา'}
+            </div>
+            <div style="font-size:10px;color:var(--slate-600);margin-top:1px;">
+              ${lang === 'lo' 
+                ? 'ກະຈາຍສິນຄ້າຕາມ Branch Code ໃນໄຟລ໌ — Import ທຸກສາຂາໃນຄັ້ງດຽວ' 
+                : 'กระจายสินค้าตาม Branch Code ในไฟล์ — Import ทุกสาขาในครั้งเดียว'}
+            </div>
+          </div>
+        </label>
+        
+        <!-- Branch breakdown — แสดงเฉพาะตอน toggle on -->
+        <div id="multiBranchBreakdown" style="display:none;margin-top:11px;background:white;border-radius:8px;padding:9px;"></div>
+      </div>
+    ` : ''}
+    
     <!-- Branch Destination -->
-    <div class="form-group" style="background:var(--violet-100);padding:11px;border-radius:9px;margin-bottom:12px;">
+    <div class="form-group" id="singleBranchSection" style="background:var(--violet-100);padding:11px;border-radius:9px;margin-bottom:12px;">
       <label class="form-label" style="color:var(--violet-600);">
         🏪 ${lang === 'lo' ? 'ສາຂາປາຍທາງ' : 'สาขาปลายทาง'} ${isAdmin ? '' : '(ໂດຍ default)'}
       </label>
@@ -11442,6 +11466,80 @@ function showImportPreview(products) {
   setTimeout(() => checkBranchCodeMismatch(), 300);
 }
 
+// ==================== BRANCH CODE MATCHING (Shared) ====================
+// ใช้ scoring + penalty เพื่อจัดการกรณี ambiguous (เช่น TRADING มีใน 2 สาขา)
+function matchBranchByCode(fileCode, allBranches) {
+  if (!fileCode) return null;
+  allBranches = allBranches || window._allBranchesCache || [];
+  const fc = String(fileCode).toUpperCase().trim();
+  
+  // 1. Direct code match
+  let match = allBranches.find(b => (b.code || '').toUpperCase() === fc);
+  if (match) return match.id;
+  
+  // 2. Name match — ลาว + ไทย
+  match = allBranches.find(b => {
+    const nameLo = (b.name_lo || '').toUpperCase();
+    const nameTh = (b.name_th || '').toUpperCase();
+    return nameLo === fc || nameTh === fc;
+  });
+  if (match) return match.id;
+  
+  // 3. Token-based with SCORING
+  const tokenize = (s) => {
+    const upper = String(s || '').toUpperCase();
+    const ascii = upper.replace(/[^\x20-\x7E]/g, ' ');
+    return ascii.split(/[\s\-_]+/).filter(t => t.length >= 2);
+  };
+  
+  const fcTokens = tokenize(fileCode);
+  if (fcTokens.length === 0) return null;
+  
+  const scored = [];
+  
+  allBranches.forEach(b => {
+    const candidates = `${b.code || ''} ${b.name_lo || ''} ${b.name_th || ''}`;
+    const bTokens = tokenize(candidates);
+    
+    let score = 0;
+    fcTokens.forEach(ft => {
+      let best = 0;
+      bTokens.forEach(bt => {
+        if (bt === ft) {
+          best = Math.max(best, 10);
+        } else if (ft.length >= 4 && bt.length >= 4) {
+          if (bt.startsWith(ft) && bt.length > ft.length) {
+            best = Math.max(best, 3);
+          } else if (ft.startsWith(bt) && ft.length > bt.length) {
+            best = Math.max(best, 3);
+          }
+        }
+      });
+      score += best;
+    });
+    
+    let penalty = 0;
+    bTokens.forEach(bt => {
+      if (bt.length >= 4) {
+        const found = fcTokens.some(ft => 
+          bt === ft || (ft.length >= 4 && (bt.startsWith(ft) || ft.startsWith(bt)))
+        );
+        if (!found) penalty += 2;
+      }
+    });
+    
+    const finalScore = score - penalty;
+    if (finalScore > 0) {
+      scored.push({ score: finalScore, branch: b });
+    }
+  });
+  
+  if (scored.length === 0) return null;
+  
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0].branch.id;
+}
+
 // ==================== BRANCH CODE MISMATCH CHECK ====================
 function checkBranchCodeMismatch() {
   if (!_pendingImport) return;
@@ -11471,92 +11569,10 @@ function checkBranchCodeMismatch() {
   // ใช้ branches cache (มีทั้งหมด) เพื่อ match ที่แม่นยำ
   const allBranches = window._allBranchesCache || [];
   
-  // Helper: ตรวจสอบว่า fileCode match กับ branch ใด — return matched branch.id
-  // ใช้ scoring + penalty เพื่อจัดการกรณี ambiguous (เช่น TRADING มีใน 2 สาขา)
-  function matchBranchByCode(fileCode) {
-    if (!fileCode) return null;
-    const fc = String(fileCode).toUpperCase().trim();
-    
-    // 1. Direct code match (เช่น "EXP-TRADING" === "EXP-TRADING")
-    let match = allBranches.find(b => (b.code || '').toUpperCase() === fc);
-    if (match) return match.id;
-    
-    // 2. Name match — ลาว + ไทย
-    match = allBranches.find(b => {
-      const nameLo = (b.name_lo || '').toUpperCase();
-      const nameTh = (b.name_th || '').toUpperCase();
-      return nameLo === fc || nameTh === fc;
-    });
-    if (match) return match.id;
-    
-    // 3. Token-based with SCORING — best match wins
-    const tokenize = (s) => {
-      const upper = String(s || '').toUpperCase();
-      // ลบตัวอักษรที่ไม่ใช่ ASCII (ลาว/ไทย)
-      const ascii = upper.replace(/[^\x20-\x7E]/g, ' ');
-      return ascii.split(/[\s\-_]+/).filter(t => t.length >= 2);
-    };
-    
-    const fcTokens = tokenize(fileCode);
-    if (fcTokens.length === 0) return null;
-    
-    const scored = [];
-    
-    allBranches.forEach(b => {
-      const candidates = `${b.code || ''} ${b.name_lo || ''} ${b.name_th || ''}`;
-      const bTokens = tokenize(candidates);
-      
-      // Score: คะแนนการ match
-      let score = 0;
-      fcTokens.forEach(ft => {
-        let best = 0;
-        bTokens.forEach(bt => {
-          if (bt === ft) {
-            best = Math.max(best, 10);  // exact match
-          } else if (ft.length >= 4 && bt.length >= 4) {
-            // Prefix match (ป้องกัน PHONSA match กับ PHONSAVANH = ไม่ใช่ exact)
-            if (bt.startsWith(ft) && bt.length > ft.length) {
-              best = Math.max(best, 3);
-            } else if (ft.startsWith(bt) && ft.length > bt.length) {
-              best = Math.max(best, 3);
-            }
-          }
-        });
-        score += best;
-      });
-      
-      // Penalty: ถ้า branch มี important token ที่ file ไม่มี
-      // เช่น file=[TRADING], branch=EXP-TRADING=[EXPRESS, TRADING] 
-      //   → EXPRESS ไม่อยู่ใน file → penalty
-      // vs branch=TRADING-WH=[TRADING, WH]
-      //   → WH สั้นพอ (>=2 chars) แต่ไม่ใช่ important (<4 chars) → no penalty
-      let penalty = 0;
-      bTokens.forEach(bt => {
-        if (bt.length >= 4) {
-          const found = fcTokens.some(ft => 
-            bt === ft || (ft.length >= 4 && (bt.startsWith(ft) || ft.startsWith(bt)))
-          );
-          if (!found) penalty += 2;
-        }
-      });
-      
-      const finalScore = score - penalty;
-      if (finalScore > 0) {
-        scored.push({ score: finalScore, branch: b });
-      }
-    });
-    
-    if (scored.length === 0) return null;
-    
-    // เรียงตามคะแนนสูงสุด
-    scored.sort((a, b) => b.score - a.score);
-    return scored[0].branch.id;
-  }
-  
   // เช็คว่าแต่ละ Branch Code ในไฟล์ match กับสาขาปลายทางหรือไม่
   const matchingResults = branchCodesInFile.map(fileCode => ({
     fileCode,
-    matchedBranchId: matchBranchByCode(fileCode)
+    matchedBranchId: matchBranchByCode(fileCode, allBranches)
   }));
   
   const allMatchDest = matchingResults.every(r => r.matchedBranchId === destBranchId);
@@ -11622,12 +11638,341 @@ function checkBranchCodeMismatch() {
   }
 }
 
+// ==================== MULTI-BRANCH IMPORT ====================
+function onMultiBranchToggle() {
+  const cb = document.getElementById('multiBranchMode');
+  const breakdown = document.getElementById('multiBranchBreakdown');
+  const singleSection = document.getElementById('singleBranchSection');
+  const warnEl = document.getElementById('branchMismatchWarning');
+  if (!cb) return;
+  
+  const isLao = lang === 'lo';
+  
+  if (cb.checked) {
+    // 🌐 Multi-Branch Mode ON
+    if (singleSection) singleSection.style.display = 'none';
+    if (warnEl) warnEl.style.display = 'none';
+    
+    // คำนวณสรุปแต่ละสาขา
+    const allBranches = window._allBranchesCache || [];
+    const groupByBranch = {};
+    let unknownCount = 0;
+    
+    _pendingImport.forEach(p => {
+      const branchId = matchBranchByCode(p.branch_code, allBranches);
+      if (branchId === null) {
+        unknownCount++;
+      } else {
+        if (!groupByBranch[branchId]) {
+          groupByBranch[branchId] = { count: 0, totalQty: 0, totalValue: 0 };
+        }
+        groupByBranch[branchId].count++;
+        groupByBranch[branchId].totalQty += (p.pos_qty || 0);
+        groupByBranch[branchId].totalValue += (p.pos_qty || 0) * (p.sell_price || 0);
+      }
+    });
+    
+    const fmt = new Intl.NumberFormat('th-TH');
+    
+    // Render breakdown
+    let html = `
+      <div style="font-size:11px;font-weight:800;color:var(--sky-700);margin-bottom:7px;">
+        📊 ${isLao ? 'ກະຈາຍຕາມສາຂາ' : 'กระจายตามสาขา'}:
+      </div>
+    `;
+    
+    // Sort branches by count desc
+    const sortedBranchIds = Object.keys(groupByBranch).sort((a, b) => 
+      groupByBranch[b].count - groupByBranch[a].count
+    );
+    
+    sortedBranchIds.forEach(bId => {
+      const b = allBranches.find(x => x.id === parseInt(bId));
+      if (!b) return;
+      const stats = groupByBranch[bId];
+      const displayName = isLao ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo);
+      
+      html += `
+        <div style="display:flex;align-items:center;gap:7px;padding:5px 7px;margin-bottom:3px;background:var(--emerald-50);border-left:3px solid var(--emerald-500);border-radius:5px;font-size:10px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;color:var(--slate-900);">${displayName}</div>
+            <div style="font-size:9px;color:var(--slate-500);font-family:monospace;">${b.code}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            <div style="font-weight:800;color:var(--emerald-700);font-family:'Space Grotesk',monospace;">
+              ${stats.count.toLocaleString()} ${isLao ? 'ສິນຄ້າ' : 'รายการ'}
+            </div>
+            <div style="font-size:9px;color:var(--slate-500);font-family:'Space Grotesk',monospace;">
+              ${stats.totalQty.toLocaleString()} ${isLao ? 'ຊິ້ນ' : 'ชิ้น'} • ₭${fmt.format(stats.totalValue)}
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    
+    if (unknownCount > 0) {
+      const defaultBranchId = parseInt(document.getElementById('importBranchDest')?.value || branch?.id);
+      const defaultBranch = allBranches.find(b => b.id === defaultBranchId);
+      const defaultName = defaultBranch 
+        ? (isLao ? (defaultBranch.name_lo || defaultBranch.name_th) : (defaultBranch.name_th || defaultBranch.name_lo)) 
+        : '?';
+      
+      html += `
+        <div style="background:var(--amber-100);border-left:3px solid var(--amber-500);border-radius:5px;padding:7px 9px;margin-top:5px;font-size:10px;color:#92400e;">
+          ⚠️ ${isLao 
+            ? `${unknownCount.toLocaleString()} ສິນຄ້າ ບໍ່ມີ Branch Code ຫຼື ບໍ່ຮູ້ຈັກ → ຈະໃສ່ໃນ <strong>${defaultName}</strong>` 
+            : `${unknownCount.toLocaleString()} สินค้า ไม่มี Branch Code หรือไม่รู้จัก → จะใส่ใน <strong>${defaultName}</strong>`}
+        </div>
+      `;
+    }
+    
+    if (breakdown) {
+      breakdown.style.display = 'block';
+      breakdown.innerHTML = html;
+    }
+  } else {
+    // 🏪 Single Branch Mode
+    if (singleSection) singleSection.style.display = 'block';
+    if (breakdown) breakdown.style.display = 'none';
+    // Re-check mismatch
+    checkBranchCodeMismatch();
+  }
+}
+
+// ==================== EXECUTE MULTI-BRANCH IMPORT ====================
+async function executeMultiBranchImport() {
+  const isLao = lang === 'lo';
+  const snapName = document.getElementById('importSnapName')?.value.trim() || 'Multi-Branch Import';
+  const defaultBranchId = parseInt(document.getElementById('importBranchDest')?.value || branch?.id || 1);
+  
+  // 1. กลุ่มข้อมูลตามสาขา
+  const allBranches = window._allBranchesCache || [];
+  const branchGroups = {};
+  let unknownItems = [];
+  
+  _pendingImport.forEach(p => {
+    const matchedId = matchBranchByCode(p.branch_code, allBranches);
+    const targetId = matchedId || defaultBranchId;
+    
+    if (!branchGroups[targetId]) branchGroups[targetId] = [];
+    branchGroups[targetId].push(p);
+    
+    if (matchedId === null) unknownItems.push(p);
+  });
+  
+  const branchIds = Object.keys(branchGroups).map(Number);
+  const totalBranches = branchIds.length;
+  const totalItems = _pendingImport.length;
+  
+  // Confirm
+  const branchNames = branchIds.map(bId => {
+    const b = allBranches.find(x => x.id === bId);
+    const name = b ? (isLao ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo)) : '?';
+    return `• ${name}: ${branchGroups[bId].length.toLocaleString()} ${isLao ? 'ສິນຄ້າ' : 'รายการ'}`;
+  }).join('\n');
+  
+  const confirmMsg = isLao
+    ? `🌐 Import ຫຼາຍສາຂາ\n\nລວມ ${totalItems.toLocaleString()} ສິນຄ້າ ໃນ ${totalBranches} ສາຂາ:\n\n${branchNames}\n\nຕ້ອງການດຳເນີນຕໍ່ບໍ?`
+    : `🌐 Import หลายสาขา\n\nรวม ${totalItems.toLocaleString()} สินค้า ใน ${totalBranches} สาขา:\n\n${branchNames}\n\nต้องการดำเนินต่อหรือไม่?`;
+  
+  if (!confirm(confirmMsg)) return;
+  
+  // Show progress modal
+  closeModal();
+  showModal(`
+    <h3>🌐 ${isLao ? 'ກຳລັງນຳເຂົ້າ ຫຼາຍສາຂາ' : 'กำลังนำเข้า หลายสาขา'}</h3>
+    <p style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">
+      ${totalItems.toLocaleString()} ${isLao ? 'ສິນຄ້າ' : 'รายการ'} × ${totalBranches} ${isLao ? 'ສາຂາ' : 'สาขา'}
+    </p>
+    
+    <!-- Progress Bar -->
+    <div style="background:var(--slate-100);border-radius:8px;height:24px;overflow:hidden;margin-bottom:9px;position:relative;">
+      <div id="mbProgressBar" style="background:linear-gradient(90deg,var(--sky-500),var(--violet-500));height:100%;width:0%;transition:width 0.3s;border-radius:8px;"></div>
+      <div id="mbProgressText" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:var(--slate-900);">0%</div>
+    </div>
+    
+    <!-- Current branch status -->
+    <div id="mbStatusText" style="font-size:11px;color:var(--slate-600);text-align:center;margin-bottom:9px;">
+      ${isLao ? 'ກຳລັງເລີ່ມ...' : 'กำลังเริ่ม...'}
+    </div>
+    
+    <!-- Per-Branch Progress List -->
+    <div id="mbBranchList" style="max-height:280px;overflow-y:auto;background:var(--slate-50);border-radius:7px;padding:5px;"></div>
+    
+    <div id="mbErrDetail" style="background:var(--rose-100);color:var(--rose-500);padding:8px 11px;border-radius:7px;font-size:11px;display:none;margin-top:9px;"></div>
+  `);
+  
+  // Initial render of branch list
+  const renderBranchList = (statuses) => {
+    const listEl = document.getElementById('mbBranchList');
+    if (!listEl) return;
+    let html = '';
+    branchIds.forEach(bId => {
+      const b = allBranches.find(x => x.id === bId);
+      const name = b ? (isLao ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo)) : '?';
+      const code = b?.code || '';
+      const s = statuses[bId] || { status: 'pending', new: 0, updated: 0 };
+      
+      let icon = '⏳';
+      let color = 'var(--slate-400)';
+      let bg = 'white';
+      if (s.status === 'running') { icon = '⏳'; color = 'var(--sky-600)'; bg = 'var(--sky-50)'; }
+      else if (s.status === 'done') { icon = '✅'; color = 'var(--emerald-500)'; bg = 'var(--emerald-50)'; }
+      else if (s.status === 'error') { icon = '❌'; color = 'var(--rose-500)'; bg = 'var(--rose-50)'; }
+      
+      html += `
+        <div style="background:${bg};border-radius:5px;padding:5px 8px;margin-bottom:3px;display:flex;align-items:center;gap:7px;font-size:10px;">
+          <span style="font-size:14px;flex-shrink:0;">${icon}</span>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;color:${color};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</div>
+            <div style="font-size:9px;color:var(--slate-500);font-family:monospace;">${code}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;font-size:9px;">
+            <div style="font-family:'Space Grotesk',monospace;color:var(--slate-700);">
+              ${branchGroups[bId].length.toLocaleString()} ${isLao ? 'ສິນຄ້າ' : 'รายการ'}
+            </div>
+            ${s.status === 'done' ? `<div style="color:var(--emerald-600);font-family:'Space Grotesk',monospace;">+${s.new || 0} / ↻${s.updated || 0}</div>` : ''}
+          </div>
+        </div>
+      `;
+    });
+    listEl.innerHTML = html;
+  };
+  
+  // Initialize statuses
+  const statuses = {};
+  branchIds.forEach(bId => { statuses[bId] = { status: 'pending', new: 0, updated: 0 }; });
+  renderBranchList(statuses);
+  
+  // Process each branch
+  const BATCH_SIZE = 500;
+  let completedBranches = 0;
+  const aggStats = { new: 0, updated: 0, errors: 0 };
+  
+  for (const bId of branchIds) {
+    const products = branchGroups[bId];
+    const b = allBranches.find(x => x.id === bId);
+    const branchName = b ? (isLao ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo)) : '?';
+    
+    statuses[bId].status = 'running';
+    renderBranchList(statuses);
+    
+    const statusEl = document.getElementById('mbStatusText');
+    if (statusEl) {
+      statusEl.textContent = `${completedBranches + 1}/${totalBranches}: ${branchName}`;
+    }
+    
+    const numBatches = Math.ceil(products.length / BATCH_SIZE);
+    let branchNew = 0, branchUpdated = 0, branchError = null;
+    
+    for (let i = 0; i < numBatches; i++) {
+      const chunk = products.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+      const isLastBatch = (i === numBatches - 1);
+      
+      try {
+        const { data, error } = await sb.rpc('import_pos_products_batch', {
+          p_branch_id: bId,
+          p_user_id: user.id,
+          p_products: chunk,
+          p_is_last_batch: isLastBatch,
+          p_snapshot_name: isLastBatch ? `${snapName} (${branchName})` : null,
+          p_session_id: null,
+          p_total_count: products.length
+        });
+        if (error) throw error;
+        const r = data || {};
+        branchNew += (r.new_products || 0);
+        branchUpdated += (r.updated_products || 0);
+      } catch (e) {
+        console.error('[FS] Multi-branch import error:', branchName, e);
+        branchError = e.message || String(e);
+        break;
+      }
+    }
+    
+    if (branchError) {
+      statuses[bId].status = 'error';
+      aggStats.errors++;
+    } else {
+      statuses[bId].status = 'done';
+      statuses[bId].new = branchNew;
+      statuses[bId].updated = branchUpdated;
+      aggStats.new += branchNew;
+      aggStats.updated += branchUpdated;
+    }
+    
+    completedBranches++;
+    const pct = Math.round((completedBranches / totalBranches) * 100);
+    const bar = document.getElementById('mbProgressBar');
+    const txt = document.getElementById('mbProgressText');
+    if (bar) bar.style.width = pct + '%';
+    if (txt) txt.textContent = pct + '%';
+    renderBranchList(statuses);
+  }
+  
+  // Final summary
+  await new Promise(r => setTimeout(r, 500));
+  closeModal();
+  
+  showModal(`
+    <div style="text-align:center;margin-bottom:14px;">
+      <div style="font-size:42px;">${aggStats.errors === 0 ? '✅' : '⚠️'}</div>
+      <h3 style="color:${aggStats.errors === 0 ? 'var(--emerald-500)' : 'var(--amber-500)'};margin-top:5px;">
+        ${aggStats.errors === 0 
+          ? (isLao ? 'ນຳເຂົ້າສຳເລັດ' : 'นำเข้าสำเร็จ')
+          : (isLao ? 'ນຳເຂົ້າສຳເລັດບາງສ່ວນ' : 'นำเข้าสำเร็จบางส่วน')}
+      </h3>
+    </div>
+    
+    <div style="background:var(--slate-50);padding:13px;border-radius:11px;margin-bottom:11px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;text-align:center;">
+        <div>
+          <div style="font-size:9px;color:var(--slate-500);text-transform:uppercase;font-weight:700;">${isLao ? 'ສາຂາ' : 'สาขา'}</div>
+          <div style="font-size:22px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;">${totalBranches}</div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--slate-500);text-transform:uppercase;font-weight:700;">${isLao ? 'ສິນຄ້າ' : 'สินค้า'}</div>
+          <div style="font-size:22px;font-weight:800;color:var(--sky-600);font-family:'Space Grotesk',monospace;">${totalItems.toLocaleString()}</div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--emerald-500);text-transform:uppercase;font-weight:700;">+ ${isLao ? 'ໃໝ່' : 'ใหม่'}</div>
+          <div style="font-size:18px;font-weight:800;color:var(--emerald-500);font-family:'Space Grotesk',monospace;">${aggStats.new.toLocaleString()}</div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--sky-600);text-transform:uppercase;font-weight:700;">↻ ${isLao ? 'ປັບປຸງ' : 'ปรับปรุง'}</div>
+          <div style="font-size:18px;font-weight:800;color:var(--sky-600);font-family:'Space Grotesk',monospace;">${aggStats.updated.toLocaleString()}</div>
+        </div>
+      </div>
+      ${aggStats.errors > 0 ? `
+        <div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--slate-200);text-align:center;">
+          <div style="color:var(--rose-500);font-size:11px;font-weight:700;">
+            ❌ ${isLao ? 'ສາຂາທີ່ ผິດพลาด' : 'สาขาที่ผิดพลาด'}: ${aggStats.errors}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+    
+    <button class="btn btn-primary" onclick="closeModal()" style="width:100%;">${isLao ? 'ປິດ' : 'ปิด'}</button>
+  `);
+  
+  _pendingImport = null;
+}
+
 async function executeImport() {
   if (!_pendingImport || !_pendingImport.length) {
     showToast(T('no_products_found'), 'error');
     return;
   }
   
+  // 🌐 เช็คว่าเป็น Multi-Branch Mode หรือไม่
+  const multiBranchCb = document.getElementById('multiBranchMode');
+  const isMultiBranch = multiBranchCb && multiBranchCb.checked;
+  
+  if (isMultiBranch) {
+    return executeMultiBranchImport();
+  }
+  
+  // ===== ต่อจากนี้คือ Single Branch (original logic) =====
   const snapName = document.getElementById('importSnapName').value.trim();
   const branchDestEl = document.getElementById('importBranchDest');
   const destBranchId = branchDestEl ? parseInt(branchDestEl.value) : (branch?.id || 1);
@@ -16325,6 +16670,9 @@ window.updateLastSync = updateLastSync;
 window.friendlyError = friendlyError;
 window.toastError = toastError;
 window.renderAdvancedKPI = renderAdvancedKPI;
+window.onMultiBranchToggle = onMultiBranchToggle;
+window.executeMultiBranchImport = executeMultiBranchImport;
+window.matchBranchByCode = matchBranchByCode;
 window.cancelClonePrompt = cancelClonePrompt;
 window.confirmCloneFromOther = confirmCloneFromOther;
 window.adjustCount = adjustCount;
