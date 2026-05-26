@@ -3892,7 +3892,7 @@ function renderShell() {
       </button>
       <button class="tab" data-page="gapscan" onclick="goPage('gapscan')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        <span>${lang === 'lo' ? 'ຊ່ອງວ່າງ' : 'ช่องว่าง'}</span>
+        <span>Gap Scan</span>
       </button>
       <button class="tab" data-page="history" onclick="goPage('history')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12"/></svg>
@@ -3951,7 +3951,7 @@ function renderShell() {
       </button>
       <button class="tab" data-page="gapreport" onclick="goPage('gapreport')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-        <span>${lang === 'lo' ? 'ຊ່ອງວ່າງ' : 'ช่องว่าง'}</span>
+        <span>Gap Scan</span>
         <span class="tab-badge" id="tabGapBadge" style="display:none;background:var(--amber-500);">0</span>
       </button>
       <button class="tab" data-page="tiebreaker" onclick="goPage('tiebreaker')">
@@ -4117,7 +4117,7 @@ function renderGapScanPage() {
     <!-- Header -->
     <div style="background:linear-gradient(135deg,var(--amber-500),var(--rose-500));color:white;border-radius:13px;padding:13px;margin-bottom:11px;">
       <div style="font-size:18px;font-weight:800;display:flex;align-items:center;gap:9px;">
-        🛒 ${isLao ? 'ສະແກນຊ່ອງວ່າງ' : 'สแกนช่องว่าง'}
+        🛒 Gap Scan
       </div>
       <div style="font-size:11px;opacity:0.95;margin-top:3px;line-height:1.4;">
         ${isLao 
@@ -4133,7 +4133,7 @@ function renderGapScanPage() {
       <div class="scan-frame" id="gapScanFrame">
         <div class="scan-placeholder" id="gapScanPlaceholder">
           <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="color:var(--amber-500);"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          <p>${isLao ? 'ກົດປຸ່ມເພື່ອສະແກນຊ່ອງວ່າງ' : 'กดปุ่มเพื่อสแกนช่องว่าง'}</p>
+          <p>${isLao ? 'ກົດປຸ່ມເພື່ອເລີ່ມ Gap Scan' : 'กดปุ่มเพื่อเริ่ม Gap Scan'}</p>
         </div>
       </div>
       <div class="scan-controls">
@@ -4560,7 +4560,7 @@ function renderGapReportPage() {
   return `
     <div style="margin-bottom:11px;">
       <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">
-        🛒 ${isLao ? 'ລາຍງານຊ່ອງວ່າງ' : 'รายงานช่องว่าง'}
+        🛒 Gap Scan Report
       </h2>
       <p style="font-size:11px;color:var(--slate-500);margin:0;">
         ${isLao 
