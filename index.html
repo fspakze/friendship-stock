@@ -3892,6 +3892,10 @@ function renderShell() {
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8"/></svg>
         <span>${T('tab_kpi')}</span>
       </button>
+      <button class="tab" data-page="variance" onclick="goPage('variance')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <span>${lang === 'lo' ? 'ຂາດເຄື່ອນ' : 'คลาดเคลื่อน'}</span>
+      </button>
       <button class="tab" data-page="tiebreaker" onclick="goPage('tiebreaker')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/></svg>
         <span>${T('tab_tiebreaker')}</span>
@@ -3987,6 +3991,9 @@ function goPage(page) {
   } else if (page === 'kpi') {
     c.innerHTML = renderKPIPage();
     loadKPI();
+  } else if (page === 'variance') {
+    c.innerHTML = renderVariancePage();
+    loadVarianceReport();
   } else if (page === 'users') {
     c.innerHTML = renderUsersPage();
     loadUsers();
@@ -8881,6 +8888,795 @@ async function loadDashboard() {
 }
 
 // ==================== KPI ====================
+// ==================== VARIANCE REPORT PAGE ====================
+// แสดงสินค้าที่นับแล้ว แยกตาม Variance Level (L1/L2/L3/L4)
+// Admin/SCC/BCS เท่านั้น
+
+let _varianceData = null;
+let _varianceFilter = {
+  level: 'L3',      // เริ่มที่ L3 (Recount) เพราะสำคัญสุด
+  search: '',
+  period: 'session', // session | today | week | all
+  groupBy: 'gondola' // gondola | none
+};
+
+function renderVariancePage() {
+  const isLao = lang === 'lo';
+  
+  return `
+    <div style="margin-bottom:11px;">
+      <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">
+        📊 ${isLao ? 'ລາຍງານຄວາມຄາດເຄື່ອນ' : 'รายงานความคลาดเคลื่อน'}
+      </h2>
+      <p style="font-size:11px;color:var(--slate-500);margin:0;">
+        ${isLao 
+          ? 'ຕິດຕາມສິນຄ້າທີ່ນັບແລ້ວ • ແຍກຕາມລະດັບຄວາມຄາດເຄື່ອນ' 
+          : 'ติดตามสินค้าที่นับแล้ว • แยกตามระดับความคลาดเคลื่อน'}
+      </p>
+    </div>
+    
+    <!-- Summary Cards -->
+    <div id="varianceSummary" style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:11px;">
+      <div style="background:linear-gradient(135deg,var(--violet-100),var(--violet-100));padding:11px;border-radius:11px;text-align:center;">
+        <div class="loader" style="margin:0 auto;"></div>
+      </div>
+      <div style="background:linear-gradient(135deg,var(--violet-100),var(--violet-100));padding:11px;border-radius:11px;text-align:center;">
+        <div class="loader" style="margin:0 auto;"></div>
+      </div>
+    </div>
+    
+    <!-- Period Filter -->
+    <div style="display:flex;gap:5px;margin-bottom:9px;background:var(--slate-100);padding:4px;border-radius:9px;">
+      <button onclick="setVariancePeriod('session')" id="vpBtnSession" class="vp-btn" 
+              style="flex:1;padding:7px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:var(--violet-500);color:white;">
+        📋 Session
+      </button>
+      <button onclick="setVariancePeriod('today')" id="vpBtnToday" class="vp-btn" 
+              style="flex:1;padding:7px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:var(--slate-600);">
+        ${isLao ? 'ມື້ນີ້' : 'วันนี้'}
+      </button>
+      <button onclick="setVariancePeriod('week')" id="vpBtnWeek" class="vp-btn" 
+              style="flex:1;padding:7px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:var(--slate-600);">
+        ${isLao ? '7 ມື້' : '7 วัน'}
+      </button>
+      <button onclick="setVariancePeriod('all')" id="vpBtnAll" class="vp-btn" 
+              style="flex:1;padding:7px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:var(--slate-600);">
+        ${isLao ? 'ທັງໝົດ' : 'ทั้งหมด'}
+      </button>
+    </div>
+    
+    <!-- Level Tabs -->
+    <div id="varianceLevelTabs" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;margin-bottom:9px;">
+      <button onclick="setVarianceLevel('L1')" class="vlevel-btn" id="vl-L1"
+              style="padding:9px 4px;border:none;border-radius:9px;background:white;border:2px solid var(--slate-200);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;">
+        <div style="font-size:14px;">🟢</div>
+        <div style="font-size:9px;font-weight:700;color:var(--slate-600);">L1 Match</div>
+        <div style="font-size:11px;font-weight:800;color:var(--emerald-500);font-family:'Space Grotesk',monospace;" id="vlCount-L1">—</div>
+      </button>
+      <button onclick="setVarianceLevel('L2')" class="vlevel-btn" id="vl-L2"
+              style="padding:9px 4px;border:none;border-radius:9px;background:white;border:2px solid var(--slate-200);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;">
+        <div style="font-size:14px;">📝</div>
+        <div style="font-size:9px;font-weight:700;color:var(--slate-600);">L2 Explain</div>
+        <div style="font-size:11px;font-weight:800;color:var(--amber-500);font-family:'Space Grotesk',monospace;" id="vlCount-L2">—</div>
+      </button>
+      <button onclick="setVarianceLevel('L3')" class="vlevel-btn" id="vl-L3"
+              style="padding:9px 4px;border:none;border-radius:9px;background:var(--rose-500);border:2px solid var(--rose-500);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:white;">
+        <div style="font-size:14px;">🔁</div>
+        <div style="font-size:9px;font-weight:700;">L3 Recount</div>
+        <div style="font-size:11px;font-weight:800;font-family:'Space Grotesk',monospace;" id="vlCount-L3">—</div>
+      </button>
+      <button onclick="setVarianceLevel('L4')" class="vlevel-btn" id="vl-L4"
+              style="padding:9px 4px;border:none;border-radius:9px;background:white;border:2px solid var(--slate-200);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;">
+        <div style="font-size:14px;">🚨</div>
+        <div style="font-size:9px;font-weight:700;color:var(--slate-600);">L4 Critical</div>
+        <div style="font-size:11px;font-weight:800;color:var(--rose-600);font-family:'Space Grotesk',monospace;" id="vlCount-L4">—</div>
+      </button>
+    </div>
+    
+    <!-- Search + Group Toggle + Export -->
+    <div style="display:grid;grid-template-columns:1fr auto auto;gap:6px;margin-bottom:9px;">
+      <input type="text" id="varianceSearch" 
+             placeholder="🔍 ${isLao ? 'ຄົ້ນຫາ ສິນຄ້າ/barcode/Gondola...' : 'ค้นหา สินค้า/barcode/Gondola...'}"
+             oninput="onVarianceSearchInput(this.value)"
+             autocomplete="off"
+             class="form-input" style="font-size:11px;padding:8px;">
+      <button onclick="toggleVarianceGroup()" 
+              id="varianceGroupBtn"
+              style="background:var(--violet-100);color:var(--violet-600);border:1px solid var(--violet-300);border-radius:7px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;">
+        📍 ${isLao ? 'ກຸ່ມ' : 'กลุ่ม'}
+      </button>
+      <button onclick="exportVarianceExcel()" 
+              style="background:var(--emerald-500);color:white;border:none;border-radius:7px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;">
+        📊 Excel
+      </button>
+    </div>
+    
+    <!-- List -->
+    <div id="varianceList" style="background:white;border-radius:11px;padding:9px;min-height:200px;padding-bottom:80px;">
+      <div style="text-align:center;padding:30px;color:var(--slate-400);">
+        <div class="loader" style="margin:0 auto 8px;"></div>
+        <div style="font-size:11px;">${isLao ? 'ກຳລັງໂຫລດ...' : 'กำลังโหลด...'}</div>
+      </div>
+    </div>
+  `;
+}
+
+// คำนวณ variance level จาก variance % และ value
+// ตรงกับ KPI logic
+function calcVarianceLevel(pct, value) {
+  const absValue = Math.abs(value || 0);
+  const absPct = Math.abs(pct || 0);
+  
+  if (absPct > 10 || absValue > 300000) return 'L4';
+  if (absPct > 5 || absValue > 100000) return 'L3';
+  if (absPct >= 2 || absValue >= 30000) return 'L2';
+  return 'L1';
+}
+
+async function loadVarianceReport() {
+  if (!session && _varianceFilter.period === 'session') {
+    document.getElementById('varianceList').innerHTML = `
+      <div style="text-align:center;padding:40px 20px;color:var(--slate-400);">
+        <div style="font-size:48px;margin-bottom:11px;">📋</div>
+        <div style="font-size:13px;font-weight:700;color:var(--slate-600);">
+          ${lang === 'lo' ? 'ບໍ່ມີ session ໃຊ້ງານ' : 'ไม่มี session ใช้งาน'}
+        </div>
+      </div>
+    `;
+    return;
+  }
+  
+  try {
+    // Build date filter
+    let dateFilter = '';
+    let sessionFilter = '';
+    if (_varianceFilter.period === 'session' && session) {
+      sessionFilter = session.id;
+    } else if (_varianceFilter.period === 'today') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      dateFilter = today.toISOString();
+    } else if (_varianceFilter.period === 'week') {
+      const week = new Date();
+      week.setDate(week.getDate() - 7);
+      dateFilter = week.toISOString();
+    }
+    
+    // โหลด stock_counts ของ branch (กับ products)
+    let query = sb.from('stock_counts')
+      .select(`
+        *, 
+        products(barcode, name_th, name_lo, unit_th, unit_lo, pos_qty, cost_price, sell_price)
+      `)
+      .eq('branch_id', branch.id);
+    
+    if (sessionFilter) query = query.eq('session_id', sessionFilter);
+    if (dateFilter) query = query.gte('counted_at', dateFilter);
+    
+    const { data: counts, error } = await query.order('counted_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    // Pivot: รวม counts ของ product เดียวกัน (counter, verifier, ctl, manager)
+    // จัด priority: manager_final > ctl_tiebreaker > verifier > counter (newest)
+    const byProduct = {};
+    (counts || []).forEach(c => {
+      const key = c.product_id;
+      if (!byProduct[key]) {
+        byProduct[key] = {
+          product_id: c.product_id,
+          product: c.products,
+          barcode: c.barcode,
+          gondola_code: c.gondola_code,
+          location_code: c.location_code,
+          zone_id: c.zone_id,
+          counter: null,
+          verifier: null,
+          ctl: null,
+          manager: null,
+          rounds: 0,
+          last_counted: null
+        };
+      }
+      const p = byProduct[key];
+      p.rounds++;
+      if (!p.last_counted || c.counted_at > p.last_counted) {
+        p.last_counted = c.counted_at;
+      }
+      // ใช้ gondola ล่าสุด (เผื่อมีการย้าย)
+      if (c.gondola_code && !p.gondola_code) {
+        p.gondola_code = c.gondola_code;
+      }
+      
+      // Save by role
+      if (c.count_role === 'counter' || c.count_role === 'staff') {
+        if (!p.counter || c.counted_at > p.counter.counted_at) p.counter = c;
+      } else if (c.count_role === 'verifier' || c.count_role === 'audit') {
+        if (!p.verifier || c.counted_at > p.verifier.counted_at) p.verifier = c;
+      } else if (c.count_role === 'ctl_tiebreaker') {
+        if (!p.ctl || c.counted_at > p.ctl.counted_at) p.ctl = c;
+      } else if (c.count_role === 'manager_final') {
+        if (!p.manager || c.counted_at > p.manager.counted_at) p.manager = c;
+      }
+    });
+    
+    // Calculate variance for each product
+    const items = Object.values(byProduct).map(p => {
+      // Final = manager > ctl > verifier > counter
+      const finalCount = p.manager?.counted_qty 
+        ?? p.ctl?.counted_qty 
+        ?? p.verifier?.counted_qty 
+        ?? p.counter?.counted_qty 
+        ?? 0;
+      
+      const counterCount = p.counter?.counted_qty ?? null;
+      const verifierCount = p.verifier?.counted_qty ?? null;
+      const ctlCount = p.ctl?.counted_qty ?? null;
+      const managerCount = p.manager?.counted_qty ?? null;
+      
+      const posQty = p.product?.pos_qty || 0;
+      const costPrice = p.product?.cost_price || 0;
+      
+      const diff = finalCount - posQty;
+      const pct = posQty > 0 ? Math.abs(diff / posQty * 100) : (diff !== 0 ? 100 : 0);
+      const value = diff * costPrice;
+      const level = calcVarianceLevel(pct, value);
+      
+      // Check if needs recount (counter vs verifier mismatch)
+      const needsRecount = (counterCount !== null && verifierCount !== null && counterCount !== verifierCount);
+      
+      return {
+        ...p,
+        final_qty: finalCount,
+        counter_qty: counterCount,
+        verifier_qty: verifierCount,
+        ctl_qty: ctlCount,
+        manager_qty: managerCount,
+        pos_qty: posQty,
+        cost_price: costPrice,
+        diff,
+        pct,
+        value, // shrinkage value (negative = loss)
+        level,
+        needsRecount
+      };
+    });
+    
+    _varianceData = items;
+    
+    renderVarianceSummary();
+    renderVarianceList();
+  } catch (e) {
+    console.error('[FS] loadVarianceReport error:', e);
+    document.getElementById('varianceList').innerHTML = `
+      <div style="text-align:center;padding:30px;color:var(--rose-500);font-size:11px;">
+        ❌ ${e.message}
+      </div>
+    `;
+  }
+}
+
+function renderVarianceSummary() {
+  if (!_varianceData) return;
+  const isLao = lang === 'lo';
+  
+  const all = _varianceData;
+  const total = all.length;
+  
+  // Count by level
+  const byLevel = { L1: 0, L2: 0, L3: 0, L4: 0 };
+  all.forEach(p => { byLevel[p.level] = (byLevel[p.level] || 0) + 1; });
+  
+  // Update level tab counts
+  Object.entries(byLevel).forEach(([lv, count]) => {
+    const el = document.getElementById('vlCount-' + lv);
+    if (el) el.textContent = count.toLocaleString();
+  });
+  
+  // Recount Rate = (L3+L4) / total
+  const recountCount = byLevel.L3 + byLevel.L4;
+  const recountRate = total > 0 ? (recountCount / total * 100).toFixed(1) : '0.0';
+  
+  // Shrinkage = sum of negative values (ขาดทุน)
+  // Loss = ของหาย (final < pos) → negative value
+  // Calc absolute shrinkage value and %
+  const totalPosValue = all.reduce((s, p) => s + (p.pos_qty * p.cost_price), 0);
+  const totalLoss = all.reduce((s, p) => {
+    // Only loss (final < pos)
+    if (p.diff < 0) return s + Math.abs(p.value);
+    return s;
+  }, 0);
+  const shrinkagePct = totalPosValue > 0 ? (totalLoss / totalPosValue * 100).toFixed(2) : '0.00';
+  
+  // Match rate = L1 / total
+  const matchRate = total > 0 ? (byLevel.L1 / total * 100).toFixed(1) : '0.0';
+  
+  // Net variance value (gain - loss)
+  const netVarianceValue = all.reduce((s, p) => s + p.value, 0);
+  
+  const fmt = new Intl.NumberFormat('th-TH');
+  
+  document.getElementById('varianceSummary').innerHTML = `
+    <!-- Recount Rate -->
+    <div onclick="setVarianceLevel('L3')" 
+         style="background:${recountRate > 5 ? 'linear-gradient(135deg,var(--rose-100),var(--amber-100))' : 'linear-gradient(135deg,var(--emerald-100),var(--teal-100))'};padding:11px;border-radius:11px;border:1px solid ${recountRate > 5 ? 'var(--rose-300)' : 'var(--emerald-300)'};cursor:pointer;">
+      <div style="font-size:9px;color:var(--slate-600);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
+        🔁 Recount Rate
+      </div>
+      <div style="font-size:22px;font-weight:800;color:${recountRate > 5 ? 'var(--rose-500)' : 'var(--emerald-500)'};font-family:'Space Grotesk',monospace;line-height:1;">
+        ${recountRate}<span style="font-size:14px;">%</span>
+      </div>
+      <div style="font-size:10px;color:var(--slate-600);margin-top:3px;">
+        ${recountCount.toLocaleString()} / ${total.toLocaleString()} ${isLao ? 'ສິນຄ້າ' : 'สินค้า'}
+      </div>
+    </div>
+    
+    <!-- Shrinkage % -->
+    <div style="background:${shrinkagePct > 1 ? 'linear-gradient(135deg,var(--rose-100),var(--rose-50))' : 'linear-gradient(135deg,var(--emerald-100),var(--teal-100))'};padding:11px;border-radius:11px;border:1px solid ${shrinkagePct > 1 ? 'var(--rose-300)' : 'var(--emerald-300)'};">
+      <div style="font-size:9px;color:var(--slate-600);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
+        💸 ${isLao ? 'ການສູນເສຍ' : 'Shrinkage'}
+      </div>
+      <div style="font-size:22px;font-weight:800;color:${shrinkagePct > 1 ? 'var(--rose-500)' : 'var(--emerald-500)'};font-family:'Space Grotesk',monospace;line-height:1;">
+        ${shrinkagePct}<span style="font-size:14px;">%</span>
+      </div>
+      <div style="font-size:10px;color:var(--slate-600);margin-top:3px;font-family:'Space Grotesk',monospace;">
+        ₭ ${fmt.format(totalLoss)}
+      </div>
+    </div>
+    
+    <!-- Match Rate -->
+    <div onclick="setVarianceLevel('L1')" 
+         style="background:linear-gradient(135deg,var(--emerald-100),var(--teal-100));padding:11px;border-radius:11px;border:1px solid var(--emerald-300);cursor:pointer;">
+      <div style="font-size:9px;color:var(--emerald-700);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
+        ✅ ${isLao ? 'ສະຕ໋ອກຕົງ' : 'สต๊อกตรง'}
+      </div>
+      <div style="font-size:22px;font-weight:800;color:var(--emerald-500);font-family:'Space Grotesk',monospace;line-height:1;">
+        ${matchRate}<span style="font-size:14px;">%</span>
+      </div>
+      <div style="font-size:10px;color:var(--slate-600);margin-top:3px;">
+        ${byLevel.L1.toLocaleString()} / ${total.toLocaleString()} ${isLao ? 'ສິນຄ້າ' : 'สินค้า'}
+      </div>
+    </div>
+    
+    <!-- Net Variance -->
+    <div style="background:${netVarianceValue < 0 ? 'linear-gradient(135deg,var(--rose-100),var(--amber-100))' : 'linear-gradient(135deg,var(--sky-100),var(--violet-100))'};padding:11px;border-radius:11px;border:1px solid ${netVarianceValue < 0 ? 'var(--rose-300)' : 'var(--sky-300)'};">
+      <div style="font-size:9px;color:var(--slate-600);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
+        ${netVarianceValue < 0 ? '📉' : '📈'} Net Variance
+      </div>
+      <div style="font-size:18px;font-weight:800;color:${netVarianceValue < 0 ? 'var(--rose-500)' : 'var(--sky-600)'};font-family:'Space Grotesk',monospace;line-height:1;">
+        ₭ ${fmt.format(Math.abs(netVarianceValue))}
+      </div>
+      <div style="font-size:10px;color:var(--slate-600);margin-top:3px;">
+        ${netVarianceValue < 0 ? (isLao ? 'ຂາດ' : 'ขาด') : (isLao ? 'ເກີນ' : 'เกิน')}
+      </div>
+    </div>
+  `;
+}
+
+function renderVarianceList() {
+  if (!_varianceData) return;
+  const isLao = lang === 'lo';
+  const fmt = new Intl.NumberFormat('th-TH');
+  
+  // Filter by level
+  let items = _varianceData.filter(p => p.level === _varianceFilter.level);
+  
+  // Filter by search
+  if (_varianceFilter.search) {
+    const s = _varianceFilter.search.toLowerCase();
+    items = items.filter(p => 
+      (p.product?.barcode || '').toLowerCase().includes(s) ||
+      (p.product?.name_lo || '').toLowerCase().includes(s) ||
+      (p.product?.name_th || '').toLowerCase().includes(s) ||
+      (p.gondola_code || '').toLowerCase().includes(s)
+    );
+  }
+  
+  // Sort: highest diff first (absolute)
+  items.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+  
+  const listEl = document.getElementById('varianceList');
+  
+  if (items.length === 0) {
+    listEl.innerHTML = `
+      <div style="text-align:center;padding:40px 20px;color:var(--slate-400);">
+        <div style="font-size:48px;margin-bottom:11px;">${_varianceFilter.level === 'L1' ? '✅' : '🎉'}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--slate-600);">
+          ${_varianceFilter.level === 'L1' 
+            ? (isLao ? 'ບໍ່ມີສິນຄ້າທີ່ສະຕ໋ອກຕົງ' : 'ไม่มีสินค้าที่สต๊อกตรง')
+            : (isLao ? `ບໍ່ມີສິນຄ້າໃນລະດັບ ${_varianceFilter.level}` : `ไม่มีสินค้าในระดับ ${_varianceFilter.level}`)}
+        </div>
+      </div>
+    `;
+    return;
+  }
+  
+  // Group by gondola?
+  let html = '';
+  
+  if (_varianceFilter.groupBy === 'gondola') {
+    // Group
+    const groups = {};
+    items.forEach(p => {
+      const key = p.gondola_code || (isLao ? 'ບໍ່ມີຕຳແໜ່ງ' : 'ไม่มีตำแหน่ง');
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(p);
+    });
+    
+    const sortedGroups = Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+    
+    sortedGroups.forEach(([gondola, gItems]) => {
+      const groupDiff = gItems.reduce((s, p) => s + p.diff, 0);
+      const groupValue = gItems.reduce((s, p) => s + p.value, 0);
+      
+      html += `
+        <div style="background:linear-gradient(135deg,var(--sky-100),white);border:1px solid var(--sky-300);border-radius:8px;padding:7px 11px;margin-bottom:5px;margin-top:11px;display:flex;align-items:center;gap:7px;">
+          <span style="font-weight:800;color:var(--sky-600);font-family:'Space Grotesk',monospace;font-size:13px;">📍 ${gondola}</span>
+          <span style="font-size:10px;color:var(--slate-500);margin-left:auto;">
+            ${gItems.length} ${isLao ? 'ສິນຄ້າ' : 'สินค้า'} • 
+            <strong style="color:${groupValue < 0 ? 'var(--rose-500)' : 'var(--emerald-500)'};">
+              ₭ ${fmt.format(Math.abs(groupValue))}
+            </strong>
+          </span>
+        </div>
+      `;
+      
+      gItems.forEach(p => {
+        html += renderVarianceItem(p, fmt, isLao);
+      });
+    });
+  } else {
+    // No grouping
+    items.forEach(p => {
+      html += renderVarianceItem(p, fmt, isLao);
+    });
+  }
+  
+  listEl.innerHTML = html;
+}
+
+function renderVarianceItem(p, fmt, isLao) {
+  const name = isLao ? (p.product?.name_lo || p.product?.name_th || p.barcode) : (p.product?.name_th || p.product?.name_lo || p.barcode);
+  const unit = isLao ? (p.product?.unit_lo || 'ຊິ້ນ') : (p.product?.unit_th || 'ชิ้น');
+  
+  // Color by diff direction
+  const diffColor = p.diff === 0 ? 'var(--emerald-500)' : (p.diff < 0 ? 'var(--rose-500)' : 'var(--sky-600)');
+  const diffBg = p.diff === 0 ? 'var(--emerald-50)' : (p.diff < 0 ? 'var(--rose-50)' : 'var(--sky-50)');
+  const diffSign = p.diff > 0 ? '+' : '';
+  
+  // Recount badge
+  const recountBadge = p.needsRecount 
+    ? `<span style="background:var(--amber-500);color:white;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;margin-left:5px;">🔁 R</span>` 
+    : '';
+  
+  return `
+    <div onclick="openVarianceDetail(${p.product_id})"
+         style="background:${diffBg};border:1px solid ${p.diff === 0 ? 'var(--emerald-200)' : (p.diff < 0 ? 'var(--rose-200)' : 'var(--sky-200)')};border-left:4px solid ${diffColor};border-radius:9px;padding:9px 11px;margin-bottom:5px;cursor:pointer;display:flex;align-items:center;gap:9px;transition:transform 0.1s;"
+         onmouseover="this.style.transform='translateX(2px)'" onmouseout="this.style.transform='translateX(0)'">
+      <!-- Product info -->
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+          ${name}${recountBadge}
+        </div>
+        <div style="font-size:9px;color:var(--slate-500);font-family:monospace;display:flex;align-items:center;gap:6px;margin-top:1px;">
+          <span>${p.product?.barcode || ''}</span>
+          ${p.gondola_code && _varianceFilter.groupBy !== 'gondola' ? `<span style="background:var(--violet-100);color:var(--violet-600);padding:1px 5px;border-radius:3px;font-weight:700;">📍 ${p.gondola_code}</span>` : ''}
+        </div>
+        ${(p.counter_qty !== null || p.verifier_qty !== null) ? `
+          <div style="font-size:9px;color:var(--slate-500);margin-top:2px;display:flex;gap:7px;">
+            ${p.counter_qty !== null ? `<span>👤 ${p.counter_qty}</span>` : ''}
+            ${p.verifier_qty !== null ? `<span>🔍 ${p.verifier_qty}</span>` : ''}
+            ${p.ctl_qty !== null ? `<span>⚖️ ${p.ctl_qty}</span>` : ''}
+            ${p.manager_qty !== null ? `<span>👔 ${p.manager_qty}</span>` : ''}
+          </div>
+        ` : ''}
+      </div>
+      
+      <!-- POS vs Final -->
+      <div style="text-align:center;flex-shrink:0;background:white;padding:5px 9px;border-radius:7px;">
+        <div style="font-size:8px;color:var(--slate-500);font-weight:700;text-transform:uppercase;">POS → Final</div>
+        <div style="font-size:11px;color:var(--slate-700);font-family:'Space Grotesk',monospace;font-weight:700;">
+          ${p.pos_qty} → ${p.final_qty}
+        </div>
+      </div>
+      
+      <!-- Diff -->
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:14px;font-weight:800;color:${diffColor};font-family:'Space Grotesk',monospace;">
+          ${diffSign}${p.diff}
+        </div>
+        <div style="font-size:9px;color:${diffColor};font-family:'Space Grotesk',monospace;font-weight:600;">
+          ${p.pct.toFixed(1)}%
+        </div>
+        ${p.value !== 0 ? `<div style="font-size:9px;color:${p.value < 0 ? 'var(--rose-500)' : 'var(--sky-600)'};font-family:'Space Grotesk',monospace;font-weight:700;margin-top:1px;">
+          ${p.value < 0 ? '-' : '+'}₭${fmt.format(Math.abs(p.value))}
+        </div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+// ==================== VARIANCE FILTERS ====================
+function setVarianceLevel(level) {
+  _varianceFilter.level = level;
+  
+  // Update tab styling
+  ['L1', 'L2', 'L3', 'L4'].forEach(lv => {
+    const btn = document.getElementById('vl-' + lv);
+    if (!btn) return;
+    if (lv === level) {
+      // Active styling per level
+      const colors = {
+        L1: { bg: 'var(--emerald-500)', text: 'white' },
+        L2: { bg: 'var(--amber-500)', text: 'white' },
+        L3: { bg: 'var(--rose-500)', text: 'white' },
+        L4: { bg: 'var(--rose-600)', text: 'white' }
+      };
+      const c = colors[lv];
+      btn.style.background = c.bg;
+      btn.style.borderColor = c.bg;
+      btn.style.color = c.text;
+      btn.querySelectorAll('div').forEach(d => d.style.color = c.text);
+    } else {
+      btn.style.background = 'white';
+      btn.style.borderColor = 'var(--slate-200)';
+      btn.style.color = 'var(--slate-600)';
+      // Reset child colors
+      const divs = btn.querySelectorAll('div');
+      if (divs[1]) divs[1].style.color = 'var(--slate-600)';
+      const colorMap = {
+        L1: 'var(--emerald-500)',
+        L2: 'var(--amber-500)',
+        L3: 'var(--rose-500)',
+        L4: 'var(--rose-600)'
+      };
+      if (divs[2]) divs[2].style.color = colorMap[lv];
+    }
+  });
+  
+  renderVarianceList();
+}
+
+function setVariancePeriod(period) {
+  _varianceFilter.period = period;
+  
+  // Update button styling
+  ['session', 'today', 'week', 'all'].forEach(p => {
+    const btn = document.getElementById('vpBtn' + p.charAt(0).toUpperCase() + p.slice(1));
+    if (!btn) return;
+    if (p === period) {
+      btn.style.background = 'var(--violet-500)';
+      btn.style.color = 'white';
+    } else {
+      btn.style.background = 'transparent';
+      btn.style.color = 'var(--slate-600)';
+    }
+  });
+  
+  loadVarianceReport();
+}
+
+function onVarianceSearchInput(value) {
+  _varianceFilter.search = value.trim();
+  clearTimeout(window._varianceSearchTimer);
+  window._varianceSearchTimer = setTimeout(() => renderVarianceList(), 200);
+}
+
+function toggleVarianceGroup() {
+  _varianceFilter.groupBy = _varianceFilter.groupBy === 'gondola' ? 'none' : 'gondola';
+  const btn = document.getElementById('varianceGroupBtn');
+  if (btn) {
+    if (_varianceFilter.groupBy === 'gondola') {
+      btn.style.background = 'var(--violet-500)';
+      btn.style.color = 'white';
+      btn.innerHTML = `📍 ${lang === 'lo' ? 'ກຸ່ມ' : 'กลุ่ม'}`;
+    } else {
+      btn.style.background = 'var(--violet-100)';
+      btn.style.color = 'var(--violet-600)';
+      btn.innerHTML = `📍 ${lang === 'lo' ? 'ກຸ່ມ' : 'กลุ่ม'}`;
+    }
+  }
+  renderVarianceList();
+}
+
+// ==================== VARIANCE DETAIL MODAL ====================
+async function openVarianceDetail(productId) {
+  const isLao = lang === 'lo';
+  const item = _varianceData?.find(p => p.product_id === productId);
+  if (!item) return;
+  
+  const fmt = new Intl.NumberFormat('th-TH');
+  const name = isLao ? (item.product?.name_lo || item.product?.name_th || item.barcode) : (item.product?.name_th || item.product?.name_lo || item.barcode);
+  const unit = isLao ? (item.product?.unit_lo || 'ຊິ້ນ') : (item.product?.unit_th || 'ชิ้น');
+  
+  // Load all count history for this product
+  const { data: history } = await sb.from('stock_counts')
+    .select('*, users(full_name, role)')
+    .eq('product_id', productId)
+    .eq('branch_id', branch.id)
+    .order('counted_at', { ascending: false });
+  
+  const diffColor = item.diff === 0 ? 'var(--emerald-500)' : (item.diff < 0 ? 'var(--rose-500)' : 'var(--sky-600)');
+  
+  showModal(`
+    <h3 style="display:flex;align-items:center;gap:7px;">
+      📊 ${isLao ? 'ລາຍລະອຽດ' : 'รายละเอียด'}
+      <span style="background:${diffColor};color:white;padding:2px 7px;border-radius:5px;font-size:10px;margin-left:auto;">${item.level}</span>
+    </h3>
+    
+    <!-- Product Info -->
+    <div style="background:var(--slate-50);padding:11px;border-radius:10px;margin-bottom:11px;">
+      <div style="font-size:13px;font-weight:700;color:var(--slate-900);">${name}</div>
+      <div style="font-size:11px;color:var(--slate-500);font-family:monospace;margin-top:2px;">
+        ${item.product?.barcode || ''}
+        ${item.gondola_code ? ` • <span style="background:var(--violet-100);color:var(--violet-600);padding:1px 5px;border-radius:3px;font-weight:700;">📍 ${item.gondola_code}</span>` : ''}
+      </div>
+    </div>
+    
+    <!-- Stats -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:11px;">
+      <div style="background:white;border:1px solid var(--slate-200);padding:9px;border-radius:9px;text-align:center;">
+        <div style="font-size:9px;color:var(--slate-500);font-weight:700;text-transform:uppercase;">POS</div>
+        <div style="font-size:16px;font-weight:800;color:var(--slate-900);font-family:'Space Grotesk',monospace;">${item.pos_qty}</div>
+      </div>
+      <div style="background:white;border:1px solid var(--violet-300);padding:9px;border-radius:9px;text-align:center;">
+        <div style="font-size:9px;color:var(--violet-600);font-weight:700;text-transform:uppercase;">${isLao ? 'ນັບໄດ້' : 'นับได้'}</div>
+        <div style="font-size:16px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;">${item.final_qty}</div>
+      </div>
+      <div style="background:white;border:1px solid ${item.diff === 0 ? 'var(--emerald-300)' : (item.diff < 0 ? 'var(--rose-300)' : 'var(--sky-300)')};padding:9px;border-radius:9px;text-align:center;">
+        <div style="font-size:9px;color:${diffColor};font-weight:700;text-transform:uppercase;">Diff</div>
+        <div style="font-size:16px;font-weight:800;color:${diffColor};font-family:'Space Grotesk',monospace;">
+          ${item.diff > 0 ? '+' : ''}${item.diff}
+        </div>
+        <div style="font-size:9px;color:${diffColor};font-family:'Space Grotesk',monospace;">
+          ${item.pct.toFixed(1)}%
+        </div>
+      </div>
+    </div>
+    
+    <!-- Value -->
+    ${item.value !== 0 ? `
+      <div style="background:${item.value < 0 ? 'var(--rose-100)' : 'var(--sky-100)'};border-left:3px solid ${item.value < 0 ? 'var(--rose-500)' : 'var(--sky-500)'};padding:9px 11px;border-radius:7px;margin-bottom:11px;">
+        <div style="font-size:10px;color:${item.value < 0 ? 'var(--rose-500)' : 'var(--sky-600)'};font-weight:700;">
+          ${item.value < 0 ? (isLao ? '📉 ມູນຄ່າທີ່ສູນເສຍ' : '📉 มูลค่าที่สูญเสีย') : (isLao ? '📈 ມູນຄ່າທີ່ເກີນ' : '📈 มูลค่าที่เกิน')}
+        </div>
+        <div style="font-size:18px;font-weight:800;color:${item.value < 0 ? 'var(--rose-500)' : 'var(--sky-600)'};font-family:'Space Grotesk',monospace;">
+          ₭ ${fmt.format(Math.abs(item.value))}
+        </div>
+        <div style="font-size:10px;color:var(--slate-500);">
+          ${isLao ? 'ຕົ້ນທຶນ' : 'ต้นทุน'}: ₭${fmt.format(item.cost_price)}/${unit}
+        </div>
+      </div>
+    ` : ''}
+    
+    <!-- Count History -->
+    <div style="font-size:11px;color:var(--slate-600);font-weight:700;margin-bottom:5px;">
+      🕐 ${isLao ? 'ປະຫວັດການນັບ' : 'ประวัติการนับ'} (${(history || []).length})
+    </div>
+    <div style="max-height:200px;overflow-y:auto;background:var(--slate-50);border-radius:9px;padding:7px;">
+      ${(history || []).map(h => {
+        const roleEmoji = {
+          counter: '👤', staff: '👤',
+          verifier: '🔍', audit: '🔍',
+          ctl_tiebreaker: '⚖️',
+          manager_final: '👔'
+        };
+        const time = new Date(h.counted_at).toLocaleString(isLao ? 'lo-LA' : 'th-TH', {
+          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+        return `
+          <div style="background:white;border:1px solid var(--slate-200);border-radius:7px;padding:7px 9px;margin-bottom:4px;display:flex;align-items:center;gap:8px;">
+            <div style="font-size:16px;flex-shrink:0;">${roleEmoji[h.count_role] || '📝'}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:11px;font-weight:700;color:var(--slate-900);">${h.users?.full_name || h.user_id}</div>
+              <div style="font-size:9px;color:var(--slate-500);">${h.count_role} • ${time}</div>
+              ${h.note ? `<div style="font-size:9px;color:var(--slate-600);font-style:italic;margin-top:2px;">"${h.note}"</div>` : ''}
+            </div>
+            <div style="font-size:14px;font-weight:800;color:var(--slate-900);font-family:'Space Grotesk',monospace;">
+              ${h.counted_qty}
+            </div>
+          </div>
+        `;
+      }).join('')}
+      ${(history || []).length === 0 ? `<div style="text-align:center;padding:11px;color:var(--slate-400);font-size:10px;">${isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล'}</div>` : ''}
+    </div>
+    
+    <div class="action-row" style="margin-top:11px;">
+      <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;padding:13px;font-size:13px;">${T('cancel')}</button>
+    </div>
+  `);
+}
+
+// ==================== EXPORT VARIANCE EXCEL ====================
+async function exportVarianceExcel() {
+  const isLao = lang === 'lo';
+  if (!_varianceData || _varianceData.length === 0) {
+    showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning');
+    return;
+  }
+  
+  showToast(isLao ? '⏳ ກຳລັງສ້າງ Excel...' : '⏳ กำลังสร้าง Excel...', 'success');
+  
+  try {
+    const wb = XLSX.utils.book_new();
+    
+    // Sheet 1: All items
+    const allRows = _varianceData.map(p => ({
+      Level: p.level,
+      Gondola: p.gondola_code || '',
+      Barcode: p.product?.barcode || '',
+      'ชื่อสินค้า': p.product?.name_th || p.product?.name_lo || '',
+      'ชื่อ (ลาว)': p.product?.name_lo || '',
+      POS: p.pos_qty,
+      Counter: p.counter_qty ?? '',
+      Verifier: p.verifier_qty ?? '',
+      CTL: p.ctl_qty ?? '',
+      Manager: p.manager_qty ?? '',
+      Final: p.final_qty,
+      Diff: p.diff,
+      'Diff %': p.pct.toFixed(2),
+      'Cost (₭)': p.cost_price,
+      'Value (₭)': p.value,
+      'Needs Recount': p.needsRecount ? 'Yes' : 'No',
+      'Rounds': p.rounds
+    }));
+    
+    const wsAll = XLSX.utils.json_to_sheet(allRows);
+    XLSX.utils.book_append_sheet(wb, wsAll, 'All Items');
+    
+    // Sheet 2-5: By Level
+    ['L4', 'L3', 'L2', 'L1'].forEach(level => {
+      const filtered = allRows.filter(r => r.Level === level);
+      if (filtered.length > 0) {
+        const ws = XLSX.utils.json_to_sheet(filtered);
+        XLSX.utils.book_append_sheet(wb, ws, level);
+      }
+    });
+    
+    // Sheet: Summary
+    const total = _varianceData.length;
+    const byLevel = { L1: 0, L2: 0, L3: 0, L4: 0 };
+    _varianceData.forEach(p => byLevel[p.level]++);
+    const recountRate = total > 0 ? ((byLevel.L3 + byLevel.L4) / total * 100).toFixed(2) : 0;
+    const totalPosValue = _varianceData.reduce((s, p) => s + (p.pos_qty * p.cost_price), 0);
+    const totalLoss = _varianceData.reduce((s, p) => p.diff < 0 ? s + Math.abs(p.value) : s, 0);
+    const shrinkagePct = totalPosValue > 0 ? (totalLoss / totalPosValue * 100).toFixed(2) : 0;
+    
+    const summaryData = [
+      ['Friendship Stock - Variance Report'],
+      [],
+      ['Branch', branch.code + ' - ' + (branch.name_th || branch.name_lo)],
+      ['Generated', new Date().toLocaleString()],
+      ['Period', _varianceFilter.period],
+      ['Session', session?.session_name || '-'],
+      [],
+      ['KPI', 'Value'],
+      ['Total Items', total],
+      ['Recount Rate', recountRate + '%'],
+      ['Shrinkage %', shrinkagePct + '%'],
+      ['Total Loss (₭)', totalLoss],
+      [],
+      ['Level', 'Count', '%'],
+      ['L1 (Match)', byLevel.L1, total > 0 ? (byLevel.L1/total*100).toFixed(1) + '%' : '0%'],
+      ['L2 (Explain)', byLevel.L2, total > 0 ? (byLevel.L2/total*100).toFixed(1) + '%' : '0%'],
+      ['L3 (Recount)', byLevel.L3, total > 0 ? (byLevel.L3/total*100).toFixed(1) + '%' : '0%'],
+      ['L4 (Critical)', byLevel.L4, total > 0 ? (byLevel.L4/total*100).toFixed(1) + '%' : '0%']
+    ];
+    const wsSum = XLSX.utils.aoa_to_sheet(summaryData);
+    wsSum['!cols'] = [{wch:25},{wch:15},{wch:12}];
+    XLSX.utils.book_append_sheet(wb, wsSum, '_Summary', true);
+    
+    const fileName = `variance-${branch.code}-${new Date().toISOString().slice(0,10)}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    
+    showToast(`✅ ${total.toLocaleString()} records`, 'success');
+  } catch (e) {
+    console.error('[FS] exportVarianceExcel error:', e);
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+// ==================== END VARIANCE REPORT ====================
+
 function renderKPIPage() {
   return `
     <div class="banner sky">
@@ -14523,6 +15319,14 @@ window.confirmMovePog = confirmMovePog;
 window.openEditPogLocationModal = openEditPogLocationModal;
 window.filterEditLocList = filterEditLocList;
 window.confirmEditPogLocation = confirmEditPogLocation;
+window.renderVariancePage = renderVariancePage;
+window.loadVarianceReport = loadVarianceReport;
+window.setVarianceLevel = setVarianceLevel;
+window.setVariancePeriod = setVariancePeriod;
+window.onVarianceSearchInput = onVarianceSearchInput;
+window.toggleVarianceGroup = toggleVarianceGroup;
+window.openVarianceDetail = openVarianceDetail;
+window.exportVarianceExcel = exportVarianceExcel;
 window.adjustCount = adjustCount;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
