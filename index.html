@@ -9228,6 +9228,9 @@ function renderVariancePage() {
       </div>
     </div>
     
+    <!-- 🆕 Advanced KPI Section -->
+    <div id="varianceAdvancedKPI" style="margin-bottom:11px;"></div>
+    
     <!-- Period Filter -->
     <div style="display:flex;gap:5px;margin-bottom:9px;background:var(--slate-100);padding:4px;border-radius:9px;">
       <button onclick="setVariancePeriod('session')" id="vpBtnSession" class="vp-btn" 
@@ -9467,6 +9470,7 @@ async function loadVarianceReport() {
     _varianceData = items.filter(it => !it.isOrphan);
     
     renderVarianceSummary();
+    renderAdvancedKPI();
     renderVarianceList();
   } catch (e) {
     console.error('[FS] loadVarianceReport error:', e);
@@ -9689,6 +9693,313 @@ async function cleanupOrphanCounts() {
     console.error('[FS] cleanupOrphanCounts error:', e);
     showToast('Error: ' + e.message, 'error');
   }
+}
+
+// ==================== ADVANCED KPI METRICS ====================
+function renderAdvancedKPI() {
+  if (!_varianceData) return;
+  const isLao = lang === 'lo';
+  const fmt = new Intl.NumberFormat('th-TH');
+  const container = document.getElementById('varianceAdvancedKPI');
+  if (!container) return;
+  
+  const all = _varianceData;
+  const total = all.length;
+  
+  if (total === 0) {
+    container.innerHTML = '';
+    return;
+  }
+  
+  // ====== KPI 1: Time to Complete Session ======
+  let timeStats = null;
+  if (session) {
+    const counts = [];
+    all.forEach(p => {
+      if (p.counter?.counted_at) counts.push(new Date(p.counter.counted_at).getTime());
+      if (p.verifier?.counted_at) counts.push(new Date(p.verifier.counted_at).getTime());
+      if (p.ctl?.counted_at) counts.push(new Date(p.ctl.counted_at).getTime());
+      if (p.manager?.counted_at) counts.push(new Date(p.manager.counted_at).getTime());
+    });
+    
+    if (counts.length >= 2) {
+      counts.sort();
+      const start = counts[0];
+      const end = counts[counts.length - 1];
+      const durationMin = Math.round((end - start) / 60000);
+      const itemsPerMin = durationMin > 0 ? (total / durationMin).toFixed(1) : '∞';
+      timeStats = { durationMin, itemsPerMin, start, end };
+    }
+  }
+  
+  // ====== KPI 2: Counter Performance ======
+  const counterStats = {};
+  all.forEach(p => {
+    const c = p.counter;
+    if (!c?.user_id) return;
+    if (!counterStats[c.user_id]) {
+      counterStats[c.user_id] = {
+        user_id: c.user_id,
+        count: 0,
+        l1: 0, l2: 0, l3: 0, l4: 0,
+        totalDiff: 0,
+        totalLoss: 0
+      };
+    }
+    const s = counterStats[c.user_id];
+    s.count++;
+    s[p.level.toLowerCase()] = (s[p.level.toLowerCase()] || 0) + 1;
+    s.totalDiff += Math.abs(p.diff);
+    if (p.diff < 0) s.totalLoss += Math.abs(p.value);
+  });
+  
+  const topCounters = Object.values(counterStats)
+    .map(s => ({
+      ...s,
+      accuracyRate: s.count > 0 ? ((s.l1 / s.count) * 100).toFixed(1) : '0',
+      varianceRate: s.count > 0 ? (((s.l3 + s.l4) / s.count) * 100).toFixed(1) : '0'
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+  
+  // ====== KPI 3: Gondola Hot Spot ======
+  const gondolaStats = {};
+  all.forEach(p => {
+    const g = p.gondola_code || (isLao ? 'ບໍ່ມີຕຳແໜ່ງ' : 'ไม่มีตำแหน่ง');
+    if (!gondolaStats[g]) {
+      gondolaStats[g] = {
+        code: g,
+        items: 0,
+        l3l4: 0,
+        totalLoss: 0,
+        totalVariance: 0
+      };
+    }
+    const s = gondolaStats[g];
+    s.items++;
+    if (['L3', 'L4'].includes(p.level)) s.l3l4++;
+    if (p.diff < 0) s.totalLoss += Math.abs(p.value);
+    s.totalVariance += Math.abs(p.value);
+  });
+  
+  const hotGondolas = Object.values(gondolaStats)
+    .filter(g => g.l3l4 > 0)
+    .sort((a, b) => b.totalLoss - a.totalLoss)
+    .slice(0, 5);
+  
+  // ====== KPI 4: POS Health Score ======
+  // Calculation: 100 - (variance rate × 0.5) - (orphan penalty)
+  const varianceRate = total > 0 ? ((all.filter(p => ['L3','L4'].includes(p.level)).length / total) * 100) : 0;
+  const orphanCount = (_varianceAllData || []).filter(p => p.isOrphan).length;
+  const orphanPenalty = Math.min(orphanCount * 2, 20); // max -20
+  
+  // Branch coverage = % products with POS > 0 vs total
+  const productsWithPos = all.filter(p => p.pos_qty > 0).length;
+  const posCoverage = total > 0 ? (productsWithPos / total * 100) : 0;
+  
+  // Match rate penalty
+  const matchPenalty = Math.max(0, 50 - posCoverage * 0.5);
+  
+  let healthScore = Math.max(0, Math.min(100, 100 - (varianceRate * 0.5) - orphanPenalty - matchPenalty));
+  healthScore = Math.round(healthScore);
+  
+  const healthColor = healthScore >= 80 ? 'var(--emerald-500)' 
+                    : healthScore >= 60 ? 'var(--amber-500)' 
+                    : 'var(--rose-500)';
+  const healthGrade = healthScore >= 90 ? 'A+' 
+                    : healthScore >= 80 ? 'A' 
+                    : healthScore >= 70 ? 'B' 
+                    : healthScore >= 60 ? 'C' 
+                    : healthScore >= 50 ? 'D' 
+                    : 'F';
+  
+  // ====== Render All KPI ======
+  let html = `
+    <div style="background:white;border:1px solid var(--slate-200);border-radius:11px;padding:9px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;">
+        <div style="font-size:11px;font-weight:800;color:var(--slate-700);text-transform:uppercase;letter-spacing:0.5px;">
+          📈 ${isLao ? 'KPI ຂັ້ນສູງ' : 'KPI ขั้นสูง'}
+        </div>
+        <div style="font-size:9px;color:var(--slate-400);">
+          ${isLao ? 'ອັບເດດ' : 'อัพเดต'}: ${new Date().toLocaleTimeString(isLao ? 'lo-LA' : 'th-TH', {hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+        </div>
+      </div>
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <!-- KPI 1: Health Score (BIG) -->
+        <div style="grid-column:span 2;background:linear-gradient(135deg,${healthScore >= 80 ? 'var(--emerald-100),var(--teal-100)' : healthScore >= 60 ? 'var(--amber-100),var(--amber-50)' : 'var(--rose-100),var(--amber-100)'});padding:11px;border-radius:9px;display:flex;align-items:center;gap:11px;">
+          <div style="background:${healthColor};color:white;width:64px;height:64px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px ${healthColor.replace(')', ',0.3)')};">
+            <div style="font-size:22px;font-weight:900;line-height:1;font-family:'Space Grotesk',monospace;">${healthGrade}</div>
+            <div style="font-size:10px;opacity:0.95;font-weight:700;">${healthScore}%</div>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:11px;color:var(--slate-700);font-weight:800;text-transform:uppercase;">
+              🏥 ${isLao ? 'ສຸຂະພາບ POS Data' : 'POS Data Health'}
+            </div>
+            <div style="font-size:9px;color:var(--slate-500);margin-top:1px;">
+              ${isLao ? 'ປະເມີນຄຸນນະພາບຂໍ້ມູນລວມຂອງສາຂາ' : 'ประเมินคุณภาพข้อมูลรวมของสาขา'}
+            </div>
+            <div style="margin-top:5px;display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:9px;">
+              <div>
+                <span style="color:var(--slate-500);">${isLao ? 'POS ມີຄ່າ' : 'POS มีค่า'}:</span>
+                <strong style="color:var(--slate-900);">${posCoverage.toFixed(0)}%</strong>
+              </div>
+              <div>
+                <span style="color:var(--slate-500);">Variance:</span>
+                <strong style="color:${varianceRate > 5 ? 'var(--rose-500)' : 'var(--emerald-500)'};">${varianceRate.toFixed(1)}%</strong>
+              </div>
+              <div>
+                <span style="color:var(--slate-500);">Orphan:</span>
+                <strong style="color:${orphanCount > 0 ? 'var(--rose-500)' : 'var(--emerald-500)'};">${orphanCount}</strong>
+              </div>
+              <div>
+                <span style="color:var(--slate-500);">${isLao ? 'ສິນຄ້າ' : 'สินค้า'}:</span>
+                <strong style="color:var(--slate-900);">${total.toLocaleString()}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+  `;
+  
+  // KPI 2: Session Duration
+  if (timeStats) {
+    const h = Math.floor(timeStats.durationMin / 60);
+    const m = timeStats.durationMin % 60;
+    const durStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+    
+    html += `
+      <div style="background:var(--violet-100);padding:9px;border-radius:9px;">
+        <div style="font-size:9px;color:var(--violet-600);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
+          ⏱️ ${isLao ? 'ເວລາທີ່ໃຊ້' : 'เวลาที่ใช้'}
+        </div>
+        <div style="font-size:18px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;line-height:1;">
+          ${durStr}
+        </div>
+        <div style="font-size:9px;color:var(--slate-600);margin-top:3px;font-family:'Space Grotesk',monospace;">
+          ⚡ ${timeStats.itemsPerMin} ${isLao ? 'ສິນຄ້າ/ນາທີ' : 'สินค้า/นาที'}
+        </div>
+      </div>
+    `;
+  }
+  
+  // KPI 3: Match Rate Quick
+  const matchRate = total > 0 ? ((all.filter(p => p.level === 'L1').length / total) * 100).toFixed(1) : '0';
+  html += `
+    <div style="background:${matchRate >= 80 ? 'var(--emerald-100)' : matchRate >= 60 ? 'var(--amber-100)' : 'var(--rose-100)'};padding:9px;border-radius:9px;">
+      <div style="font-size:9px;color:var(--slate-600);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
+        🎯 ${isLao ? 'ສະຕ໋ອກຕົງ' : 'สต๊อกตรง'}
+      </div>
+      <div style="font-size:18px;font-weight:800;color:${matchRate >= 80 ? 'var(--emerald-500)' : matchRate >= 60 ? 'var(--amber-500)' : 'var(--rose-500)'};font-family:'Space Grotesk',monospace;line-height:1;">
+        ${matchRate}<span style="font-size:13px;">%</span>
+      </div>
+      <div style="font-size:9px;color:var(--slate-600);margin-top:3px;">
+        ${matchRate >= 90 ? '🏆 ' + (isLao ? 'ດີຫຼາຍ' : 'ดีมาก') : matchRate >= 70 ? '👍 ' + (isLao ? 'ດີ' : 'ดี') : '⚠️ ' + (isLao ? 'ຕ້ອງປັບປຸງ' : 'ต้องปรับปรุง')}
+      </div>
+    </div>
+  `;
+  
+  html += '</div>'; // close grid
+  
+  // ====== Counter Performance Table ======
+  if (topCounters.length > 0) {
+    html += `
+      <div style="margin-top:9px;border-top:1px solid var(--slate-200);padding-top:9px;">
+        <div style="font-size:10px;color:var(--slate-700);font-weight:800;text-transform:uppercase;margin-bottom:5px;display:flex;align-items:center;gap:5px;">
+          <span>👤 ${isLao ? 'ປະສິດທິພາບຜູ້ນັບ' : 'ประสิทธิภาพผู้นับ'}</span>
+          <span style="font-size:9px;color:var(--slate-400);font-weight:500;text-transform:none;">Top ${topCounters.length}</span>
+        </div>
+        <div style="background:var(--slate-50);border-radius:7px;padding:5px;">
+    `;
+    
+    // Fetch user names from cache or async
+    topCounters.forEach((c, idx) => {
+      const accColor = parseFloat(c.accuracyRate) >= 90 ? 'var(--emerald-500)' 
+                     : parseFloat(c.accuracyRate) >= 70 ? 'var(--amber-500)' 
+                     : 'var(--rose-500)';
+      const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉';
+      html += `
+        <div style="background:white;border-radius:5px;padding:5px 7px;margin-bottom:3px;display:flex;align-items:center;gap:7px;font-size:10px;">
+          <span style="font-size:13px;">${medal}</span>
+          <div style="flex:1;min-width:0;">
+            <div id="counterName-${c.user_id}" style="font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              ${c.user_id.substring(0, 8)}...
+            </div>
+            <div style="font-size:9px;color:var(--slate-500);font-family:'Space Grotesk',monospace;">
+              ${c.count} ${isLao ? 'ນັບ' : 'นับ'} • L3+L4: ${c.l3 + c.l4}
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:11px;font-weight:800;color:${accColor};font-family:'Space Grotesk',monospace;">
+              ${c.accuracyRate}%
+            </div>
+            <div style="font-size:8px;color:var(--slate-500);">
+              ${isLao ? 'ຄວາມຖືກຕ້ອງ' : 'ความถูกต้อง'}
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    html += '</div></div>';
+    
+    // Async fetch user names
+    setTimeout(async () => {
+      try {
+        const userIds = topCounters.map(c => c.user_id);
+        const { data: users } = await sb.from('users')
+          .select('id, full_name')
+          .in('id', userIds);
+        (users || []).forEach(u => {
+          const el = document.getElementById('counterName-' + u.id);
+          if (el) el.textContent = u.full_name;
+        });
+      } catch(e) {}
+    }, 50);
+  }
+  
+  // ====== Hot Gondolas ======
+  if (hotGondolas.length > 0) {
+    html += `
+      <div style="margin-top:9px;border-top:1px solid var(--slate-200);padding-top:9px;">
+        <div style="font-size:10px;color:var(--slate-700);font-weight:800;text-transform:uppercase;margin-bottom:5px;display:flex;align-items:center;gap:5px;">
+          <span>🔥 ${isLao ? 'ຕຳແໜ່ງປັນຫາ' : 'ตำแหน่งปัญหา'}</span>
+          <span style="font-size:9px;color:var(--slate-400);font-weight:500;text-transform:none;">Top ${hotGondolas.length}</span>
+        </div>
+        <div style="background:var(--rose-50);border-radius:7px;padding:5px;">
+    `;
+    
+    hotGondolas.forEach((g, idx) => {
+      const lossColor = g.totalLoss > 100000 ? 'var(--rose-600)' : g.totalLoss > 30000 ? 'var(--rose-500)' : 'var(--amber-500)';
+      const intensityBar = Math.min(100, (g.l3l4 / g.items * 100));
+      html += `
+        <div onclick="setVarianceLevel('L4'); setTimeout(() => { document.getElementById('varianceSearch').value='${g.code}'; onVarianceSearchInput('${g.code}'); }, 100);" 
+             style="background:white;border-radius:5px;padding:5px 7px;margin-bottom:3px;display:flex;align-items:center;gap:7px;font-size:10px;cursor:pointer;border-left:3px solid ${lossColor};"
+             onmouseover="this.style.transform='translateX(2px)'" onmouseout="this.style.transform='translateX(0)'">
+          <div style="background:${lossColor};color:white;padding:3px 7px;border-radius:4px;font-weight:800;font-family:'Space Grotesk',monospace;font-size:10px;flex-shrink:0;">
+            📍 ${g.code}
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:5px;font-size:9px;color:var(--slate-500);">
+              <span>${g.items} ${isLao ? 'ສິນຄ້າ' : 'รายการ'}</span>
+              <span>•</span>
+              <span style="color:var(--rose-500);font-weight:700;">${g.l3l4} ${isLao ? 'ປັນຫາ' : 'ปัญหา'}</span>
+            </div>
+            <div style="height:3px;background:var(--slate-100);border-radius:2px;margin-top:3px;overflow:hidden;">
+              <div style="height:100%;background:${lossColor};width:${intensityBar}%;"></div>
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            <div style="font-size:10px;font-weight:800;color:${lossColor};font-family:'Space Grotesk',monospace;">
+              -₭${fmt.format(g.totalLoss)}
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    html += '</div></div>';
+  }
+  
+  html += '</div>'; // close card
+  container.innerHTML = html;
 }
 
 function renderVarianceList() {
@@ -16013,6 +16324,7 @@ window.loadHealthAlerts = loadHealthAlerts;
 window.updateLastSync = updateLastSync;
 window.friendlyError = friendlyError;
 window.toastError = toastError;
+window.renderAdvancedKPI = renderAdvancedKPI;
 window.cancelClonePrompt = cancelClonePrompt;
 window.confirmCloneFromOther = confirmCloneFromOther;
 window.adjustCount = adjustCount;
