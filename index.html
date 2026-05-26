@@ -8956,6 +8956,7 @@ async function loadDashboard() {
 // Admin/SCC/BCS เท่านั้น
 
 let _varianceData = null;
+let _varianceAllData = null; // includes orphans (deleted products)
 let _varianceFilter = {
   level: 'L3',      // เริ่มที่ L3 (Recount) เพราะสำคัญสุด
   search: '',
@@ -9177,8 +9178,21 @@ async function loadVarianceReport() {
       const ctlCount = p.ctl?.counted_qty ?? null;
       const managerCount = p.manager?.counted_qty ?? null;
       
-      const posQty = p.product?.pos_qty || 0;
-      const costPrice = p.product?.cost_price || 0;
+      // 🔍 Detect orphan: product was deleted, only stock_counts remain
+      const isOrphan = !p.product;
+      
+      // POS qty: ใช้ค่าจาก products ปัจจุบัน (= 0 ถ้าไม่อยู่ในไฟล์ POS ล่าสุด)
+      // ถ้า orphan → ใช้ pos_qty_snapshot จาก stock_counts (เผื่อ Admin ดูข้อมูลย้อนหลัง)
+      let posQty = 0;
+      let costPrice = 0;
+      if (p.product) {
+        posQty = p.product.pos_qty || 0;
+        costPrice = p.product.cost_price || 0;
+      } else {
+        // Orphan: ใช้ snapshot จาก latest count
+        const latestCount = p.manager || p.ctl || p.verifier || p.counter;
+        posQty = latestCount?.pos_qty_snapshot || 0;
+      }
       
       const diff = finalCount - posQty;
       const pct = posQty > 0 ? Math.abs(diff / posQty * 100) : (diff !== 0 ? 100 : 0);
@@ -9199,13 +9213,19 @@ async function loadVarianceReport() {
         cost_price: costPrice,
         diff,
         pct,
-        value, // shrinkage value (negative = loss)
+        value,
         level,
-        needsRecount
+        needsRecount,
+        isOrphan  // 🔥 flag สำหรับแสดงเตือน
       };
     });
     
-    _varianceData = items;
+    // เก็บ all items (รวม orphan) ไว้ใน _varianceAllData
+    _varianceAllData = items;
+    
+    // _varianceData = items ที่ valid (มี product) เท่านั้น — แสดงในรายการหลัก
+    // (orphan แสดงใน section พิเศษ)
+    _varianceData = items.filter(it => !it.isOrphan);
     
     renderVarianceSummary();
     renderVarianceList();
@@ -9314,6 +9334,122 @@ function renderVarianceSummary() {
       </div>
     </div>
   `;
+  
+  // 🔥 Orphan Records Warning — แสดงถ้ามี stock_counts ที่ product ถูกลบไปแล้ว
+  renderOrphanWarning();
+}
+
+function renderOrphanWarning() {
+  const isLao = lang === 'lo';
+  const all = _varianceAllData || [];
+  const orphans = all.filter(p => p.isOrphan);
+  
+  // หา container — จะใส่หลัง varianceSummary
+  let warningEl = document.getElementById('varianceOrphanWarning');
+  
+  if (orphans.length === 0) {
+    // ลบ banner ถ้าไม่มี orphan
+    if (warningEl) warningEl.remove();
+    return;
+  }
+  
+  // สร้าง banner ถ้ายังไม่มี
+  if (!warningEl) {
+    warningEl = document.createElement('div');
+    warningEl.id = 'varianceOrphanWarning';
+    const summary = document.getElementById('varianceSummary');
+    if (summary && summary.parentNode) {
+      summary.parentNode.insertBefore(warningEl, summary.nextSibling);
+    }
+  }
+  
+  const orphanIds = orphans.map(o => {
+    // หา stock_counts id เพื่อ cleanup
+    const latest = o.manager || o.ctl || o.verifier || o.counter;
+    return latest?.id;
+  }).filter(Boolean);
+  
+  warningEl.innerHTML = `
+    <div style="background:linear-gradient(135deg,var(--amber-100),var(--rose-100));border:2px solid var(--amber-500);border-radius:11px;padding:11px;margin-bottom:11px;">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;">
+        <span style="font-size:22px;">⚠️</span>
+        <div style="flex:1;">
+          <div style="font-size:12px;font-weight:800;color:#92400e;">
+            ${isLao ? 'ພົບຂໍ້ມູນຄ້າງ (Orphan)' : 'พบข้อมูลค้าง (Orphan)'}
+          </div>
+          <div style="font-size:10px;color:#92400e;margin-top:1px;">
+            ${isLao 
+              ? `${orphans.length} ການນັບ ສິນຄ້າຖືກລົບແລ້ວ — ບໍ່ມີໃນ products` 
+              : `${orphans.length} การนับ ที่สินค้าถูกลบแล้ว — ไม่มีใน products`}
+          </div>
+        </div>
+        <button onclick="cleanupOrphanCounts()" 
+                style="background:var(--rose-500);color:white;border:none;border-radius:6px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;">
+          🧹 ${isLao ? 'ລົບ' : 'ลบทิ้ง'}
+        </button>
+      </div>
+      
+      <details style="margin-top:7px;">
+        <summary style="font-size:10px;color:#92400e;cursor:pointer;font-weight:700;">
+          ${isLao ? '📋 ເບິ່ງລາຍລະອຽດ' : '📋 ดูรายละเอียด'}
+        </summary>
+        <div style="background:white;border-radius:7px;padding:7px 9px;margin-top:5px;max-height:200px;overflow-y:auto;">
+          ${orphans.slice(0, 20).map(o => `
+            <div style="font-size:10px;color:var(--slate-700);padding:3px 0;border-bottom:1px solid var(--slate-100);">
+              <span style="font-family:monospace;color:var(--slate-500);">product_id:${o.product_id}</span>
+              ${o.gondola_code ? ` • 📍 ${o.gondola_code}` : ''}
+              • ${isLao ? 'ນັບໄດ້' : 'นับได้'}: ${o.final_qty}
+              • Pos snapshot: ${o.pos_qty}
+            </div>
+          `).join('')}
+          ${orphans.length > 20 ? `<div style="font-size:10px;color:var(--slate-400);text-align:center;padding:5px;">+${orphans.length - 20} ${isLao ? 'ອື່ນໆ' : 'อื่นๆ'}</div>` : ''}
+        </div>
+      </details>
+    </div>
+  `;
+}
+
+async function cleanupOrphanCounts() {
+  const isLao = lang === 'lo';
+  const all = _varianceAllData || [];
+  const orphans = all.filter(p => p.isOrphan);
+  
+  if (orphans.length === 0) {
+    showToast(isLao ? 'ບໍ່ມີ orphan' : 'ไม่มี orphan', 'warning');
+    return;
+  }
+  
+  if (!confirm(isLao 
+    ? `ລົບ ${orphans.length} ການນັບທີ່ສິນຄ້າຖືກລົບແລ້ວ?\n\nການນັບເຫລົ່ານີ້ບໍ່ມີສິນຄ້າອ້າງອີງໃນລະບົບ`
+    : `ลบ ${orphans.length} การนับที่สินค้าถูกลบแล้ว?\n\nการนับเหล่านี้ไม่มีสินค้าอ้างอิงในระบบ`)) return;
+  
+  showToast(isLao ? '⏳ ກຳລັງລົບ...' : '⏳ กำลังลบ...', 'success');
+  
+  try {
+    // รวบรวม stock_counts ids ทั้งหมดของ orphan products
+    // ต้องลบทุก record ของ product_id เหล่านี้ ไม่ใช่แค่ latest
+    const orphanProductIds = orphans.map(o => o.product_id).filter(Boolean);
+    
+    if (orphanProductIds.length === 0) {
+      showToast(isLao ? 'ບໍ່ມີ ID' : 'ไม่มี ID', 'warning');
+      return;
+    }
+    
+    const { error } = await sb.from('stock_counts')
+      .delete()
+      .eq('branch_id', branch.id)
+      .in('product_id', orphanProductIds);
+    
+    if (error) throw error;
+    
+    showToast(`🧹 ${isLao ? 'ລົບແລ້ວ' : 'ลบแล้ว'} ${orphans.length} ${isLao ? 'ການນັບ' : 'การนับ'}`, 'success');
+    
+    // Reload
+    await loadVarianceReport();
+  } catch (e) {
+    console.error('[FS] cleanupOrphanCounts error:', e);
+    showToast('Error: ' + e.message, 'error');
+  }
 }
 
 function renderVarianceList() {
@@ -15390,6 +15526,7 @@ window.onVarianceSearchInput = onVarianceSearchInput;
 window.toggleVarianceGroup = toggleVarianceGroup;
 window.openVarianceDetail = openVarianceDetail;
 window.exportVarianceExcel = exportVarianceExcel;
+window.cleanupOrphanCounts = cleanupOrphanCounts;
 window.cancelClonePrompt = cancelClonePrompt;
 window.confirmCloneFromOther = confirmCloneFromOther;
 window.adjustCount = adjustCount;
