@@ -11157,17 +11157,63 @@ function checkBranchCodeMismatch() {
     return;
   }
   
-  // ตรวจสอบความ match — ดู branch code ทั้ง direct match + partial match (เช่น file มี "FS-Express-TRADING-ໜ້າຮ້ານ")
-  const matchingCodes = branchCodesInFile.filter(fileCode => {
-    if (!fileCode || !destBranchCode) return false;
-    const fc = fileCode.toUpperCase();
-    const dc = destBranchCode.toUpperCase();
-    return fc === dc || fc.includes(dc) || dc.includes(fc);
-  });
+  // ใช้ branches cache (มีทั้งหมด) เพื่อ match ที่แม่นยำ
+  const allBranches = window._allBranchesCache || [];
   
-  if (matchingCodes.length === branchCodesInFile.length) {
-    // Match — green
+  // Helper: ตรวจสอบว่า fileCode match กับ branch ใด — return matched branch.id
+  function matchBranchByCode(fileCode) {
+    if (!fileCode) return null;
+    const fc = String(fileCode).toUpperCase().trim();
+    
+    // 1. Direct code match (เช่น "EXP-TRADING" === "EXP-TRADING")
+    let match = allBranches.find(b => (b.code || '').toUpperCase() === fc);
+    if (match) return match.id;
+    
+    // 2. Name match — ลาว + ไทย
+    match = allBranches.find(b => {
+      const nameLo = (b.name_lo || '').toUpperCase();
+      const nameTh = (b.name_th || '').toUpperCase();
+      return nameLo === fc || nameTh === fc;
+    });
+    if (match) return match.id;
+    
+    // 3. Token-based — เช่น "FS-EXPRESS-TRADING-ໜ້າຮ້ານ" match กับ "FS-Express TRADING"
+    // ดึงเฉพาะส่วนภาษาอังกฤษ + ตัวเลข → split แล้วเช็คความเหมือน
+    const fcTokens = fc.replace(/[^\x20-\x7E]/g, ' ').split(/[\s\-_]+/).filter(t => t.length >= 3);
+    
+    match = allBranches.find(b => {
+      const candidates = [
+        (b.code || '').toUpperCase(),
+        (b.name_lo || '').toUpperCase().replace(/[^\x20-\x7E]/g, ' '),
+        (b.name_th || '').toUpperCase().replace(/[^\x20-\x7E]/g, ' ')
+      ].join(' ');
+      const bTokens = candidates.split(/[\s\-_]+/).filter(t => t.length >= 3);
+      
+      // ต้องมี token สำคัญเหมือนกันอย่างน้อย 2 ตัว
+      const sharedTokens = fcTokens.filter(t => bTokens.some(bt => 
+        bt === t || bt.startsWith(t) || t.startsWith(bt)
+      ));
+      
+      return sharedTokens.length >= Math.min(2, fcTokens.length);
+    });
+    if (match) return match.id;
+    
+    return null;
+  }
+  
+  // เช็คว่าแต่ละ Branch Code ในไฟล์ match กับสาขาปลายทางหรือไม่
+  const matchingResults = branchCodesInFile.map(fileCode => ({
+    fileCode,
+    matchedBranchId: matchBranchByCode(fileCode)
+  }));
+  
+  const allMatchDest = matchingResults.every(r => r.matchedBranchId === destBranchId);
+  const noMatchAtAll = matchingResults.every(r => r.matchedBranchId === null);
+  
+  if (allMatchDest) {
+    // ✅ ทุก Branch Code ในไฟล์ match กับสาขาปลายทาง
     warnEl.style.display = 'block';
+    warnEl.dataset.severity = 'match';
     warnEl.innerHTML = `
       <div style="background:var(--emerald-100);border-left:3px solid var(--emerald-500);padding:7px 9px;border-radius:6px;font-size:10px;color:var(--emerald-700);">
         ✅ ${isLao 
@@ -11175,16 +11221,38 @@ function checkBranchCodeMismatch() {
           : 'Branch Code ในไฟล์ ตรงกับสาขาปลายทาง'}
       </div>
     `;
-  } else {
-    // Mismatch — red warning
+  } else if (noMatchAtAll) {
+    // ⚠️ Branch Code ในไฟล์ไม่ตรงกับสาขาไหนเลยในระบบ
     warnEl.style.display = 'block';
+    warnEl.dataset.severity = 'unknown';
+    warnEl.innerHTML = `
+      <div style="background:var(--amber-100);border-left:3px solid var(--amber-500);padding:9px 11px;border-radius:7px;color:#92400e;">
+        <div style="font-size:11px;font-weight:800;margin-bottom:4px;">
+          ℹ️ ${isLao ? 'ບໍ່ສາມາດກວດສອບ Branch Code' : 'ไม่สามารถตรวจสอบ Branch Code'}
+        </div>
+        <div style="font-size:10px;line-height:1.6;">
+          ${isLao ? 'Branch Code ໃນໄຟລ໌' : 'Branch Code ในไฟล์'}: <strong>${branchCodesInFile.join(', ')}</strong><br>
+          ${isLao ? 'ບໍ່ກົງກັບສາຂາໃດໆ ໃນລະບົບ → ຈະໃຊ້ສາຂາທີ່ເລືອກ' : 'ไม่ตรงกับสาขาใดๆ ในระบบ → จะใช้สาขาที่เลือก'}
+        </div>
+      </div>
+    `;
+  } else {
+    // ❌ Branch Code ในไฟล์ match กับสาขาอื่น (ไม่ใช่สาขาปลายทาง)
+    const wrongMatches = matchingResults.filter(r => r.matchedBranchId !== null && r.matchedBranchId !== destBranchId);
+    const matchedBranchCodes = wrongMatches.map(r => {
+      const b = allBranches.find(bb => bb.id === r.matchedBranchId);
+      return `${r.fileCode} → ${b?.code || '?'}`;
+    });
+    
+    warnEl.style.display = 'block';
+    warnEl.dataset.severity = 'mismatch';
     warnEl.innerHTML = `
       <div style="background:var(--rose-100);border:2px solid var(--rose-500);padding:9px 11px;border-radius:7px;color:#9f1239;">
         <div style="font-size:11px;font-weight:800;display:flex;align-items:center;gap:5px;margin-bottom:4px;">
           ⚠️ ${isLao ? 'ກວດສອບ: Branch Code ບໍ່ກົງກັນ!' : 'ตรวจสอบ: Branch Code ไม่ตรงกัน!'}
         </div>
         <div style="font-size:10px;line-height:1.6;">
-          • ${isLao ? 'ໄຟລ໌ມີ Branch Code' : 'ไฟล์มี Branch Code'}: <strong>${branchCodesInFile.join(', ')}</strong><br>
+          • ${isLao ? 'ໄຟລ໌ມີຂໍ້ມູນຂອງສາຂາ' : 'ไฟล์มีข้อมูลของสาขา'}: <strong>${matchedBranchCodes.join(', ')}</strong><br>
           • ${isLao ? 'ສາຂາທີ່ເລືອກ' : 'สาขาที่เลือก'}: <strong>${destBranchCode}</strong><br>
           <span style="color:#7f1d1d;font-weight:700;">
             ⚠️ ${isLao 
@@ -11217,7 +11285,7 @@ async function executeImport() {
   
   // 🛡️ Branch Code Mismatch Guard
   const warnEl = document.getElementById('branchMismatchWarning');
-  const hasMismatchWarning = warnEl && warnEl.innerHTML.includes('rose-500');
+  const hasMismatchWarning = warnEl && warnEl.dataset.severity === 'mismatch';
   if (hasMismatchWarning) {
     const isLao = lang === 'lo';
     const confirmed = confirm(isLao
