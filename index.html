@@ -11187,7 +11187,353 @@ async function showGondolaActions(locationCode, status) {
         📋 ดูการนับ
       </button>
     </div>
+    
+    ${(user.role === 'admin' || user.role === 'scc') ? `
+    <!-- Admin Only: Edit + Delete -->
+    <div style="border-top:1px dashed var(--slate-200);margin-top:11px;padding-top:9px;">
+      <div style="font-size:9px;color:var(--slate-400);text-transform:uppercase;font-weight:700;margin-bottom:6px;text-align:center;">
+        🔒 ${lang === 'lo' ? 'ສຳລັບ Admin' : 'สำหรับ Admin'}
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn" onclick="closeModal();openEditGondolaModal('${locationCode}');" 
+                style="flex:1;background:var(--sky-100);color:var(--sky-600);border:1.5px solid var(--sky-300);font-size:11px;padding:8px;font-weight:700;">
+          ✏️ ${lang === 'lo' ? 'ແກ້ໄຂ' : 'แก้ไข'}
+        </button>
+        <button class="btn" onclick="confirmDeleteGondola('${locationCode}');" 
+                style="flex:1;background:var(--rose-100);color:var(--rose-500);border:1.5px solid var(--rose-300);font-size:11px;padding:8px;font-weight:700;">
+          🗑️ ${lang === 'lo' ? 'ລົບ' : 'ลบ'}
+        </button>
+      </div>
+    </div>
+    ` : ''}
   `);
+}
+
+// ==================== EDIT / DELETE GONDOLA (Admin) ====================
+async function openEditGondolaModal(locationCode) {
+  const isLao = lang === 'lo';
+  
+  if (!['admin', 'scc'].includes(user.role)) {
+    showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error');
+    return;
+  }
+  
+  // Load location detail
+  const { data: loc, error } = await sb.from('location_master')
+    .select('*')
+    .eq('branch_id', branch.id)
+    .eq('location_code', locationCode)
+    .maybeSingle();
+  
+  if (error || !loc) {
+    showToast(isLao ? 'ບໍ່ພົບຕຳແໜ່ງ' : 'ไม่พบตำแหน่ง', 'error');
+    return;
+  }
+  
+  // Load zones for dropdown
+  const { data: zones } = await sb.from('zones')
+    .select('*')
+    .eq('branch_id', branch.id)
+    .eq('is_active', true)
+    .order('code');
+  
+  const zoneOptions = (zones || []).map(z => 
+    `<option value="${z.id}" ${loc.zone_id === z.id ? 'selected' : ''}>
+      ${z.code} - ${isLao ? (z.name_lo || z.name_th) : (z.name_th || z.name_lo)}
+    </option>`
+  ).join('');
+  
+  // Load related counts (to warn user)
+  const [pogRes, countsRes] = await Promise.all([
+    sb.from('pan_o_grams').select('*', { count: 'exact', head: true })
+      .eq('branch_id', branch.id).eq('location_code', locationCode),
+    sb.from('stock_counts').select('*', { count: 'exact', head: true })
+      .eq('branch_id', branch.id).eq('location_code', locationCode)
+  ]);
+  
+  const pogCount = pogRes.count || 0;
+  const countsCount = countsRes.count || 0;
+  
+  showModal(`
+    <h3>✏️ ${isLao ? 'ແກ້ໄຂຕຳແໜ່ງ' : 'แก้ไขตำแหน่ง'}</h3>
+    <p style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">
+      ${isLao ? 'ສາຂາ' : 'สาขา'}: <strong style="color:var(--violet-600);">${branch.code}</strong>
+    </p>
+    
+    <div class="error-msg" id="editGonErr"></div>
+    <input type="hidden" id="editGonId" value="${loc.id}">
+    <input type="hidden" id="editGonOldCode" value="${loc.location_code}">
+    
+    <div class="form-group">
+      <label class="form-label">Location Code *</label>
+      <input type="text" class="form-input mono" id="editGonCode" 
+             value="${loc.location_code}"
+             autocomplete="off" autocapitalize="characters"
+             style="text-transform:uppercase;text-align:center;letter-spacing:2px;font-weight:700;font-size:15px;">
+      <div style="font-size:9px;color:var(--amber-500);margin-top:3px;line-height:1.4;">
+        ⚠️ ${isLao 
+          ? 'ການປ່ຽນ code ຈະອັບເດດໝົດ: Pan-O-Gram, Stock Counts ທີ່ໃຊ້ code ນີ້' 
+          : 'การเปลี่ยน code จะอัปเดตทั้งหมด: Pan-O-Gram, Stock Counts ที่ใช้ code นี้'}
+      </div>
+    </div>
+    
+    <div class="form-group">
+      <label class="form-label">${T('location_type')} *</label>
+      <select class="form-input" id="editGonType">
+        <option value="gondola" ${loc.location_type === 'gondola' ? 'selected' : ''}>${T('type_gondola')}</option>
+        <option value="wall" ${loc.location_type === 'wall' ? 'selected' : ''}>${T('type_wall')}</option>
+        <option value="gondola_top" ${loc.location_type === 'gondola_top' ? 'selected' : ''}>${T('type_gondola_top')}</option>
+        <option value="wall_top" ${loc.location_type === 'wall_top' ? 'selected' : ''}>${T('type_wall_top')}</option>
+        <option value="display" ${loc.location_type === 'display' ? 'selected' : ''}>${T('type_display')}</option>
+        <option value="cashier" ${loc.location_type === 'cashier' ? 'selected' : ''}>${T('type_cashier')}</option>
+        <option value="rack" ${loc.location_type === 'rack' ? 'selected' : ''}>${T('type_rack')}</option>
+        <option value="warehouse" ${loc.location_type === 'warehouse' ? 'selected' : ''}>${T('type_warehouse')}</option>
+      </select>
+    </div>
+    
+    <div class="form-group">
+      <label class="form-label">Zone</label>
+      <select class="form-input" id="editGonZone">
+        <option value="">-- ${isLao ? 'ບໍ່ມີໂຊນ' : 'ไม่มีโซน'} --</option>
+        ${zoneOptions}
+      </select>
+    </div>
+    
+    <div class="form-group">
+      <label class="form-label">${T('description')}</label>
+      <input type="text" class="form-input" id="editGonDesc" 
+             value="${loc.description || ''}"
+             placeholder="(optional)" autocomplete="off">
+    </div>
+    
+    <div class="form-group">
+      <label class="form-label">${isLao ? 'ສະຖານະ' : 'สถานะ'}</label>
+      <select class="form-input" id="editGonActive">
+        <option value="true" ${loc.is_active !== false ? 'selected' : ''}>✅ ${isLao ? 'ໃຊ້ງານ' : 'ใช้งาน'}</option>
+        <option value="false" ${loc.is_active === false ? 'selected' : ''}>❌ ${isLao ? 'ປິດໃຊ້ງານ' : 'ปิดใช้งาน'}</option>
+      </select>
+    </div>
+    
+    ${(pogCount > 0 || countsCount > 0) ? `
+      <div style="background:var(--amber-100);border-left:3px solid var(--amber-500);padding:8px 11px;border-radius:7px;margin-bottom:11px;font-size:11px;color:#92400e;">
+        ⚠️ ${isLao ? 'ມີຂໍ້ມູນຜູກພັນ' : 'มีข้อมูลผูกพัน'}:
+        ${pogCount > 0 ? `<br>📐 Pan-O-Gram: <strong>${pogCount}</strong>` : ''}
+        ${countsCount > 0 ? `<br>🔢 Stock Counts: <strong>${countsCount}</strong>` : ''}
+      </div>
+    ` : ''}
+    
+    <div class="action-row">
+      <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
+      <button class="btn btn-primary" id="editGonSaveBtn" onclick="saveEditGondola()" style="background:var(--sky-500);">
+        💾 ${isLao ? 'ບັນທຶກ' : 'บันทึก'}
+      </button>
+    </div>
+  `);
+}
+
+async function saveEditGondola() {
+  const isLao = lang === 'lo';
+  const errEl = document.getElementById('editGonErr');
+  const btn = document.getElementById('editGonSaveBtn');
+  
+  const id = parseInt(document.getElementById('editGonId').value);
+  const oldCode = document.getElementById('editGonOldCode').value;
+  const newCode = document.getElementById('editGonCode').value.trim().toUpperCase();
+  const type = document.getElementById('editGonType').value;
+  const zoneId = document.getElementById('editGonZone').value || null;
+  const desc = document.getElementById('editGonDesc').value.trim();
+  const isActive = document.getElementById('editGonActive').value === 'true';
+  
+  // Validation
+  if (!newCode) {
+    errEl.textContent = isLao ? 'ກະລຸນາໃສ່ Code' : 'กรุณาใส่ Code';
+    errEl.classList.add('show');
+    return;
+  }
+  if (newCode.length < 3 || newCode.length > 10) {
+    errEl.textContent = isLao ? 'Code ຕ້ອງມີ 3-10 ໂຕອັກສອນ' : 'Code ต้องมี 3-10 ตัวอักษร';
+    errEl.classList.add('show');
+    return;
+  }
+  
+  btn.disabled = true;
+  
+  try {
+    // ตรวจซ้ำใน branch ถ้า code เปลี่ยน
+    if (newCode !== oldCode) {
+      const { data: exists } = await sb.from('location_master')
+        .select('id').eq('branch_id', branch.id).eq('location_code', newCode).maybeSingle();
+      if (exists) {
+        errEl.textContent = `Code "${newCode}" ${isLao ? 'ມີຢູ່ແລ້ວ' : 'มีอยู่แล้ว'}`;
+        errEl.classList.add('show');
+        btn.disabled = false;
+        return;
+      }
+    }
+    
+    // Update location
+    const { error: ue } = await sb.from('location_master').update({
+      location_code: newCode,
+      location_type: type,
+      zone_id: zoneId,
+      description: desc || null,
+      is_active: isActive
+    }).eq('id', id);
+    
+    if (ue) throw ue;
+    
+    // ถ้า code เปลี่ยน → update related tables
+    let updates = [];
+    if (newCode !== oldCode) {
+      updates.push(
+        sb.from('pan_o_grams').update({ location_code: newCode })
+          .eq('branch_id', branch.id).eq('location_code', oldCode)
+      );
+      updates.push(
+        sb.from('stock_counts').update({ location_code: newCode })
+          .eq('branch_id', branch.id).eq('location_code', oldCode)
+      );
+      
+      const results = await Promise.allSettled(updates);
+      results.forEach((r, i) => {
+        if (r.status === 'rejected' || r.value?.error) {
+          console.warn('[FS] Cascade update warning:', r);
+        }
+      });
+    }
+    
+    closeModal();
+    showToast(`✅ ${isLao ? 'ບັນທຶກສຳເລັດ' : 'บันทึกสำเร็จ'}${newCode !== oldCode ? ` (${oldCode} → ${newCode})` : ''}`, 'success');
+    
+    // Reload floor map
+    await loadZonesAndLocations();
+    loadFloorMap();
+  } catch (e) {
+    console.error('[FS] saveEditGondola error:', e);
+    errEl.textContent = e.message;
+    errEl.classList.add('show');
+    btn.disabled = false;
+  }
+}
+
+async function confirmDeleteGondola(locationCode) {
+  const isLao = lang === 'lo';
+  
+  if (!['admin', 'scc'].includes(user.role)) {
+    showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error');
+    return;
+  }
+  
+  // เช็คข้อมูลผูกพัน
+  const [locRes, pogRes, countsRes] = await Promise.all([
+    sb.from('location_master').select('id').eq('branch_id', branch.id).eq('location_code', locationCode).maybeSingle(),
+    sb.from('pan_o_grams').select('*', { count: 'exact', head: true })
+      .eq('branch_id', branch.id).eq('location_code', locationCode),
+    sb.from('stock_counts').select('*', { count: 'exact', head: true })
+      .eq('branch_id', branch.id).eq('location_code', locationCode)
+  ]);
+  
+  if (!locRes.data) {
+    showToast(isLao ? 'ບໍ່ພົບ' : 'ไม่พบ', 'error');
+    return;
+  }
+  
+  const pogCount = pogRes.count || 0;
+  const countsCount = countsRes.count || 0;
+  
+  showModal(`
+    <h3 style="color:var(--rose-500);">
+      🗑️ ${isLao ? 'ລົບຕຳແໜ່ງ' : 'ลบตำแหน่ง'}: ${locationCode}
+    </h3>
+    
+    <div style="background:var(--rose-100);border-left:3px solid var(--rose-500);padding:11px;border-radius:9px;margin-bottom:11px;">
+      <div style="font-size:13px;font-weight:700;color:var(--rose-500);margin-bottom:5px;">
+        ⚠️ ${isLao ? 'ການລົບນີ້ບໍ່ສາມາດກູ້ຄືນໄດ້!' : 'การลบนี้ไม่สามารถกู้คืนได้!'}
+      </div>
+      <div style="font-size:11px;color:var(--slate-700);line-height:1.6;">
+        ${isLao ? 'ຈະລົບ' : 'จะลบ'}: <strong>${locationCode}</strong> (${branch.code})
+      </div>
+    </div>
+    
+    ${(pogCount > 0 || countsCount > 0) ? `
+      <div style="background:var(--amber-100);border-left:3px solid var(--amber-500);padding:11px;border-radius:9px;margin-bottom:11px;">
+        <div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:5px;">
+          ⚠️ ${isLao ? 'ມີຂໍ້ມູນຜູກພັນ' : 'มีข้อมูลผูกพัน'}:
+        </div>
+        <div style="font-size:11px;color:#92400e;line-height:1.6;">
+          ${pogCount > 0 ? `<div>📐 Pan-O-Gram: <strong>${pogCount}</strong> ${isLao ? 'ຕຳແໜ່ງ ຈະຖືກລົບ' : 'ตำแหน่ง จะถูกลบ'}</div>` : ''}
+          ${countsCount > 0 ? `<div style="color:var(--rose-500);">🔢 Stock Counts: <strong>${countsCount}</strong> ${isLao ? 'ການນັບ ຈະຄົງຢູ່ ແຕ່ບໍ່ມີຕຳແໜ່ງ' : 'การนับ จะยังคงอยู่ แต่ไม่มีตำแหน่ง'}</div>` : ''}
+        </div>
+      </div>
+    ` : ''}
+    
+    <div class="form-group">
+      <label class="form-label" style="color:var(--rose-500);">
+        ${isLao ? 'ພິມ' : 'พิมพ์'} <strong style="font-family:monospace;">${locationCode}</strong> ${isLao ? 'ເພື່ອຢືນຢັນ' : 'เพื่อยืนยัน'}:
+      </label>
+      <input type="text" id="deleteConfirmInput" 
+             class="form-input mono"
+             style="text-align:center;text-transform:uppercase;letter-spacing:2px;font-weight:700;border-color:var(--rose-300);"
+             placeholder="${locationCode}"
+             autocomplete="off"
+             autocapitalize="characters">
+    </div>
+    
+    <div class="action-row">
+      <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;">
+        ${T('cancel')}
+      </button>
+      <button class="btn btn-danger" id="confirmDeleteBtn" onclick="executeDeleteGondola('${locationCode}')" 
+              style="flex:1;background:var(--rose-500);color:white;">
+        🗑️ ${isLao ? 'ລົບຖາວອນ' : 'ลบถาวร'}
+      </button>
+    </div>
+  `);
+  
+  setTimeout(() => {
+    document.getElementById('deleteConfirmInput')?.focus();
+  }, 100);
+}
+
+async function executeDeleteGondola(locationCode) {
+  const isLao = lang === 'lo';
+  const inputEl = document.getElementById('deleteConfirmInput');
+  const btn = document.getElementById('confirmDeleteBtn');
+  
+  if (!inputEl) return;
+  const typed = inputEl.value.trim().toUpperCase();
+  
+  if (typed !== locationCode.toUpperCase()) {
+    showToast(isLao ? '❌ ພິມບໍ່ຖືກຕ້ອງ' : '❌ พิมพ์ไม่ตรง', 'error');
+    inputEl.style.borderColor = 'var(--rose-500)';
+    inputEl.focus();
+    return;
+  }
+  
+  btn.disabled = true;
+  
+  try {
+    // 1. Delete pan_o_grams ใน location นี้
+    const { error: pe } = await sb.from('pan_o_grams').delete()
+      .eq('branch_id', branch.id).eq('location_code', locationCode);
+    if (pe) console.warn('[FS] PoG delete warning:', pe);
+    
+    // 2. Delete location (stock_counts จะคงอยู่ แต่ location_code จะ orphan)
+    const { error: le } = await sb.from('location_master').delete()
+      .eq('branch_id', branch.id).eq('location_code', locationCode);
+    if (le) throw le;
+    
+    closeModal();
+    showToast(`🗑️ ${isLao ? 'ລົບແລ້ວ' : 'ลบแล้ว'}: ${locationCode}`, 'success');
+    
+    // Reload
+    await loadZonesAndLocations();
+    loadFloorMap();
+  } catch (e) {
+    console.error('[FS] executeDeleteGondola error:', e);
+    showToast('Error: ' + e.message, 'error');
+    btn.disabled = false;
+  }
 }
 
 // Reset gondola to any status (สำหรับ CTL แก้ไข)
@@ -13124,6 +13470,10 @@ window.exportFullBackupJSON = exportFullBackupJSON;
 window.exportFullBackupExcel = exportFullBackupExcel;
 window.exportTableJSON = exportTableJSON;
 window.exportTableExcel = exportTableExcel;
+window.openEditGondolaModal = openEditGondolaModal;
+window.saveEditGondola = saveEditGondola;
+window.confirmDeleteGondola = confirmDeleteGondola;
+window.executeDeleteGondola = executeDeleteGondola;
 window.adjustCount = adjustCount;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
