@@ -4273,6 +4273,11 @@ function renderGapScanPage() {
                style="width:100%;padding:13px 14px;border:2px solid var(--slate-200);border-radius:11px;font-size:15px;font-family:'Space Grotesk',monospace;font-weight:600;background:white;transition:border-color 0.2s;outline:none;"
                onfocus="this.style.borderColor='var(--amber-500)';"
                onblur="this.style.borderColor='var(--slate-200)';">
+        <button class="btn" id="gapBarcodeLookupBtn"
+                style="background:linear-gradient(135deg,var(--violet-500),var(--violet-600));color:white;border:none;padding:13px;font-size:14px;font-weight:800;border-radius:11px;width:100%;cursor:pointer;"
+                onclick="onGapBarcodeEnter()">
+          🔍 ${isLao ? 'ຄົ້ນຫາ' : 'ค้นหา'}
+        </button>
         <button class="btn btn-primary" id="gapScanBtn" 
                 style="background:linear-gradient(135deg,var(--amber-500),var(--rose-500));padding:13px;font-size:14px;font-weight:800;border-radius:11px;width:100%;"
                 onclick="toggleGapScan()">
@@ -5752,10 +5757,14 @@ function renderScanPage() {
         </button>
         <button class="btn btn-danger" id="stopScanBtn" onclick="stopScan()" style="flex:1;display:none;">${T('stop')}</button>
       </div>
-      <div class="manual-search">
-        <input id="manualBarcode" type="text" inputmode="numeric" placeholder="${T('enter_barcode')}">
-        <button class="btn btn-secondary" onclick="manualLookup()" style="width:auto;padding:9px 13px;">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      <div class="manual-search" style="flex-direction:column;gap:9px;">
+        <input id="manualBarcode" type="text" inputmode="numeric" 
+               onkeypress="if(event.key==='Enter')manualLookup()"
+               placeholder="${T('enter_barcode')}"
+               style="width:100%;">
+        <button class="btn" onclick="manualLookup()" 
+                style="background:linear-gradient(135deg,var(--violet-500),var(--violet-600));color:white;border:none;width:100%;padding:13px;font-size:14px;font-weight:800;border-radius:11px;cursor:pointer;">
+          🔍 ${lang === 'lo' ? 'ຄົ້ນຫາ' : 'ค้นหา'}
         </button>
       </div>
     </div>
