@@ -11161,6 +11161,7 @@ function checkBranchCodeMismatch() {
   const allBranches = window._allBranchesCache || [];
   
   // Helper: ตรวจสอบว่า fileCode match กับ branch ใด — return matched branch.id
+  // ใช้ scoring + penalty เพื่อจัดการกรณี ambiguous (เช่น TRADING มีใน 2 สาขา)
   function matchBranchByCode(fileCode) {
     if (!fileCode) return null;
     const fc = String(fileCode).toUpperCase().trim();
@@ -11177,28 +11178,68 @@ function checkBranchCodeMismatch() {
     });
     if (match) return match.id;
     
-    // 3. Token-based — เช่น "FS-EXPRESS-TRADING-ໜ້າຮ້ານ" match กับ "FS-Express TRADING"
-    // ดึงเฉพาะส่วนภาษาอังกฤษ + ตัวเลข → split แล้วเช็คความเหมือน
-    const fcTokens = fc.replace(/[^\x20-\x7E]/g, ' ').split(/[\s\-_]+/).filter(t => t.length >= 3);
+    // 3. Token-based with SCORING — best match wins
+    const tokenize = (s) => {
+      const upper = String(s || '').toUpperCase();
+      // ลบตัวอักษรที่ไม่ใช่ ASCII (ลาว/ไทย)
+      const ascii = upper.replace(/[^\x20-\x7E]/g, ' ');
+      return ascii.split(/[\s\-_]+/).filter(t => t.length >= 2);
+    };
     
-    match = allBranches.find(b => {
-      const candidates = [
-        (b.code || '').toUpperCase(),
-        (b.name_lo || '').toUpperCase().replace(/[^\x20-\x7E]/g, ' '),
-        (b.name_th || '').toUpperCase().replace(/[^\x20-\x7E]/g, ' ')
-      ].join(' ');
-      const bTokens = candidates.split(/[\s\-_]+/).filter(t => t.length >= 3);
+    const fcTokens = tokenize(fileCode);
+    if (fcTokens.length === 0) return null;
+    
+    const scored = [];
+    
+    allBranches.forEach(b => {
+      const candidates = `${b.code || ''} ${b.name_lo || ''} ${b.name_th || ''}`;
+      const bTokens = tokenize(candidates);
       
-      // ต้องมี token สำคัญเหมือนกันอย่างน้อย 2 ตัว
-      const sharedTokens = fcTokens.filter(t => bTokens.some(bt => 
-        bt === t || bt.startsWith(t) || t.startsWith(bt)
-      ));
+      // Score: คะแนนการ match
+      let score = 0;
+      fcTokens.forEach(ft => {
+        let best = 0;
+        bTokens.forEach(bt => {
+          if (bt === ft) {
+            best = Math.max(best, 10);  // exact match
+          } else if (ft.length >= 4 && bt.length >= 4) {
+            // Prefix match (ป้องกัน PHONSA match กับ PHONSAVANH = ไม่ใช่ exact)
+            if (bt.startsWith(ft) && bt.length > ft.length) {
+              best = Math.max(best, 3);
+            } else if (ft.startsWith(bt) && ft.length > bt.length) {
+              best = Math.max(best, 3);
+            }
+          }
+        });
+        score += best;
+      });
       
-      return sharedTokens.length >= Math.min(2, fcTokens.length);
+      // Penalty: ถ้า branch มี important token ที่ file ไม่มี
+      // เช่น file=[TRADING], branch=EXP-TRADING=[EXPRESS, TRADING] 
+      //   → EXPRESS ไม่อยู่ใน file → penalty
+      // vs branch=TRADING-WH=[TRADING, WH]
+      //   → WH สั้นพอ (>=2 chars) แต่ไม่ใช่ important (<4 chars) → no penalty
+      let penalty = 0;
+      bTokens.forEach(bt => {
+        if (bt.length >= 4) {
+          const found = fcTokens.some(ft => 
+            bt === ft || (ft.length >= 4 && (bt.startsWith(ft) || ft.startsWith(bt)))
+          );
+          if (!found) penalty += 2;
+        }
+      });
+      
+      const finalScore = score - penalty;
+      if (finalScore > 0) {
+        scored.push({ score: finalScore, branch: b });
+      }
     });
-    if (match) return match.id;
     
-    return null;
+    if (scored.length === 0) return null;
+    
+    // เรียงตามคะแนนสูงสุด
+    scored.sort((a, b) => b.score - a.score);
+    return scored[0].branch.id;
   }
   
   // เช็คว่าแต่ละ Branch Code ในไฟล์ match กับสาขาปลายทางหรือไม่
