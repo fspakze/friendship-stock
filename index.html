@@ -4581,7 +4581,21 @@ function renderGapReportPage() {
       </div>
     </div>
     
-    <!-- Action tabs -->
+    <!-- Status Filter (Pending vs History) -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:9px;background:var(--slate-100);padding:4px;border-radius:11px;">
+      <button onclick="setGapStatus('pending')" id="gapStatusPending" 
+              style="padding:8px;border:none;border-radius:8px;background:white;color:var(--violet-600);font-size:11px;font-weight:800;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+        ⏳ ${isLao ? 'ລໍຖ້າດຳເນີນການ' : 'รอดำเนินการ'}
+        <span id="gapPendingCount" style="background:var(--amber-100);color:var(--amber-600);padding:1px 6px;border-radius:5px;font-size:9px;margin-left:3px;">0</span>
+      </button>
+      <button onclick="setGapStatus('resolved')" id="gapStatusResolved" 
+              style="padding:8px;border:none;border-radius:8px;background:transparent;color:var(--slate-500);font-size:11px;font-weight:700;cursor:pointer;">
+        ✅ ${isLao ? 'ສຳເລັດແລ້ວ' : 'ดำเนินการแล้ว'}
+        <span id="gapResolvedCount" style="background:var(--slate-200);color:var(--slate-600);padding:1px 6px;border-radius:5px;font-size:9px;margin-left:3px;">0</span>
+      </button>
+    </div>
+    
+    <!-- Action tabs (Replenish vs Purchase) -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:9px;">
       <button onclick="setGapAction('replenish')" id="gapTabReplenish" class="gap-tab-btn"
               style="padding:9px;border:none;border-radius:9px;background:var(--amber-500);color:white;font-size:12px;font-weight:800;cursor:pointer;">
@@ -4591,6 +4605,20 @@ function renderGapReportPage() {
               style="padding:9px;border:none;border-radius:9px;background:white;border:2px solid var(--slate-200);color:var(--slate-600);font-size:12px;font-weight:800;cursor:pointer;">
         🛒 ${isLao ? 'ສັ່ງຊື້ PO' : 'สั่งซื้อ PO'} (<span id="gapCountPur">0</span>)
       </button>
+    </div>
+    
+    <!-- Bulk Actions Bar (จะแสดงเมื่อมีรายการเลือก) -->
+    <div id="gapBulkBar" style="display:none;background:linear-gradient(135deg,var(--violet-500),var(--sky-500));color:white;border-radius:9px;padding:9px 11px;margin-bottom:9px;align-items:center;gap:9px;">
+      <div style="flex:1;font-size:11px;font-weight:700;">
+        ✅ <span id="gapBulkCount">0</span> ${isLao ? 'ລາຍການເລືອກໄວ້' : 'รายการที่เลือก'}
+      </div>
+      <button onclick="bulkResolveGaps('replenished')" style="background:rgba(255,255,255,0.25);border:1px solid rgba(255,255,255,0.4);color:white;padding:5px 9px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;">
+        ✅ ${isLao ? 'ດຳເນີນແລ້ວ' : 'ดำเนินแล้ว'}
+      </button>
+      <button onclick="bulkResolveGaps('cancelled')" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;padding:5px 9px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;">
+        ❌ ${isLao ? 'ຍົກເລີກ' : 'ยกเลิก'}
+      </button>
+      <button onclick="clearGapSelection()" style="background:transparent;border:none;color:white;font-size:18px;cursor:pointer;padding:0 5px;">×</button>
     </div>
     
     <!-- Export buttons -->
@@ -4616,20 +4644,40 @@ function renderGapReportPage() {
 }
 
 let _gapReportData = null;
-let _gapReportFilter = { action: 'replenish' };
+let _gapReportFilter = { action: 'replenish', status: 'pending' };
+let _gapSelection = new Set();
 
 async function loadGapReport() {
   const isLao = lang === 'lo';
   try {
-    const { data, error } = await sb.from('gap_scans')
+    // โหลดทั้ง pending และ resolved (สำหรับนับสถิติ)
+    const statusFilter = _gapReportFilter.status === 'pending' 
+      ? 'pending' 
+      : ['replenished', 'ordered', 'cancelled'];
+    
+    let query = sb.from('gap_scans')
       .select('*, users!user_id(full_name), products(name_th, name_lo, unit_th, unit_lo, cost_price, sell_price, pos_qty)')
-      .eq('branch_id', branch.id)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false });
+      .eq('branch_id', branch.id);
+    
+    if (Array.isArray(statusFilter)) {
+      query = query.in('status', statusFilter);
+    } else {
+      query = query.eq('status', statusFilter);
+    }
+    
+    const { data, error } = await query
+      .order('created_at', { ascending: false })
+      .limit(500);
     
     if (error) throw error;
     
     _gapReportData = data || [];
+    _gapSelection.clear();
+    updateGapBulkBar();
+    
+    // โหลด count แยกสำหรับแสดงบน tab
+    await loadGapStatusCounts();
+    
     renderGapSummary();
     renderGapReportList();
     updateGapBadge();
@@ -4716,6 +4764,8 @@ function aggregateGaps(gaps) {
 
 function setGapAction(action) {
   _gapReportFilter.action = action;
+  _gapSelection.clear();
+  updateGapBulkBar();
   const rep = document.getElementById('gapTabReplenish');
   const pur = document.getElementById('gapTabPurchase');
   if (action === 'replenish') {
@@ -4728,63 +4778,303 @@ function setGapAction(action) {
   renderGapReportList();
 }
 
+// ==================== STATUS FILTER (Pending vs Resolved) ====================
+function setGapStatus(status) {
+  _gapReportFilter.status = status;
+  _gapSelection.clear();
+  
+  const pendBtn = document.getElementById('gapStatusPending');
+  const resBtn = document.getElementById('gapStatusResolved');
+  
+  if (status === 'pending') {
+    if (pendBtn) { pendBtn.style.background = 'white'; pendBtn.style.color = 'var(--violet-600)'; pendBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)'; pendBtn.style.fontWeight = '800'; }
+    if (resBtn) { resBtn.style.background = 'transparent'; resBtn.style.color = 'var(--slate-500)'; resBtn.style.boxShadow = 'none'; resBtn.style.fontWeight = '700'; }
+  } else {
+    if (resBtn) { resBtn.style.background = 'white'; resBtn.style.color = 'var(--emerald-600)'; resBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)'; resBtn.style.fontWeight = '800'; }
+    if (pendBtn) { pendBtn.style.background = 'transparent'; pendBtn.style.color = 'var(--slate-500)'; pendBtn.style.boxShadow = 'none'; pendBtn.style.fontWeight = '700'; }
+  }
+  
+  loadGapReport();
+}
+
+// ==================== STATUS COUNTS ====================
+async function loadGapStatusCounts() {
+  try {
+    // นับ pending
+    const { count: pendCount } = await sb.from('gap_scans')
+      .select('id', { count: 'exact', head: true })
+      .eq('branch_id', branch.id)
+      .eq('status', 'pending');
+    
+    // นับ resolved (replenished + ordered + cancelled)
+    const { count: resCount } = await sb.from('gap_scans')
+      .select('id', { count: 'exact', head: true })
+      .eq('branch_id', branch.id)
+      .in('status', ['replenished', 'ordered', 'cancelled']);
+    
+    const pendEl = document.getElementById('gapPendingCount');
+    const resEl = document.getElementById('gapResolvedCount');
+    if (pendEl) pendEl.textContent = (pendCount || 0).toLocaleString();
+    if (resEl) resEl.textContent = (resCount || 0).toLocaleString();
+  } catch (e) {}
+}
+
+// ==================== BULK SELECTION ====================
+function toggleGapSelection(gapId, event) {
+  if (event) {
+    event.stopPropagation();
+  }
+  if (_gapSelection.has(gapId)) {
+    _gapSelection.delete(gapId);
+  } else {
+    _gapSelection.add(gapId);
+  }
+  updateGapBulkBar();
+  renderGapReportList();
+}
+
+function clearGapSelection() {
+  _gapSelection.clear();
+  updateGapBulkBar();
+  renderGapReportList();
+}
+
+function updateGapBulkBar() {
+  const bar = document.getElementById('gapBulkBar');
+  const count = document.getElementById('gapBulkCount');
+  if (!bar) return;
+  if (_gapSelection.size > 0) {
+    bar.style.display = 'flex';
+    if (count) count.textContent = _gapSelection.size;
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+// ==================== BULK RESOLVE ====================
+async function bulkResolveGaps(newStatus) {
+  const isLao = lang === 'lo';
+  if (_gapSelection.size === 0) return;
+  
+  const ids = Array.from(_gapSelection);
+  const action = newStatus === 'cancelled' 
+    ? (isLao ? 'ຍົກເລີກ' : 'ยกเลิก')
+    : (isLao ? 'ດຳເນີນແລ້ວ' : 'ดำเนินการแล้ว');
+  
+  if (!confirm(`${action} ${ids.length} ${isLao ? 'ລາຍການ?' : 'รายการ?'}`)) return;
+  
+  try {
+    // Determine status based on action_type for non-cancelled
+    let finalStatus = newStatus;
+    if (newStatus === 'replenished') {
+      // ตรวจสอบ action_type ของแต่ละรายการ → ถ้า purchase → ordered, ถ้า replenish → replenished
+      // ทำแบบ batch update ตาม action_type
+      const gapsToUpdate = _gapReportData.filter(g => ids.includes(g.id));
+      const replenishIds = gapsToUpdate.filter(g => g.action_type === 'replenish').map(g => g.id);
+      const purchaseIds = gapsToUpdate.filter(g => g.action_type === 'purchase').map(g => g.id);
+      
+      if (replenishIds.length > 0) {
+        const { error: e1 } = await sb.from('gap_scans')
+          .update({ status: 'replenished', resolved_at: new Date().toISOString(), resolved_by: user.id })
+          .in('id', replenishIds);
+        if (e1) throw e1;
+      }
+      if (purchaseIds.length > 0) {
+        const { error: e2 } = await sb.from('gap_scans')
+          .update({ status: 'ordered', resolved_at: new Date().toISOString(), resolved_by: user.id })
+          .in('id', purchaseIds);
+        if (e2) throw e2;
+      }
+    } else {
+      // cancelled
+      const { error } = await sb.from('gap_scans')
+        .update({ status: 'cancelled', resolved_at: new Date().toISOString(), resolved_by: user.id })
+        .in('id', ids);
+      if (error) throw error;
+    }
+    
+    showToast(`✅ ${action} ${ids.length} ${isLao ? 'ລາຍການ' : 'รายการ'}`, 'success');
+    _gapSelection.clear();
+    await loadGapReport();
+  } catch (e) {
+    console.error('[FS] bulkResolveGaps error:', e);
+    toastError(e);
+  }
+}
+
+// ==================== SINGLE RESOLVE ====================
+async function resolveSingleGap(gapId, newStatus, event) {
+  if (event) event.stopPropagation();
+  const isLao = lang === 'lo';
+  
+  try {
+    const gap = _gapReportData.find(g => g.id === gapId);
+    if (!gap) return;
+    
+    let finalStatus = newStatus;
+    if (newStatus === 'replenished') {
+      finalStatus = gap.action_type === 'purchase' ? 'ordered' : 'replenished';
+    }
+    
+    const { error } = await sb.from('gap_scans')
+      .update({ 
+        status: finalStatus, 
+        resolved_at: new Date().toISOString(), 
+        resolved_by: user.id 
+      })
+      .eq('id', gapId);
+    
+    if (error) throw error;
+    
+    const msg = newStatus === 'cancelled'
+      ? (isLao ? '❌ ຍົກເລີກແລ້ວ' : '❌ ยกเลิกแล้ว')
+      : (isLao ? '✅ ດຳເນີນແລ້ວ' : '✅ ดำเนินการแล้ว');
+    showToast(msg, 'success');
+    
+    await loadGapReport();
+  } catch (e) {
+    console.error('[FS] resolveSingleGap error:', e);
+    toastError(e);
+  }
+}
+
 function renderGapReportList() {
   if (!_gapReportData) return;
   const isLao = lang === 'lo';
   const fmt = new Intl.NumberFormat('th-TH');
   
   const filtered = _gapReportData.filter(g => g.action_type === _gapReportFilter.action);
-  const agg = aggregateGaps(filtered);
+  const isPending = _gapReportFilter.status === 'pending';
   
   const listEl = document.getElementById('gapReportList');
   if (!listEl) return;
   
-  if (agg.length === 0) {
+  if (filtered.length === 0) {
+    const emptyIcon = isPending 
+      ? (_gapReportFilter.action === 'replenish' ? '📦' : '🛒')
+      : '✅';
+    const emptyMsg = isPending
+      ? (isLao ? 'ບໍ່ມີລາຍການລໍຖ້າ' : 'ไม่มีรายการรอ')
+      : (isLao ? 'ບໍ່ມີປະຫວັດ' : 'ไม่มีประวัติ');
+    
     listEl.innerHTML = `
       <div style="text-align:center;padding:35px;color:var(--slate-400);">
-        <div style="font-size:42px;margin-bottom:9px;">${_gapReportFilter.action === 'replenish' ? '📦' : '🛒'}</div>
-        <div style="font-size:13px;font-weight:700;color:var(--slate-600);">
-          ${isLao ? 'ບໍ່ມີລາຍການ' : 'ไม่มีรายการ'}
-        </div>
+        <div style="font-size:42px;margin-bottom:9px;">${emptyIcon}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--slate-600);">${emptyMsg}</div>
       </div>
     `;
     return;
   }
   
-  // Sort by total_gap_qty desc
-  agg.sort((a, b) => b.total_gap_qty - a.total_gap_qty);
+  // Sort: pending → by created_at desc, resolved → by resolved_at desc
+  filtered.sort((a, b) => {
+    const aTime = new Date(isPending ? a.created_at : (a.resolved_at || a.created_at)).getTime();
+    const bTime = new Date(isPending ? b.created_at : (b.resolved_at || b.created_at)).getTime();
+    return bTime - aTime;
+  });
   
   const actionColor = _gapReportFilter.action === 'replenish' ? 'var(--amber-500)' : 'var(--rose-500)';
   const actionBg = _gapReportFilter.action === 'replenish' ? 'var(--amber-50)' : 'var(--rose-50)';
   
-  let html = '';
-  agg.forEach(a => {
-    const name = isLao ? (a.product?.name_lo || a.product_name) : (a.product?.name_th || a.product_name);
-    const unit = isLao ? (a.product?.unit_lo || 'ຊິ້ນ') : (a.product?.unit_th || 'ชิ้น');
-    const value = a.total_gap_qty * (a.product?.cost_price || 0);
+  // Header: Aggregate summary
+  const totalGap = filtered.reduce((s, g) => s + (g.gap_qty || 0), 0);
+  const totalValue = filtered.reduce((s, g) => s + ((g.gap_qty || 0) * (g.products?.cost_price || 0)), 0);
+  const uniqueProducts = new Set(filtered.map(g => g.product_id || g.barcode)).size;
+  
+  let html = `
+    <div style="background:linear-gradient(135deg,${actionBg},white);padding:9px 11px;border-radius:9px;margin-bottom:9px;display:flex;align-items:center;gap:11px;">
+      <div style="flex:1;font-size:10px;color:var(--slate-600);">
+        <div>${isLao ? 'ສິນຄ້າ' : 'สินค้า'}: <strong style="color:${actionColor};font-family:'Space Grotesk',monospace;">${uniqueProducts}</strong> ${isLao ? 'ລາຍການ' : 'รายการ'}</div>
+        <div>${isLao ? 'ຈຳນວນລວມ' : 'จำนวนรวม'}: <strong style="color:${actionColor};font-family:'Space Grotesk',monospace;">${totalGap.toLocaleString()}</strong> | ₭<strong style="font-family:'Space Grotesk',monospace;">${fmt.format(totalValue)}</strong></div>
+      </div>
+      ${isPending && filtered.length > 0 ? `
+        <button onclick="selectAllGaps()" style="background:white;border:1px solid ${actionColor};color:${actionColor};border-radius:6px;padding:5px 9px;font-size:10px;font-weight:700;cursor:pointer;">
+          ${isLao ? '☑ ເລືອກທັງໝົດ' : '☑ เลือกทั้งหมด'}
+        </button>
+      ` : ''}
+    </div>
+  `;
+  
+  filtered.forEach(g => {
+    const name = isLao ? (g.products?.name_lo || g.product_name) : (g.products?.name_th || g.product_name);
+    const unit = isLao ? (g.products?.unit_lo || 'ຊິ້ນ') : (g.products?.unit_th || 'ชิ้น');
+    const value = (g.gap_qty || 0) * (g.products?.cost_price || 0);
+    const isSelected = _gapSelection.has(g.id);
+    
+    // Status icon for resolved view
+    let statusBadge = '';
+    if (!isPending) {
+      if (g.status === 'replenished') {
+        statusBadge = `<span style="background:var(--emerald-100);color:var(--emerald-700);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;">${isLao ? '✅ ເຕີມແລ້ວ' : '✅ เติมแล้ว'}</span>`;
+      } else if (g.status === 'ordered') {
+        statusBadge = `<span style="background:var(--sky-100);color:var(--sky-700);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;">${isLao ? '🛒 ສັ່ງແລ້ວ' : '🛒 สั่งแล้ว'}</span>`;
+      } else if (g.status === 'cancelled') {
+        statusBadge = `<span style="background:var(--slate-200);color:var(--slate-600);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;">${isLao ? '❌ ຍົກເລີກ' : '❌ ยกเลิก'}</span>`;
+      }
+    }
+    
+    const time = new Date(isPending ? g.created_at : (g.resolved_at || g.created_at))
+      .toLocaleString(isLao ? 'lo-LA' : 'th-TH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     
     html += `
-      <div style="background:${actionBg};border-left:4px solid ${actionColor};border-radius:9px;padding:9px 11px;margin-bottom:5px;display:flex;align-items:center;gap:9px;">
+      <div style="background:${isSelected ? 'var(--violet-50)' : actionBg};border-left:4px solid ${isSelected ? 'var(--violet-500)' : actionColor};border-radius:9px;padding:9px 11px;margin-bottom:5px;display:flex;align-items:center;gap:9px;transition:background 0.15s;">
+        ${isPending ? `
+          <input type="checkbox" 
+                 ${isSelected ? 'checked' : ''} 
+                 onclick="toggleGapSelection(${g.id}, event)"
+                 style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--violet-500);">
+        ` : ''}
         <div style="flex:1;min-width:0;">
-          <div style="font-size:12px;font-weight:700;color:var(--slate-900);">${name}</div>
-          <div style="font-size:9px;color:var(--slate-500);font-family:monospace;">${a.barcode}</div>
-          ${a.gondolas.length > 0 ? `
-            <div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:3px;">
-              ${a.gondolas.map(g => `<span style="background:var(--violet-100);color:var(--violet-600);padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;font-family:monospace;">📍 ${g}</span>`).join('')}
-            </div>
-          ` : ''}
+          <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+            <div style="font-size:12px;font-weight:700;color:var(--slate-900);">${name}</div>
+            ${statusBadge}
+          </div>
+          <div style="font-size:9px;color:var(--slate-500);font-family:monospace;">${g.barcode}</div>
+          <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:3px;font-size:9px;">
+            ${g.gondola_code ? `<span style="background:var(--violet-100);color:var(--violet-600);padding:1px 5px;border-radius:3px;font-weight:700;font-family:monospace;">📍 ${g.gondola_code}</span>` : ''}
+            <span style="color:var(--slate-500);">⏱ ${time}</span>
+            ${g.users?.full_name ? `<span style="color:var(--slate-500);">👤 ${g.users.full_name}</span>` : ''}
+          </div>
+          ${g.note ? `<div style="font-size:9px;color:var(--slate-600);background:white;padding:3px 6px;border-radius:4px;margin-top:3px;font-style:italic;">💬 ${g.note}</div>` : ''}
         </div>
         <div style="text-align:right;flex-shrink:0;">
           <div style="font-size:18px;font-weight:800;color:${actionColor};font-family:'Space Grotesk',monospace;line-height:1;">
-            ${a.total_gap_qty}
+            ${g.gap_qty}
           </div>
           <div style="font-size:9px;color:var(--slate-500);">${unit}</div>
           ${value > 0 ? `<div style="font-size:9px;color:${actionColor};font-family:'Space Grotesk',monospace;font-weight:700;margin-top:1px;">₭${fmt.format(value)}</div>` : ''}
         </div>
+        ${isPending ? `
+          <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;">
+            <button onclick="resolveSingleGap(${g.id}, 'replenished', event)" 
+                    title="${isLao ? 'ດຳເນີນແລ້ວ' : 'ดำเนินการแล้ว'}"
+                    style="background:var(--emerald-500);color:white;border:none;border-radius:5px;width:32px;height:26px;font-size:13px;cursor:pointer;">
+              ✓
+            </button>
+            <button onclick="resolveSingleGap(${g.id}, 'cancelled', event)" 
+                    title="${isLao ? 'ຍົກເລີກ' : 'ยกเลิก'}"
+                    style="background:var(--slate-300);color:white;border:none;border-radius:5px;width:32px;height:26px;font-size:13px;cursor:pointer;">
+              ✕
+            </button>
+          </div>
+        ` : ''}
       </div>
     `;
   });
   listEl.innerHTML = html;
+}
+
+function selectAllGaps() {
+  if (!_gapReportData) return;
+  const filtered = _gapReportData.filter(g => g.action_type === _gapReportFilter.action);
+  if (_gapSelection.size === filtered.length) {
+    // unselect all
+    _gapSelection.clear();
+  } else {
+    filtered.forEach(g => _gapSelection.add(g.id));
+  }
+  updateGapBulkBar();
+  renderGapReportList();
 }
 
 async function exportGapExcel() {
@@ -10296,6 +10586,33 @@ async function loadHealthAlerts() {
         text: isLao ? 'ມີສິນຄ້ານັບບໍ່ກົງກັນ ຕ້ອງຕັດສິນ' : 'มีสินค้านับไม่ตรงกัน ต้องตัดสิน',
         action: () => goPage('tiebreaker')
       });
+    }
+    
+    // 🔍 Check 4: Pending Gap Scans
+    try {
+      const { data: gapPending } = await sb.from('gap_scans')
+        .select('action_type')
+        .eq('branch_id', branch.id)
+        .eq('status', 'pending');
+      
+      if (gapPending && gapPending.length > 0) {
+        const replCount = gapPending.filter(g => g.action_type === 'replenish').length;
+        const purCount = gapPending.filter(g => g.action_type === 'purchase').length;
+        
+        alerts.push({
+          type: 'amber',
+          icon: '🛒',
+          title: isLao 
+            ? `${gapPending.length} ຊ່ອງວ່າງ ລໍຖ້າດຳເນີນການ` 
+            : `${gapPending.length} ช่องว่าง รอดำเนินการ`,
+          text: isLao 
+            ? `📦 ເຕີມຄັງ: ${replCount} • 🛒 ສັ່ງຊື້: ${purCount}` 
+            : `📦 เติมคลัง: ${replCount} • 🛒 สั่งซื้อ: ${purCount}`,
+          action: () => goPage('gapreport')
+        });
+      }
+    } catch (e) {
+      console.warn('[FS] Gap check skipped:', e.message);
     }
     
     // Render alerts
@@ -18092,6 +18409,14 @@ window.loadGapReport = loadGapReport;
 window.setGapAction = setGapAction;
 window.exportGapExcel = exportGapExcel;
 window.updateGapBadge = updateGapBadge;
+window.setGapStatus = setGapStatus;
+window.loadGapStatusCounts = loadGapStatusCounts;
+window.toggleGapSelection = toggleGapSelection;
+window.clearGapSelection = clearGapSelection;
+window.updateGapBulkBar = updateGapBulkBar;
+window.bulkResolveGaps = bulkResolveGaps;
+window.resolveSingleGap = resolveSingleGap;
+window.selectAllGaps = selectAllGaps;
 window.cancelClonePrompt = cancelClonePrompt;
 window.confirmCloneFromOther = confirmCloneFromOther;
 window.adjustCount = adjustCount;
