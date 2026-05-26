@@ -1528,7 +1528,7 @@ const I18N = {
     select_zone: 'ໂຊນ', select_location: 'ສະຖານທີ່',
     please_select: 'ກະລຸນາເລືອກໂຊນແລະສະຖານທີ່',
     tab_scan: 'ສະແກນ', tab_history: 'ປະຫວັດ',
-    tab_tiebreaker: 'ກວດສອບໃໝ່', tab_dashboard: 'Dashboard',
+    tab_tiebreaker: 'ນັບຊ້ຳ', tab_dashboard: 'Dashboard',
     tab_users: 'ຜູ້ໃຊ້', tab_kpi: 'KPI',
     active_session: 'ຮອບການນັບ', scanned: 'ສະແກນ',
     total_qty: 'ຈຳນວນ', diff: 'ສ່ວນຕ່າງ',
@@ -1540,7 +1540,7 @@ const I18N = {
     pos_qty: 'POS', sell_price: 'ລາຄາ', unit_label: 'ໜ່ວຍ',
     count_label: 'ຈຳນວນທີ່ນັບໄດ້',
     verify_label: 'ກວດສອບ (Blind)',
-    tiebreaker_label: 'ກວດສອບໃໝ່ (ນັບຄັ້ງທີ 3)',
+    tiebreaker_label: 'ນັບຊ້ຳ (ນັບຄັ້ງທີ 3)',
     note_placeholder: 'ໝາຍເຫດ...',
     save: 'ບັນທຶກ', saving: 'ກຳລັງບັນທຶກ...',
     cancel: 'ຍົກເລີກ', saved: 'ບັນທຶກສຳເລັດ',
@@ -1566,8 +1566,8 @@ const I18N = {
     level3_desc: 'ຄວາມຄາດເຄື່ອນ > 5% ຫຼື > 100K ກີບ → ຕ້ອງນັບໃໝ່',
     level4_desc: 'ຄວາມຄາດເຄື່ອນ > 10% ຫຼື > 300K ກີບ → ຕ້ອງສືບສວນ',
     level1_short: 'ຜ່ານ', level2_short: 'ຄຳອະທິບາຍ', level3_short: 'ນັບໃໝ່', level4_short: 'ສືບສວນ',
-    tiebreaker_title: 'ກວດສອບໃໝ່',
-    tiebreaker_subtitle: 'ນັບຄັ້ງທີ 3 ໃຊ້ກົດ 2 ໃນ 3',
+    tiebreaker_title: 'ນັບຊ້ຳ',
+    tiebreaker_subtitle: 'ນັບຄັ້ງທີ 3 ໃຊ້ກົດ 2 ໃນ 3 ເພື່ອຕັດສິນ',
     preparing: 'ກຳລັງກຽມຂໍ້ມູນ...',
     gondola_code: 'ລະຫັດຊັ້ນວາງ',
     quantity: 'ຈຳນວນ', description: 'ລາຍລະອຽດ', submit: 'ສົ່ງ',
@@ -1621,8 +1621,8 @@ const I18N = {
     status_open_for_verify: 'ເປີດໃຫ້ Verifier',
     status_verifying: 'ກຳລັງກວດສອບ',
     status_verified: 'ກວດສອບແລ້ວ',
-    status_tiebreaker_needed: 'ຕ້ອງກວດສອບໃໝ່',
-    status_tiebreaker: 'ກຳລັງກວດສອບໃໝ່',
+    status_tiebreaker_needed: 'ຕ້ອງນັບຊ້ຳ',
+    status_tiebreaker: 'ກຳລັງນັບຊ້ຳ',
     status_completed: 'ສຳເລັດ',
     gondola_locked: 'Gondola ນີ້ຍັງບໍ່ໄດ້ເປີດ - ກະລຸນາແຈ້ງ CTL',
     progress: 'ຄວາມຄືບໜ້າ',
@@ -1638,10 +1638,10 @@ const I18N = {
     waiting_ctl: 'ລໍ CTL ເປີດໃຫ້',
     counter_done: 'Counter ນັບແລ້ວ',
     verifier_done: 'Verifier ນັບແລ້ວ',
-    tiebreaker_done: 'ກວດສອບໃໝ່ແລ້ວ',
+    tiebreaker_done: 'ນັບຊ້ຳແລ້ວ',
     product_locations: 'ຕຳແໜ່ງທີ່ນັບໄດ້',
     view_all_locations: 'ເບິ່ງທີ່ອື່ນ',
-    start_tiebreaker: 'ເລີ່ມກວດສອບ',
+    start_tiebreaker: 'ເລີ່ມນັບຊ້ຳ',
     product_in_multi_locs: 'ສິນຄ້ານີ້ຖືກນັບໃນ',
     locations: 'ຈຸດ',
     items: 'ຊິ້ນ',
@@ -1789,7 +1789,7 @@ const I18N = {
     select_zone: 'โซน', select_location: 'สถานที่',
     please_select: 'กรุณาเลือกโซนและสถานที่',
     tab_scan: 'สแกน', tab_history: 'ประวัติ',
-    tab_tiebreaker: 'ตรวจสอบใหม่', tab_dashboard: 'Dashboard',
+    tab_tiebreaker: 'นับซ้ำ', tab_dashboard: 'Dashboard',
     tab_users: 'ผู้ใช้', tab_kpi: 'KPI',
     active_session: 'รอบการนับ', scanned: 'สแกน',
     total_qty: 'จำนวน', diff: 'ส่วนต่าง',
@@ -1801,7 +1801,7 @@ const I18N = {
     pos_qty: 'POS', sell_price: 'ราคา', unit_label: 'หน่วย',
     count_label: 'จำนวนที่นับได้',
     verify_label: 'ตรวจสอบ (Blind)',
-    tiebreaker_label: 'ตรวจสอบใหม่ (นับครั้งที่ 3)',
+    tiebreaker_label: 'นับซ้ำ (นับครั้งที่ 3)',
     note_placeholder: 'หมายเหตุ...',
     save: 'บันทึก', saving: 'กำลังบันทึก...',
     cancel: 'ยกเลิก', saved: 'บันทึกสำเร็จ',
@@ -1827,8 +1827,8 @@ const I18N = {
     level3_desc: 'ความคลาดเคลื่อน > 5% หรือ > 100K กีบ → ต้องนับใหม่',
     level4_desc: 'ความคลาดเคลื่อน > 10% หรือ > 300K กีบ → ต้องสืบสวน',
     level1_short: 'ผ่าน', level2_short: 'อธิบาย', level3_short: 'นับใหม่', level4_short: 'สืบสวน',
-    tiebreaker_title: 'ตรวจสอบใหม่',
-    tiebreaker_subtitle: 'นับครั้งที่ 3 ใช้กฎ 2 ใน 3',
+    tiebreaker_title: 'นับซ้ำ',
+    tiebreaker_subtitle: 'นับครั้งที่ 3 ใช้กฎ 2 ใน 3 เพื่อตัดสิน',
     preparing: 'กำลังเตรียมข้อมูล...',
     gondola_code: 'รหัสชั้นวาง',
     quantity: 'จำนวน', description: 'รายละเอียด', submit: 'ส่ง',
@@ -1882,8 +1882,8 @@ const I18N = {
     status_open_for_verify: 'เปิดให้ Verifier',
     status_verifying: 'กำลังตรวจสอบ',
     status_verified: 'ตรวจสอบแล้ว',
-    status_tiebreaker_needed: 'ต้องตรวจสอบใหม่',
-    status_tiebreaker: 'กำลังตรวจสอบใหม่',
+    status_tiebreaker_needed: 'ต้องนับซ้ำ',
+    status_tiebreaker: 'กำลังนับซ้ำ',
     status_completed: 'สำเร็จ',
     gondola_locked: 'Gondola นี้ยังไม่ได้เปิด - กรุณาแจ้ง CTL',
     progress: 'ความคืบหน้า',
@@ -1899,10 +1899,10 @@ const I18N = {
     waiting_ctl: 'รอ CTL เปิดให้',
     counter_done: 'Counter นับแล้ว',
     verifier_done: 'Verifier นับแล้ว',
-    tiebreaker_done: 'ตรวจสอบใหม่แล้ว',
+    tiebreaker_done: 'นับซ้ำแล้ว',
     product_locations: 'ตำแหน่งที่นับได้',
     view_all_locations: 'ดูที่อื่นๆ',
-    start_tiebreaker: 'เริ่มตรวจสอบ',
+    start_tiebreaker: 'เริ่มนับซ้ำ',
     product_in_multi_locs: 'สินค้านี้ถูกนับใน',
     locations: 'จุด',
     items: 'ชิ้น',
@@ -10388,13 +10388,22 @@ function openUserModal(userId = null) {
     <div class="form-group">
       <label class="form-label">${T('role_label')}</label>
       <select class="form-select" id="mRole">
-        <option value="counter">Counter</option>
-        <option value="verifier">Verifier</option>
-        <option value="ctl">CTL</option>
-        <option value="bcs">BCS</option>
-        <option value="staff">Staff (Legacy)</option>
-        <option value="audit">Audit (Legacy)</option>
+        <option value="counter">👤 Counter — ${lang === 'lo' ? 'ນັບສະຕ໋ອກ' : 'ผู้นับสต๊อก'}</option>
+        <option value="verifier">🔍 Verifier — ${lang === 'lo' ? 'ນັບຢືນຢັນ' : 'ผู้ตรวจนับ'}</option>
+        <option value="ctl">🎯 CTL — ${lang === 'lo' ? 'ຄຸ້ມຄອງໜ້າງານ' : 'หัวหน้าหน้างาน'}</option>
+        <option value="bcs">📊 BCS — ${lang === 'lo' ? 'ຫົວໜ້າສາຂາ' : 'หัวหน้าสาขา'}</option>
+        ${user.role === 'admin' ? `
+          <option value="scc">⚡ SCC — ${lang === 'lo' ? 'ສູນຄຸ້ມຄອງສະຕ໋ອກ' : 'ศูนย์ควบคุมสต๊อก'}</option>
+          <option value="admin">👑 Admin — ${lang === 'lo' ? 'ຜູ້ດູແລລະບົບ' : 'ผู้ดูแลระบบ'}</option>
+        ` : ''}
+        <option value="staff">👤 Staff (Legacy)</option>
+        <option value="audit">🔍 Audit (Legacy)</option>
       </select>
+      ${user.role === 'admin' ? `
+        <div style="font-size:10px;color:var(--violet-600);margin-top:4px;background:var(--violet-50);padding:5px 7px;border-radius:5px;border-left:3px solid var(--violet-500);">
+          💡 ${lang === 'lo' ? 'ເຈົ້າເປັນ Admin ສາມາດສ້າງ SCC ແລະ Admin ໄດ້' : 'คุณเป็น Admin สามารถสร้าง SCC และ Admin ได้'}
+        </div>
+      ` : ''}
     </div>
     <div class="form-group">
       <label class="form-label">🏪 ${lang === 'lo' ? 'ສາຂາ' : 'สาขา'}</label>
@@ -10451,6 +10460,15 @@ async function saveUser() {
   
   if (!username || !fullName) {
     errEl.textContent = T('fill_required');
+    errEl.classList.add('show');
+    return;
+  }
+  
+  // 🛡️ Guard: only admin can create/edit admin or scc
+  if (['admin', 'scc'].includes(role) && user.role !== 'admin') {
+    errEl.textContent = lang === 'lo' 
+      ? 'ສະເພາະ Admin ເທົ່ານັ້ນທີ່ສ້າງ Admin/SCC ໄດ້' 
+      : 'เฉพาะ Admin เท่านั้นที่สร้าง Admin/SCC ได้';
     errEl.classList.add('show');
     return;
   }
@@ -12639,8 +12657,8 @@ function renderFloorMapSearchResults(searchVal) {
       'open_for_verify': { color: 'var(--amber-400)', icon: '👁️', label: isLao ? 'ເປີດກວດ' : 'เปิดตรวจ' },
       'verifying': { color: 'var(--amber-500)', icon: '🔍', label: isLao ? 'ກຳລັງກວດ' : 'กำลังตรวจ' },
       'verified': { color: 'var(--violet-500)', icon: '☑️', label: isLao ? 'ກວດແລ້ວ' : 'ตรวจแล้ว' },
-      'tiebreaker_needed': { color: 'var(--rose-500)', icon: '⚠️', label: isLao ? 'ກວດໃໝ່' : 'ตรวจใหม่' },
-      'tiebreaker': { color: 'var(--violet-600)', icon: '🔄', label: isLao ? 'ກຳລັງກວດໃໝ່' : 'กำลังตรวจใหม่' },
+      'tiebreaker_needed': { color: 'var(--rose-500)', icon: '⚠️', label: isLao ? 'ນັບຊ້ຳ' : 'นับซ้ำ' },
+      'tiebreaker': { color: 'var(--violet-600)', icon: '🔄', label: isLao ? 'ກຳລັງນັບຊ້ຳ' : 'กำลังนับซ้ำ' },
       'completed': { color: 'var(--emerald-500)', icon: '✅', label: isLao ? 'ສຳເລັດ' : 'เสร็จ' }
     };
     return map[s] || { color: 'var(--slate-400)', icon: '⚪', label: s };
@@ -12846,7 +12864,7 @@ function renderQuickNav(counts, statusCounts, allData) {
     if (statusCounts.tiebreaker > 0) statusItems.push({ 
       type: 'status', key: 'tiebreaker', 
       icon: '🔄', cls: 'status-tiebreaker-active',
-      label: isLao ? 'ກຳລັງກວດໃໝ່' : 'กำลังตรวจใหม่', 
+      label: isLao ? 'ກຳລັງນັບຊ້ຳ' : 'กำลังนับซ้ำ', 
       count: statusCounts.tiebreaker,
       bgColor: 'var(--violet-600)'
     });
