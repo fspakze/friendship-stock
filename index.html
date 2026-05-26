@@ -2264,9 +2264,17 @@ async function afterLogin() {
   // โหลด zones+locations เสมอ (เพื่อให้ Floor Map + Workflow Control ใช้)
   await loadZonesAndLocations();
   
-  if (needsZone) {
+  // ถ้า branch ปิด zones → ข้าม zone step (ใช้ default zone ถ้ามี)
+  const branchUseZones = branch?.use_zones !== false;
+  
+  if (needsZone && branchUseZones) {
     showZoneStep();
   } else {
+    // ถ้าปิด zones → set default zone อัตโนมัติ (เผื่อ code อื่นต้องใช้)
+    if (!branchUseZones && allZones && allZones.length > 0) {
+      zone = allZones[0]; // ใช้ zone แรกเป็น default
+      log('Branch use_zones=false, auto-set default zone:', zone.code);
+    }
     enterApp();
   }
 }
@@ -6039,6 +6047,9 @@ function renderZoneManager() {
   const isLao = lang === 'lo';
   const { zones, locations } = _zoneMgrData;
   
+  // Init selected set
+  if (!_zoneMgrSelected) _zoneMgrSelected = new Set();
+  
   // Count locations per zone
   const locCountByZone = {};
   locations.forEach(l => {
@@ -6064,6 +6075,7 @@ function renderZoneManager() {
   }
   
   const noZoneCount = locCountByZone['no-zone'] || 0;
+  const selectedCount = _zoneMgrSelected.size;
   
   let html = `
     <!-- Stats Bar -->
@@ -6082,18 +6094,42 @@ function renderZoneManager() {
       </div>
     </div>
     
+    <!-- Bulk Actions Bar -->
+    <div style="background:${selectedCount > 0 ? 'var(--rose-100)' : 'var(--slate-100)'};border:1px solid ${selectedCount > 0 ? 'var(--rose-300)' : 'var(--slate-200)'};border-radius:9px;padding:7px 9px;margin-bottom:9px;display:flex;align-items:center;gap:7px;transition:all 0.15s;">
+      <div style="font-size:11px;color:${selectedCount > 0 ? 'var(--rose-500)' : 'var(--slate-600)'};font-weight:700;flex:1;">
+        ${selectedCount > 0 
+          ? `✓ ${isLao ? 'ເລືອກ' : 'เลือก'} ${selectedCount} ${isLao ? 'ໂຊນ' : 'โซน'}` 
+          : `☐ ${isLao ? 'ບໍ່ໄດ້ເລືອກ' : 'ยังไม่ได้เลือก'}`}
+      </div>
+      <button onclick="toggleAllZoneSelect()" 
+              style="background:white;color:var(--slate-700);border:1px solid var(--slate-300);border-radius:5px;padding:5px 9px;font-size:10px;font-weight:700;cursor:pointer;">
+        ${selectedCount === zones.length 
+          ? (isLao ? '☐ ບໍ່ເລືອກ' : '☐ ไม่เลือก') 
+          : (isLao ? '☑️ ເລືອກໝົດ' : '☑️ เลือกหมด')}
+      </button>
+      <button onclick="bulkDeleteZones()" 
+              ${selectedCount === 0 ? 'disabled' : ''}
+              style="background:${selectedCount > 0 ? 'var(--rose-500)' : 'var(--slate-300)'};color:white;border:none;border-radius:5px;padding:5px 9px;font-size:10px;font-weight:700;cursor:${selectedCount > 0 ? 'pointer' : 'not-allowed'};">
+        🗑️ ${isLao ? 'ລົບ' : 'ลบ'}${selectedCount > 0 ? ` (${selectedCount})` : ''}
+      </button>
+    </div>
+    
     <!-- Zones List -->
-    <div style="max-height:400px;overflow-y:auto;background:var(--slate-50);border-radius:9px;padding:7px;">
+    <div style="max-height:380px;overflow-y:auto;background:var(--slate-50);border-radius:9px;padding:7px;">
   `;
   
   zones.forEach(z => {
     const count = locCountByZone[z.id] || 0;
     const zoneName = isLao ? (z.name_lo || z.name_th) : (z.name_th || z.name_lo);
     const color = z.color || '#0ea5e9';
+    const isSelected = _zoneMgrSelected.has(z.id);
     
     html += `
-      <div style="background:white;border:1px solid var(--slate-200);border-radius:9px;padding:9px 11px;margin-bottom:6px;display:flex;align-items:center;gap:9px;border-left:4px solid ${color};">
-        <div style="flex:1;min-width:0;">
+      <div style="background:${isSelected ? 'var(--rose-50)' : 'white'};border:1px solid ${isSelected ? 'var(--rose-300)' : 'var(--slate-200)'};border-radius:9px;padding:9px 11px;margin-bottom:6px;display:flex;align-items:center;gap:9px;border-left:4px solid ${color};transition:all 0.1s;">
+        <div onclick="toggleZoneSelect(${z.id})" style="cursor:pointer;font-size:16px;flex-shrink:0;user-select:none;">
+          ${isSelected ? '☑️' : '⬜'}
+        </div>
+        <div style="flex:1;min-width:0;cursor:pointer;" onclick="toggleZoneSelect(${z.id})">
           <div style="display:flex;align-items:center;gap:7px;">
             <span style="font-family:'Space Grotesk',monospace;font-weight:800;font-size:12px;color:var(--slate-900);">${z.code}</span>
             <span style="font-size:11px;color:var(--slate-700);">${zoneName}</span>
@@ -6138,6 +6174,157 @@ function renderZoneManager() {
   
   html += '</div>';
   content.innerHTML = html;
+}
+
+// ==================== ZONE BULK SELECT ====================
+let _zoneMgrSelected = new Set();
+
+function toggleZoneSelect(zoneId) {
+  if (_zoneMgrSelected.has(zoneId)) {
+    _zoneMgrSelected.delete(zoneId);
+  } else {
+    _zoneMgrSelected.add(zoneId);
+  }
+  renderZoneManager();
+}
+
+function toggleAllZoneSelect() {
+  const zones = _zoneMgrData?.zones || [];
+  if (_zoneMgrSelected.size === zones.length) {
+    _zoneMgrSelected.clear();
+  } else {
+    _zoneMgrSelected = new Set(zones.map(z => z.id));
+  }
+  renderZoneManager();
+}
+
+// ==================== TOGGLE BRANCH USE_ZONES (Admin) ====================
+async function toggleBranchUseZones() {
+  const isLao = lang === 'lo';
+  
+  if (!['admin', 'scc'].includes(user.role)) {
+    showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error');
+    return;
+  }
+  
+  if (!branch) return;
+  
+  const currentValue = branch.use_zones !== false;
+  const newValue = !currentValue;
+  
+  // Confirm
+  const branchName = isLao ? (branch.name_lo || branch.code) : (branch.name_th || branch.code);
+  let msg;
+  if (newValue) {
+    // เปิด
+    msg = isLao 
+      ? `ເປີດລະບົບໂຊນ ສຳລັບ ${branchName}?\n\nCounter ຈະຕ້ອງເລືອກໂຊນກ່ອນສະແກນ`
+      : `เปิดระบบโซน สำหรับ ${branchName}?\n\nCounter จะต้องเลือกโซนก่อนสแกน`;
+  } else {
+    // ปิด
+    msg = isLao 
+      ? `ປິດລະບົບໂຊນ ສຳລັບ ${branchName}?\n\n✅ Counter ສະແກນໄດ້ໄວຂຶ້ນ ບໍ່ຕ້ອງເລືອກໂຊນ\n✅ ໂຊນທີ່ມີຍັງເກັບໄວ້ (ບໍ່ໄດ້ລົບ)\n✅ Pan-O-Gram + Stock Counts ຍັງເຮັດວຽກປົກກະຕິ`
+      : `ปิดระบบโซน สำหรับ ${branchName}?\n\n✅ Counter สแกนได้เร็วขึ้น ไม่ต้องเลือกโซน\n✅ โซนที่มียังเก็บไว้ (ไม่ได้ลบ)\n✅ Pan-O-Gram + Stock Counts ยังทำงานปกติ`;
+  }
+  
+  if (!confirm(msg)) return;
+  
+  try {
+    const { error } = await sb.from('branches')
+      .update({ use_zones: newValue })
+      .eq('id', branch.id);
+    
+    if (error) throw error;
+    
+    // Update local branch object
+    branch.use_zones = newValue;
+    
+    // Update localStorage session
+    try {
+      const sessionData = JSON.parse(localStorage.getItem('fs_session') || '{}');
+      if (sessionData.branch) {
+        sessionData.branch.use_zones = newValue;
+        localStorage.setItem('fs_session', JSON.stringify(sessionData));
+      }
+    } catch (e) {
+      log('localStorage update warning:', e);
+    }
+    
+    showToast(
+      newValue 
+        ? (isLao ? '✅ ເປີດລະບົບໂຊນແລ້ວ' : '✅ เปิดระบบโซนแล้ว')
+        : (isLao ? '⏸️ ປິດລະບົບໂຊນແລ້ວ' : '⏸️ ปิดระบบโซนแล้ว'),
+      'success'
+    );
+    
+    // Re-render settings page
+    if (typeof renderSettingsPage === 'function') {
+      const c = document.getElementById('appContent');
+      if (c) c.innerHTML = renderSettingsPage();
+      loadSettingsStats();
+    }
+  } catch (e) {
+    console.error('[FS] toggleBranchUseZones error:', e);
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+// ==================== END TOGGLE BRANCH USE_ZONES ====================
+
+async function bulkDeleteZones() {
+  const isLao = lang === 'lo';
+  if (_zoneMgrSelected.size === 0) return;
+  
+  const selectedZones = (_zoneMgrData?.zones || []).filter(z => _zoneMgrSelected.has(z.id));
+  
+  // นับ locations ที่จะได้รับผลกระทบ
+  const affectedLocCount = (_zoneMgrData?.locations || []).filter(l => _zoneMgrSelected.has(l.zone_id)).length;
+  
+  // แสดง list ของโซนที่จะลบ
+  const zonesPreview = selectedZones.slice(0, 5).map(z => `${z.code} (${isLao ? (z.name_lo || z.name_th) : (z.name_th || z.name_lo)})`).join('\n');
+  const more = selectedZones.length > 5 ? `\n... +${selectedZones.length - 5} ${isLao ? 'ອື່ນໆ' : 'อื่นๆ'}` : '';
+  
+  let confirmMsg = isLao 
+    ? `ລົບ ${selectedZones.length} ໂຊນ?\n\n${zonesPreview}${more}`
+    : `ลบ ${selectedZones.length} โซน?\n\n${zonesPreview}${more}`;
+  
+  if (affectedLocCount > 0) {
+    confirmMsg += isLao
+      ? `\n\n⚠️ ${affectedLocCount} ຕຳແໜ່ງຈະກາຍເປັນ "ບໍ່ມີໂຊນ"`
+      : `\n\n⚠️ ${affectedLocCount} ตำแหน่งจะกลายเป็น "ไม่มีโซน"`;
+  }
+  
+  if (!confirm(confirmMsg)) return;
+  
+  showToast(isLao ? '⏳ ກຳລັງລົບ...' : '⏳ กำลังลบ...', 'success');
+  
+  try {
+    const ids = Array.from(_zoneMgrSelected);
+    
+    // 1. ปลด zone_id ของ locations ที่ใช้ zones เหล่านี้
+    const { error: ue } = await sb.from('location_master')
+      .update({ zone_id: null })
+      .in('zone_id', ids)
+      .eq('branch_id', branch.id);
+    if (ue) throw ue;
+    
+    // 2. ลบ zones
+    const { error: de } = await sb.from('zones').delete().in('id', ids);
+    if (de) throw de;
+    
+    // Clear selection
+    _zoneMgrSelected.clear();
+    
+    showToast(`🗑️ ${isLao ? 'ລົບແລ້ວ' : 'ลบแล้ว'} ${ids.length} ${isLao ? 'ໂຊນ' : 'โซน'}`, 'success');
+    
+    // Reload manager + Floor Map
+    await loadZoneManager();
+    await loadZonesAndLocations();
+    const fmEl = document.getElementById('floorMapContent');
+    if (fmEl) loadFloorMap();
+  } catch (e) {
+    console.error('[FS] bulkDeleteZones error:', e);
+    showToast('Error: ' + e.message, 'error');
+  }
 }
 
 // Modal สร้างโซนใหม่
@@ -13027,12 +13214,37 @@ function renderSettingsPage() {
         </div>
       </div>
       
+      <!-- Use Zones Toggle (per branch) -->
+      <div style="background:${branch?.use_zones !== false ? 'var(--emerald-100)' : 'var(--amber-100)'};border:1px solid ${branch?.use_zones !== false ? 'var(--emerald-500)' : 'var(--amber-500)'};border-radius:9px;padding:9px 11px;margin-bottom:9px;display:flex;align-items:center;gap:9px;">
+        <div style="font-size:18px;">${branch?.use_zones !== false ? '✅' : '⏸️'}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:11px;font-weight:700;color:${branch?.use_zones !== false ? 'var(--emerald-500)' : '#92400e'};">
+            ${branch?.use_zones !== false 
+              ? (lang === 'lo' ? 'ໃຊ້ລະບົບໂຊນ' : 'ใช้ระบบโซน')
+              : (lang === 'lo' ? 'ປິດລະບົບໂຊນ' : 'ปิดระบบโซน')}
+          </div>
+          <div style="font-size:10px;color:var(--slate-600);margin-top:1px;">
+            ${branch?.use_zones !== false 
+              ? (lang === 'lo' ? 'Counter ຕ້ອງເລືອກໂຊນກ່ອນສະແກນ' : 'Counter ต้องเลือกโซนก่อนสแกน')
+              : (lang === 'lo' ? 'Counter ສະແກນໄດ້ເລີຍ ບໍ່ຕ້ອງເລືອກໂຊນ' : 'Counter สแกนได้เลย ไม่ต้องเลือกโซน')}
+          </div>
+        </div>
+        <button onclick="toggleBranchUseZones()" 
+                style="background:${branch?.use_zones !== false ? 'var(--rose-500)' : 'var(--emerald-500)'};color:white;border:none;border-radius:6px;padding:6px 11px;font-size:11px;font-weight:700;cursor:pointer;">
+          ${branch?.use_zones !== false 
+            ? (lang === 'lo' ? 'ປິດ' : 'ปิด')
+            : (lang === 'lo' ? 'ເປີດ' : 'เปิด')}
+        </button>
+      </div>
+      
       <button class="btn" style="background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;font-size:12px;padding:11px;width:100%;" onclick="openZoneManager()">
         🎨 ${lang === 'lo' ? 'ຈັດການໂຊນ' : 'จัดการโซน'}
       </button>
       
       <div style="font-size:10px;color:var(--slate-500);margin-top:8px;line-height:1.5;">
-        💡 ${lang === 'lo' ? 'ແກ້ໄຂຊື່ໂຊນ + ມອບໝາຍ Gondola/Location ໃຫ້ໂຊນທີ່ຖືກຕ້ອງ' : 'แก้ไขชื่อโซน + กำหนด Gondola/Location ให้โซนที่ถูกต้อง'}
+        💡 ${lang === 'lo' 
+          ? 'ສາຂາໃຫຍ່: ໃຊ້ໂຊນ • ສາຂາເລັກ: ປິດໂຊນ ໃຫ້ສະແກນໄວຂຶ້ນ' 
+          : 'สาขาใหญ่: ใช้โซน • สาขาเล็ก: ปิดโซน ให้สแกนเร็วขึ้น'}
       </div>
     </div>
     ` : ''}
@@ -13568,6 +13780,10 @@ window.saveEditGondola = saveEditGondola;
 window.confirmDeleteGondola = confirmDeleteGondola;
 window.executeDeleteGondola = executeDeleteGondola;
 window.logoutForSetup = logoutForSetup;
+window.toggleZoneSelect = toggleZoneSelect;
+window.toggleAllZoneSelect = toggleAllZoneSelect;
+window.bulkDeleteZones = bulkDeleteZones;
+window.toggleBranchUseZones = toggleBranchUseZones;
 window.adjustCount = adjustCount;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
