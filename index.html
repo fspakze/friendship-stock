@@ -4429,7 +4429,7 @@ async function loadGapScanRecent() {
   
   try {
     const { data, error } = await sb.from('gap_scans')
-      .select('*, users(full_name)')
+      .select('*, users!user_id(full_name)')
       .eq('branch_id', branch.id)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
@@ -4620,7 +4620,7 @@ async function loadGapReport() {
   const isLao = lang === 'lo';
   try {
     const { data, error } = await sb.from('gap_scans')
-      .select('*, users(full_name), products(name_th, name_lo, unit_th, unit_lo, cost_price, sell_price, pos_qty)')
+      .select('*, users!user_id(full_name), products(name_th, name_lo, unit_th, unit_lo, cost_price, sell_price, pos_qty)')
       .eq('branch_id', branch.id)
       .eq('status', 'pending')
       .order('created_at', { ascending: false });
@@ -10225,12 +10225,8 @@ async function loadHealthAlerts() {
       .eq('branch_id', branch.id)
       .is('product_id', null);
     
-    // Check via SQL: stock_counts with deleted products
-    const { data: orphanCheck } = await sb.rpc('exec_sql', {
-      sql: `SELECT COUNT(*) as c FROM stock_counts sc 
-            LEFT JOIN products p ON p.id = sc.product_id 
-            WHERE sc.branch_id = ${branch.id} AND p.id IS NULL`
-    }).catch(() => ({ data: null }));
+    // Note: skip exec_sql (function อาจไม่มีใน DB)
+    // ใช้ fallback ด้านล่างแทน — query all stock_counts แล้วเช็ค product ที่หายไป
     
     // Fallback: query all stock_counts → product_ids → check missing
     const { data: scIds } = await sb.from('stock_counts')
