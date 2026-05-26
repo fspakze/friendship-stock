@@ -2370,6 +2370,14 @@ async function loadZonesAndLocations() {
   
   const isLao = lang === 'lo';
   const isAdmin = user && ['admin', 'scc', 'bcs'].includes(user.role);
+  const branchUseZones = branch?.use_zones !== false;
+  
+  // ถ้า branch ปิด zones (สาขาเล็ก) — ข้าม alert
+  // เพราะใช้ default zone อัตโนมัติ
+  if (!branchUseZones) {
+    log('Branch use_zones=false, skip zone alert');
+    return;
+  }
   
   // ถ้า branch นี้ยังไม่มี zones หรือ locations
   if (!allZones.length || !allLocations.length) {
@@ -6574,8 +6582,8 @@ async function openPanOGramModal(barcode, locationCode, editId = null) {
       <span style="font-size:14px;">ℹ️</span>
       <div style="flex:1;line-height:1.4;">
         ${isLao 
-          ? `<strong>ລະດັບສະຕ໋ອກ</strong>: Max & Reorder = ((existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1)) (ອັດຕະໂນມັດ) • Min = ${existing?.min_qty ?? 0}<br><span style="color:var(--violet-600);">⚙️ ປັບໄດ້ໃນ "ຈັດການ Pan-O-Gram"</span>` 
-          : `<strong>ระดับสต๊อก</strong>: Max & Reorder = ((existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1)) (อัตโนมัติ) • Min = ${existing?.min_qty ?? 0}<br><span style="color:var(--violet-600);">⚙️ ปรับได้ในหน้า "จัดการ Pan-O-Gram"</span>`}
+          ? `<strong>ລະດັບສະຕ໋ອກ</strong>: Max & Reorder = ${(existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1)} (ອັດຕະໂນມັດ) • Min = ${existing?.min_qty ?? 0}<br><span style="color:var(--violet-600);">⚙️ ປັບໄດ້ໃນ "ຈັດການ Pan-O-Gram"</span>` 
+          : `<strong>ระดับสต๊อก</strong>: Max & Reorder = ${(existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1)} (อัตโนมัติ) • Min = ${existing?.min_qty ?? 0}<br><span style="color:var(--violet-600);">⚙️ ปรับได้ในหน้า "จัดการ Pan-O-Gram"</span>`}
       </div>
     </div>
     
