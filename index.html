@@ -6568,56 +6568,21 @@ async function openPanOGramModal(barcode, locationCode, editId = null) {
       </div>
     </div>
     
-    <!-- 🆕 Stock Levels Section -->
-    <div style="background:linear-gradient(135deg,var(--amber-100),var(--rose-100));border-left:4px solid var(--amber-500);padding:11px;border-radius:9px;margin-bottom:11px;">
-      <div style="font-size:11px;color:var(--amber-700);font-weight:800;text-transform:uppercase;margin-bottom:7px;display:flex;align-items:center;gap:5px;">
-        📊 ${isLao ? 'ລະດັບສະຕ໋ອກ (ສຳລັບ Gap Scan)' : 'ระดับสต๊อก (สำหรับ Gap Scan)'}
-      </div>
-      
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-        <div>
-          <label style="font-size:9px;color:var(--rose-600);font-weight:700;display:block;margin-bottom:2px;">
-            🔻 ${isLao ? 'ຂັ້ນຕ່ຳ' : 'ขั้นต่ำ'} (Min)
-          </label>
-          <input type="number" id="pogMinQty" 
-                 value="${existing?.min_qty ?? Math.ceil(((existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1)) / 2)}" 
-                 min="0" step="1"
-                 class="form-input" 
-                 style="text-align:center;font-weight:700;font-size:14px;padding:7px;font-family:'Space Grotesk',monospace;background:white;">
-          <div style="font-size:9px;color:var(--slate-500);margin-top:2px;line-height:1.3;">
-            ${isLao ? 'ຕ່ຳກວ່ານີ້ = ຕ້ອງເຕີມ' : 'ต่ำกว่านี้ = ต้องเติม'}
-          </div>
-        </div>
-        
-        <div>
-          <label style="font-size:9px;color:var(--emerald-600);font-weight:700;display:block;margin-bottom:2px;">
-            🔺 ${isLao ? 'ສູງສຸດ' : 'สูงสุด'} (Max)
-          </label>
-          <input type="number" id="pogMaxQty" 
-                 value="${existing?.max_qty ?? ((existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1))}" 
-                 min="1" step="1"
-                 class="form-input" 
-                 style="text-align:center;font-weight:700;font-size:14px;padding:7px;font-family:'Space Grotesk',monospace;background:white;">
-          <div style="font-size:9px;color:var(--slate-500);margin-top:2px;line-height:1.3;">
-            ${isLao ? 'ສະຕ໋ອກສູງສຸດທີ່ຮັບໄດ້' : 'สต๊อกสูงสุดที่รับได้'}
-          </div>
-        </div>
-      </div>
-      
-      <div style="margin-top:7px;">
-        <label style="font-size:9px;color:var(--violet-600);font-weight:700;display:block;margin-bottom:2px;">
-          📦 ${isLao ? 'ຈຳນວນເຕີມແຕ່ລະຄັ້ງ' : 'จำนวนเติมแต่ละครั้ง'} (Reorder Qty)
-        </label>
-        <input type="number" id="pogReorderQty" 
-               value="${existing?.reorder_qty ?? ((existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1))}" 
-               min="1" step="1"
-               class="form-input" 
-               style="text-align:center;font-weight:700;font-size:14px;padding:7px;font-family:'Space Grotesk',monospace;background:white;">
-        <div style="font-size:9px;color:var(--slate-500);margin-top:2px;">
-          ${isLao ? 'Gap Scan ຈະແນະນຳຈຳນວນນີ້' : 'Gap Scan จะแนะนำจำนวนนี้'}
-        </div>
+    
+    <!-- ℹ️ Stock Level Info (Auto, แก้ใน Manager ได้) -->
+    <div style="background:var(--slate-50);border-left:3px solid var(--violet-400);padding:7px 9px;border-radius:7px;margin-bottom:11px;display:flex;align-items:center;gap:7px;font-size:10px;color:var(--slate-600);">
+      <span style="font-size:14px;">ℹ️</span>
+      <div style="flex:1;line-height:1.4;">
+        ${isLao 
+          ? `<strong>ລະດັບສະຕ໋ອກ</strong>: Max & Reorder = ((existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1)) (ອັດຕະໂນມັດ) • Min = ${existing?.min_qty ?? 0}<br><span style="color:var(--violet-600);">⚙️ ປັບໄດ້ໃນ "ຈັດການ Pan-O-Gram"</span>` 
+          : `<strong>ระดับสต๊อก</strong>: Max & Reorder = ((existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1)) (อัตโนมัติ) • Min = ${existing?.min_qty ?? 0}<br><span style="color:var(--violet-600);">⚙️ ปรับได้ในหน้า "จัดการ Pan-O-Gram"</span>`}
       </div>
     </div>
+    
+    <!-- Hidden fields (default auto values) -->
+    <input type="hidden" id="pogMinQty" value="${existing?.min_qty ?? 0}">
+    <input type="hidden" id="pogMaxQty" value="${existing?.max_qty ?? ((existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1))}">
+    <input type="hidden" id="pogReorderQty" value="${existing?.reorder_qty ?? ((existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1))}">
     
     <!-- Notes -->
     <div class="form-group">
@@ -7097,6 +7062,7 @@ function renderPogListView(items) {
       items.forEach(p => {
         const name = isLao ? (p.products?.name_lo || p.products?.name_th || p.barcode) : (p.products?.name_th || p.products?.name_lo || p.barcode);
         const isSelected = _pogMgrSelected.has(p.id);
+        const hasMin = (p.min_qty || 0) > 0;
         html += `
           <div style="background:${isSelected ? 'var(--rose-50)' : 'white'};border:1px solid ${isSelected ? 'var(--rose-300)' : 'var(--slate-200)'};border-radius:7px;padding:6px 9px;margin-bottom:3px;display:flex;align-items:center;gap:8px;transition:all 0.1s;">
             <div onclick="togglePogSelect(${p.id})" style="cursor:pointer;font-size:14px;flex-shrink:0;user-select:none;">
@@ -7108,12 +7074,17 @@ function renderPogListView(items) {
             </div>
             <div onclick="openPanOGramModal('${p.barcode}', '${p.location_code}', ${p.id})" style="flex:1;min-width:0;cursor:pointer;">
               <div style="font-size:11px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</div>
-              <div style="font-size:9px;color:var(--slate-500);font-family:monospace;">${p.barcode}</div>
+              <div style="font-size:9px;color:var(--slate-500);font-family:monospace;">${p.barcode}${hasMin ? ` <span style="background:var(--rose-100);color:var(--rose-600);padding:0 4px;border-radius:3px;font-weight:700;margin-left:3px;">Min:${p.min_qty}</span>` : ''}</div>
             </div>
             <div onclick="openPanOGramModal('${p.barcode}', '${p.location_code}', ${p.id})" style="text-align:right;flex-shrink:0;cursor:pointer;">
               <div style="font-size:10px;color:var(--slate-500);font-family:'Space Grotesk',monospace;">${p.facial}×${p.depth}×${p.stack}</div>
               <div style="font-size:12px;font-weight:800;color:var(--emerald-500);font-family:'Space Grotesk',monospace;">${p.total_qty}</div>
             </div>
+            <button onclick="event.stopPropagation();openEditStockLevels(${p.id})" 
+                    title="${isLao ? 'ປັບລະດັບສະຕ໋ອກ' : 'ปรับระดับสต๊อก'}"
+                    style="background:${hasMin ? 'var(--amber-500)' : 'var(--slate-200)'};color:${hasMin ? 'white' : 'var(--slate-600)'};border:none;border-radius:5px;width:30px;height:28px;font-size:13px;cursor:pointer;flex-shrink:0;">
+              ⚙️
+            </button>
           </div>
         `;
       });
@@ -7276,6 +7247,189 @@ function setPogView(view) {
 
 // ==================== POG BULK SELECT ====================
 let _pogMgrSelected = new Set();
+
+// ==================== EDIT STOCK LEVELS (Admin only) ====================
+// เปิด modal สำหรับปรับ Min/Max/Reorder ของ Pan-O-Gram ทีละรายการ
+async function openEditStockLevels(pogId) {
+  const isLao = lang === 'lo';
+  
+  // หา pog ใน cache
+  const pog = (_pogManagerData || []).find(p => p.id === pogId);
+  if (!pog) {
+    showToast('Not found', 'error');
+    return;
+  }
+  
+  const name = isLao 
+    ? (pog.products?.name_lo || pog.products?.name_th || pog.barcode)
+    : (pog.products?.name_th || pog.products?.name_lo || pog.barcode);
+  const unit = isLao ? (pog.products?.unit_lo || 'ຊິ້ນ') : (pog.products?.unit_th || 'ชิ้น');
+  const capacity = pog.total_qty || 0;
+  
+  showModal(`
+    <h3 style="display:flex;align-items:center;gap:7px;color:var(--amber-600);">
+      ⚙️ ${isLao ? 'ປັບລະດັບສະຕ໋ອກ' : 'ปรับระดับสต๊อก'}
+    </h3>
+    
+    <!-- Product info -->
+    <div style="background:var(--slate-50);padding:9px 11px;border-radius:9px;margin-bottom:11px;">
+      <div style="font-size:13px;font-weight:700;color:var(--slate-900);">${name}</div>
+      <div style="font-size:10px;color:var(--slate-500);font-family:monospace;margin-top:2px;">${pog.barcode}</div>
+      <div style="display:flex;gap:7px;margin-top:5px;font-size:10px;">
+        <span style="background:var(--violet-100);color:var(--violet-600);padding:2px 7px;border-radius:5px;font-family:monospace;font-weight:700;">
+          📍 ${pog.location_code}
+        </span>
+        <span style="background:var(--emerald-100);color:var(--emerald-600);padding:2px 7px;border-radius:5px;font-family:monospace;font-weight:700;">
+          ${pog.facial}×${pog.depth}×${pog.stack} = ${capacity}
+        </span>
+      </div>
+    </div>
+    
+    <!-- Stock Levels Form -->
+    <div style="background:linear-gradient(135deg,var(--amber-100),var(--rose-100));border-left:4px solid var(--amber-500);padding:11px;border-radius:9px;margin-bottom:11px;">
+      
+      <!-- Min -->
+      <div style="margin-bottom:9px;">
+        <label style="font-size:11px;color:var(--rose-700);font-weight:800;display:flex;align-items:center;gap:5px;margin-bottom:5px;">
+          🔻 ${isLao ? 'ຂັ້ນຕ່ຳ (Min Stock)' : 'ขั้นต่ำ (Min Stock)'}
+        </label>
+        <div style="display:flex;gap:7px;align-items:center;">
+          <button onclick="adjustStockLevel('stkMin', -1)" style="background:white;border:1px solid var(--rose-300);width:36px;height:36px;border-radius:7px;font-size:18px;font-weight:800;cursor:pointer;color:var(--rose-600);">−</button>
+          <input type="number" id="stkMin" value="${pog.min_qty || 0}" min="0" max="${capacity}"
+                 style="flex:1;text-align:center;font-size:18px;font-weight:800;font-family:'Space Grotesk',monospace;color:var(--rose-600);padding:7px;border:2px solid var(--rose-400);border-radius:7px;background:white;">
+          <button onclick="adjustStockLevel('stkMin', 1)" style="background:white;border:1px solid var(--rose-300);width:36px;height:36px;border-radius:7px;font-size:18px;font-weight:800;cursor:pointer;color:var(--rose-600);">+</button>
+        </div>
+        <div style="font-size:9px;color:var(--slate-600);margin-top:3px;text-align:center;line-height:1.4;">
+          ${isLao 
+            ? 'ຕ່ຳກວ່ານີ້ = ຕ້ອງເຕີມດ່ວນ • 0 = ບໍ່ໃຊ້' 
+            : 'ต่ำกว่านี้ = ต้องเติมด่วน • 0 = ไม่ใช้'}
+        </div>
+      </div>
+      
+      <!-- Max -->
+      <div style="margin-bottom:9px;">
+        <label style="font-size:11px;color:var(--emerald-700);font-weight:800;display:flex;align-items:center;gap:5px;margin-bottom:5px;">
+          🔺 ${isLao ? 'ສູງສຸດ (Max Stock)' : 'สูงสุด (Max Stock)'}
+        </label>
+        <div style="display:flex;gap:7px;align-items:center;">
+          <button onclick="adjustStockLevel('stkMax', -1)" style="background:white;border:1px solid var(--emerald-300);width:36px;height:36px;border-radius:7px;font-size:18px;font-weight:800;cursor:pointer;color:var(--emerald-600);">−</button>
+          <input type="number" id="stkMax" value="${pog.max_qty || capacity}" min="1"
+                 style="flex:1;text-align:center;font-size:18px;font-weight:800;font-family:'Space Grotesk',monospace;color:var(--emerald-600);padding:7px;border:2px solid var(--emerald-400);border-radius:7px;background:white;">
+          <button onclick="adjustStockLevel('stkMax', 1)" style="background:white;border:1px solid var(--emerald-300);width:36px;height:36px;border-radius:7px;font-size:18px;font-weight:800;cursor:pointer;color:var(--emerald-600);">+</button>
+        </div>
+        <div style="font-size:9px;color:var(--slate-600);margin-top:3px;text-align:center;">
+          ${isLao ? `ປົກກະຕິ = ${capacity} (ຄວາມຈຸຊັ້ນ)` : `ปกติ = ${capacity} (ความจุชั้น)`}
+        </div>
+      </div>
+      
+      <!-- Reorder -->
+      <div>
+        <label style="font-size:11px;color:var(--violet-700);font-weight:800;display:flex;align-items:center;gap:5px;margin-bottom:5px;">
+          📦 ${isLao ? 'ຈຳນວນເຕີມແຕ່ລະຄັ້ງ (Reorder)' : 'จำนวนเติมแต่ละครั้ง (Reorder)'}
+        </label>
+        <div style="display:flex;gap:7px;align-items:center;">
+          <button onclick="adjustStockLevel('stkReorder', -1)" style="background:white;border:1px solid var(--violet-300);width:36px;height:36px;border-radius:7px;font-size:18px;font-weight:800;cursor:pointer;color:var(--violet-600);">−</button>
+          <input type="number" id="stkReorder" value="${pog.reorder_qty || capacity}" min="1"
+                 style="flex:1;text-align:center;font-size:18px;font-weight:800;font-family:'Space Grotesk',monospace;color:var(--violet-600);padding:7px;border:2px solid var(--violet-400);border-radius:7px;background:white;">
+          <button onclick="adjustStockLevel('stkReorder', 1)" style="background:white;border:1px solid var(--violet-300);width:36px;height:36px;border-radius:7px;font-size:18px;font-weight:800;cursor:pointer;color:var(--violet-600);">+</button>
+        </div>
+        <div style="font-size:9px;color:var(--slate-600);margin-top:3px;text-align:center;">
+          ${isLao 
+            ? 'Gap Scan ຈະແນະນຳຈຳນວນນີ້ໃຫ້ Counter' 
+            : 'Gap Scan จะแนะนำจำนวนนี้ให้ Counter'}
+        </div>
+      </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:11px;">
+      <button onclick="presetStockLevels('off')" 
+              style="background:var(--slate-100);color:var(--slate-700);border:1px solid var(--slate-300);border-radius:6px;padding:7px;font-size:10px;font-weight:700;cursor:pointer;">
+        ⊘ ${isLao ? 'ປິດ' : 'ปิด Min'}
+      </button>
+      <button onclick="presetStockLevels('half', ${capacity})" 
+              style="background:var(--amber-100);color:var(--amber-700);border:1px solid var(--amber-300);border-radius:6px;padding:7px;font-size:10px;font-weight:700;cursor:pointer;">
+        ½ ${isLao ? 'ເຄິ່ງ' : 'ครึ่ง'}
+      </button>
+      <button onclick="presetStockLevels('quarter', ${capacity})" 
+              style="background:var(--rose-100);color:var(--rose-700);border:1px solid var(--rose-300);border-radius:6px;padding:7px;font-size:10px;font-weight:700;cursor:pointer;">
+        ¼ ${isLao ? 'ໜຶ່ງສ່ວນສີ່' : 'หนึ่งในสี่'}
+      </button>
+    </div>
+    
+    <!-- Audit info -->
+    ${pog.last_audited_at ? `
+      <div style="font-size:9px;color:var(--slate-500);margin-bottom:7px;text-align:center;">
+        🕒 ${isLao ? 'ປັບລ່າສຸດ' : 'ปรับล่าสุด'}: ${new Date(pog.last_audited_at).toLocaleString(isLao ? 'lo-LA' : 'th-TH')}
+      </div>
+    ` : ''}
+    
+    <div class="action-row">
+      <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;">${T('cancel')}</button>
+      <button class="btn btn-primary" onclick="saveStockLevels(${pogId})" 
+              style="flex:1.5;background:linear-gradient(135deg,var(--amber-500),var(--rose-500));font-weight:800;">
+        💾 ${isLao ? 'ບັນທຶກ' : 'บันทึก'}
+      </button>
+    </div>
+  `);
+}
+
+function adjustStockLevel(inputId, delta) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const cur = parseInt(input.value) || 0;
+  const min = parseInt(input.min) || 0;
+  const newVal = Math.max(min, cur + delta);
+  input.value = newVal;
+}
+
+function presetStockLevels(preset, capacity) {
+  const minEl = document.getElementById('stkMin');
+  if (!minEl) return;
+  
+  if (preset === 'off') {
+    minEl.value = 0;
+  } else if (preset === 'half') {
+    minEl.value = Math.ceil(capacity / 2);
+  } else if (preset === 'quarter') {
+    minEl.value = Math.ceil(capacity / 4);
+  }
+}
+
+async function saveStockLevels(pogId) {
+  const isLao = lang === 'lo';
+  const minQty = parseInt(document.getElementById('stkMin')?.value) || 0;
+  const maxQty = parseInt(document.getElementById('stkMax')?.value) || 0;
+  const reorderQty = parseInt(document.getElementById('stkReorder')?.value) || 0;
+  
+  if (maxQty < minQty) {
+    showToast(isLao ? '⚠️ Max ຕ້ອງ ≥ Min' : '⚠️ Max ต้อง ≥ Min', 'error');
+    return;
+  }
+  
+  try {
+    const { error } = await sb.from('pan_o_grams')
+      .update({
+        min_qty: minQty,
+        max_qty: maxQty,
+        reorder_qty: reorderQty,
+        last_audited_at: new Date().toISOString(),
+        last_audited_by: user.id
+      })
+      .eq('id', pogId);
+    
+    if (error) throw error;
+    
+    showToast(`✅ ${isLao ? 'ບັນທຶກສຳເລັດ' : 'บันทึกสำเร็จ'}`, 'success');
+    closeModal();
+    
+    // Reload manager
+    await loadPanOGramManager();
+  } catch (e) {
+    console.error('[FS] saveStockLevels error:', e);
+    toastError(e);
+  }
+}
 
 function togglePogSelect(id) {
   if (_pogMgrSelected.has(id)) {
@@ -18798,6 +18952,10 @@ window.getTimeAgo = getTimeAgo;
 window.adjustOnShelf = adjustOnShelf;
 window.setOnShelfMax = setOnShelfMax;
 window.onOnShelfChange = onOnShelfChange;
+window.openEditStockLevels = openEditStockLevels;
+window.adjustStockLevel = adjustStockLevel;
+window.presetStockLevels = presetStockLevels;
+window.saveStockLevels = saveStockLevels;
 window.cancelClonePrompt = cancelClonePrompt;
 window.confirmCloneFromOther = confirmCloneFromOther;
 window.adjustCount = adjustCount;
