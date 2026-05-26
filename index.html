@@ -4852,6 +4852,100 @@ async function toggleGapScan() {
 }
 // ==================== END GAP SCAN ====================
 
+// ==================== PHASE B HELPERS (workflow + inventory_movements) ====================
+// Added 2026-05-27 by Anya 💗 — Phase B Step 3
+
+/**
+ * Insert a row into inventory_movements (audit trail).
+ * Safe to call: returns null on error without throwing.
+ * @param {object} gap - gap_scans row (must have product_id, branch_id, barcode, product_name, gap_qty)
+ * @param {string} movementType - 'replenish' | 'po_in' | 'count_adjust' | 'manual_adjust'
+ * @param {number} qtyChange - signed integer (+ = stock in, - = stock out)
+ * @param {string} [note] - optional note
+ * @returns {Promise<object|null>}
+ */
+async function logInventoryMovement(gap, movementType, qtyChange, note) {
+  try {
+    if (!gap || !gap.branch_id) {
+      console.warn('[FS] logInventoryMovement: missing gap or branch_id', gap);
+      return null;
+    }
+    const payload = {
+      branch_id: gap.branch_id,
+      product_id: gap.product_id || null,
+      barcode: gap.barcode || null,
+      product_name: gap.product_name || (gap.products?.name_th || gap.products?.name_lo) || null,
+      movement_type: movementType,
+      qty_change: qtyChange,
+      reference_type: 'gap_scan',
+      reference_id: gap.id,
+      user_id: (typeof user !== 'undefined' && user) ? user.id : null,
+      note: note || null
+    };
+    const { data, error } = await sb.from('inventory_movements')
+      .insert(payload)
+      .select()
+      .single();
+    if (error) {
+      console.error('[FS] logInventoryMovement error:', error, payload);
+      return null;
+    }
+    return data;
+  } catch (e) {
+    console.error('[FS] logInventoryMovement exception:', e);
+    return null;
+  }
+}
+
+/**
+ * Prompt user for PO number (optional input).
+ * Uses native prompt() for simplicity; returns null if cancelled, '' allowed (no PO).
+ * @param {string} [currentPO] - existing PO number to prefill
+ * @returns {string|null}
+ */
+function promptPONumber(currentPO) {
+  const isLao = lang === 'lo';
+  const msg = isLao
+    ? 'ໝາຍເລກ PO (ບໍ່ບັງຄັບ — ກົດ OK ເພື່ອຂ້າມ):'
+    : 'หมายเลข PO (ไม่บังคับ — กด OK เพื่อข้าม):';
+  const result = window.prompt(msg, currentPO || '');
+  // null = cancelled, '' = OK with empty input (allowed for optional)
+  if (result === null) return null;
+  return result.trim();
+}
+
+/**
+ * Update gap_scans workflow_stage (Assign / Start / etc.)
+ * @param {number} gapId
+ * @param {string} newStage - 'open' | 'assigned' | 'in_progress' | 'closed'
+ * @param {object} [extraFields] - additional fields to update
+ * @returns {Promise<boolean>}
+ */
+async function updateGapWorkflowStage(gapId, newStage, extraFields) {
+  try {
+    const payload = { workflow_stage: newStage };
+    if (newStage === 'assigned' && !extraFields?.assigned_at) {
+      payload.assigned_at = new Date().toISOString();
+    }
+    if (newStage === 'in_progress' && !extraFields?.started_at) {
+      payload.started_at = new Date().toISOString();
+    }
+    if (extraFields) Object.assign(payload, extraFields);
+    const { error } = await sb.from('gap_scans')
+      .update(payload)
+      .eq('id', gapId);
+    if (error) {
+      console.error('[FS] updateGapWorkflowStage error:', error, payload);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('[FS] updateGapWorkflowStage exception:', e);
+    return false;
+  }
+}
+// ==================== END PHASE B HELPERS ====================
+
 // ==================== GAP REPORT PAGE (Phase 2) ====================
 function renderGapReportPage() {
   const isLao = lang === 'lo';
@@ -4952,7 +5046,7 @@ async function loadGapReport() {
       : ['replenished', 'ordered', 'cancelled'];
     
     let query = sb.from('gap_scans')
-      .select('*, users!user_id(full_name), products(name_th, name_lo, unit_th, unit_lo, cost_price, sell_price, pos_qty)')
+      .select('*, users!user_id(full_name), assigned_user:users!assigned_to(full_name), resolver:users!resolved_by(full_name), products(name_th, name_lo, unit_th, unit_lo, cost_price, sell_price, pos_qty)')
       .eq('branch_id', branch.id);
     
     if (Array.isArray(statusFilter)) {
@@ -5160,33 +5254,48 @@ async function bulkResolveGaps(newStatus) {
   if (!confirm(`${action} ${ids.length} ${isLao ? 'ລາຍການ?' : 'รายการ?'}`)) return;
   
   try {
+    const nowIso = new Date().toISOString();
+    // Phase B: workflow_stage='closed' on any resolve action
+    const baseFields = { resolved_at: nowIso, resolved_by: user.id, workflow_stage: 'closed' };
+    
     // Determine status based on action_type for non-cancelled
-    let finalStatus = newStatus;
+    let replenishedGaps = []; // กลุ่มที่ต้อง log inventory_movement ('replenish' type)
+    
     if (newStatus === 'replenished') {
       // ตรวจสอบ action_type ของแต่ละรายการ → ถ้า purchase → ordered, ถ้า replenish → replenished
       // ทำแบบ batch update ตาม action_type
       const gapsToUpdate = _gapReportData.filter(g => ids.includes(g.id));
       const replenishIds = gapsToUpdate.filter(g => g.action_type === 'replenish').map(g => g.id);
       const purchaseIds = gapsToUpdate.filter(g => g.action_type === 'purchase').map(g => g.id);
+      replenishedGaps = gapsToUpdate.filter(g => g.action_type === 'replenish');
       
       if (replenishIds.length > 0) {
         const { error: e1 } = await sb.from('gap_scans')
-          .update({ status: 'replenished', resolved_at: new Date().toISOString(), resolved_by: user.id })
+          .update({ status: 'replenished', ...baseFields })
           .in('id', replenishIds);
         if (e1) throw e1;
       }
       if (purchaseIds.length > 0) {
         const { error: e2 } = await sb.from('gap_scans')
-          .update({ status: 'ordered', resolved_at: new Date().toISOString(), resolved_by: user.id })
+          .update({ status: 'ordered', ...baseFields })
           .in('id', purchaseIds);
         if (e2) throw e2;
       }
     } else {
       // cancelled
       const { error } = await sb.from('gap_scans')
-        .update({ status: 'cancelled', resolved_at: new Date().toISOString(), resolved_by: user.id })
+        .update({ status: 'cancelled', ...baseFields })
         .in('id', ids);
       if (error) throw error;
+    }
+    
+    // Phase B: Audit trail — log inventory_movement for each replenished gap
+    // (ไม่ใช่ critical path — ถ้า log fail ไม่ rollback gap update)
+    if (replenishedGaps.length > 0) {
+      // Run in parallel; logInventoryMovement handles its own errors and returns null on fail
+      await Promise.all(
+        replenishedGaps.map(g => logInventoryMovement(g, 'replenish', g.gap_qty || 0))
+      );
     }
     
     showToast(`✅ ${action} ${ids.length} ${isLao ? 'ລາຍການ' : 'รายการ'}`, 'success');
@@ -5212,15 +5321,35 @@ async function resolveSingleGap(gapId, newStatus, event) {
       finalStatus = gap.action_type === 'purchase' ? 'ordered' : 'replenished';
     }
     
+    // Phase B: Optional PO number prompt for 'ordered' status
+    let poNumber = null;
+    if (finalStatus === 'ordered') {
+      poNumber = promptPONumber(gap.po_number);
+      // null = user cancelled the dialog → abort
+      if (poNumber === null) return;
+      // '' = OK with empty (allowed as optional)
+    }
+    
+    // Phase B: workflow_stage='closed' on resolve
+    const updatePayload = {
+      status: finalStatus,
+      resolved_at: new Date().toISOString(),
+      resolved_by: user.id,
+      workflow_stage: 'closed'
+    };
+    if (poNumber) updatePayload.po_number = poNumber;
+    
     const { error } = await sb.from('gap_scans')
-      .update({ 
-        status: finalStatus, 
-        resolved_at: new Date().toISOString(), 
-        resolved_by: user.id 
-      })
+      .update(updatePayload)
       .eq('id', gapId);
     
     if (error) throw error;
+    
+    // Phase B: Audit trail — log inventory_movement on replenish
+    // (non-blocking — log failure doesn't rollback the gap update)
+    if (finalStatus === 'replenished') {
+      await logInventoryMovement(gap, 'replenish', gap.gap_qty || 0);
+    }
     
     const msg = newStatus === 'cancelled'
       ? (isLao ? '❌ ຍົກເລີກແລ້ວ' : '❌ ยกเลิกแล้ว')
@@ -5233,6 +5362,51 @@ async function resolveSingleGap(gapId, newStatus, event) {
     toastError(e);
   }
 }
+
+// ==================== PHASE B: WORKFLOW STAGE ACTIONS ====================
+// Assign gap to current user (open → assigned)
+async function assignGapToMe(gapId, event) {
+  if (event) event.stopPropagation();
+  const isLao = lang === 'lo';
+  try {
+    const gap = _gapReportData.find(g => g.id === gapId);
+    if (!gap) return;
+    const { error } = await sb.from('gap_scans')
+      .update({
+        assigned_to: user.id,
+        assigned_at: new Date().toISOString(),
+        workflow_stage: 'assigned'
+      })
+      .eq('id', gapId);
+    if (error) throw error;
+    showToast(isLao ? '📋 ຮັບງານແລ້ວ' : '📋 รับงานแล้ว', 'success');
+    await loadGapReport();
+  } catch (e) {
+    console.error('[FS] assignGapToMe error:', e);
+    toastError(e);
+  }
+}
+
+// Start working on assigned gap (assigned → in_progress)
+async function startGapWork(gapId, event) {
+  if (event) event.stopPropagation();
+  const isLao = lang === 'lo';
+  try {
+    const gap = _gapReportData.find(g => g.id === gapId);
+    if (!gap) return;
+    const ok = await updateGapWorkflowStage(gapId, 'in_progress');
+    if (!ok) {
+      toastError(new Error(isLao ? 'ບໍ່ສຳເລັດ' : 'ไม่สำเร็จ'));
+      return;
+    }
+    showToast(isLao ? '▶️ ກຳລັງດຳເນີນການ' : '▶️ กำลังดำเนินการ', 'success');
+    await loadGapReport();
+  } catch (e) {
+    console.error('[FS] startGapWork error:', e);
+    toastError(e);
+  }
+}
+// ==================== END PHASE B WORKFLOW STAGE ACTIONS ====================
 
 function renderGapReportList() {
   if (!_gapReportData) return;
@@ -5304,13 +5478,55 @@ function renderGapReportList() {
         statusBadge = `<span style="background:var(--emerald-100);color:var(--emerald-700);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;">${isLao ? '✅ ເຕີມແລ້ວ' : '✅ เติมแล้ว'}</span>`;
       } else if (g.status === 'ordered') {
         statusBadge = `<span style="background:var(--sky-100);color:var(--sky-700);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;">${isLao ? '🛒 ສັ່ງແລ້ວ' : '🛒 สั่งแล้ว'}</span>`;
+        // Phase B: show PO number if available
+        if (g.po_number) {
+          statusBadge += `<span style="background:var(--sky-50);color:var(--sky-700);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;font-family:monospace;">PO:${g.po_number}</span>`;
+        }
       } else if (g.status === 'cancelled') {
         statusBadge = `<span style="background:var(--slate-200);color:var(--slate-600);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;">${isLao ? '❌ ຍົກເລີກ' : '❌ ยกเลิก'}</span>`;
       }
     }
     
+    // Phase B: workflow_stage badge (pending view only)
+    let stageBadge = '';
+    if (isPending) {
+      const stage = g.workflow_stage || 'open';
+      if (stage === 'assigned') {
+        const assigneeName = g.assigned_user?.full_name || '?';
+        stageBadge = `<span style="background:var(--amber-100);color:var(--amber-700);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;">📋 ${assigneeName}</span>`;
+      } else if (stage === 'in_progress') {
+        const assigneeName = g.assigned_user?.full_name || '';
+        stageBadge = `<span style="background:var(--sky-100);color:var(--sky-700);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;">▶️ ${isLao ? 'ກຳລັງເຮັດ' : 'กำลังทำ'}${assigneeName ? ' · ' + assigneeName : ''}</span>`;
+      }
+      // 'open' = no badge (default appearance)
+    }
+    
     const time = new Date(isPending ? g.created_at : (g.resolved_at || g.created_at))
       .toLocaleString(isLao ? 'lo-LA' : 'th-TH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    
+    // Phase B: workflow action buttons based on stage
+    const stage = g.workflow_stage || 'open';
+    let workflowBtns = '';
+    if (isPending) {
+      if (stage === 'open') {
+        // open → can Assign or directly Done/Cancel
+        workflowBtns = `
+            <button onclick="assignGapToMe(${g.id}, event)" 
+                    title="${isLao ? 'ຮັບງານ' : 'รับงาน'}"
+                    style="background:var(--amber-500);color:white;border:none;border-radius:5px;width:32px;height:26px;font-size:12px;cursor:pointer;">
+              📋
+            </button>`;
+      } else if (stage === 'assigned') {
+        // assigned → can Start
+        workflowBtns = `
+            <button onclick="startGapWork(${g.id}, event)" 
+                    title="${isLao ? 'ເລີ່ມເຮັດ' : 'เริ่มทำ'}"
+                    style="background:var(--sky-500);color:white;border:none;border-radius:5px;width:32px;height:26px;font-size:12px;cursor:pointer;">
+              ▶️
+            </button>`;
+      }
+      // in_progress → no extra workflow button, just Done/Cancel below
+    }
     
     html += `
       <div style="background:${isSelected ? 'var(--violet-50)' : actionBg};border-left:4px solid ${isSelected ? 'var(--violet-500)' : actionColor};border-radius:9px;padding:9px 11px;margin-bottom:5px;display:flex;align-items:center;gap:9px;transition:background 0.15s;">
@@ -5324,6 +5540,7 @@ function renderGapReportList() {
           <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
             <div style="font-size:12px;font-weight:700;color:var(--slate-900);">${name}</div>
             ${statusBadge}
+            ${stageBadge}
           </div>
           <div style="font-size:9px;color:var(--slate-500);font-family:monospace;">${g.barcode}</div>
           <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:3px;font-size:9px;">
@@ -5342,6 +5559,7 @@ function renderGapReportList() {
         </div>
         ${isPending ? `
           <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;">
+            ${workflowBtns}
             <button onclick="resolveSingleGap(${g.id}, 'replenished', event)" 
                     title="${isLao ? 'ດຳເນີນແລ້ວ' : 'ดำเนินการแล้ว'}"
                     style="background:var(--emerald-500);color:white;border:none;border-radius:5px;width:32px;height:26px;font-size:13px;cursor:pointer;">
@@ -18953,6 +19171,12 @@ window.updateGapBulkBar = updateGapBulkBar;
 window.bulkResolveGaps = bulkResolveGaps;
 window.resolveSingleGap = resolveSingleGap;
 window.selectAllGaps = selectAllGaps;
+// Phase B (2026-05-27): workflow stage actions
+window.assignGapToMe = assignGapToMe;
+window.startGapWork = startGapWork;
+window.logInventoryMovement = logInventoryMovement;
+window.updateGapWorkflowStage = updateGapWorkflowStage;
+window.promptPONumber = promptPONumber;
 window.setupGapRealtime = setupGapRealtime;
 window.teardownGapRealtime = teardownGapRealtime;
 window.requestNotificationPermission = requestNotificationPermission;
