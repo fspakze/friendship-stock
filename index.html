@@ -1870,6 +1870,14 @@ const I18N = {
     sc_other_branches: 'ສາຂາອື່ນ',
     sc_no_other_data: 'ບໍ່ມີຂໍ້ມູນຈາກສາຂາອື່ນ',
     sc_close: 'ປິດ',
+    // Gap Scan - Purchase Request (สินค้าไม่มีใน POS)
+    gp_not_in_pos_title: 'ສິນຄ້ານີ້ບໍ່ມີໃນ POS',
+    gp_not_in_pos_hint: 'ສິນຄ້ານີ້ບໍ່ໄດ້ນຳເຂົ້າລະບົບ POS — ສາມາດສົ່ງໃຫ້ຈັດຊື້ສັ່ງມາໄດ້',
+    gp_send_to_buyer: 'ສົ່ງຈັດຊື້',
+    gp_buyer_note: 'ໝາຍເຫດໃຫ້ຈັດຊື້ (ບໍ່ບັງຄັບ)',
+    gp_buyer_note_ph: 'ເຊັ່ນ: ສິນຄ້າຍີ່ຫໍ້ X ຄ້າຍຄືກັນ, ກ່ອງສີຟ້າ, ຂະໜາດ 500ml...',
+    gp_pr_submitted: 'ສົ່ງຈັດຊື້ສຳເລັດ',
+    gp_no_product_label: '(ສິນຄ້າໃໝ່ - ບໍ່ມີໃນລະບົບ)',
     sc_select_issue: 'ເລືອກປະເພດປັນຫາ',
     sc_issue_note: 'ໝາຍເຫດເພີ່ມເຕີມ (ບໍ່ບັງຄັບ)',
     sc_issue_note_required: 'ກະລຸນາໃສ່ໝາຍເຫດ',
@@ -2169,6 +2177,14 @@ const I18N = {
     sc_other_branches: 'สาขาอื่น',
     sc_no_other_data: 'ไม่มีข้อมูลจากสาขาอื่น',
     sc_close: 'ปิด',
+    // Gap Scan - Purchase Request (สินค้าไม่มีใน POS)
+    gp_not_in_pos_title: 'สินค้านี้ไม่มีใน POS',
+    gp_not_in_pos_hint: 'สินค้านี้ไม่ได้นำเข้าระบบ POS — สามารถส่งให้จัดซื้อสั่งมาได้',
+    gp_send_to_buyer: 'ส่งจัดซื้อ',
+    gp_buyer_note: 'หมายเหตุให้จัดซื้อ (ไม่บังคับ)',
+    gp_buyer_note_ph: 'เช่น: สินค้ายี่ห้อ X คล้ายๆ กัน, กล่องสีฟ้า, ขนาด 500ml...',
+    gp_pr_submitted: 'ส่งจัดซื้อสำเร็จ',
+    gp_no_product_label: '(สินค้าใหม่ - ไม่มีในระบบ)',
     sc_select_issue: 'เลือกประเภทปัญหา',
     sc_issue_note: 'หมายเหตุเพิ่มเติม (ไม่บังคับ)',
     sc_issue_note_required: 'กรุณากรอกหมายเหตุ',
@@ -4678,19 +4694,8 @@ async function lookupGapProduct(barcode) {
     if (error) throw error;
     
     if (!product) {
-      cardEl.innerHTML = `
-        <div style="background:var(--rose-100);border:2px solid var(--rose-500);border-radius:11px;padding:13px;">
-          <div style="font-size:14px;font-weight:800;color:var(--rose-500);display:flex;align-items:center;gap:7px;">
-            ⚠️ ${isLao ? 'ບໍ່ພົບສິນຄ້ານີ້ ໃນສາຂາ' : 'ไม่พบสินค้านี้ ในสาขา'}
-          </div>
-          <div style="font-size:11px;color:var(--slate-500);font-family:monospace;margin-top:5px;">${barcode}</div>
-          <div style="font-size:10px;color:var(--slate-600);margin-top:7px;line-height:1.5;">
-            ${isLao 
-              ? '💡 ສິນຄ້ານີ້ບໍ່ໄດ້ນຳເຂົ້າໃນ POS — ກະລຸນາສະແກນສິນຄ້າອື່ນ' 
-              : '💡 สินค้านี้ไม่ได้นำเข้าใน POS — กรุณาสแกนสินค้าอื่น'}
-          </div>
-        </div>
-      `;
+      // 🆕 Render Purchase Request card (สินค้าไม่มีใน POS → ส่งจัดซื้อ)
+      renderPurchaseRequestCard(barcode);
       return;
     }
     
@@ -4753,6 +4758,120 @@ async function lookupGapProduct(barcode) {
     `;
   }
 }
+
+// ==================== PURCHASE REQUEST (Gap Scan: product not in POS) ====================
+// Added 2026-05-27 by Anya 💗
+function renderPurchaseRequestCard(barcode) {
+  const isLao = lang === 'lo';
+  const cardEl = document.getElementById('gapProductCard');
+  if (!cardEl) return;
+  
+  cardEl.innerHTML = `
+    <div style="background:white;border:2px solid var(--amber-400);border-radius:13px;padding:15px;box-shadow:0 2px 8px rgba(245,158,11,0.15);">
+      <!-- Header: not in POS warning -->
+      <div style="background:linear-gradient(135deg,var(--amber-50),var(--rose-50));padding:11px 13px;border-radius:9px;margin-bottom:13px;border-left:4px solid var(--amber-500);">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;">
+          <span style="font-size:18px;">⚠️</span>
+          <span style="font-size:13px;font-weight:800;color:var(--amber-800);">${T('gp_not_in_pos_title')}</span>
+        </div>
+        <div style="font-size:10px;color:var(--slate-500);font-family:monospace;margin-bottom:5px;">${barcode}</div>
+        <div style="font-size:11px;color:var(--slate-700);line-height:1.4;">💡 ${T('gp_not_in_pos_hint')}</div>
+      </div>
+      
+      <!-- Note input -->
+      <div style="margin-bottom:13px;">
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--slate-700);margin-bottom:6px;">
+          📝 ${T('gp_buyer_note')}
+        </label>
+        <textarea id="prBuyerNote" rows="3" 
+                  placeholder="${T('gp_buyer_note_ph')}"
+                  style="width:100%;padding:10px;border:1.5px solid var(--slate-200);border-radius:9px;font-size:12px;font-family:inherit;resize:vertical;"></textarea>
+      </div>
+      
+      <!-- Submit button -->
+      <button onclick="submitPurchaseRequest('${barcode.replace(/'/g, "\\'")}')" 
+              style="width:100%;background:linear-gradient(135deg,var(--amber-500),var(--rose-500));color:white;border:none;padding:13px;border-radius:11px;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">
+        📤 ${T('gp_send_to_buyer')}
+      </button>
+    </div>
+  `;
+}
+
+async function submitPurchaseRequest(barcode) {
+  const isLao = lang === 'lo';
+  const note = (document.getElementById('prBuyerNote')?.value || '').trim();
+  
+  if (!branch?.id) {
+    showToast(isLao ? 'ບໍ່ມີສາຂາ' : 'ไม่มีสาขา', 'error');
+    return;
+  }
+  
+  // Check duplicate within 4 hrs (same barcode + branch + status=pending, no product)
+  try {
+    const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
+    const { data: dupes } = await sb.from('gap_scans')
+      .select('id, created_at, users!user_id(full_name)')
+      .eq('branch_id', branch.id)
+      .eq('barcode', barcode)
+      .is('product_id', null)
+      .eq('status', 'pending')
+      .gte('created_at', fourHoursAgo)
+      .order('created_at', { ascending: false });
+    
+    if (dupes && dupes.length > 0) {
+      const dup = dupes[0];
+      const who = dup.users?.full_name || '?';
+      const ago = timeAgo(dup.created_at, isLao);
+      const confirmMsg = isLao
+        ? `⚠️ ສິນຄ້ານີ້ສົ່ງຈັດຊື້ແລ້ວ ໂດຍ ${who} (${ago})\n\nຕ້ອງການສົ່ງຊ້ຳບໍ?`
+        : `⚠️ สินค้านี้ส่งจัดซื้อแล้ว โดย ${who} (${ago})\n\nต้องการส่งซ้ำหรือไม่?`;
+      if (!confirm(confirmMsg)) return;
+    }
+  } catch (e) { log('PR dup check error:', e); }
+  
+  // Build insert payload — product_id = null, action_type = 'purchase'
+  const insertData = {
+    branch_id: branch.id,
+    session_id: session?.id || null,
+    user_id: user.id,
+    product_id: null,                              // ⭐ ไม่มี product
+    barcode: barcode,
+    product_name: T('gp_no_product_label'),        // placeholder name
+    location_code: loc?.location_code || null,
+    gondola_code: loc?.gondola_code || loc?.location_code || null,
+    gap_qty: 1,                                    // ไม่รู้จำนวน → default 1 (จัดซื้อจะเป็นคนกำหนด)
+    pos_qty_at_scan: 0,
+    shelf_capacity: 0,
+    status: 'pending',
+    action_type: 'purchase',                       // ⭐ ส่งจัดซื้อเสมอ
+    note: note || null
+  };
+  
+  try {
+    const { error } = await sb.from('gap_scans').insert(insertData);
+    if (error) throw error;
+    
+    beep();
+    showToast('✅ ' + T('gp_pr_submitted'), 'success');
+    
+    // Clear card
+    const cardEl = document.getElementById('gapProductCard');
+    if (cardEl) cardEl.innerHTML = '';
+    
+    // Refresh recent gap list if visible
+    if (typeof loadGapStatusCounts === 'function') {
+      try { await loadGapStatusCounts(); } catch (e) {}
+    }
+    
+    // Focus back to barcode input for next scan
+    const inp = document.getElementById('gapBarcode');
+    if (inp) { inp.value = ''; inp.focus(); }
+  } catch (e) {
+    console.error('[FS] submitPurchaseRequest error:', e);
+    showToast('❌ ' + friendlyError(e), 'error');
+  }
+}
+// ==================== END PURCHASE REQUEST ====================
 
 function renderGapProductCard(product, shelfCapacity) {
   const isLao = lang === 'lo';
@@ -20731,6 +20850,8 @@ window.lookupGapProduct = lookupGapProduct;
 window.adjustGapQty = adjustGapQty;
 window.cancelGapScan = cancelGapScan;
 window.submitGapScan = submitGapScan;
+window.submitPurchaseRequest = submitPurchaseRequest;
+window.renderPurchaseRequestCard = renderPurchaseRequestCard;
 window.loadGapScanRecent = loadGapScanRecent;
 window.toggleGapScan = toggleGapScan;
 window.renderGapReportPage = renderGapReportPage;
