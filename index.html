@@ -5894,10 +5894,28 @@ async function deleteGapScan(gapId, event) {
     return;
   }
   
+  // ถ้า cancelled อยู่แล้ว → ไม่ต้องทำซ้ำ
+  if (gap.status === 'cancelled') {
+    showToast(isLao ? 'ລາຍການນີ້ຍົກເລີກແລ້ວ' : 'รายการนี้ยกเลิกแล้ว', 'warning');
+    return;
+  }
+  
   const name = isLao ? (gap.products?.name_lo || gap.product_name) : (gap.products?.name_th || gap.product_name);
-  const confirmMsg = isLao
-    ? `ຍົກເລີກລາຍການນີ້?\n${name}\n${gap.barcode}\nຈຳນວນ: ${gap.gap_qty}`
-    : `ยกเลิกรายการนี้?\n${name}\n${gap.barcode}\nจำนวน: ${gap.gap_qty}`;
+  
+  // ถ้า status ผ่าน workflow ไปแล้ว (replenished/ordered) → เตือนพิเศษ
+  let confirmMsg;
+  if (gap.status === 'replenished' || gap.status === 'ordered') {
+    const statusLabel = gap.status === 'replenished' 
+      ? (isLao ? 'ເຕີມຄັງແລ້ວ' : 'เติมคลังแล้ว')
+      : (isLao ? 'ສົ່ງຈັດຊື້ແລ້ວ' : 'ส่งจัดซื้อแล้ว');
+    confirmMsg = isLao
+      ? `⚠️ ລາຍການນີ້ "${statusLabel}" ໄປແລ້ວ\n\n${name}\n${gap.barcode}\nຈຳນວນ: ${gap.gap_qty}\n\nລົບແລ້ວຈະປ່ຽນສະຖານະເປັນ "ຍົກເລີກ"\nປະຫວັດການເຄື່ອນໄຫວສະຕ໋ອກຍັງຄົງຢູ່\n\nຕ້ອງການລົບແທ້ບໍ?`
+      : `⚠️ รายการนี้ "${statusLabel}" ไปแล้ว\n\n${name}\n${gap.barcode}\nจำนวน: ${gap.gap_qty}\n\nลบแล้วจะเปลี่ยนสถานะเป็น "ยกเลิก"\nประวัติการเคลื่อนไหวสต๊อกยังคงอยู่\n\nต้องการลบจริงหรือไม่?`;
+  } else {
+    confirmMsg = isLao
+      ? `ຍົກເລີກລາຍການນີ້?\n${name}\n${gap.barcode}\nຈຳນວນ: ${gap.gap_qty}`
+      : `ยกเลิกรายการนี้?\n${name}\n${gap.barcode}\nจำนวน: ${gap.gap_qty}`;
+  }
   if (!confirm(confirmMsg)) return;
   
   // Soft delete: status='cancelled' + clear workflow_stage
@@ -6197,12 +6215,12 @@ function renderGapReportList() {
             </button>
             ` : ''}
           </div>
-        ` : (canModifyGap(g) ? `
+        ` : (['admin','scc','bcs','ctl'].includes(user?.role) ? `
           <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;">
-            <button onclick="editGapScan(${g.id}, event)" 
-                    title="${isLao ? 'ແກ້ໄຂ' : 'แก้ไข'}"
-                    style="background:var(--sky-500);color:white;border:none;border-radius:5px;width:32px;height:26px;font-size:11px;cursor:pointer;">
-              ✏️
+            <button onclick="deleteGapScan(${g.id}, event)" 
+                    title="${isLao ? 'ລົບ' : 'ลบ'}"
+                    style="background:var(--rose-500);color:white;border:none;border-radius:5px;width:32px;height:26px;font-size:11px;cursor:pointer;">
+              🗑️
             </button>
           </div>
         ` : '')}
