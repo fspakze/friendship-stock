@@ -1863,6 +1863,12 @@ const I18N = {
     sc_last_count: 'ນັບຄັ້ງສຸດທ້າຍ',
     sc_no_count: 'ຍັງບໍ່ໄດ້ນັບ',
     sc_report_issue: 'ແຈ້ງປັນຫາ',
+    sc_view_other_branches: 'ສະຕ໋ອກສາຂາອື່ນ',
+    sc_branch_stock_title: 'POS ທຸກສາຂາ',
+    sc_my_branch: 'ສາຂາຂອງຂ້ອຍ',
+    sc_other_branches: 'ສາຂາອື່ນ',
+    sc_no_other_data: 'ບໍ່ມີຂໍ້ມູນຈາກສາຂາອື່ນ',
+    sc_close: 'ປິດ',
     sc_select_issue: 'ເລືອກປະເພດປັນຫາ',
     sc_issue_note: 'ໝາຍເຫດເພີ່ມເຕີມ (ບໍ່ບັງຄັບ)',
     sc_issue_note_required: 'ກະລຸນາໃສ່ໝາຍເຫດ',
@@ -2155,6 +2161,12 @@ const I18N = {
     sc_last_count: 'นับล่าสุด',
     sc_no_count: 'ยังไม่ได้นับ',
     sc_report_issue: 'แจ้งปัญหา',
+    sc_view_other_branches: 'สต๊อกสาขาอื่น',
+    sc_branch_stock_title: 'POS ทุกสาขา',
+    sc_my_branch: 'สาขาของฉัน',
+    sc_other_branches: 'สาขาอื่น',
+    sc_no_other_data: 'ไม่มีข้อมูลจากสาขาอื่น',
+    sc_close: 'ปิด',
     sc_select_issue: 'เลือกประเภทปัญหา',
     sc_issue_note: 'หมายเหตุเพิ่มเติม (ไม่บังคับ)',
     sc_issue_note_required: 'กรุณากรอกหมายเหตุ',
@@ -6211,7 +6223,11 @@ function renderStockCheckResult(prod, pog, lastCount) {
       ${locHtml}
       ${lastCountHtml}
       
-      <button onclick="scOpenIssueModal()" style="width:100%;background:linear-gradient(135deg,var(--rose-500),var(--amber-500));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:11px;display:flex;align-items:center;justify-content:center;gap:7px;">
+      <button onclick="scShowBranchStock()" style="width:100%;background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:11px;display:flex;align-items:center;justify-content:center;gap:7px;">
+        🏪 ${T('sc_view_other_branches')}
+      </button>
+      
+      <button onclick="scOpenIssueModal()" style="width:100%;background:linear-gradient(135deg,var(--rose-500),var(--amber-500));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:7px;display:flex;align-items:center;justify-content:center;gap:7px;">
         🚨 ${T('sc_report_issue')}
       </button>
     </div>
@@ -6314,6 +6330,131 @@ async function scSubmitIssue() {
   showToast('✅ ' + T('sc_issue_submitted'), 'success');
   beep();
 }
+
+// ==================== BRANCH STOCK VIEWER ====================
+// Show POS qty across all branches for current scanned product
+async function scShowBranchStock() {
+  if (!_scCurrentProduct) return;
+  const isLao = lang === 'lo';
+  const barcode = _scCurrentProduct.barcode;
+  
+  // Create modal shell first (with loading state)
+  const modal = document.createElement('div');
+  modal.id = 'scBranchStockModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center;padding:0;';
+  modal.innerHTML = `
+    <div style="background:white;width:100%;max-width:500px;border-radius:15px 15px 0 0;padding:18px;max-height:85vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px;">
+        <div>
+          <h3 style="margin:0;font-size:15px;font-weight:800;color:var(--slate-800);">🏪 ${T('sc_branch_stock_title')}</h3>
+          <div style="font-size:10px;color:var(--slate-500);font-family:monospace;margin-top:2px;">${barcode}</div>
+        </div>
+        <button onclick="scCloseBranchStock()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--slate-500);line-height:1;padding:0 4px;">×</button>
+      </div>
+      <div id="scBranchStockBody" style="text-align:center;padding:20px;color:var(--slate-500);font-size:12px;">
+        ⏳ ${isLao ? 'ກຳລັງໂຫລດ...' : 'กำลังโหลด...'}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  
+  // Fetch all branches that have this product
+  const { data, error } = await sb
+    .from('products')
+    .select('pos_qty, branch_id, branches(id, code, name_th, name_lo)')
+    .eq('barcode', barcode)
+    .eq('is_active', true);
+  
+  const body = document.getElementById('scBranchStockBody');
+  if (!body) return;
+  
+  if (error) {
+    body.innerHTML = `<div style="color:var(--rose-600);padding:15px;font-size:12px;">Error: ${error.message}</div>`;
+    return;
+  }
+  
+  if (!data || !data.length) {
+    body.innerHTML = `<div style="color:var(--slate-400);padding:20px;font-size:13px;">📭 ${T('sc_no_other_data')}</div>`;
+    return;
+  }
+  
+  // Split: my branch vs others (sort others by qty desc)
+  const myBranchRow = data.find(d => d.branch_id === branch?.id);
+  const others = data.filter(d => d.branch_id !== branch?.id)
+    .sort((a, b) => (b.pos_qty || 0) - (a.pos_qty || 0));
+  
+  // Total across all branches
+  const totalQty = data.reduce((s, d) => s + (d.pos_qty || 0), 0);
+  
+  // Helper to render one row
+  const renderRow = (row, isMine) => {
+    const brName = isLao ? (row.branches?.name_lo || row.branches?.code || '?') : (row.branches?.name_th || row.branches?.code || '?');
+    const brCode = row.branches?.code || '?';
+    const qty = row.pos_qty || 0;
+    const qtyColor = qty === 0 ? 'var(--rose-500)' : qty < 5 ? 'var(--amber-600)' : 'var(--emerald-600)';
+    
+    if (isMine) {
+      return `
+        <div style="background:linear-gradient(135deg,var(--violet-50),var(--sky-50));border:2px solid var(--violet-400);border-radius:11px;padding:12px 14px;margin-bottom:11px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+              <span style="background:var(--violet-500);color:white;font-size:9px;font-weight:800;padding:2px 7px;border-radius:9px;">⭐ ${T('sc_my_branch')}</span>
+            </div>
+            <div style="font-size:13px;font-weight:800;color:var(--slate-800);line-height:1.3;">${brName}</div>
+            <div style="font-size:10px;color:var(--slate-500);font-family:monospace;">${brCode}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            <div style="font-size:24px;font-weight:800;color:${qtyColor};line-height:1;font-family:'Space Grotesk',monospace;">${qty}</div>
+            <div style="font-size:9px;color:var(--slate-400);margin-top:2px;">POS</div>
+          </div>
+        </div>
+      `;
+    }
+    return `
+      <div style="background:white;border:1px solid var(--slate-200);border-radius:9px;padding:10px 13px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:700;color:var(--slate-700);line-height:1.3;">${brName}</div>
+          <div style="font-size:9px;color:var(--slate-400);font-family:monospace;">${brCode}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:18px;font-weight:800;color:${qtyColor};line-height:1;font-family:'Space Grotesk',monospace;">${qty}</div>
+        </div>
+      </div>
+    `;
+  };
+  
+  let html = '';
+  
+  if (myBranchRow) {
+    html += renderRow(myBranchRow, true);
+  }
+  
+  if (others.length) {
+    html += `<div style="font-size:10px;font-weight:700;color:var(--slate-500);margin:11px 0 7px;text-transform:uppercase;letter-spacing:0.5px;">${T('sc_other_branches')} (${others.length})</div>`;
+    html += others.map(r => renderRow(r, false)).join('');
+  } else {
+    html += `<div style="text-align:center;padding:15px;color:var(--slate-400);font-size:12px;">📭 ${T('sc_no_other_data')}</div>`;
+  }
+  
+  // Total footer
+  html += `
+    <div style="background:var(--slate-50);border-radius:9px;padding:11px 13px;margin-top:13px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:11px;font-weight:700;color:var(--slate-600);">${isLao ? 'ລວມທຸກສາຂາ' : 'รวมทุกสาขา'}</span>
+      <span style="font-size:18px;font-weight:800;color:var(--slate-800);font-family:'Space Grotesk',monospace;">${totalQty}</span>
+    </div>
+    <button onclick="scCloseBranchStock()" style="width:100%;background:var(--slate-100);color:var(--slate-700);border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;margin-top:13px;">
+      ${T('sc_close')}
+    </button>
+  `;
+  
+  body.innerHTML = html;
+}
+
+function scCloseBranchStock() {
+  const m = document.getElementById('scBranchStockModal');
+  if (m) m.remove();
+}
+// ==================== END BRANCH STOCK VIEWER ====================
 // ==================== END STOCK CHECK MODULE ====================
 
 // ==================== ISSUE REPORT MANAGER (admin/scc/bcs/ctl) ====================
