@@ -180,8 +180,12 @@
   
   /* Tabs */
   .tabs { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.92); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid var(--slate-200); display: flex; z-index: 90; box-shadow: 0 -8px 24px rgba(15,23,42,0.08); max-width: 600px; margin: 0 auto; padding-bottom: env(safe-area-inset-bottom, 0); }
-  .tab { flex: 1; padding: 8px 4px; border: none; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; color: var(--slate-500); font-size: 11px; font-weight: 600; font-family: inherit; position: relative; transition: color 0.2s; }
-  .tab svg { width: 20px; height: 20px; transition: transform 0.2s; }
+  .tab { flex: 1; padding: 8px 4px; border: none; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; color: var(--slate-500); font-size: 11px; font-weight: 600; font-family: inherit; position: relative; transition: color 0.2s; min-width: 0; }
+  .tab svg { width: 20px; height: 20px; transition: transform 0.2s; flex-shrink: 0; }
+  .tab span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  /* 5 tabs layout (when stockcheck is added) */
+  .tabs:has(.tab:nth-child(5)) .tab { padding: 7px 2px; font-size: 10px; gap: 1px; }
+  .tabs:has(.tab:nth-child(5)) .tab svg { width: 18px; height: 18px; }
   .tab:hover { color: var(--teal-700); }
   .tab:hover svg { transform: scale(1.1); }
   .tab.active { color: var(--teal-700); }
@@ -1850,6 +1854,37 @@ const I18N = {
     scan_loc_code: 'ສະແກນລະຫັດ',
     loc_format_hint: 'ເຊັ່ນ: 10A01, W028, WT028, D001',
     clear: 'ລ້າງ',
+    // Stock Check + Issue Report
+    sc_title: 'ກວດສະຕ໋ອກ',
+    sc_subtitle: 'ສະແກນເພື່ອເບິ່ງຂໍ້ມູນ — ບໍ່ບັນທຶກ',
+    sc_pos_now: 'POS ປະຈຸບັນ',
+    sc_sell_price: 'ລາຄາຂາຍ',
+    sc_location: 'ຕຳແໜ່ງ (ຈາກ PoG)',
+    sc_last_count: 'ນັບຄັ້ງສຸດທ້າຍ',
+    sc_no_count: 'ຍັງບໍ່ໄດ້ນັບ',
+    sc_report_issue: 'ແຈ້ງປັນຫາ',
+    sc_select_issue: 'ເລືອກປະເພດປັນຫາ',
+    sc_issue_note: 'ໝາຍເຫດເພີ່ມເຕີມ (ບໍ່ບັງຄັບ)',
+    sc_issue_note_required: 'ກະລຸນາໃສ່ໝາຍເຫດ',
+    sc_submit_issue: 'ສົ່ງລາຍງານ',
+    sc_issue_submitted: 'ສົ່ງລາຍງານແລ້ວ',
+    sc_no_product: 'ບໍ່ພົບສິນຄ້າ',
+    issue_price_tag_wrong: 'ປ້າຍລາຄາຜິດ',
+    issue_price_tag_mismatch: 'ປ້າຍລາຄາບໍ່ກົງກັບສິນຄ້າ',
+    issue_qty_mismatch: 'ຈຳນວນບໍ່ກົງ',
+    issue_promo_price_wrong: 'ລາຄາໂປຣໂມຊັນຜິດ',
+    issue_promo_not_set: 'ຍັງບໍ່ໄດ້ຈັດໂປຣໂມຊັນຕາມ Step',
+    issue_other: 'ອື່ນໆ',
+    // Issue Report Manager
+    ir_title: 'ລາຍງານປັນຫາ',
+    ir_no_data: 'ບໍ່ມີລາຍງານ',
+    ir_status_open: 'ເປີດ', ir_status_in_progress: 'ກຳລັງດຳເນີນ',
+    ir_status_resolved: 'ແກ້ໄຂແລ້ວ', ir_status_cancelled: 'ຍົກເລີກ',
+    ir_resolve: 'ແກ້ໄຂ', ir_cancel: 'ຍົກເລີກ', ir_start: 'ເລີ່ມ',
+    ir_resolution_note: 'ໝາຍເຫດການແກ້ໄຂ',
+    ir_reported_by: 'ລາຍງານໂດຍ', ir_resolved_by: 'ແກ້ໂດຍ',
+    ir_filter_all: 'ທັງໝົດ',
+    ir_new_notif: 'ມີລາຍງານປັນຫາໃໝ່',
   },
   th: {
     subtitle: 'ปากเซ • ลาว',
@@ -2111,6 +2146,37 @@ const I18N = {
     scan_loc_code: 'สแกนรหัส',
     loc_format_hint: 'เช่น: 10A01, W028, WT028, D001',
     clear: 'ล้าง',
+    // Stock Check + Issue Report
+    sc_title: 'เช็คสต๊อก',
+    sc_subtitle: 'สแกนเพื่อดูข้อมูล — ไม่บันทึก',
+    sc_pos_now: 'POS ปัจจุบัน',
+    sc_sell_price: 'ราคาขาย',
+    sc_location: 'ตำแหน่ง (จาก PoG)',
+    sc_last_count: 'นับล่าสุด',
+    sc_no_count: 'ยังไม่ได้นับ',
+    sc_report_issue: 'แจ้งปัญหา',
+    sc_select_issue: 'เลือกประเภทปัญหา',
+    sc_issue_note: 'หมายเหตุเพิ่มเติม (ไม่บังคับ)',
+    sc_issue_note_required: 'กรุณากรอกหมายเหตุ',
+    sc_submit_issue: 'ส่งรายงาน',
+    sc_issue_submitted: 'ส่งรายงานแล้ว',
+    sc_no_product: 'ไม่พบสินค้า',
+    issue_price_tag_wrong: 'ป้ายราคาผิด',
+    issue_price_tag_mismatch: 'ป้ายราคาไม่ตรงกับสินค้า',
+    issue_qty_mismatch: 'จำนวนไม่ตรง',
+    issue_promo_price_wrong: 'ราคาโปรโมชั่นผิด',
+    issue_promo_not_set: 'ยังไม่จัดโปรโมชั่นตาม Step',
+    issue_other: 'อื่นๆ',
+    // Issue Report Manager
+    ir_title: 'รายงานปัญหา',
+    ir_no_data: 'ไม่มีรายงาน',
+    ir_status_open: 'เปิด', ir_status_in_progress: 'กำลังดำเนินการ',
+    ir_status_resolved: 'แก้ไขแล้ว', ir_status_cancelled: 'ยกเลิก',
+    ir_resolve: 'แก้ไข', ir_cancel: 'ยกเลิก', ir_start: 'เริ่ม',
+    ir_resolution_note: 'หมายเหตุการแก้ไข',
+    ir_reported_by: 'แจ้งโดย', ir_resolved_by: 'แก้โดย',
+    ir_filter_all: 'ทั้งหมด',
+    ir_new_notif: 'มีรายงานปัญหาใหม่',
   }
 };
 
@@ -3955,6 +4021,12 @@ async function enterApp() {
     // Request permission แค่ครั้งเดียว (ไม่บังคับ)
     setTimeout(() => requestNotificationPermission(), 2000);
   }
+  
+  // 🚨 Issue Report realtime + badge (admin/scc/bcs/ctl)
+  if (['admin', 'scc', 'bcs', 'ctl'].includes(user.role)) {
+    subscribeIssueRealtime();
+    updateIssueBadge();
+  }
 }
 
 function renderApp() {
@@ -3977,58 +4049,59 @@ function renderApp() {
 // Icons use Heroicons-style paths (stroke-based, 24x24 viewBox)
 const MENU_CONFIG = {
   counter: {
-    bottomTabs: ['scan', 'gapscan', 'history'],
+    bottomTabs: ['stockcheck', 'scan', 'gapscan', 'history'],
     drawerGroups: [
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
   staff: {
-    bottomTabs: ['scan', 'gapscan', 'history'],
+    bottomTabs: ['stockcheck', 'scan', 'gapscan', 'history'],
     drawerGroups: [
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
   verifier: {
-    bottomTabs: ['tiebreaker', 'scan', 'history'],
+    bottomTabs: ['stockcheck', 'tiebreaker', 'scan', 'history'],
     drawerGroups: [
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
   audit: {
-    bottomTabs: ['tiebreaker', 'scan', 'history'],
+    bottomTabs: ['stockcheck', 'tiebreaker', 'scan', 'history'],
     drawerGroups: [
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
   ctl: {
-    bottomTabs: ['floormap', 'tiebreaker', 'workflow'],
+    bottomTabs: ['stockcheck', 'floormap', 'tiebreaker', 'workflow'],
     drawerGroups: [
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['issuereport'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
   bcs: {
-    bottomTabs: ['dashboard', 'floormap', 'gapreport'],
+    bottomTabs: ['stockcheck', 'dashboard', 'floormap', 'gapreport'],
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['tiebreaker'] },
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance'] },
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance', 'issuereport'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
   admin: {
-    bottomTabs: ['dashboard', 'floormap', 'gapreport'],
+    bottomTabs: ['stockcheck', 'dashboard', 'floormap', 'gapreport'],
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['tiebreaker'] },
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance'] },
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance', 'issuereport'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'settings'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
   scc: {
-    bottomTabs: ['dashboard', 'floormap', 'gapreport'],
+    bottomTabs: ['stockcheck', 'dashboard', 'floormap', 'gapreport'],
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['tiebreaker'] },
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance'] },
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance', 'issuereport'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'settings'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -4050,7 +4123,9 @@ const PAGE_META = {
   variance:   { iconSvg: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',                                                                                  labelTh: 'คลาดเคลื่อน',  labelLo: 'ຂາດເຄື່ອນ',    page: 'variance' },
   gapreport:  { iconSvg: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',                                                                                                                             labelTh: 'Gap Scan',     labelLo: 'Gap Scan',     page: 'gapreport',      badge: 'tabGapBadge' },
   users:      { iconSvg: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',                                                                                                        labelTh: 'พนักงาน',      labelLo: 'ພະນັກງານ',     page: 'users' },
-  settings:   { iconSvg: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>', labelTh: 'ตั้งค่า',      labelLo: 'ຕັ້ງຄ່າ',      page: 'settings' }
+  settings:   { iconSvg: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>', labelTh: 'ตั้งค่า',      labelLo: 'ຕັ້ງຄ່າ',      page: 'settings' },
+  stockcheck: { iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',                                       labelTh: 'เช็คสต๊อก',    labelLo: 'ກວດສະຕ໋ອກ',     page: 'stockcheck' },
+  issuereport:{ iconSvg: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',                                                                                  labelTh: 'รายงานปัญหา',  labelLo: 'ລາຍງານປັນຫາ',   page: 'issuereport',    badge: 'tabIssueBadge' }
 };
 
 /**
@@ -4335,9 +4410,15 @@ function goPage(page) {
   } else if (page === 'floormap') {
     c.innerHTML = renderFloorMapPage();
     loadFloorMap();
+  } else if (page === 'stockcheck') {
+    c.innerHTML = renderStockCheckPage();
+  } else if (page === 'issuereport') {
+    c.innerHTML = renderIssueReportPage();
+    loadIssueReports();
   }
   
   updateTbBadge();
+  updateIssueBadge();
 }
 
 // ==================== SCAN PAGE ====================
@@ -5965,6 +6046,463 @@ async function updateGapBadge() {
   } catch (e) {}
 }
 // ==================== END GAP REPORT ====================
+
+// ==================== STOCK CHECK MODULE (Read-only scan + Issue Report) ====================
+// Added 2026-05-27 by Anya 💗 — Stock Check with Issue Report
+const ISSUE_TYPES = ['price_tag_wrong', 'price_tag_mismatch', 'qty_mismatch', 'promo_price_wrong', 'promo_not_set', 'other'];
+let _scCurrentProduct = null;
+
+function renderStockCheckPage() {
+  const isLao = lang === 'lo';
+  return `
+    <div style="background:linear-gradient(135deg,var(--sky-500),var(--violet-600));color:white;padding:13px 15px;border-radius:11px;margin-bottom:11px;">
+      <div style="display:flex;align-items:center;gap:9px;">
+        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        <div>
+          <div style="font-size:14px;font-weight:800;">${T('sc_title')}</div>
+          <div style="font-size:10px;opacity:0.9;">${T('sc_subtitle')}</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="scan-card">
+      <div class="scan-frame" id="scanFrame">
+        <div class="scan-placeholder" id="scanPlaceholder">
+          <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5a1 1 0 011-1h2M9 4v16M15 4v16"/></svg>
+          <p>${T('press_to_scan')}</p>
+        </div>
+        <div id="reader" style="display:none;"></div>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:9px;">
+        <button class="btn btn-primary" id="startScanBtn" onclick="startScanForStockCheck()" style="flex:1;">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/></svg>
+          ${T('scan_barcode')}
+        </button>
+        <button class="btn btn-danger" id="stopScanBtn" onclick="stopScan()" style="flex:1;display:none;">${T('stop')}</button>
+      </div>
+      <div style="flex-direction:column;display:flex;gap:9px;">
+        <input id="scBarcode" type="text" inputmode="numeric"
+               onkeypress="if(event.key==='Enter')scLookup()"
+               placeholder="${T('enter_barcode')}"
+               style="width:100%;padding:11px;border:1px solid var(--slate-300);border-radius:9px;font-size:14px;">
+        <button class="btn" onclick="scLookup()"
+                style="background:linear-gradient(135deg,var(--sky-500),var(--violet-600));color:white;border:none;width:100%;padding:13px;font-size:14px;font-weight:800;border-radius:11px;cursor:pointer;">
+          🔍 ${isLao ? 'ຄົ້ນຫາ' : 'ค้นหา'}
+        </button>
+      </div>
+    </div>
+    
+    <div id="scResultCard"></div>
+  `;
+}
+
+// Wrapper: start scan with stockcheck callback
+async function startScanForStockCheck() {
+  // Reuse existing startScan but with custom callback
+  window._scanCallback = (barcode) => {
+    const input = document.getElementById('scBarcode');
+    if (input) input.value = barcode;
+    scLookup();
+  };
+  await startScan();
+}
+
+async function scLookup() {
+  const input = document.getElementById('scBarcode');
+  if (!input) return;
+  const barcode = input.value.trim();
+  if (!barcode) return;
+  
+  beep();
+  log('Stock Check lookup:', barcode);
+  
+  if (!branch || !branch.id) {
+    showToast(lang === 'lo' ? 'ບໍ່ມີສາຂາ' : 'ไม่มีสาขา', 'error');
+    return;
+  }
+  
+  const card = document.getElementById('scResultCard');
+  if (card) card.innerHTML = `<div style="text-align:center;padding:20px;color:var(--slate-500);font-size:12px;">⏳ ${lang === 'lo' ? 'ກຳລັງໂຫລດ...' : 'กำลังโหลด...'}</div>`;
+  
+  // Query product
+  const { data: prod, error } = await sb
+    .from('products')
+    .select('*')
+    .eq('barcode', barcode)
+    .eq('branch_id', branch.id)
+    .eq('is_active', true)
+    .maybeSingle();
+  
+  if (error) {
+    showToast('Error: ' + error.message, 'error');
+    if (card) card.innerHTML = '';
+    return;
+  }
+  
+  if (!prod) {
+    if (card) card.innerHTML = `<div style="background:var(--rose-50);border:2px solid var(--rose-300);border-radius:11px;padding:15px;text-align:center;color:var(--rose-700);font-size:13px;font-weight:700;">⚠️ ${T('sc_no_product')}: <code>${barcode}</code></div>`;
+    return;
+  }
+  
+  _scCurrentProduct = prod;
+  
+  // Parallel: get location from PoG + last stock count
+  const [pogRes, countRes] = await Promise.all([
+    sb.from('pan_o_grams').select('location_code').eq('product_id', prod.id).eq('branch_id', branch.id).limit(1).maybeSingle(),
+    sb.from('stock_counts').select('counted_qty, created_at, users!user_id(full_name)').eq('product_id', prod.id).eq('branch_id', branch.id).order('created_at', { ascending: false }).limit(1).maybeSingle()
+  ]);
+  
+  renderStockCheckResult(prod, pogRes?.data, countRes?.data);
+}
+
+function renderStockCheckResult(prod, pog, lastCount) {
+  const isLao = lang === 'lo';
+  const card = document.getElementById('scResultCard');
+  if (!card) return;
+  
+  const name = isLao ? (prod.name_lo || prod.name_th || '?') : (prod.name_th || prod.name_lo || '?');
+  const unit = isLao ? (prod.unit_lo || 'pcs') : (prod.unit_th || 'ชิ้น');
+  const posQty = prod.pos_qty || 0;
+  const sellPrice = prod.sell_price || 0;
+  
+  const locHtml = pog?.location_code ? `
+    <div style="background:var(--amber-50);padding:10px 12px;border-radius:7px;margin-bottom:11px;display:flex;align-items:center;gap:8px;">
+      <span style="font-size:16px;">📍</span>
+      <div style="flex:1;">
+        <div style="font-size:9px;color:var(--amber-700);">${T('sc_location')}</div>
+        <div style="font-size:13px;font-weight:800;color:var(--amber-800);font-family:'Space Grotesk',monospace;">${pog.location_code}</div>
+      </div>
+    </div>
+  ` : '';
+  
+  let lastCountHtml = '';
+  if (lastCount) {
+    const counter = lastCount.users?.full_name || '?';
+    const ago = timeAgo(lastCount.created_at, isLao);
+    lastCountHtml = `
+      <div style="font-size:11px;color:var(--slate-600);padding:8px 0;border-top:1px solid var(--slate-200);">
+        <span style="color:var(--slate-400);">${T('sc_last_count')}:</span>
+        <span style="color:var(--slate-800);font-weight:700;"> ${lastCount.counted_qty} ${unit}</span>
+        <span style="color:var(--slate-400);"> • ${counter} • ${ago}</span>
+      </div>
+    `;
+  } else {
+    lastCountHtml = `<div style="font-size:11px;color:var(--slate-400);padding:8px 0;border-top:1px solid var(--slate-200);">${T('sc_last_count')}: <em>${T('sc_no_count')}</em></div>`;
+  }
+  
+  card.innerHTML = `
+    <div style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:15px;margin-top:11px;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+      <div style="margin-bottom:11px;padding-bottom:11px;border-bottom:1px solid var(--slate-200);">
+        <div style="font-size:14px;font-weight:800;color:var(--slate-800);margin-bottom:3px;line-height:1.3;">${name}</div>
+        <div style="font-size:10px;color:var(--slate-400);font-family:monospace;">${prod.barcode}</div>
+      </div>
+      
+      <div style="background:var(--emerald-50);border:1px solid var(--emerald-300);border-radius:9px;padding:13px;margin-bottom:11px;text-align:center;">
+        <div style="font-size:10px;color:var(--emerald-700);font-weight:700;margin-bottom:3px;">${T('sc_pos_now')}</div>
+        <div style="font-size:32px;font-weight:800;color:var(--emerald-700);line-height:1;font-family:'Space Grotesk',monospace;">${posQty}</div>
+        <div style="font-size:10px;color:var(--emerald-700);margin-top:2px;">${unit}</div>
+      </div>
+      
+      <div style="background:var(--slate-50);padding:10px 12px;border-radius:7px;margin-bottom:11px;">
+        <div style="font-size:9px;color:var(--slate-500);">${T('sc_sell_price')}</div>
+        <div style="font-size:15px;font-weight:800;color:var(--slate-800);font-family:'Space Grotesk',monospace;">${Number(sellPrice).toLocaleString()} ₭</div>
+      </div>
+      
+      ${locHtml}
+      ${lastCountHtml}
+      
+      <button onclick="scOpenIssueModal()" style="width:100%;background:linear-gradient(135deg,var(--rose-500),var(--amber-500));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:11px;display:flex;align-items:center;justify-content:center;gap:7px;">
+        🚨 ${T('sc_report_issue')}
+      </button>
+    </div>
+  `;
+}
+
+function scOpenIssueModal() {
+  if (!_scCurrentProduct) return;
+  const isLao = lang === 'lo';
+  const name = isLao ? (_scCurrentProduct.name_lo || _scCurrentProduct.name_th) : (_scCurrentProduct.name_th || _scCurrentProduct.name_lo);
+  
+  const issueOptions = ISSUE_TYPES.map(t => `
+    <label style="display:flex;align-items:center;gap:9px;padding:11px;border:1.5px solid var(--slate-200);border-radius:9px;cursor:pointer;margin-bottom:7px;transition:all 0.15s;" onmouseover="this.style.borderColor='var(--violet-400)';this.style.background='var(--violet-50)';" onmouseout="this.style.borderColor='var(--slate-200)';this.style.background='white';">
+      <input type="radio" name="scIssueType" value="${t}" style="width:18px;height:18px;cursor:pointer;">
+      <span style="font-size:12px;font-weight:600;color:var(--slate-800);">${T('issue_' + t)}</span>
+    </label>
+  `).join('');
+  
+  const modal = document.createElement('div');
+  modal.id = 'scIssueModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center;padding:0;';
+  modal.innerHTML = `
+    <div style="background:white;width:100%;max-width:500px;border-radius:15px 15px 0 0;padding:18px;max-height:85vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px;">
+        <h3 style="margin:0;font-size:15px;font-weight:800;color:var(--slate-800);">🚨 ${T('sc_report_issue')}</h3>
+        <button onclick="scCloseIssueModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--slate-500);line-height:1;padding:0 4px;">×</button>
+      </div>
+      <div style="background:var(--slate-50);padding:9px 11px;border-radius:7px;margin-bottom:13px;">
+        <div style="font-size:11px;color:var(--slate-500);">${isLao ? 'ສິນຄ້າ' : 'สินค้า'}:</div>
+        <div style="font-size:13px;font-weight:700;color:var(--slate-800);">${name}</div>
+        <div style="font-size:10px;color:var(--slate-400);font-family:monospace;">${_scCurrentProduct.barcode}</div>
+      </div>
+      <div style="font-size:11px;font-weight:700;color:var(--slate-700);margin-bottom:8px;">${T('sc_select_issue')}:</div>
+      <div>${issueOptions}</div>
+      <div style="margin-top:13px;">
+        <div style="font-size:11px;font-weight:700;color:var(--slate-700);margin-bottom:6px;">${T('sc_issue_note')}:</div>
+        <textarea id="scIssueNote" rows="3" placeholder="${isLao ? 'ລາຍລະອຽດເພີ່ມເຕີມ...' : 'รายละเอียดเพิ่มเติม...'}" style="width:100%;padding:10px;border:1.5px solid var(--slate-200);border-radius:9px;font-size:12px;font-family:inherit;resize:vertical;"></textarea>
+      </div>
+      <div style="display:flex;gap:7px;margin-top:15px;">
+        <button onclick="scCloseIssueModal()" style="flex:1;background:var(--slate-100);color:var(--slate-700);border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;">
+          ${isLao ? 'ຍົກເລີກ' : 'ยกเลิก'}
+        </button>
+        <button onclick="scSubmitIssue()" style="flex:2;background:linear-gradient(135deg,var(--rose-500),var(--amber-500));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;">
+          ${T('sc_submit_issue')}
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function scCloseIssueModal() {
+  const m = document.getElementById('scIssueModal');
+  if (m) m.remove();
+}
+
+async function scSubmitIssue() {
+  if (!_scCurrentProduct) return;
+  const selected = document.querySelector('input[name="scIssueType"]:checked');
+  if (!selected) {
+    showToast(lang === 'lo' ? 'ກະລຸນາເລືອກປະເພດປັນຫາ' : 'กรุณาเลือกประเภทปัญหา', 'error');
+    return;
+  }
+  const issueType = selected.value;
+  const note = (document.getElementById('scIssueNote')?.value || '').trim();
+  
+  // For 'other', require a note
+  if (issueType === 'other' && !note) {
+    showToast(T('sc_issue_note_required'), 'error');
+    return;
+  }
+  
+  // Get current location_code from PoG (cached on result render? re-fetch quick)
+  let locCode = null;
+  try {
+    const { data: pg } = await sb.from('pan_o_grams').select('location_code').eq('product_id', _scCurrentProduct.id).eq('branch_id', branch.id).limit(1).maybeSingle();
+    locCode = pg?.location_code || null;
+  } catch (e) {}
+  
+  const payload = {
+    product_id: _scCurrentProduct.id,
+    barcode: _scCurrentProduct.barcode,
+    branch_id: branch.id,
+    location_code: locCode,
+    issue_type: issueType,
+    note: note || null,
+    pos_qty_at_report: _scCurrentProduct.pos_qty || 0,
+    sell_price_at_report: _scCurrentProduct.sell_price || 0,
+    status: 'open',
+    reported_by: user.id
+  };
+  
+  const { error } = await sb.from('product_issues').insert(payload);
+  if (error) {
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  
+  scCloseIssueModal();
+  showToast('✅ ' + T('sc_issue_submitted'), 'success');
+  beep();
+}
+// ==================== END STOCK CHECK MODULE ====================
+
+// ==================== ISSUE REPORT MANAGER (admin/scc/bcs/ctl) ====================
+let _irFilter = 'open'; // open | in_progress | resolved | cancelled | all
+let _irData = [];
+
+function renderIssueReportPage() {
+  const isLao = lang === 'lo';
+  return `
+    <div style="background:linear-gradient(135deg,var(--rose-500),var(--amber-500));color:white;padding:13px 15px;border-radius:11px;margin-bottom:11px;">
+      <div style="display:flex;align-items:center;gap:9px;">
+        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:800;">${T('ir_title')}</div>
+        </div>
+      </div>
+    </div>
+    
+    <div style="display:flex;gap:5px;margin-bottom:11px;overflow-x:auto;padding-bottom:3px;">
+      ${['all','open','in_progress','resolved','cancelled'].map(s => `
+        <button onclick="irSetFilter('${s}')" id="irFilterBtn_${s}" 
+                style="flex-shrink:0;padding:7px 13px;border:1.5px solid ${_irFilter===s?'var(--violet-500)':'var(--slate-200)'};background:${_irFilter===s?'var(--violet-500)':'white'};color:${_irFilter===s?'white':'var(--slate-700)'};border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">
+          ${s==='all'?T('ir_filter_all'):T('ir_status_'+s)}
+        </button>
+      `).join('')}
+    </div>
+    
+    <div id="irList"></div>
+  `;
+}
+
+function irSetFilter(s) { _irFilter = s; loadIssueReports(); }
+
+async function loadIssueReports() {
+  const list = document.getElementById('irList');
+  if (!list) return;
+  list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--slate-500);font-size:12px;">⏳ ${lang === 'lo' ? 'ກຳລັງໂຫລດ...' : 'กำลังโหลด...'}</div>`;
+  
+  let q = sb.from('product_issues')
+    .select('*, products(name_th, name_lo, unit_th, unit_lo), branches(code, name_th, name_lo), reporter:users!reported_by(full_name), resolver:users!resolved_by(full_name)')
+    .order('created_at', { ascending: false })
+    .limit(100);
+  
+  // admin/scc/bcs can see all branches; ctl only own branch
+  if (user.role === 'ctl' && branch?.id) {
+    q = q.eq('branch_id', branch.id);
+  }
+  if (_irFilter !== 'all') q = q.eq('status', _irFilter);
+  
+  const { data, error } = await q;
+  if (error) {
+    list.innerHTML = `<div style="color:var(--rose-600);padding:15px;text-align:center;font-size:12px;">Error: ${error.message}</div>`;
+    return;
+  }
+  
+  _irData = data || [];
+  renderIssueReportList();
+}
+
+function renderIssueReportList() {
+  const list = document.getElementById('irList');
+  if (!list) return;
+  const isLao = lang === 'lo';
+  
+  if (!_irData.length) {
+    list.innerHTML = `<div style="text-align:center;padding:30px;color:var(--slate-400);font-size:13px;">📭 ${T('ir_no_data')}</div>`;
+    return;
+  }
+  
+  list.innerHTML = _irData.map(it => {
+    const prodName = isLao ? (it.products?.name_lo || it.products?.name_th || '?') : (it.products?.name_th || it.products?.name_lo || '?');
+    const brName = isLao ? (it.branches?.name_lo || it.branches?.code || '?') : (it.branches?.name_th || it.branches?.code || '?');
+    const issueLabel = T('issue_' + it.issue_type);
+    const statusColors = {
+      open: { bg: 'var(--rose-50)', border: 'var(--rose-400)', text: 'var(--rose-700)' },
+      in_progress: { bg: 'var(--amber-50)', border: 'var(--amber-400)', text: 'var(--amber-700)' },
+      resolved: { bg: 'var(--emerald-50)', border: 'var(--emerald-400)', text: 'var(--emerald-700)' },
+      cancelled: { bg: 'var(--slate-50)', border: 'var(--slate-400)', text: 'var(--slate-600)' }
+    };
+    const sc = statusColors[it.status] || statusColors.open;
+    const ago = timeAgo(it.created_at, isLao);
+    
+    // Action buttons by status
+    let actions = '';
+    if (it.status === 'open') {
+      actions = `
+        <button onclick="irUpdateStatus(${it.id}, 'in_progress')" style="flex:1;background:var(--amber-500);color:white;border:none;padding:8px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">▶️ ${T('ir_start')}</button>
+        <button onclick="irPromptResolve(${it.id})" style="flex:1;background:var(--emerald-500);color:white;border:none;padding:8px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">✓ ${T('ir_resolve')}</button>
+        <button onclick="irUpdateStatus(${it.id}, 'cancelled')" style="flex:1;background:var(--slate-400);color:white;border:none;padding:8px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">✕ ${T('ir_cancel')}</button>
+      `;
+    } else if (it.status === 'in_progress') {
+      actions = `
+        <button onclick="irPromptResolve(${it.id})" style="flex:1;background:var(--emerald-500);color:white;border:none;padding:8px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">✓ ${T('ir_resolve')}</button>
+        <button onclick="irUpdateStatus(${it.id}, 'cancelled')" style="flex:1;background:var(--slate-400);color:white;border:none;padding:8px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">✕ ${T('ir_cancel')}</button>
+      `;
+    }
+    
+    return `
+      <div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ${sc.border};border-radius:11px;padding:13px;margin-bottom:9px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:7px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:800;color:var(--slate-800);line-height:1.3;margin-bottom:2px;">${prodName}</div>
+            <div style="font-size:10px;color:var(--slate-400);font-family:monospace;">${it.barcode} • ${brName}${it.location_code ? ' • 📍'+it.location_code : ''}</div>
+          </div>
+          <div style="background:${sc.bg};color:${sc.text};padding:3px 8px;border-radius:11px;font-size:9px;font-weight:800;flex-shrink:0;">${T('ir_status_'+it.status)}</div>
+        </div>
+        <div style="background:${sc.bg};padding:8px 10px;border-radius:7px;margin-bottom:7px;">
+          <div style="font-size:11px;font-weight:700;color:${sc.text};">⚠️ ${issueLabel}</div>
+          ${it.note ? `<div style="font-size:11px;color:var(--slate-600);margin-top:3px;font-style:italic;">"${it.note}"</div>` : ''}
+        </div>
+        <div style="font-size:10px;color:var(--slate-500);margin-bottom:${actions?'9px':'0'};">
+          ${T('ir_reported_by')}: <strong>${it.reporter?.full_name || '?'}</strong> • ${ago}
+          ${it.resolver ? `<br>${T('ir_resolved_by')}: <strong>${it.resolver.full_name}</strong>${it.resolution_note ? ' — "'+it.resolution_note+'"' : ''}` : ''}
+        </div>
+        ${actions ? `<div style="display:flex;gap:5px;">${actions}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+async function irUpdateStatus(id, newStatus) {
+  const payload = { status: newStatus };
+  if (newStatus === 'resolved' || newStatus === 'cancelled') {
+    payload.resolved_by = user.id;
+    payload.resolved_at = new Date().toISOString();
+  }
+  const { error } = await sb.from('product_issues').update(payload).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  showToast('✅ ' + (lang === 'lo' ? 'ອັບເດດແລ້ວ' : 'อัปเดตแล้ว'), 'success');
+  loadIssueReports();
+  updateIssueBadge();
+}
+
+async function irPromptResolve(id) {
+  const isLao = lang === 'lo';
+  const note = prompt(T('ir_resolution_note') + ':', '');
+  if (note === null) return; // cancelled
+  const payload = {
+    status: 'resolved',
+    resolved_by: user.id,
+    resolved_at: new Date().toISOString(),
+    resolution_note: note.trim() || null
+  };
+  const { error } = await sb.from('product_issues').update(payload).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  showToast('✅ ' + (isLao ? 'ແກ້ໄຂແລ້ວ' : 'แก้ไขแล้ว'), 'success');
+  loadIssueReports();
+  updateIssueBadge();
+}
+
+// Badge update — count of open issues (visible to admin/scc/bcs/ctl)
+async function updateIssueBadge() {
+  if (!['admin','scc','bcs','ctl'].includes(user?.role)) return;
+  try {
+    let q = sb.from('product_issues').select('id', { count: 'exact', head: true }).eq('status', 'open');
+    if (user.role === 'ctl' && branch?.id) q = q.eq('branch_id', branch.id);
+    const { count } = await q;
+    const n = count || 0;
+    ['tabIssueBadge', 'drawer_tabIssueBadge'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.textContent = n;
+        el.style.display = n > 0 ? 'inline-block' : 'none';
+      }
+    });
+  } catch (e) { log('updateIssueBadge error:', e); }
+}
+
+// Realtime subscription for new issue reports
+function subscribeIssueRealtime() {
+  if (!['admin','scc','bcs','ctl'].includes(user?.role)) return;
+  if (window._issueChannel) return; // already subscribed
+  try {
+    window._issueChannel = sb.channel('product_issues_changes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'product_issues' }, (payload) => {
+        const newIssue = payload.new;
+        // For ctl, filter by branch
+        if (user.role === 'ctl' && newIssue.branch_id !== branch?.id) return;
+        showToast('🚨 ' + T('ir_new_notif'), 'warning');
+        beep();
+        updateIssueBadge();
+        // If currently on issue report page, reload
+        if (window._currentPage === 'issuereport') loadIssueReports();
+      })
+      .subscribe();
+    log('Subscribed to product_issues realtime');
+  } catch (e) { log('subscribeIssueRealtime error:', e); }
+}
+// ==================== END ISSUE REPORT MANAGER ====================
 
 function renderScanPage() {
   const r = user.role;
