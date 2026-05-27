@@ -6215,7 +6215,7 @@ function renderGapReportList() {
             </button>
             ` : ''}
           </div>
-        ` : (['admin','scc','bcs','ctl'].includes(user?.role) ? `
+        ` : (['admin','scc','bcs','ctl'].includes(user?.role) && g.status !== 'cancelled' ? `
           <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;">
             <button onclick="deleteGapScan(${g.id}, event)" 
                     title="${isLao ? 'ລົບ' : 'ลบ'}"
