@@ -1866,6 +1866,7 @@ const I18N = {
     sc_view_other_branches: 'ສະຕ໋ອກສາຂາອື່ນ',
     sc_branch_stock_title: 'POS ທຸກສາຂາ',
     sc_my_branch: 'ສາຂາຂອງຂ້ອຍ',
+    sc_warehouse: 'ຄັງສິນຄ້າ',
     sc_other_branches: 'ສາຂາອື່ນ',
     sc_no_other_data: 'ບໍ່ມີຂໍ້ມູນຈາກສາຂາອື່ນ',
     sc_close: 'ປິດ',
@@ -2164,6 +2165,7 @@ const I18N = {
     sc_view_other_branches: 'สต๊อกสาขาอื่น',
     sc_branch_stock_title: 'POS ทุกสาขา',
     sc_my_branch: 'สาขาของฉัน',
+    sc_warehouse: 'คลังสินค้า',
     sc_other_branches: 'สาขาอื่น',
     sc_no_other_data: 'ไม่มีข้อมูลจากสาขาอื่น',
     sc_close: 'ปิด',
@@ -6358,42 +6360,56 @@ async function scShowBranchStock() {
   `;
   document.body.appendChild(modal);
   
-  // Fetch all branches that have this product
-  const { data, error } = await sb
-    .from('products')
-    .select('pos_qty, branch_id, branches(id, code, name_th, name_lo)')
-    .eq('barcode', barcode)
-    .eq('is_active', true);
+  // Parallel: fetch all branches + all products with this barcode
+  const [brRes, prodRes] = await Promise.all([
+    sb.from('branches').select('id, code, name_th, name_lo').order('id'),
+    sb.from('products').select('pos_qty, branch_id').eq('barcode', barcode).eq('is_active', true)
+  ]);
   
   const body = document.getElementById('scBranchStockBody');
   if (!body) return;
   
-  if (error) {
-    body.innerHTML = `<div style="color:var(--rose-600);padding:15px;font-size:12px;">Error: ${error.message}</div>`;
+  if (brRes.error) {
+    body.innerHTML = `<div style="color:var(--rose-600);padding:15px;font-size:12px;">Error: ${brRes.error.message}</div>`;
+    return;
+  }
+  if (prodRes.error) {
+    body.innerHTML = `<div style="color:var(--rose-600);padding:15px;font-size:12px;">Error: ${prodRes.error.message}</div>`;
     return;
   }
   
-  if (!data || !data.length) {
-    body.innerHTML = `<div style="color:var(--slate-400);padding:20px;font-size:13px;">📭 ${T('sc_no_other_data')}</div>`;
-    return;
-  }
+  const branches = brRes.data || [];
+  const products = prodRes.data || [];
   
-  // Split: my branch vs others (sort others by qty desc)
-  const myBranchRow = data.find(d => d.branch_id === branch?.id);
-  const others = data.filter(d => d.branch_id !== branch?.id)
-    .sort((a, b) => (b.pos_qty || 0) - (a.pos_qty || 0));
+  // Build qty map: branch_id → pos_qty
+  const qtyMap = {};
+  products.forEach(p => { qtyMap[p.branch_id] = p.pos_qty || 0; });
   
-  // Total across all branches
-  const totalQty = data.reduce((s, d) => s + (d.pos_qty || 0), 0);
+  // Build full list: every branch with qty (0 if no product row)
+  const allRows = branches.map(br => ({
+    branch: br,
+    qty: qtyMap[br.id] || 0
+  }));
+  
+  // Split into 3 groups: my branch / warehouse (TRADING-WH) / others
+  const myBranchRow = allRows.find(r => r.branch.id === branch?.id);
+  const warehouseRow = allRows.find(r => r.branch.code === 'TRADING-WH' && r.branch.id !== branch?.id);
+  const otherRows = allRows
+    .filter(r => r.branch.id !== branch?.id && r.branch.code !== 'TRADING-WH')
+    .sort((a, b) => b.qty - a.qty);
+  
+  // Total across ALL branches
+  const totalQty = allRows.reduce((s, r) => s + r.qty, 0);
   
   // Helper to render one row
-  const renderRow = (row, isMine) => {
-    const brName = isLao ? (row.branches?.name_lo || row.branches?.code || '?') : (row.branches?.name_th || row.branches?.code || '?');
-    const brCode = row.branches?.code || '?';
-    const qty = row.pos_qty || 0;
+  const renderRow = (row, type) => {
+    const br = row.branch;
+    const brName = isLao ? (br.name_lo || br.code || '?') : (br.name_th || br.name_lo || br.code || '?');
+    const brCode = br.code || '?';
+    const qty = row.qty;
     const qtyColor = qty === 0 ? 'var(--rose-500)' : qty < 5 ? 'var(--amber-600)' : 'var(--emerald-600)';
     
-    if (isMine) {
+    if (type === 'mine') {
       return `
         <div style="background:linear-gradient(135deg,var(--violet-50),var(--sky-50));border:2px solid var(--violet-400);border-radius:11px;padding:12px 14px;margin-bottom:11px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
           <div style="flex:1;min-width:0;">
@@ -6410,6 +6426,24 @@ async function scShowBranchStock() {
         </div>
       `;
     }
+    if (type === 'warehouse') {
+      return `
+        <div style="background:linear-gradient(135deg,var(--sky-50),var(--cyan-50, #cffafe));border:2px solid var(--sky-400);border-radius:11px;padding:12px 14px;margin-bottom:11px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+              <span style="background:var(--sky-500);color:white;font-size:9px;font-weight:800;padding:2px 7px;border-radius:9px;">📦 ${T('sc_warehouse')}</span>
+            </div>
+            <div style="font-size:13px;font-weight:800;color:var(--slate-800);line-height:1.3;">${brName}</div>
+            <div style="font-size:10px;color:var(--slate-500);font-family:monospace;">${brCode}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            <div style="font-size:22px;font-weight:800;color:${qtyColor};line-height:1;font-family:'Space Grotesk',monospace;">${qty}</div>
+            <div style="font-size:9px;color:var(--slate-400);margin-top:2px;">POS</div>
+          </div>
+        </div>
+      `;
+    }
+    // type === 'other'
     return `
       <div style="background:white;border:1px solid var(--slate-200);border-radius:9px;padding:10px 13px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
         <div style="flex:1;min-width:0;">
@@ -6425,15 +6459,22 @@ async function scShowBranchStock() {
   
   let html = '';
   
+  // 1. My branch (if exists and is not warehouse itself)
   if (myBranchRow) {
-    html += renderRow(myBranchRow, true);
+    // Special case: if user IS at warehouse, render as warehouse style
+    const isMyBranchWarehouse = myBranchRow.branch.code === 'TRADING-WH';
+    html += renderRow(myBranchRow, isMyBranchWarehouse ? 'warehouse' : 'mine');
   }
   
-  if (others.length) {
-    html += `<div style="font-size:10px;font-weight:700;color:var(--slate-500);margin:11px 0 7px;text-transform:uppercase;letter-spacing:0.5px;">${T('sc_other_branches')} (${others.length})</div>`;
-    html += others.map(r => renderRow(r, false)).join('');
-  } else {
-    html += `<div style="text-align:center;padding:15px;color:var(--slate-400);font-size:12px;">📭 ${T('sc_no_other_data')}</div>`;
+  // 2. Warehouse (TRADING-WH) — only if user is NOT at warehouse already
+  if (warehouseRow) {
+    html += renderRow(warehouseRow, 'warehouse');
+  }
+  
+  // 3. Other branches
+  if (otherRows.length) {
+    html += `<div style="font-size:10px;font-weight:700;color:var(--slate-500);margin:11px 0 7px;text-transform:uppercase;letter-spacing:0.5px;">${T('sc_other_branches')} (${otherRows.length})</div>`;
+    html += otherRows.map(r => renderRow(r, 'other')).join('');
   }
   
   // Total footer
