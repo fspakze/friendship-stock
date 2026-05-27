@@ -6514,34 +6514,52 @@ function renderStockCheckResult(prod, pog, lastCount) {
 }
 
 // ==================== SESSION 5: PANOGRAM PICKER (from Stock Check) ====================
-// เปิด modal เลือก location_code → save เข้า pan_o_grams
-// ทำงานทั้ง insert (สินค้าใหม่) + update (แก้ไข)
-
-let _scCurrentPogCode = null; // location_code ปัจจุบันของสินค้าที่กำลังเช็ค
+// เปิดฟอร์ม Pan-O-Gram เต็ม (reuse openPanOGramModal เดิม)
+// - ถ้ามีอยู่แล้ว → เปิดในโหมด edit ทันที (locationCode เดิม)
+// - ถ้ายังไม่มี → ให้เลือก location ก่อน → เปิดฟอร์ม insert
 
 async function scOpenPogPicker() {
   if (!_scCurrentProduct) return;
   const isLao = lang === 'lo';
   
-  // Load PanoGram ปัจจุบัน + locations ของสาขา (parallel)
-  const [pogRes, locRes] = await Promise.all([
-    sb.from('pan_o_grams')
-      .select('location_code')
-      .eq('product_id', _scCurrentProduct.id)
-      .eq('branch_id', branch.id)
-      .limit(1)
-      .maybeSingle(),
-    sb.from('location_master')
-      .select('location_code, description')
-      .eq('branch_id', branch.id)
-      .eq('is_active', true)
-      .order('location_code')
-  ]);
+  // เช็คว่าสินค้านี้มี PoG อยู่แล้วหรือยัง
+  const { data: existing, error: existErr } = await sb
+    .from('pan_o_grams')
+    .select('id, location_code')
+    .eq('product_id', _scCurrentProduct.id)
+    .eq('branch_id', branch.id)
+    .limit(1)
+    .maybeSingle();
   
-  _scCurrentPogCode = pogRes?.data?.location_code || null;
-  const locations = locRes?.data || [];
+  if (existErr) {
+    showToast('Error: ' + existErr.message, 'error');
+    return;
+  }
   
-  if (locations.length === 0) {
+  // มีแล้ว → เปิด edit modal ทันที (ใช้ฟอร์มเต็มเดิม)
+  if (existing) {
+    if (typeof openPanOGramModal === 'function') {
+      await openPanOGramModal(_scCurrentProduct.barcode, existing.location_code, existing.id);
+      // หลังปิด modal → refresh stock check (ผู้ใช้อาจต้องกดปิด modal เอง)
+    } else {
+      showToast('Error: openPanOGramModal not loaded', 'error');
+    }
+    return;
+  }
+  
+  // ยังไม่มี → ให้เลือก location ก่อน
+  const { data: locations, error: locErr } = await sb.from('location_master')
+    .select('location_code, description')
+    .eq('branch_id', branch.id)
+    .eq('is_active', true)
+    .order('location_code');
+  
+  if (locErr) {
+    showToast('Error: ' + locErr.message, 'error');
+    return;
+  }
+  
+  if (!locations || locations.length === 0) {
     showToast(T('sc_pog_no_loc'), 'error');
     return;
   }
@@ -6550,18 +6568,14 @@ async function scOpenPogPicker() {
     ? (_scCurrentProduct.name_lo || _scCurrentProduct.name_th) 
     : (_scCurrentProduct.name_th || _scCurrentProduct.name_lo);
   
-  // Build location chips (grouped naturally by sort)
-  const chipsHtml = locations.map(l => {
-    const isCurrent = l.location_code === _scCurrentPogCode;
-    return `
-      <button class="sc-pog-chip" data-code="${l.location_code}" 
-              data-search="${(l.location_code + ' ' + (l.description || '')).toLowerCase()}"
-              onclick="scSelectPogCode('${l.location_code.replace(/'/g, "\\'")}')"
-              style="background:${isCurrent ? 'var(--violet-500)' : 'var(--slate-100)'};color:${isCurrent ? 'white' : 'var(--slate-700)'};border:none;border-radius:7px;padding:9px 11px;font-size:12px;font-weight:700;font-family:'Space Grotesk',monospace;cursor:pointer;transition:all 0.15s;">
-        ${l.location_code}
-      </button>
-    `;
-  }).join('');
+  // Build location chips
+  const chipsHtml = locations.map(l => `
+    <button class="sc-pog-chip" data-search="${(l.location_code + ' ' + (l.description || '')).toLowerCase()}"
+            onclick="scSelectPogLocation('${l.location_code.replace(/'/g, "\\'")}')"
+            style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:7px;padding:9px 11px;font-size:12px;font-weight:700;font-family:'Space Grotesk',monospace;cursor:pointer;transition:all 0.15s;">
+      ${l.location_code}
+    </button>
+  `).join('');
   
   const modal = document.createElement('div');
   modal.id = 'scPogModal';
@@ -6570,18 +6584,18 @@ async function scOpenPogPicker() {
     <div style="background:white;width:100%;max-width:500px;border-radius:15px 15px 0 0;padding:18px;max-height:85vh;display:flex;flex-direction:column;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px;flex-shrink:0;">
         <div>
-          <h3 style="margin:0;font-size:15px;font-weight:800;color:var(--slate-800);">📍 ${T('sc_pog_modal_title')}</h3>
+          <h3 style="margin:0;font-size:15px;font-weight:800;color:var(--slate-800);">📍 ${T('sc_pog_modal_subtitle')}</h3>
           <div style="font-size:11px;color:var(--slate-500);margin-top:3px;">${name}</div>
           <div style="font-size:10px;color:var(--slate-400);font-family:monospace;">${_scCurrentProduct.barcode}</div>
         </div>
         <button onclick="scClosePogPicker()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--slate-500);line-height:1;padding:0 4px;">×</button>
       </div>
       
-      ${_scCurrentPogCode ? `
-        <div style="background:var(--amber-50);border:1px solid var(--amber-300);border-radius:7px;padding:8px 11px;margin-bottom:9px;font-size:11px;color:var(--amber-800);">
-          ${T('sc_pog_current')}: <strong style="font-family:'Space Grotesk',monospace;font-size:13px;">${_scCurrentPogCode}</strong>
-        </div>
-      ` : ''}
+      <div style="background:var(--sky-50);border:1px solid var(--sky-300);border-radius:7px;padding:8px 11px;margin-bottom:9px;font-size:11px;color:var(--sky-800);line-height:1.4;">
+        ${isLao 
+          ? '1️⃣ ເລືອກຕຳແໜ່ງກ່ອນ → 2️⃣ ໃສ່ຊັ້ນ/ລຳດັບ/ມິຕິ → 3️⃣ ບັນທຶກ' 
+          : '1️⃣ เลือกตำแหน่งก่อน → 2️⃣ ใส่ชั้น/ลำดับ/มิติ → 3️⃣ บันทึก'}
+      </div>
       
       <input type="text" id="scPogSearch" placeholder="🔍 ${T('sc_pog_search_ph')}" 
              oninput="scFilterPogChips(this.value)"
@@ -6608,60 +6622,22 @@ function scFilterPogChips(query) {
   });
 }
 
-async function scSelectPogCode(locCode) {
+async function scSelectPogLocation(locCode) {
   if (!_scCurrentProduct || !locCode) return;
-  if (locCode === _scCurrentPogCode) {
-    scClosePogPicker();
-    return;
-  }
   
-  const isLao = lang === 'lo';
-  
-  // Confirm change if updating existing
-  if (_scCurrentPogCode) {
-    const msg = isLao
-      ? `ປ່ຽນຕຳແໜ່ງຈາກ ${_scCurrentPogCode} → ${locCode}?`
-      : `เปลี่ยนตำแหน่งจาก ${_scCurrentPogCode} → ${locCode}?`;
-    if (!confirm(msg)) return;
-  }
-  
-  // Upsert into pan_o_grams (delete + insert pattern, ปลอดภัยกว่า)
-  // 1. ลบ row เก่า (ถ้ามี)
-  if (_scCurrentPogCode) {
-    await sb.from('pan_o_grams')
-      .delete()
-      .eq('product_id', _scCurrentProduct.id)
-      .eq('branch_id', branch.id);
-  }
-  
-  // 2. Insert ใหม่
-  const payload = {
-    product_id: _scCurrentProduct.id,
-    branch_id: branch.id,
-    location_code: locCode,
-    gondola_code: locCode,  // เก็บ location เต็มเป็น gondola_code ด้วย (ตาม pattern เดิม)
-    created_by: user.id
-  };
-  
-  const { error } = await sb.from('pan_o_grams').insert(payload);
-  if (error) {
-    showToast('Error: ' + error.message, 'error');
-    return;
-  }
-  
-  showToast('✅ ' + T('sc_pog_saved'), 'success');
+  // ปิด picker → เปิดฟอร์ม PanoGram เต็ม (ผ่าน openPanOGramModal เดิม)
   scClosePogPicker();
   
-  // Refresh stock check result
-  if (typeof scLookup === 'function') {
-    scLookup();
+  if (typeof openPanOGramModal === 'function') {
+    await openPanOGramModal(_scCurrentProduct.barcode, locCode);
+  } else {
+    showToast('Error: openPanOGramModal not loaded', 'error');
   }
 }
 
 function scClosePogPicker() {
   const m = document.getElementById('scPogModal');
   if (m) m.remove();
-  _scCurrentPogCode = null;
 }
 
 // ==================== END SESSION 5 PANOGRAM PICKER ====================
