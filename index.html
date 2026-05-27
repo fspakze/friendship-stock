@@ -3968,6 +3968,14 @@ function renderShell() {
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8"/></svg>
         <span>${T('tab_kpi')}</span>
       </button>
+      <button class="tab" data-page="performance" onclick="goPage('performance')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 002.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 012.916.52 6.003 6.003 0 01-5.395 4.972m0 0a6.726 6.726 0 01-2.749 1.35m0 0a6.772 6.772 0 01-3.044 0"/></svg>
+        <span>${lang === 'lo' ? '🏆 ຜົນງານ' : '🏆 ผลงาน'}</span>
+      </button>
+      <button class="tab" data-page="health" onclick="goPage('health')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5"/></svg>
+        <span>${lang === 'lo' ? '📍 ສຸຂະພາບ' : '📍 สุขภาพชั้น'}</span>
+      </button>
       <button class="tab" data-page="variance" onclick="goPage('variance')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
         <span>${lang === 'lo' ? 'ຂາດເຄື່ອນ' : 'คลาดเคลื่อน'}</span>
@@ -4072,6 +4080,12 @@ function goPage(page) {
   } else if (page === 'kpi') {
     c.innerHTML = renderKPIPage();
     loadKPI();
+  } else if (page === 'performance') {
+    c.innerHTML = renderPerformancePage();
+    loadPerformance();
+  } else if (page === 'health') {
+    c.innerHTML = renderHealthPage();
+    loadHealth();
   } else if (page === 'variance') {
     c.innerHTML = renderVariancePage();
     loadVarianceReport();
@@ -6535,8 +6549,20 @@ function renderProduct(p) {
         <div class="count-label">${labelText}</div>
         <div class="count-controls">
           <button class="count-btn" onclick="adjustCount(-1)">−</button>
-          <input class="count-input mono" id="countInput" type="number" inputmode="numeric" value="${startValue}" min="0">
+          <input class="count-input mono" id="countInput" type="number" inputmode="numeric" value="${startValue}" min="0"
+                 onkeypress="if(event.key==='Enter'){event.preventDefault();document.getElementById('saveBtn')?.click();}">
           <button class="count-btn" onclick="adjustCount(1)">+</button>
+        </div>
+        <!-- UX 3C: Quick action buttons -->
+        <div style="display:flex;gap:5px;margin-top:7px;">
+          <button onclick="setCountValue(0)" title="${lang === 'lo' ? 'ໝົດສ້ິນ (0)' : 'หมดสต๊อก (0)'}"
+                  style="flex:1;padding:7px;background:var(--rose-100);color:var(--rose-700);border:1px solid var(--rose-300);border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">
+            ${lang === 'lo' ? '🚫 ໝົດ (0)' : '🚫 หมด (0)'}
+          </button>
+          <button onclick="setCountValue(${p.pos_qty || 0})" title="${lang === 'lo' ? 'ກົງ POS' : 'ตรงกับ POS'}"
+                  style="flex:1;padding:7px;background:var(--emerald-100);color:var(--emerald-700);border:1px solid var(--emerald-300);border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">
+            ${lang === 'lo' ? '✓ ກົງ POS' : '✓ ตรง POS'} (${p.pos_qty || 0})
+          </button>
         </div>
       </div>
       <textarea class="note-input" id="noteInput" rows="2" placeholder="${T('note_placeholder')}"></textarea>
@@ -10045,6 +10071,15 @@ function adjustCount(delta) {
   inp.value = Math.max(0, v + delta);
 }
 
+// UX 3C: Set count value directly (for Quick action buttons)
+function setCountValue(value) {
+  const inp = document.getElementById('countInput');
+  if (!inp) return;
+  inp.value = Math.max(0, parseInt(value) || 0);
+  inp.focus();
+  inp.select();
+}
+
 function cancelCount() {
   curProduct = null;
   curTask = null;
@@ -12936,6 +12971,542 @@ async function loadKPI() {
     </div>
   `;
 }
+
+// ==================== COUNTER PERFORMANCE DASHBOARD (Feature 3A) ====================
+// Added 2026-05-27 by Anya 💗
+// Shows individual counter KPIs + branch leaderboard for the past 30 days
+
+let _perfData = null;       // cached aggregated data
+let _perfBranchScope = 'mine'; // 'mine' = current branch only | 'all' = all branches
+
+function renderPerformancePage() {
+  const isLao = lang === 'lo';
+  const r = (user?.role || '').toLowerCase();
+  // Only managers see "All branches" toggle. Counter/staff see only their own data.
+  const isManager = ['admin', 'scc', 'bcs'].includes(r);
+  
+  return `
+    <div style="margin-bottom:11px;">
+      <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">
+        🏆 ${isLao ? 'ຜົນງານພະນັກງານ' : 'ผลงานพนักงาน'}
+      </h2>
+      <p style="font-size:11px;color:var(--slate-500);margin:0;">
+        ${isLao ? 'ສະຖິຕິ 30 ວັນຫຼ້າສຸດ' : 'สถิติ 30 วันล่าสุด'} · 
+        ${isLao ? 'ຄະແນນ = ຄວາມແມ່ນຍຳ × 0.5 + ຄວາມໄວ × 0.3 + ປະລິມານ × 0.2' : 'คะแนน = แม่นยำ × 0.5 + ความเร็ว × 0.3 + ปริมาณ × 0.2'}
+      </p>
+    </div>
+
+    ${isManager ? `
+    <div style="display:flex;gap:5px;margin-bottom:11px;">
+      <button onclick="setPerfScope('mine')" id="perfScopeMine"
+              style="flex:1;padding:9px;border:2px solid var(--violet-500);background:var(--violet-500);color:white;border-radius:9px;font-size:11px;font-weight:800;cursor:pointer;">
+        ${isLao ? '🏢 ສາຂາຂອງຂ້ອຍ' : '🏢 สาขาของฉัน'}
+      </button>
+      <button onclick="setPerfScope('all')" id="perfScopeAll"
+              style="flex:1;padding:9px;border:2px solid var(--slate-200);background:white;color:var(--slate-600);border-radius:9px;font-size:11px;font-weight:800;cursor:pointer;">
+        ${isLao ? '🌍 ທຸກສາຂາ' : '🌍 ทุกสาขา'}
+      </button>
+    </div>
+    ` : ''}
+
+    <!-- My Score Card -->
+    <div id="perfMyCard" style="background:linear-gradient(135deg,var(--violet-500),var(--sky-500));color:white;border-radius:13px;padding:15px;margin-bottom:11px;">
+      <div style="font-size:12px;opacity:0.9;margin-bottom:7px;">
+        ${isLao ? '⭐ ຜົນງານຂອງຂ້ອຍ' : '⭐ ผลงานของฉัน'}
+      </div>
+      <div id="perfMyContent">${isLao ? 'ກຳລັງໂຫຼດ...' : 'กำลังโหลด...'}</div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div style="background:white;border:1px solid var(--slate-200);border-radius:11px;padding:11px;margin-bottom:11px;">
+      <h3 style="font-size:13px;font-weight:800;color:var(--slate-900);margin:0 0 9px;">
+        🏆 ${isLao ? 'ອັນດັບ' : 'อันดับ'} <span id="perfLeaderboardScope" style="font-weight:500;font-size:11px;color:var(--slate-500);"></span>
+      </h3>
+      <div id="perfLeaderboard">${isLao ? 'ກຳລັງໂຫຼດ...' : 'กำลังโหลด...'}</div>
+    </div>
+
+    <!-- 7-day Trend -->
+    <div style="background:white;border:1px solid var(--slate-200);border-radius:11px;padding:11px;">
+      <h3 style="font-size:13px;font-weight:800;color:var(--slate-900);margin:0 0 9px;">
+        📈 ${isLao ? 'ແນວໂນ້ມ 7 ວັນ' : 'แนวโน้ม 7 วัน'}
+      </h3>
+      <div id="perfTrend">${isLao ? 'ກຳລັງໂຫຼດ...' : 'กำลังโหลด...'}</div>
+    </div>
+  `;
+}
+
+/**
+ * Switch performance scope between current branch and all branches (manager only)
+ */
+function setPerfScope(scope) {
+  _perfBranchScope = scope;
+  // Update button styles
+  const btnMine = document.getElementById('perfScopeMine');
+  const btnAll = document.getElementById('perfScopeAll');
+  if (btnMine && btnAll) {
+    const activeStyle = 'border:2px solid var(--violet-500);background:var(--violet-500);color:white;';
+    const inactiveStyle = 'border:2px solid var(--slate-200);background:white;color:var(--slate-600);';
+    const base = 'flex:1;padding:9px;border-radius:9px;font-size:11px;font-weight:800;cursor:pointer;';
+    btnMine.setAttribute('style', base + (scope === 'mine' ? activeStyle : inactiveStyle));
+    btnAll.setAttribute('style', base + (scope === 'all' ? activeStyle : inactiveStyle));
+  }
+  loadPerformance();
+}
+
+/**
+ * Load counter performance data (last 30 days)
+ * Aggregates stock_counts grouped by user_id, computes Score = Accuracy×0.5 + Speed×0.3 + Volume×0.2
+ */
+async function loadPerformance() {
+  const isLao = lang === 'lo';
+  try {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    
+    // Build base query
+    let query = sb.from('stock_counts')
+      .select(`id, user_id, counted_qty, diff, variance_level, counted_at, branch_id,
+               users!user_id(full_name, role)`)
+      .gte('counted_at', since)
+      .not('user_id', 'is', null);
+    
+    // Scope filter (managers can choose all branches)
+    const r = (user?.role || '').toLowerCase();
+    const isManager = ['admin', 'scc', 'bcs'].includes(r);
+    if (!isManager || _perfBranchScope === 'mine') {
+      query = query.eq('branch_id', branch.id);
+    }
+    
+    const { data: counts, error } = await query;
+    if (error) throw error;
+    
+    const items = counts || [];
+    
+    // Aggregate per user
+    const perUser = {}; // { userId: { userId, userName, counts:[], dailyTotals: {date: cnt} } }
+    items.forEach(c => {
+      const uid = c.user_id;
+      if (!perUser[uid]) {
+        perUser[uid] = {
+          userId: uid,
+          userName: c.users?.full_name || '?',
+          role: c.users?.role || '',
+          counts: [],
+          dailyTotals: {}
+        };
+      }
+      perUser[uid].counts.push(c);
+      // Daily aggregation for speed calc
+      const day = (c.counted_at || '').slice(0, 10);
+      if (day) perUser[uid].dailyTotals[day] = (perUser[uid].dailyTotals[day] || 0) + 1;
+    });
+    
+    // Compute composite score per user
+    const scored = Object.values(perUser).map(u => {
+      const total = u.counts.length;
+      
+      // 1) Accuracy = % rows ที่ variance_level = 1 (counter ครั้งแรกถูก)
+      const accurate = u.counts.filter(c => c.variance_level === 1 || c.variance_level === 0).length;
+      const accuracyPct = total > 0 ? (accurate / total * 100) : 0;
+      
+      // 2) Speed = counts per active day (avg)
+      const activeDays = Object.keys(u.dailyTotals).length;
+      const avgPerDay = activeDays > 0 ? (total / activeDays) : 0;
+      
+      // 3) Volume = total counts
+      const volume = total;
+      
+      return {
+        ...u,
+        total,
+        activeDays,
+        accuracyPct,
+        avgPerDay,
+        volume,
+        // Raw scores will be normalized below
+        rawAcc: accuracyPct,
+        rawSpeed: avgPerDay,
+        rawVolume: volume
+      };
+    });
+    
+    if (scored.length === 0) {
+      const noDataMsg = isLao ? 'ບໍ່ມີຂໍ້ມູນ 30 ວັນຫຼ້າສຸດ' : 'ไม่มีข้อมูลใน 30 วันล่าสุด';
+      document.getElementById('perfMyContent').innerHTML = `<div style="opacity:0.8;">${noDataMsg}</div>`;
+      document.getElementById('perfLeaderboard').innerHTML = `<div class="empty-state"><p>${noDataMsg}</p></div>`;
+      document.getElementById('perfTrend').innerHTML = `<div class="empty-state"><p>${noDataMsg}</p></div>`;
+      return;
+    }
+    
+    // Normalize speed and volume to 0-100 scale (relative to max)
+    const maxSpeed = Math.max(...scored.map(u => u.rawSpeed));
+    const maxVolume = Math.max(...scored.map(u => u.rawVolume));
+    scored.forEach(u => {
+      const accN = u.rawAcc; // already 0-100
+      const speedN = maxSpeed > 0 ? (u.rawSpeed / maxSpeed * 100) : 0;
+      const volN = maxVolume > 0 ? (u.rawVolume / maxVolume * 100) : 0;
+      // Composite weights: Accuracy=0.5, Speed=0.3, Volume=0.2 (per บอลเลือก)
+      u.compositeScore = (accN * 0.5) + (speedN * 0.3) + (volN * 0.2);
+    });
+    
+    // Sort by composite score desc
+    scored.sort((a, b) => b.compositeScore - a.compositeScore);
+    
+    // Find current user's rank
+    const myEntry = scored.find(u => u.userId === user.id);
+    const myRank = myEntry ? scored.findIndex(u => u.userId === user.id) + 1 : null;
+    
+    _perfData = { scored, myEntry, myRank };
+    
+    renderMyCard(myEntry, myRank, scored.length);
+    renderLeaderboard(scored);
+    renderTrend(myEntry);
+    
+    // Update scope label
+    const scopeEl = document.getElementById('perfLeaderboardScope');
+    if (scopeEl) {
+      scopeEl.textContent = _perfBranchScope === 'all' 
+        ? (isLao ? '(ທຸກສາຂາ)' : '(ทุกสาขา)') 
+        : (isLao ? `(${branch?.code || ''})` : `(${branch?.code || ''})`);
+    }
+  } catch (e) {
+    console.error('[FS] loadPerformance error:', e);
+    const errMsg = (isLao ? 'ຜິດພາດ' : 'เกิดข้อผิดพลาด') + ': ' + (e.message || e);
+    const myEl = document.getElementById('perfMyContent');
+    if (myEl) myEl.innerHTML = `<div style="opacity:0.8;">${errMsg}</div>`;
+  }
+}
+
+/**
+ * Render my own performance card (top of page)
+ */
+function renderMyCard(me, rank, totalUsers) {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('perfMyContent');
+  if (!el) return;
+  
+  if (!me) {
+    el.innerHTML = `<div style="opacity:0.8;">${isLao ? 'ທ່ານຍັງບໍ່ມີຜົນງານ 30 ວັນຫຼ້າສຸດ' : 'คุณยังไม่มีผลงานใน 30 วันล่าสุด'}</div>`;
+    return;
+  }
+  
+  const rankBadge = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
+  
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:11px;">
+      <div style="background:rgba(255,255,255,0.15);border-radius:9px;padding:9px;text-align:center;">
+        <div style="font-size:10px;opacity:0.85;margin-bottom:3px;">${isLao ? 'ຄະແນນ' : 'คะแนน'}</div>
+        <div style="font-size:22px;font-weight:800;font-family:'Space Grotesk',monospace;line-height:1;">${me.compositeScore.toFixed(1)}</div>
+        <div style="font-size:9px;opacity:0.7;margin-top:2px;">/100</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.15);border-radius:9px;padding:9px;text-align:center;">
+        <div style="font-size:10px;opacity:0.85;margin-bottom:3px;">${isLao ? 'ປະລິມານ' : 'ปริมาณ'}</div>
+        <div style="font-size:22px;font-weight:800;font-family:'Space Grotesk',monospace;line-height:1;">${me.volume}</div>
+        <div style="font-size:9px;opacity:0.7;margin-top:2px;">${isLao ? 'ນັບ' : 'นับ'}</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.15);border-radius:9px;padding:9px;text-align:center;">
+        <div style="font-size:10px;opacity:0.85;margin-bottom:3px;">${isLao ? 'ຄວາມໄວ' : 'ความเร็ว'}</div>
+        <div style="font-size:22px;font-weight:800;font-family:'Space Grotesk',monospace;line-height:1;">${me.avgPerDay.toFixed(1)}</div>
+        <div style="font-size:9px;opacity:0.7;margin-top:2px;">${isLao ? '/ວັນ' : '/วัน'}</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.15);border-radius:9px;padding:9px;text-align:center;">
+        <div style="font-size:10px;opacity:0.85;margin-bottom:3px;">${isLao ? 'ແມ່ນຍຳ' : 'แม่นยำ'}</div>
+        <div style="font-size:22px;font-weight:800;font-family:'Space Grotesk',monospace;line-height:1;">${me.accuracyPct.toFixed(1)}</div>
+        <div style="font-size:9px;opacity:0.7;margin-top:2px;">%</div>
+      </div>
+    </div>
+    <div style="background:rgba(0,0,0,0.15);border-radius:9px;padding:9px;text-align:center;font-size:12px;font-weight:700;">
+      ${isLao ? 'ອັນດັບ' : 'อันดับ'}: ${rankBadge} ${isLao ? 'ຈາກ' : 'จาก'} ${totalUsers} ${isLao ? 'ຄົນ' : 'คน'}
+    </div>
+  `;
+}
+
+/**
+ * Render leaderboard (all users in scope)
+ */
+function renderLeaderboard(scored) {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('perfLeaderboard');
+  if (!el) return;
+  
+  if (scored.length === 0) {
+    el.innerHTML = `<div class="empty-state"><p>${isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล'}</p></div>`;
+    return;
+  }
+  
+  const myId = user?.id;
+  let html = '';
+  scored.forEach((u, idx) => {
+    const rank = idx + 1;
+    const rankBadge = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `<span style="font-family:'Space Grotesk',monospace;font-weight:700;color:var(--slate-500);">#${rank}</span>`;
+    const isMe = u.userId === myId;
+    const bgColor = isMe ? 'background:linear-gradient(90deg,var(--violet-50),var(--sky-50));border-left:3px solid var(--violet-500);' : 'background:white;border-left:3px solid transparent;';
+    const youLabel = isMe ? `<span style="background:var(--violet-500);color:white;font-size:8px;padding:1px 5px;border-radius:3px;font-weight:800;margin-left:5px;">YOU</span>` : '';
+    
+    html += `
+      <div style="display:flex;align-items:center;gap:9px;padding:7px 9px;${bgColor}border-bottom:1px solid var(--slate-100);">
+        <div style="width:28px;text-align:center;font-size:16px;flex-shrink:0;">${rankBadge}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            ${u.userName}${youLabel}
+          </div>
+          <div style="font-size:9px;color:var(--slate-500);font-family:'Space Grotesk',monospace;">
+            ${u.volume} ${isLao ? 'ນັບ' : 'นับ'} · ${u.avgPerDay.toFixed(1)}/${isLao ? 'ວັນ' : 'วัน'} · ${u.accuracyPct.toFixed(1)}%
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:16px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;line-height:1;">${u.compositeScore.toFixed(1)}</div>
+          <div style="font-size:8px;color:var(--slate-400);">/100</div>
+        </div>
+      </div>
+    `;
+  });
+  el.innerHTML = html;
+}
+
+/**
+ * Render 7-day daily count trend for current user (sparkline-like bar chart)
+ */
+function renderTrend(me) {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('perfTrend');
+  if (!el) return;
+  
+  if (!me) {
+    el.innerHTML = `<div class="empty-state"><p>${isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล'}</p></div>`;
+    return;
+  }
+  
+  // Build 7-day array (oldest first)
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+    const key = d.toISOString().slice(0, 10);
+    const label = d.toLocaleDateString(isLao ? 'lo-LA' : 'th-TH', { weekday: 'short', day: 'numeric' });
+    days.push({ key, label, count: me.dailyTotals[key] || 0 });
+  }
+  
+  const maxCount = Math.max(...days.map(d => d.count), 1);
+  
+  let html = `<div style="display:flex;align-items:flex-end;gap:5px;height:80px;margin-bottom:5px;">`;
+  days.forEach(d => {
+    const heightPct = (d.count / maxCount * 100);
+    const barColor = d.count === 0 ? 'var(--slate-200)' : 'linear-gradient(180deg,var(--violet-500),var(--sky-500))';
+    html += `
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;">
+        <div style="font-size:10px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;height:14px;">
+          ${d.count > 0 ? d.count : ''}
+        </div>
+        <div style="width:100%;background:${barColor};border-radius:4px 4px 0 0;height:${Math.max(heightPct, 3)}%;transition:height 0.3s;"></div>
+      </div>
+    `;
+  });
+  html += `</div><div style="display:flex;gap:5px;">`;
+  days.forEach(d => {
+    html += `<div style="flex:1;text-align:center;font-size:9px;color:var(--slate-500);">${d.label}</div>`;
+  });
+  html += `</div>`;
+  el.innerHTML = html;
+}
+// ==================== END COUNTER PERFORMANCE ====================
+
+// ==================== GONDOLA HEALTH SCORE (Feature 3B) ====================
+// Added 2026-05-27 by Anya 💗
+// Per-gondola health analysis: variance frequency, gap frequency, problem hotspots
+
+function renderHealthPage() {
+  const isLao = lang === 'lo';
+  return `
+    <div style="margin-bottom:11px;">
+      <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">
+        📍 ${isLao ? 'ສຸຂະພາບ Gondola' : 'สุขภาพ Gondola'}
+      </h2>
+      <p style="font-size:11px;color:var(--slate-500);margin:0;">
+        ${isLao ? 'ຊັ້ນວາງທີ່ມີບັນຫາຫຼາຍສຸດ (30 ວັນ)' : 'ชั้นวางที่มีปัญหามากที่สุด (30 วัน)'}
+      </p>
+    </div>
+
+    <!-- Summary -->
+    <div id="healthSummary" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:11px;">
+      ${[1,2,3].map(() => `
+        <div style="background:var(--slate-50);border-radius:9px;padding:11px;text-align:center;">
+          <div style="font-size:18px;color:var(--slate-300);">⏳</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- Worst Gondolas (ranked by composite issue score) -->
+    <div style="background:white;border:1px solid var(--slate-200);border-radius:11px;padding:11px;margin-bottom:11px;">
+      <h3 style="font-size:13px;font-weight:800;color:var(--slate-900);margin:0 0 9px;">
+        ⚠️ ${isLao ? 'Gondola ທີ່ຕ້ອງດູແລ' : 'Gondola ที่ต้องดูแล'}
+      </h3>
+      <div id="healthWorstList">${isLao ? 'ກຳລັງໂຫຼດ...' : 'กำลังโหลด...'}</div>
+    </div>
+  `;
+}
+
+/**
+ * Calculate per-gondola health score (last 30 days)
+ * Issue Score = variance_count + (gap_count × 2) + markdown_count
+ * (gap weighted 2x because each gap = real stock issue = lost sale)
+ */
+async function loadHealth() {
+  const isLao = lang === 'lo';
+  try {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    
+    // 1. Get stock_counts with high variance (level >= 2) - signals counting issues
+    const { data: counts, error: e1 } = await sb.from('stock_counts')
+      .select('id, gondola_code, location_code, variance_level, is_markdown, diff, counted_at')
+      .eq('branch_id', branch.id)
+      .gte('counted_at', since)
+      .not('gondola_code', 'is', null);
+    if (e1) throw e1;
+    
+    // 2. Get gap_scans (any status) - signals stock-out / replenish issues
+    const { data: gaps, error: e2 } = await sb.from('gap_scans')
+      .select('id, gondola_code, status, gap_qty, action_type, created_at')
+      .eq('branch_id', branch.id)
+      .gte('created_at', since)
+      .not('gondola_code', 'is', null);
+    if (e2) throw e2;
+    
+    // Aggregate per gondola
+    const perGondola = {}; // { gondola_code: { code, varianceCount, gapCount, markdownCount, totalCounts, lastIssue } }
+    
+    (counts || []).forEach(c => {
+      const g = c.gondola_code;
+      if (!perGondola[g]) perGondola[g] = { code: g, varianceCount: 0, gapCount: 0, markdownCount: 0, totalCounts: 0, gapPending: 0, lastIssue: null };
+      perGondola[g].totalCounts++;
+      if ((c.variance_level || 0) >= 2) {
+        perGondola[g].varianceCount++;
+        if (!perGondola[g].lastIssue || c.counted_at > perGondola[g].lastIssue) {
+          perGondola[g].lastIssue = c.counted_at;
+        }
+      }
+      if (c.is_markdown) perGondola[g].markdownCount++;
+    });
+    
+    (gaps || []).forEach(g => {
+      const code = g.gondola_code;
+      if (!perGondola[code]) perGondola[code] = { code, varianceCount: 0, gapCount: 0, markdownCount: 0, totalCounts: 0, gapPending: 0, lastIssue: null };
+      perGondola[code].gapCount++;
+      if (g.status === 'pending') perGondola[code].gapPending++;
+      if (!perGondola[code].lastIssue || g.created_at > perGondola[code].lastIssue) {
+        perGondola[code].lastIssue = g.created_at;
+      }
+    });
+    
+    // Compute issue score per gondola
+    const scored = Object.values(perGondola).map(g => {
+      // Issue Score = variance + (gap × 2) + markdown
+      // Higher = worse
+      g.issueScore = g.varianceCount + (g.gapCount * 2) + g.markdownCount;
+      // Health Grade
+      if (g.issueScore === 0) g.grade = 'A';
+      else if (g.issueScore <= 2) g.grade = 'B';
+      else if (g.issueScore <= 5) g.grade = 'C';
+      else if (g.issueScore <= 10) g.grade = 'D';
+      else g.grade = 'F';
+      return g;
+    });
+    
+    // Render summary cards
+    const totalGondolas = scored.length;
+    const healthy = scored.filter(g => g.grade === 'A').length;
+    const needAttention = scored.filter(g => ['D', 'F'].includes(g.grade)).length;
+    
+    const summary = document.getElementById('healthSummary');
+    if (summary) {
+      summary.innerHTML = `
+        <div style="background:linear-gradient(135deg,var(--violet-50),var(--sky-50));border:1px solid var(--violet-200);border-radius:9px;padding:11px;text-align:center;">
+          <div style="font-size:9px;color:var(--violet-700);font-weight:700;text-transform:uppercase;margin-bottom:3px;">${isLao ? 'ທັງໝົດ' : 'ทั้งหมด'}</div>
+          <div style="font-size:22px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;line-height:1;">${totalGondolas}</div>
+        </div>
+        <div style="background:linear-gradient(135deg,var(--emerald-50),var(--teal-50));border:1px solid var(--emerald-200);border-radius:9px;padding:11px;text-align:center;">
+          <div style="font-size:9px;color:var(--emerald-700);font-weight:700;text-transform:uppercase;margin-bottom:3px;">${isLao ? 'ດີ (A)' : 'ดี (A)'}</div>
+          <div style="font-size:22px;font-weight:800;color:var(--emerald-600);font-family:'Space Grotesk',monospace;line-height:1;">${healthy}</div>
+        </div>
+        <div style="background:linear-gradient(135deg,var(--rose-50),var(--amber-50));border:1px solid var(--rose-200);border-radius:9px;padding:11px;text-align:center;">
+          <div style="font-size:9px;color:var(--rose-700);font-weight:700;text-transform:uppercase;margin-bottom:3px;">${isLao ? 'ຕ້ອງດູແລ' : 'ต้องดูแล'}</div>
+          <div style="font-size:22px;font-weight:800;color:var(--rose-600);font-family:'Space Grotesk',monospace;line-height:1;">${needAttention}</div>
+        </div>
+      `;
+    }
+    
+    // Render worst list (sorted by issueScore desc, only show those with issues)
+    const worstList = document.getElementById('healthWorstList');
+    if (!worstList) return;
+    
+    const worst = scored.filter(g => g.issueScore > 0).sort((a, b) => b.issueScore - a.issueScore);
+    
+    if (worst.length === 0) {
+      worstList.innerHTML = `
+        <div style="text-align:center;padding:21px;color:var(--emerald-600);">
+          <div style="font-size:36px;margin-bottom:7px;">🎉</div>
+          <div style="font-weight:800;font-size:13px;">${isLao ? 'ບໍ່ມີ Gondola ບັນຫາ!' : 'ไม่มี Gondola ที่มีปัญหา!'}</div>
+          <div style="font-size:11px;color:var(--slate-500);margin-top:3px;">${isLao ? 'ທຸກຊັ້ນ Grade A' : 'ทุกชั้น Grade A'}</div>
+        </div>
+      `;
+      return;
+    }
+    
+    let html = '';
+    worst.slice(0, 20).forEach((g, idx) => {
+      const gradeColors = { A: 'var(--emerald-500)', B: 'var(--teal-500)', C: 'var(--amber-500)', D: 'var(--orange-500)', F: 'var(--rose-500)' };
+      const gradeColor = gradeColors[g.grade] || 'var(--slate-500)';
+      
+      const lastIssueText = g.lastIssue 
+        ? getTimeAgo(g.lastIssue, isLao)
+        : (isLao ? 'ບໍ່ມີ' : 'ไม่มี');
+      
+      html += `
+        <div style="display:flex;align-items:center;gap:9px;padding:9px;border-bottom:1px solid var(--slate-100);cursor:pointer;" 
+             onclick="onHealthGondolaClick('${g.code}')">
+          <div style="width:36px;height:36px;border-radius:9px;background:${gradeColor};color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;font-family:'Space Grotesk',monospace;flex-shrink:0;">
+            ${g.grade}
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:800;color:var(--slate-900);font-family:'Space Grotesk',monospace;">
+              📍 ${g.code}
+            </div>
+            <div style="font-size:9px;color:var(--slate-500);margin-top:2px;">
+              ${g.varianceCount > 0 ? `<span style="color:var(--amber-600);font-weight:700;">⚠️ ${g.varianceCount} ${isLao ? 'ຄ້ັງຄາດເຄື່ອນ' : 'ครั้งคลาดเคลื่อน'}</span>` : ''}
+              ${g.varianceCount > 0 && g.gapCount > 0 ? ' · ' : ''}
+              ${g.gapCount > 0 ? `<span style="color:var(--rose-600);font-weight:700;">🛒 ${g.gapCount} gap${g.gapPending > 0 ? ` (${g.gapPending} ${isLao ? 'ຄ້າງ' : 'ค้าง'})` : ''}</span>` : ''}
+              ${g.markdownCount > 0 ? ` · <span style="color:var(--violet-600);font-weight:700;">🏷 ${g.markdownCount} ${isLao ? 'ມາກດາວ' : 'มาร์กดาวน์'}</span>` : ''}
+            </div>
+            <div style="font-size:9px;color:var(--slate-400);margin-top:2px;">
+              ${isLao ? 'ບັນຫາຫຼ້າສຸດ' : 'ล่าสุด'}: ${lastIssueText}
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            <div style="font-size:18px;font-weight:800;color:${gradeColor};font-family:'Space Grotesk',monospace;line-height:1;">${g.issueScore}</div>
+            <div style="font-size:9px;color:var(--slate-400);">${isLao ? 'ຄະແນນ' : 'ปัญหา'}</div>
+          </div>
+        </div>
+      `;
+    });
+    worstList.innerHTML = html;
+  } catch (e) {
+    console.error('[FS] loadHealth error:', e);
+    const errMsg = (isLao ? 'ຜິດພາດ' : 'เกิดข้อผิดพลาด') + ': ' + (e.message || e);
+    const worstList = document.getElementById('healthWorstList');
+    if (worstList) worstList.innerHTML = `<div class="empty-state"><p>${errMsg}</p></div>`;
+  }
+}
+
+/**
+ * Navigate to floor map highlighting clicked gondola
+ */
+function onHealthGondolaClick(gondolaCode) {
+  // Navigate to floor map with this gondola pre-selected
+  goPage('floormap');
+  // Future: highlight gondola on floor map
+  setTimeout(() => {
+    showToast((lang === 'lo' ? '📍 ' : '📍 ') + gondolaCode, 'info');
+  }, 500);
+}
+// ==================== END GONDOLA HEALTH ====================
 
 // ==================== USERS ====================
 function renderUsersPage() {
@@ -19226,6 +19797,7 @@ window.saveStockLevels = saveStockLevels;
 window.cancelClonePrompt = cancelClonePrompt;
 window.confirmCloneFromOther = confirmCloneFromOther;
 window.adjustCount = adjustCount;
+window.setCountValue = setCountValue;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
 window.startTiebreaker = startTiebreaker;
@@ -19292,6 +19864,14 @@ window.onPosFileSelected = onPosFileSelected;
 window.showImportPreview = showImportPreview;
 window.executeImport = executeImport;
 window.showSnapshotHistory = showSnapshotHistory;
+// Feature 3A: Counter Performance Dashboard
+window.renderPerformancePage = renderPerformancePage;
+window.loadPerformance = loadPerformance;
+window.setPerfScope = setPerfScope;
+// Feature 3B: Gondola Health Score
+window.renderHealthPage = renderHealthPage;
+window.loadHealth = loadHealth;
+window.onHealthGondolaClick = onHealthGondolaClick;
 
 document.addEventListener('keydown', e => {
   if (e.target.id === 'password' && e.key === 'Enter') login();
