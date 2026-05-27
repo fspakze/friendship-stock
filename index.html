@@ -7113,7 +7113,14 @@ async function startScan() {
     scanLog('Scanned: ' + decoded, 'ok');
     beep();
     stopScan(); 
-    lookupProduct(decoded); 
+    // ⭐ ใช้ custom callback ถ้ามี (เช่น จาก Stock Check) ก่อน default lookupProduct
+    if (typeof window._scanCallback === 'function') {
+      const cb = window._scanCallback;
+      window._scanCallback = null; // clear ทันทีเพื่อไม่ให้ค้าง
+      cb(decoded);
+    } else {
+      lookupProduct(decoded); 
+    }
   };
   
   // วิธีที่ 1: facingMode + minimal config
@@ -7250,6 +7257,8 @@ async function stopScan() {
     try { await html5QrCode.stop(); } catch(e) {}
     html5QrCode = null;
   }
+  // Clear pending custom callback (ถ้า user กด stop ก่อน scan)
+  window._scanCallback = null;
   const ph = document.getElementById('scanPlaceholder');
   if (ph) {
     ph.style.display = 'block';
