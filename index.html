@@ -7123,12 +7123,15 @@ async function startScan() {
     }
   };
   
-  // วิธีที่ 1: facingMode + minimal config
+  // วิธีที่ 1: facingMode + full config (formats + iOS BarcodeDetector off)
   try {
     scanLog('Attempt 1: facingMode environment');
+    const cfg1 = getScannerConfig();
+    // ใช้ facingMode แทน device id
+    delete cfg1.videoConstraints;
     await html5QrCode.start(
       { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 280, height: 160 } },
+      cfg1,
       onScanSuccess,
       () => {}
     );
@@ -7142,7 +7145,7 @@ async function startScan() {
     try { html5QrCode.clear(); } catch(_) {}
     html5QrCode = new Html5Qrcode("reader", { verbose: false });
     
-    // วิธีที่ 2: enumerate cameras
+    // วิธีที่ 2: enumerate cameras + full config
     try {
       scanLog('Attempt 2: enumerating cameras');
       const devices = await Html5Qrcode.getCameras();
@@ -7156,9 +7159,11 @@ async function startScan() {
       if (!cam) cam = devices[devices.length - 1];
       scanLog('Using camera: ' + (cam.label || cam.id.substring(0, 20)));
       
+      const cfg2 = getScannerConfig();
+      delete cfg2.videoConstraints; // ใช้ device id ตรงๆ
       await html5QrCode.start(
         cam.id,
-        { fps: 10, qrbox: { width: 280, height: 160 } },
+        cfg2,
         onScanSuccess,
         () => {}
       );
@@ -7172,7 +7177,7 @@ async function startScan() {
       try { html5QrCode.clear(); } catch(_) {}
       html5QrCode = new Html5Qrcode("reader", { verbose: false });
       
-      // วิธีที่ 3: direct getUserMedia test + retry
+      // วิธีที่ 3: direct getUserMedia test + retry + full config
       try {
         scanLog('Attempt 3: direct getUserMedia test');
         const testStream = await navigator.mediaDevices.getUserMedia({ 
@@ -7182,9 +7187,11 @@ async function startScan() {
         testStream.getTracks().forEach(t => t.stop());
         await new Promise(r => setTimeout(r, 500));
         
+        const cfg3 = getScannerConfig();
+        delete cfg3.videoConstraints;
         await html5QrCode.start(
           { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 280, height: 160 } },
+          cfg3,
           onScanSuccess,
           () => {}
         );
