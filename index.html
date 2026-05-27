@@ -6226,6 +6226,11 @@ function renderStockCheckPage() {
     </div>
     
     <div id="scResultCard"></div>
+    
+    <!-- 🐛 Debug toggle (มุมล่างขวา) -->
+    <button onclick="FSDebug.toggle()" 
+            style="position:fixed;bottom:78px;right:10px;width:40px;height:40px;border-radius:50%;background:rgba(15,23,42,0.85);color:#0ff;border:1px solid #0ff;font-size:18px;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;font-family:monospace;"
+            title="Toggle Debug Overlay">🐛</button>
   `;
 }
 
@@ -6890,10 +6895,90 @@ function renderScanPage() {
         ${T('add_new_sku')}
       </button>
     </div>
+    
+    <!-- 🐛 Debug toggle (มุมล่างขวา — มีไว้เปิด log overlay บน iPhone) -->
+    <button onclick="FSDebug.toggle()" 
+            style="position:fixed;bottom:78px;right:10px;width:40px;height:40px;border-radius:50%;background:rgba(15,23,42,0.85);color:#0ff;border:1px solid #0ff;font-size:18px;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;font-family:monospace;"
+            title="Toggle Debug Overlay">🐛</button>
   `;
 }
 
 // ==================== SCANNER HELPERS (iOS-friendly) ====================
+
+// 🐛 Debug Overlay System — แสดง logs บนหน้าจอ iPhone (ไม่ต้องเชื่อม Mac)
+const FSDebug = {
+  enabled: false,
+  logs: [],
+  maxLogs: 50,
+  
+  init() {
+    // อ่านสถานะจาก localStorage
+    try { this.enabled = localStorage.getItem('fs_debug') === '1'; } catch (e) {}
+    if (this.enabled) this.show();
+  },
+  
+  log(msg, level = 'info') {
+    const ts = new Date().toLocaleTimeString('en-GB', { hour12: false }).slice(3); // MM:SS only
+    const entry = { ts, msg, level };
+    this.logs.push(entry);
+    if (this.logs.length > this.maxLogs) this.logs.shift();
+    if (this.enabled) this.render();
+    // ส่งเข้า console ด้วย
+    console.log(`[FSDebug ${ts}] ${msg}`);
+  },
+  
+  toggle() {
+    this.enabled = !this.enabled;
+    try { localStorage.setItem('fs_debug', this.enabled ? '1' : '0'); } catch (e) {}
+    if (this.enabled) this.show(); else this.hide();
+    return this.enabled;
+  },
+  
+  clear() {
+    this.logs = [];
+    this.render();
+  },
+  
+  show() {
+    let panel = document.getElementById('fsDebugPanel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'fsDebugPanel';
+      panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:35vh;background:rgba(0,0,0,0.92);color:#0f0;font-family:monospace;font-size:10px;padding:5px 8px;overflow-y:auto;z-index:99999;border-top:2px solid #0f0;line-height:1.35;';
+      document.body.appendChild(panel);
+    }
+    this.render();
+  },
+  
+  hide() {
+    const panel = document.getElementById('fsDebugPanel');
+    if (panel) panel.remove();
+  },
+  
+  render() {
+    const panel = document.getElementById('fsDebugPanel');
+    if (!panel) return;
+    const colors = { info: '#0f0', warn: '#fc0', error: '#f44', ok: '#0ff' };
+    const header = `
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #333;padding-bottom:3px;margin-bottom:4px;position:sticky;top:0;background:rgba(0,0,0,0.92);">
+        <span style="color:#0ff;font-weight:bold;">🐛 FS Debug (${this.logs.length})</span>
+        <span>
+          <button onclick="FSDebug.clear()" style="background:#333;color:#fc0;border:1px solid #555;font-size:9px;padding:2px 6px;margin-right:3px;cursor:pointer;">CLR</button>
+          <button onclick="FSDebug.toggle()" style="background:#333;color:#f44;border:1px solid #555;font-size:9px;padding:2px 6px;cursor:pointer;">✕</button>
+        </span>
+      </div>
+    `;
+    const body = this.logs.slice(-this.maxLogs).map(e => 
+      `<div style="color:${colors[e.level] || '#0f0'};"><span style="color:#888;">${e.ts}</span> ${e.msg}</div>`
+    ).join('');
+    panel.innerHTML = header + body;
+    panel.scrollTop = panel.scrollHeight;
+  }
+};
+
+// Init on script load
+try { FSDebug.init(); } catch (e) {}
+window.FSDebug = FSDebug;
 
 // Detect ว่ารันใน PWA mode (Add to Home Screen / Installed) หรือเปล่า
 function isPWAMode() {
@@ -7019,36 +7104,49 @@ function getScannerConfig() {
     Html5QrcodeSupportedFormats.DATA_MATRIX
   ] : undefined;
   
-  // qrbox แบบ dynamic
+  // 🍎 iOS: qrbox ใหญ่ขึ้น 95% × 65% (1D barcode ต้องการพื้นที่กว้าง)
+  // 🤖 Android/Desktop: 85% × 45% (เดิม)
   const qrboxFunc = (vw, vh) => {
     const minEdge = Math.min(vw, vh);
-    const w = Math.floor(minEdge * 0.85);
-    const h = Math.floor(w * 0.45);
+    const wRatio = isIOS ? 0.95 : 0.85;
+    const hRatio = isIOS ? 0.65 : 0.45;
+    const w = Math.floor(minEdge * wRatio);
+    const h = Math.floor(w * hRatio);
     return { width: w, height: h };
   };
   
-  // Resolution ที่ปลอดภัยต่อทุก device
-  // Android หลายรุ่นไม่ support 1920x1080 ทำให้จอดำ — ใช้ 1280x720 max
-  // ถอด min ออกเพื่อให้ browser เลือกความละเอียดที่ device ทำได้
-  const videoConstraints = {
-    facingMode: "environment",  // ไม่ใช้ ideal/exact — ใช้ string ตรงๆ ปลอดภัยกว่า
+  // 🍎 iOS: resolution ต่ำลง (decode เร็วขึ้น, ลด lag)
+  // 🤖 Android: 1280×720 (เดิม)
+  const videoConstraints = isIOS ? {
+    facingMode: "environment",
+    width: { ideal: 640 },
+    height: { ideal: 480 }
+  } : {
+    facingMode: "environment",
     width: { ideal: 1280 },
     height: { ideal: 720 }
   };
   
-  return {
-    fps: 10,                                        // ลง fps จาก 15→10 ปลอดภัยทุก device
+  const config = {
+    fps: isIOS ? 5 : 10,                           // 🍎 iOS: 5 (decode ช้า), 🤖 Android: 10
     qrbox: qrboxFunc,
-    aspectRatio: 1.333,
-    disableFlip: false,
+    // ❌ ไม่ใส่ aspectRatio บน iOS (ปล่อย browser ตัดสินใจ ป้องกัน crop ผิด)
+    disableFlip: isIOS ? true : false,             // 🍎 iOS: ไม่ flip (1D barcode ไม่ต้อง flip)
     formatsToSupport: formats,
     rememberLastUsedCamera: true,
-    // BarcodeDetector API — เปิดให้ Android ใช้ (ทำงานเร็ว) ปิดให้ iOS (buggy)
+    // BarcodeDetector API — เปิด Android, ปิด iOS (buggy)
     experimentalFeatures: {
       useBarCodeDetectorIfSupported: !isIOS
     },
     videoConstraints: videoConstraints
   };
+  
+  // Android/Desktop: ใส่ aspectRatio (เดิม)
+  if (!isIOS) {
+    config.aspectRatio = 1.333;
+  }
+  
+  return config;
 }
 
 // แก้ video element ให้ทำงานได้ทุก device (iOS + Android)
@@ -7169,10 +7267,11 @@ function getCameraErrorMessage(err) {
 }
 
 async function startScan() {
-  // Helper: log ไป console เพื่อ debug (ถ้าต้องการดู เปิด DevTools)
+  // Helper: log ไป console + FSDebug overlay
   const scanLog = (msg, level = 'info') => {
     const prefix = { info: '·', warn: '⚠', error: '✗', ok: '✓' };
     console.log(`[FS Scan] ${prefix[level] || ''} ${msg}`);
+    if (typeof FSDebug !== 'undefined') FSDebug.log(msg, level);
   };
   
   scanLog('=== Scan started ===', 'ok');
@@ -7246,6 +7345,9 @@ async function startScan() {
   try {
     scanLog('Attempt 1: facingMode environment');
     const cfg1 = getScannerConfig();
+    // Log config keys สำคัญ
+    scanLog(`Cfg: fps=${cfg1.fps} flip=${cfg1.disableFlip} iOSmode=${cfg1.disableFlip}`);
+    scanLog(`Formats: ${cfg1.formatsToSupport ? cfg1.formatsToSupport.length : 'undef'}`);
     // ใช้ facingMode แทน device id
     delete cfg1.videoConstraints;
     await html5QrCode.start(
@@ -7255,6 +7357,11 @@ async function startScan() {
       () => {}
     );
     scanLog('SUCCESS (Attempt 1)', 'ok');
+    // log video element dimensions หลัง start
+    setTimeout(() => {
+      const v = document.querySelector('#reader video');
+      if (v) scanLog(`Video: ${v.videoWidth}x${v.videoHeight}, ready=${v.readyState}`, 'ok');
+    }, 1500);
     fixVideoElement('reader');
     return;
   } catch (e1) {
