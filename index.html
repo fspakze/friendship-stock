@@ -1870,6 +1870,16 @@ const I18N = {
     sc_other_branches: 'ສາຂາອື່ນ',
     sc_no_other_data: 'ບໍ່ມີຂໍ້ມູນຈາກສາຂາອື່ນ',
     sc_close: 'ປິດ',
+    // Session 5: PanoGram จากเช็คสต๊อก
+    sc_set_pog: 'ກຳນົດຕຳແໜ່ງ PanoGram',
+    sc_edit_pog: 'ແກ້ໄຂ PanoGram',
+    sc_pog_modal_title: 'ກຳນົດຕຳແໜ່ງສິນຄ້າ',
+    sc_pog_modal_subtitle: 'ເລືອກຕຳແໜ່ງໃນສາຂາ',
+    sc_pog_current: 'ປະຈຸບັນ',
+    sc_pog_search_ph: 'ຄົ້ນຫາຕຳແໜ່ງ...',
+    sc_pog_save: 'ບັນທຶກ',
+    sc_pog_saved: 'ບັນທຶກຕຳແໜ່ງແລ້ວ',
+    sc_pog_no_loc: 'ບໍ່ມີຕຳແໜ່ງໃນສາຂາ',
     // Gap Scan - Purchase Request (สินค้าไม่มีใน POS)
     gp_not_in_pos_title: 'ສິນຄ້ານີ້ບໍ່ມີໃນ POS',
     gp_not_in_pos_hint: 'ສິນຄ້ານີ້ບໍ່ໄດ້ນຳເຂົ້າລະບົບ POS — ສາມາດສົ່ງໃຫ້ຈັດຊື້ສັ່ງມາໄດ້',
@@ -2177,6 +2187,16 @@ const I18N = {
     sc_other_branches: 'สาขาอื่น',
     sc_no_other_data: 'ไม่มีข้อมูลจากสาขาอื่น',
     sc_close: 'ปิด',
+    // Session 5: PanoGram จากเช็คสต๊อก
+    sc_set_pog: 'ระบุตำแหน่ง PanoGram',
+    sc_edit_pog: 'แก้ไข PanoGram',
+    sc_pog_modal_title: 'ระบุตำแหน่งสินค้า',
+    sc_pog_modal_subtitle: 'เลือกตำแหน่งในสาขา',
+    sc_pog_current: 'ปัจจุบัน',
+    sc_pog_search_ph: 'ค้นหาตำแหน่ง...',
+    sc_pog_save: 'บันทึก',
+    sc_pog_saved: 'บันทึกตำแหน่งแล้ว',
+    sc_pog_no_loc: 'ไม่มีตำแหน่งในสาขา',
     // Gap Scan - Purchase Request (สินค้าไม่มีใน POS)
     gp_not_in_pos_title: 'สินค้านี้ไม่มีใน POS',
     gp_not_in_pos_hint: 'สินค้านี้ไม่ได้นำเข้าระบบ POS — สามารถส่งให้จัดซื้อสั่งมาได้',
@@ -4099,6 +4119,7 @@ const MENU_CONFIG = {
   staff: {
     bottomTabs: ['stockcheck', 'scan', 'gapscan', 'history'],
     drawerGroups: [
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
@@ -4117,7 +4138,7 @@ const MENU_CONFIG = {
   ctl: {
     bottomTabs: ['stockcheck', 'floormap', 'tiebreaker', 'workflow'],
     drawerGroups: [
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['issuereport'] },
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport', 'issuereport'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
@@ -5798,6 +5819,105 @@ async function bulkResolveGaps(newStatus) {
   }
 }
 
+// ==================== EDIT / DELETE GAP SCAN ====================
+// Session 5: ลบ/แก้ gap_scans
+// - admin/scc/bcs/ctl: ลบ/แก้ได้ทุกสถานะ
+// - counter (อื่นๆ): ลบ/แก้ได้เฉพาะของตัวเอง + status='pending'
+// - ลบ = UPDATE status='cancelled' (soft delete)
+// - แก้ = gap_qty + note
+
+function canModifyGap(gap) {
+  if (!user || !gap) return false;
+  const isManager = ['admin', 'scc', 'bcs', 'ctl'].includes(user.role);
+  if (isManager) return true; // manager ทำได้ทุกสถานะ
+  // Counter: เฉพาะของตัวเอง + pending
+  return gap.user_id === user.id && gap.status === 'pending';
+}
+
+async function editGapScan(gapId, event) {
+  if (event) event.stopPropagation();
+  const isLao = lang === 'lo';
+  
+  const gap = _gapReportData.find(g => g.id === gapId);
+  if (!gap) return;
+  if (!canModifyGap(gap)) {
+    showToast(isLao ? 'ບໍ່ມີສິດແກ້ໄຂ' : 'ไม่มีสิทธิ์แก้ไข', 'error');
+    return;
+  }
+  
+  const name = isLao ? (gap.products?.name_lo || gap.product_name) : (gap.products?.name_th || gap.product_name);
+  const unit = isLao ? (gap.products?.unit_lo || 'ຊິ້ນ') : (gap.products?.unit_th || 'ชิ้น');
+  
+  // Prompt 1: gap_qty
+  const newQtyStr = prompt(
+    `${isLao ? 'ແກ້ໄຂຈຳນວນ' : 'แก้ไขจำนวน'} (${unit})\n${name}\n${gap.barcode}`,
+    String(gap.gap_qty || 0)
+  );
+  if (newQtyStr === null) return; // cancelled
+  const newQty = parseInt(newQtyStr, 10);
+  if (isNaN(newQty) || newQty < 0) {
+    showToast(isLao ? 'ຈຳນວນບໍ່ຖືກຕ້ອງ' : 'จำนวนไม่ถูกต้อง', 'error');
+    return;
+  }
+  
+  // Prompt 2: note
+  const newNote = prompt(
+    `${isLao ? 'ໝາຍເຫດ (ບໍ່ບັງຄັບ)' : 'หมายเหตุ (ไม่บังคับ)'}`,
+    gap.note || ''
+  );
+  if (newNote === null) return; // cancelled
+  
+  // Update
+  const payload = {
+    gap_qty: newQty,
+    note: newNote.trim() || null
+  };
+  
+  const { error } = await sb.from('gap_scans').update(payload).eq('id', gapId);
+  if (error) {
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  
+  showToast('✅ ' + (isLao ? 'ບັນທຶກແລ້ວ' : 'บันทึกแล้ว'), 'success');
+  loadGapReport();
+}
+
+async function deleteGapScan(gapId, event) {
+  if (event) event.stopPropagation();
+  const isLao = lang === 'lo';
+  
+  const gap = _gapReportData.find(g => g.id === gapId);
+  if (!gap) return;
+  if (!canModifyGap(gap)) {
+    showToast(isLao ? 'ບໍ່ມີສິດລົບ' : 'ไม่มีสิทธิ์ลบ', 'error');
+    return;
+  }
+  
+  const name = isLao ? (gap.products?.name_lo || gap.product_name) : (gap.products?.name_th || gap.product_name);
+  const confirmMsg = isLao
+    ? `ຍົກເລີກລາຍການນີ້?\n${name}\n${gap.barcode}\nຈຳນວນ: ${gap.gap_qty}`
+    : `ยกเลิกรายการนี้?\n${name}\n${gap.barcode}\nจำนวน: ${gap.gap_qty}`;
+  if (!confirm(confirmMsg)) return;
+  
+  // Soft delete: status='cancelled' + clear workflow_stage
+  const payload = {
+    status: 'cancelled',
+    resolved_at: new Date().toISOString(),
+    resolved_by: user.id,
+    workflow_stage: 'closed'
+  };
+  
+  const { error } = await sb.from('gap_scans').update(payload).eq('id', gapId);
+  if (error) {
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  
+  showToast('✅ ' + (isLao ? 'ຍົກເລີກແລ້ວ' : 'ยกเลิกแล้ว'), 'success');
+  loadGapReport();
+}
+
 // ==================== SINGLE RESOLVE ====================
 async function resolveSingleGap(gapId, newStatus, event) {
   if (event) event.stopPropagation();
@@ -6064,13 +6184,28 @@ function renderGapReportList() {
                     style="background:var(--emerald-500);color:white;border:none;border-radius:5px;width:32px;height:26px;font-size:13px;cursor:pointer;">
               ✓
             </button>
-            <button onclick="resolveSingleGap(${g.id}, 'cancelled', event)" 
-                    title="${isLao ? 'ຍົກເລີກ' : 'ยกเลิก'}"
-                    style="background:var(--slate-300);color:white;border:none;border-radius:5px;width:32px;height:26px;font-size:13px;cursor:pointer;">
-              ✕
+            ${canModifyGap(g) ? `
+            <button onclick="editGapScan(${g.id}, event)" 
+                    title="${isLao ? 'ແກ້ໄຂ' : 'แก้ไข'}"
+                    style="background:var(--sky-500);color:white;border:none;border-radius:5px;width:32px;height:26px;font-size:11px;cursor:pointer;">
+              ✏️
+            </button>
+            <button onclick="deleteGapScan(${g.id}, event)" 
+                    title="${isLao ? 'ລົບ' : 'ลบ'}"
+                    style="background:var(--rose-500);color:white;border:none;border-radius:5px;width:32px;height:26px;font-size:11px;cursor:pointer;">
+              🗑️
+            </button>
+            ` : ''}
+          </div>
+        ` : (canModifyGap(g) ? `
+          <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;">
+            <button onclick="editGapScan(${g.id}, event)" 
+                    title="${isLao ? 'ແກ້ໄຂ' : 'แก้ไข'}"
+                    style="background:var(--sky-500);color:white;border:none;border-radius:5px;width:32px;height:26px;font-size:11px;cursor:pointer;">
+              ✏️
             </button>
           </div>
-        ` : ''}
+        ` : '')}
       </div>
     `;
   });
@@ -6367,12 +6502,169 @@ function renderStockCheckResult(prod, pog, lastCount) {
         🏪 ${T('sc_view_other_branches')}
       </button>
       
+      <button onclick="scOpenPogPicker()" style="width:100%;background:linear-gradient(135deg,var(--violet-500),var(--violet-600));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:7px;display:flex;align-items:center;justify-content:center;gap:7px;">
+        ${pog?.location_code ? `✏️ ${T('sc_edit_pog')}` : `📍 ${T('sc_set_pog')}`}
+      </button>
+      
       <button onclick="scOpenIssueModal()" style="width:100%;background:linear-gradient(135deg,var(--rose-500),var(--amber-500));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:7px;display:flex;align-items:center;justify-content:center;gap:7px;">
         🚨 ${T('sc_report_issue')}
       </button>
     </div>
   `;
 }
+
+// ==================== SESSION 5: PANOGRAM PICKER (from Stock Check) ====================
+// เปิด modal เลือก location_code → save เข้า pan_o_grams
+// ทำงานทั้ง insert (สินค้าใหม่) + update (แก้ไข)
+
+let _scCurrentPogCode = null; // location_code ปัจจุบันของสินค้าที่กำลังเช็ค
+
+async function scOpenPogPicker() {
+  if (!_scCurrentProduct) return;
+  const isLao = lang === 'lo';
+  
+  // Load PanoGram ปัจจุบัน + locations ของสาขา (parallel)
+  const [pogRes, locRes] = await Promise.all([
+    sb.from('pan_o_grams')
+      .select('location_code')
+      .eq('product_id', _scCurrentProduct.id)
+      .eq('branch_id', branch.id)
+      .limit(1)
+      .maybeSingle(),
+    sb.from('location_master')
+      .select('location_code, description')
+      .eq('branch_id', branch.id)
+      .eq('is_active', true)
+      .order('location_code')
+  ]);
+  
+  _scCurrentPogCode = pogRes?.data?.location_code || null;
+  const locations = locRes?.data || [];
+  
+  if (locations.length === 0) {
+    showToast(T('sc_pog_no_loc'), 'error');
+    return;
+  }
+  
+  const name = isLao 
+    ? (_scCurrentProduct.name_lo || _scCurrentProduct.name_th) 
+    : (_scCurrentProduct.name_th || _scCurrentProduct.name_lo);
+  
+  // Build location chips (grouped naturally by sort)
+  const chipsHtml = locations.map(l => {
+    const isCurrent = l.location_code === _scCurrentPogCode;
+    return `
+      <button class="sc-pog-chip" data-code="${l.location_code}" 
+              data-search="${(l.location_code + ' ' + (l.description || '')).toLowerCase()}"
+              onclick="scSelectPogCode('${l.location_code.replace(/'/g, "\\'")}')"
+              style="background:${isCurrent ? 'var(--violet-500)' : 'var(--slate-100)'};color:${isCurrent ? 'white' : 'var(--slate-700)'};border:none;border-radius:7px;padding:9px 11px;font-size:12px;font-weight:700;font-family:'Space Grotesk',monospace;cursor:pointer;transition:all 0.15s;">
+        ${l.location_code}
+      </button>
+    `;
+  }).join('');
+  
+  const modal = document.createElement('div');
+  modal.id = 'scPogModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center;padding:0;';
+  modal.innerHTML = `
+    <div style="background:white;width:100%;max-width:500px;border-radius:15px 15px 0 0;padding:18px;max-height:85vh;display:flex;flex-direction:column;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px;flex-shrink:0;">
+        <div>
+          <h3 style="margin:0;font-size:15px;font-weight:800;color:var(--slate-800);">📍 ${T('sc_pog_modal_title')}</h3>
+          <div style="font-size:11px;color:var(--slate-500);margin-top:3px;">${name}</div>
+          <div style="font-size:10px;color:var(--slate-400);font-family:monospace;">${_scCurrentProduct.barcode}</div>
+        </div>
+        <button onclick="scClosePogPicker()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--slate-500);line-height:1;padding:0 4px;">×</button>
+      </div>
+      
+      ${_scCurrentPogCode ? `
+        <div style="background:var(--amber-50);border:1px solid var(--amber-300);border-radius:7px;padding:8px 11px;margin-bottom:9px;font-size:11px;color:var(--amber-800);">
+          ${T('sc_pog_current')}: <strong style="font-family:'Space Grotesk',monospace;font-size:13px;">${_scCurrentPogCode}</strong>
+        </div>
+      ` : ''}
+      
+      <input type="text" id="scPogSearch" placeholder="🔍 ${T('sc_pog_search_ph')}" 
+             oninput="scFilterPogChips(this.value)"
+             style="width:100%;padding:11px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;margin-bottom:9px;flex-shrink:0;">
+      
+      <div id="scPogChips" style="flex:1;overflow-y:auto;display:flex;flex-wrap:wrap;gap:6px;padding-bottom:5px;">
+        ${chipsHtml}
+      </div>
+      
+      <button onclick="scClosePogPicker()" style="width:100%;background:var(--slate-100);color:var(--slate-700);border:none;padding:11px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;margin-top:11px;flex-shrink:0;">
+        ${T('sc_close')}
+      </button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function scFilterPogChips(query) {
+  const q = (query || '').toLowerCase().trim();
+  const chips = document.querySelectorAll('#scPogChips .sc-pog-chip');
+  chips.forEach(chip => {
+    const search = chip.getAttribute('data-search') || '';
+    chip.style.display = (!q || search.includes(q)) ? '' : 'none';
+  });
+}
+
+async function scSelectPogCode(locCode) {
+  if (!_scCurrentProduct || !locCode) return;
+  if (locCode === _scCurrentPogCode) {
+    scClosePogPicker();
+    return;
+  }
+  
+  const isLao = lang === 'lo';
+  
+  // Confirm change if updating existing
+  if (_scCurrentPogCode) {
+    const msg = isLao
+      ? `ປ່ຽນຕຳແໜ່ງຈາກ ${_scCurrentPogCode} → ${locCode}?`
+      : `เปลี่ยนตำแหน่งจาก ${_scCurrentPogCode} → ${locCode}?`;
+    if (!confirm(msg)) return;
+  }
+  
+  // Upsert into pan_o_grams (delete + insert pattern, ปลอดภัยกว่า)
+  // 1. ลบ row เก่า (ถ้ามี)
+  if (_scCurrentPogCode) {
+    await sb.from('pan_o_grams')
+      .delete()
+      .eq('product_id', _scCurrentProduct.id)
+      .eq('branch_id', branch.id);
+  }
+  
+  // 2. Insert ใหม่
+  const payload = {
+    product_id: _scCurrentProduct.id,
+    branch_id: branch.id,
+    location_code: locCode,
+    gondola_code: locCode,  // เก็บ location เต็มเป็น gondola_code ด้วย (ตาม pattern เดิม)
+    created_by: user.id
+  };
+  
+  const { error } = await sb.from('pan_o_grams').insert(payload);
+  if (error) {
+    showToast('Error: ' + error.message, 'error');
+    return;
+  }
+  
+  showToast('✅ ' + T('sc_pog_saved'), 'success');
+  scClosePogPicker();
+  
+  // Refresh stock check result
+  if (typeof scLookup === 'function') {
+    scLookup();
+  }
+}
+
+function scClosePogPicker() {
+  const m = document.getElementById('scPogModal');
+  if (m) m.remove();
+  _scCurrentPogCode = null;
+}
+
+// ==================== END SESSION 5 PANOGRAM PICKER ====================
 
 function scOpenIssueModal() {
   if (!_scCurrentProduct) return;
@@ -21011,6 +21303,10 @@ window.updateGapBulkBar = updateGapBulkBar;
 window.bulkResolveGaps = bulkResolveGaps;
 window.resolveSingleGap = resolveSingleGap;
 window.selectAllGaps = selectAllGaps;
+// Session 5: ลบ/แก้ gap_scans
+window.editGapScan = editGapScan;
+window.deleteGapScan = deleteGapScan;
+window.canModifyGap = canModifyGap;
 // Phase B (2026-05-27): workflow stage actions
 window.assignGapToMe = assignGapToMe;
 window.startGapWork = startGapWork;
