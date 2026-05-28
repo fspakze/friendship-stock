@@ -7478,12 +7478,12 @@ function getScannerConfig() {
     return { width: w, height: h };
   };
   
-  // 🍎 iOS Balanced: resolution สูงขึ้น (1280×960) เพื่อ decode barcode เร็ว
+  // 🍎 iOS Optimized: resolution 960×720 (เบากว่า, decode เร็ว, focus ดีขึ้น)
   // 🤖 Android: 1280×720 (เดิม)
   const videoConstraints = isIOS ? {
     facingMode: "environment",
-    width: { ideal: 1280 },
-    height: { ideal: 960 }
+    width: { ideal: 960 },
+    height: { ideal: 720 }
   } : {
     facingMode: "environment",
     width: { ideal: 1280 },
@@ -7517,6 +7517,19 @@ function fixVideoElement(containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
   
+  // 🍎 Session 5: ตรวจสอบ Native BarcodeDetector + apply resolution + tap-to-focus
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  
+  // A. Native BarcodeDetector — log ว่ารองรับไหม (library auto-use ถ้ามี)
+  if (isIOS && typeof FSDebug !== 'undefined') {
+    if ('BarcodeDetector' in window) {
+      FSDebug.log('Native BarcodeDetector: AVAILABLE ✓', 'ok');
+    } else {
+      FSDebug.log('Native BarcodeDetector: NOT available (using JS fallback)', 'warn');
+    }
+  }
+  
   const applyFix = () => {
     const videos = container.querySelectorAll('video');
     videos.forEach(v => {
@@ -7541,6 +7554,90 @@ function fixVideoElement(containerId) {
           console.warn('[FS] video.play() failed:', err.message);
         });
       }
+      
+      // 🍎 C. iOS: apply continuous focus + exposure constraints หลัง start
+      //     (passing ใน config ไม่ work เพราะ startScan delete videoConstraints)
+      if (isIOS && v.srcObject && !v._fsConstraintsApplied) {
+        v._fsConstraintsApplied = true; // กัน double-apply
+        try {
+          const tracks = v.srcObject.getVideoTracks();
+          if (tracks && tracks[0]) {
+            const track = tracks[0];
+            const caps = track.getCapabilities ? track.getCapabilities() : {};
+            const advanced = [];
+            if (caps.focusMode && caps.focusMode.includes('continuous')) {
+              advanced.push({ focusMode: 'continuous' });
+            }
+            if (caps.exposureMode && caps.exposureMode.includes('continuous')) {
+              advanced.push({ exposureMode: 'continuous' });
+            }
+            if (caps.whiteBalanceMode && caps.whiteBalanceMode.includes('continuous')) {
+              advanced.push({ whiteBalanceMode: 'continuous' });
+            }
+            if (advanced.length > 0) {
+              track.applyConstraints({ advanced }).then(() => {
+                if (typeof FSDebug !== 'undefined') FSDebug.log('iOS: continuous focus/exposure applied ✓', 'ok');
+              }).catch(err => {
+                if (typeof FSDebug !== 'undefined') FSDebug.log('Constraint apply skip: ' + err.message.substring(0, 40), 'warn');
+              });
+            }
+          }
+        } catch (e) {
+          if (typeof FSDebug !== 'undefined') FSDebug.log('Track constraint err: ' + e.message.substring(0, 40), 'warn');
+        }
+      }
+      
+      // 🍎 B. Tap to focus — แตะที่ video → กล้องโฟกัสตรงนั้น (iOS เท่านั้น)
+      if (isIOS && !v._fsTapFocusAttached) {
+        v._fsTapFocusAttached = true;
+        v.addEventListener('click', async (ev) => {
+          if (!v.srcObject) return;
+          const tracks = v.srcObject.getVideoTracks();
+          if (!tracks || !tracks[0]) return;
+          const track = tracks[0];
+          
+          try {
+            const rect = v.getBoundingClientRect();
+            const x = (ev.clientX - rect.left) / rect.width;  // 0-1
+            const y = (ev.clientY - rect.top) / rect.height;  // 0-1
+            
+            const caps = track.getCapabilities ? track.getCapabilities() : {};
+            const advanced = [];
+            
+            // ถ้ารองรับ focusPointOfInterest → ใช้ตำแหน่งที่แตะ
+            if (caps.focusPointOfInterest) {
+              advanced.push({ pointsOfInterest: [{ x, y }] });
+            }
+            // กระตุ้น single-shot focus (บางกล้องต้อง toggle)
+            if (caps.focusMode && caps.focusMode.includes('single-shot')) {
+              advanced.push({ focusMode: 'single-shot' });
+            } else if (caps.focusMode && caps.focusMode.includes('manual')) {
+              advanced.push({ focusMode: 'manual' });
+            }
+            
+            if (advanced.length > 0) {
+              await track.applyConstraints({ advanced });
+              if (typeof FSDebug !== 'undefined') FSDebug.log(`Tap focus: ${x.toFixed(2)},${y.toFixed(2)} ✓`, 'ok');
+              
+              // แสดง focus indicator (animation)
+              showFocusIndicator(v, ev.clientX, ev.clientY);
+              
+              // กลับไป continuous focus หลัง 2 วินาที
+              setTimeout(() => {
+                if (caps.focusMode && caps.focusMode.includes('continuous')) {
+                  track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+                }
+              }, 2000);
+            } else {
+              // ถ้าไม่รองรับ tap focus → แค่แสดง indicator
+              showFocusIndicator(v, ev.clientX, ev.clientY);
+              if (typeof FSDebug !== 'undefined') FSDebug.log('Tap focus not supported on this camera', 'warn');
+            }
+          } catch (err) {
+            if (typeof FSDebug !== 'undefined') FSDebug.log('Tap focus err: ' + err.message.substring(0, 40), 'warn');
+          }
+        });
+      }
     });
   };
   
@@ -7549,6 +7646,53 @@ function fixVideoElement(containerId) {
   setTimeout(applyFix, 500);
   setTimeout(applyFix, 1200);
 }
+
+// 🎯 Session 5: แสดง focus ring indicator เวลา tap (สีขาว fade out)
+function showFocusIndicator(video, clientX, clientY) {
+  // หา container ของ video (สำหรับ position absolute)
+  let parent = video.parentElement;
+  while (parent && getComputedStyle(parent).position === 'static') {
+    parent = parent.parentElement;
+  }
+  if (!parent) parent = document.body;
+  
+  // ดึง offset relative กับ parent
+  const parentRect = parent.getBoundingClientRect();
+  const localX = clientX - parentRect.left;
+  const localY = clientY - parentRect.top;
+  
+  const ring = document.createElement('div');
+  ring.style.cssText = `
+    position: absolute;
+    left: ${localX - 30}px;
+    top: ${localY - 30}px;
+    width: 60px;
+    height: 60px;
+    border: 2.5px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(0,0,0,0.4);
+    pointer-events: none;
+    z-index: 9999;
+    animation: fs-focus-pulse 0.6s ease-out forwards;
+  `;
+  parent.appendChild(ring);
+  setTimeout(() => ring.remove(), 700);
+}
+
+// CSS animation สำหรับ focus ring (ใส่ครั้งเดียวตอน load)
+(function injectFocusCSS() {
+  if (document.getElementById('fs-focus-style')) return;
+  const style = document.createElement('style');
+  style.id = 'fs-focus-style';
+  style.textContent = `
+    @keyframes fs-focus-pulse {
+      0%   { transform: scale(1.5); opacity: 0; }
+      30%  { transform: scale(1.1); opacity: 1; }
+      100% { transform: scale(0.9); opacity: 0; }
+    }
+  `;
+  document.head.appendChild(style);
+})();
 
 // keep old name for compat
 function fixIOSVideoElement(containerId) {
