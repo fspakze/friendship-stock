@@ -1898,6 +1898,24 @@ const I18N = {
     im_stock_out: 'ອອກ',
     im_by: 'ໂດຍ',
     im_total_records: 'ລາຍການ',
+    // Session 5: Activity Log
+    al_title: 'ບັນທຶກກິດຈະກຳ',
+    al_subtitle: 'ໃຜເຂົ້າລະບົບ + ເຮັດຫຍັງ',
+    al_filter_all: 'ທັງໝົດ',
+    al_act_login: 'ເຂົ້າລະບົບ',
+    al_act_logout: 'ອອກລະບົບ',
+    al_act_gap_submit: 'ສົ່ງ Gap',
+    al_act_gap_edit: 'ແກ້ Gap',
+    al_act_gap_delete: 'ລົບ Gap',
+    al_act_gap_resolve: 'ດຳເນີນ Gap',
+    al_act_test_cleanup: 'ລ້າງຂໍ້ມູນ',
+    al_period_today: 'ມື້ນີ້',
+    al_period_7d: '7 ມື້',
+    al_period_30d: '30 ມື້',
+    al_period_all: 'ທັງໝົດ',
+    al_no_data: 'ບໍ່ມີຂໍ້ມູນ',
+    al_load_more: 'ໂຫລດເພີ່ມ',
+    al_total: 'ລາຍການ',
     // Session 5 Round 3: Test Mode Cleanup
     tc_title: '🧹 ລ້າງຂໍ້ມູນທົດລອງ',
     tc_subtitle: 'ສຳລັບ ADMIN ໃນໂໝດ TEST ເທົ່ານັ້ນ — DELETE ຈິງ',
@@ -2253,6 +2271,24 @@ const I18N = {
     im_stock_out: 'ออก',
     im_by: 'โดย',
     im_total_records: 'รายการ',
+    // Session 5: Activity Log
+    al_title: 'บันทึกกิจกรรม',
+    al_subtitle: 'ใครเข้าระบบ + ทำอะไร',
+    al_filter_all: 'ทั้งหมด',
+    al_act_login: 'เข้าระบบ',
+    al_act_logout: 'ออกระบบ',
+    al_act_gap_submit: 'ส่ง Gap',
+    al_act_gap_edit: 'แก้ Gap',
+    al_act_gap_delete: 'ลบ Gap',
+    al_act_gap_resolve: 'ดำเนิน Gap',
+    al_act_test_cleanup: 'ล้างข้อมูล',
+    al_period_today: 'วันนี้',
+    al_period_7d: '7 วัน',
+    al_period_30d: '30 วัน',
+    al_period_all: 'ทั้งหมด',
+    al_no_data: 'ไม่มีข้อมูล',
+    al_load_more: 'โหลดเพิ่ม',
+    al_total: 'รายการ',
     // Session 5 Round 3: Test Mode Cleanup
     tc_title: '🧹 ล้างข้อมูลทดลอง',
     tc_subtitle: 'สำหรับ ADMIN ในโหมด TEST เท่านั้น — DELETE จริง',
@@ -2554,6 +2590,9 @@ async function login() {
     localStorage.setItem('fs_last_branch_id', String(branch.id));
     
     await afterLogin();
+    
+    // 📋 Audit log
+    logActivity('login', `${user.role} เข้าระบบ สาขา ${branch.code}`);
     
   } catch (e) {
     console.error('[FS] Login error:', e);
@@ -3653,6 +3692,11 @@ function confirmZoneLocation() {
 }
 
 async function logout() {
+  // 📋 Audit log (ก่อน clear user)
+  if (typeof user !== 'undefined' && user) {
+    logActivity('logout', `${user.role} ออกจากระบบ`);
+  }
+  
   // 🔌 Cleanup realtime channels (ป้องกัน leak + cross-user notification)
   try {
     if (typeof _gapRealtimeChannel !== 'undefined' && _gapRealtimeChannel) {
@@ -4233,7 +4277,7 @@ const MENU_CONFIG = {
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['scan', 'gapscan', 'history', 'workflow', 'tiebreaker'] },
       { titleTh: 'วิเคราะห์', titleLo: 'ວິເຄາະ', items: ['kpi', 'performance', 'health', 'variance'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['issuereport', 'invmovement'] },
-      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'settings'] },
+      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'settings', 'activitylog'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
@@ -4266,7 +4310,8 @@ const PAGE_META = {
   settings:   { iconSvg: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>', labelTh: 'ตั้งค่า',      labelLo: 'ຕັ້ງຄ່າ',      page: 'settings' },
   stockcheck: { iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',                                       labelTh: 'เช็คสต๊อก',    labelLo: 'ກວດສະຕ໋ອກ',     page: 'stockcheck' },
   issuereport:{ iconSvg: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',                                                                                  labelTh: 'รายงานปัญหา',  labelLo: 'ລາຍງານປັນຫາ',   page: 'issuereport',    badge: 'tabIssueBadge' },
-  invmovement:{ iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="7.5 4.21 12 6.81 16.5 4.21"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>', labelTh: 'การเคลื่อนสต๊อค', labelLo: 'ການເຄື່ອນສະຕ໋ອກ', page: 'invmovement' }
+  invmovement:{ iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="7.5 4.21 12 6.81 16.5 4.21"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>', labelTh: 'การเคลื่อนสต๊อค', labelLo: 'ການເຄື່ອນສະຕ໋ອກ', page: 'invmovement' },
+  activitylog:{ iconSvg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>', labelTh: 'บันทึกกิจกรรม', labelLo: 'ບັນທຶກກິດຈະກຳ', page: 'activitylog' }
 };
 
 /**
@@ -4542,6 +4587,9 @@ function goPage(page) {
   } else if (page === 'invmovement') {
     c.innerHTML = renderInvMovementPage();
     loadInvMovements(true);
+  } else if (page === 'activitylog') {
+    c.innerHTML = renderActivityLogPage();
+    loadActivityLogs(true);
   } else if (page === 'users') {
     c.innerHTML = renderUsersPage();
     loadUsers();
@@ -5281,9 +5329,8 @@ async function submitGapScan() {
       ? (isLao ? '✅ ສົ່ງເຕີມຄັງ' : '✅ ส่งเติมคลัง')
       : (isLao ? '✅ ສົ່ງຈັດຊື້' : '✅ ส่งจัดซื้อ');
     showToast(successMsg, 'success');
+    logActivity('gap_submit', `${actionType === 'replenish' ? 'ส่งเติมคลัง' : 'ส่งจัดซื้อ'}: ${insertData.product_name || insertData.barcode} จำนวน ${insertData.gap_qty}`);
     
-    // Clear card + refresh list
-    _gapScanCurrent = null;
     const cardEl = document.getElementById('gapProductCard');
     if (cardEl) cardEl.innerHTML = '';
     loadGapScanRecent();
@@ -5427,6 +5474,31 @@ async function toggleGapScan() {
 }
 // ==================== END GAP SCAN ====================
 
+// ==================== SESSION 5: ACTIVITY LOG (Audit) ====================
+// บันทึก log: ใคร login + ทำอะไร
+// Safe: ไม่ throw, ไม่ block flow หลัก (fire-and-forget)
+
+async function logActivity(action, detail) {
+  try {
+    if (!sb) return;
+    const payload = {
+      user_id: (typeof user !== 'undefined' && user) ? user.id : null,
+      username: (typeof user !== 'undefined' && user) ? user.username : null,
+      user_role: (typeof user !== 'undefined' && user) ? user.role : null,
+      branch_id: (typeof branch !== 'undefined' && branch) ? branch.id : null,
+      branch_code: (typeof branch !== 'undefined' && branch) ? branch.code : null,
+      action: action,
+      detail: detail || null
+    };
+    // fire-and-forget — ไม่ await เพื่อไม่ block UI (แต่ catch error)
+    sb.from('activity_logs').insert(payload).then(({ error }) => {
+      if (error) console.warn('[FS] logActivity error:', error.message);
+    });
+  } catch (e) {
+    console.warn('[FS] logActivity exception:', e);
+  }
+}
+
 // ==================== PHASE B HELPERS (workflow + inventory_movements) ====================
 // Added 2026-05-27 by Anya 💗 — Phase B Step 3
 
@@ -5558,6 +5630,174 @@ const IM_TYPE_META = {
   count_adjust:  { emoji: '🔢', color: 'var(--violet-500)',  labelKey: 'im_type_count_adjust' },
   manual_adjust: { emoji: '✏️', color: 'var(--amber-500)',   labelKey: 'im_type_manual_adjust' }
 };
+
+// ==================== SESSION 5: ACTIVITY LOG PAGE (Admin only) ====================
+let _alData = [];
+let _alOffset = 0;
+const AL_PAGE_SIZE = 50;
+let _alFilterAction = 'all';
+let _alFilterPeriod = '7d';
+
+const AL_ACTION_META = {
+  login:        { emoji: '🔓', color: 'var(--emerald-500)', labelKey: 'al_act_login' },
+  logout:       { emoji: '🔒', color: 'var(--slate-400)',   labelKey: 'al_act_logout' },
+  gap_submit:   { emoji: '📤', color: 'var(--sky-500)',     labelKey: 'al_act_gap_submit' },
+  gap_edit:     { emoji: '✏️', color: 'var(--amber-500)',   labelKey: 'al_act_gap_edit' },
+  gap_delete:   { emoji: '🗑️', color: 'var(--rose-500)',    labelKey: 'al_act_gap_delete' },
+  gap_resolve:  { emoji: '✅', color: 'var(--emerald-600)', labelKey: 'al_act_gap_resolve' },
+  test_cleanup: { emoji: '🧹', color: 'var(--violet-600)',  labelKey: 'al_act_test_cleanup' }
+};
+
+function renderActivityLogPage() {
+  const isLao = lang === 'lo';
+  
+  const actionChips = [
+    { key: 'all', label: T('al_filter_all') },
+    { key: 'login', label: T('al_act_login') },
+    { key: 'gap_submit', label: T('al_act_gap_submit') },
+    { key: 'gap_edit', label: T('al_act_gap_edit') },
+    { key: 'gap_delete', label: T('al_act_gap_delete') },
+    { key: 'test_cleanup', label: T('al_act_test_cleanup') }
+  ].map(a => `
+    <button onclick="alSetAction('${a.key}')" id="alAction_${a.key}"
+            style="background:${_alFilterAction === a.key ? 'var(--violet-500)' : 'var(--slate-100)'};color:${_alFilterAction === a.key ? 'white' : 'var(--slate-600)'};border:none;border-radius:7px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">
+      ${a.label}
+    </button>
+  `).join('');
+  
+  const periodChips = [
+    { key: 'today', label: T('al_period_today') },
+    { key: '7d', label: T('al_period_7d') },
+    { key: '30d', label: T('al_period_30d') },
+    { key: 'all', label: T('al_period_all') }
+  ].map(p => `
+    <button onclick="alSetPeriod('${p.key}')" id="alPeriod_${p.key}"
+            style="background:${_alFilterPeriod === p.key ? 'var(--sky-500)' : 'var(--slate-100)'};color:${_alFilterPeriod === p.key ? 'white' : 'var(--slate-600)'};border:none;border-radius:7px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">
+      ${p.label}
+    </button>
+  `).join('');
+  
+  return `
+    <div style="margin-bottom:11px;">
+      <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">📋 ${T('al_title')}</h2>
+      <p style="font-size:11px;color:var(--slate-500);margin:0;">${T('al_subtitle')}</p>
+    </div>
+    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:7px;margin-bottom:5px;">${actionChips}</div>
+    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:7px;margin-bottom:11px;">${periodChips}</div>
+    <div id="alTotalBar" style="font-size:11px;color:var(--slate-500);margin-bottom:9px;"></div>
+    <div id="alList"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
+    <div id="alLoadMore" style="margin-top:11px;"></div>
+  `;
+}
+
+function alSetAction(a) {
+  _alFilterAction = a;
+  document.querySelectorAll('[id^="alAction_"]').forEach(b => {
+    const on = b.id === 'alAction_' + a;
+    b.style.background = on ? 'var(--violet-500)' : 'var(--slate-100)';
+    b.style.color = on ? 'white' : 'var(--slate-600)';
+  });
+  loadActivityLogs(true);
+}
+
+function alSetPeriod(p) {
+  _alFilterPeriod = p;
+  document.querySelectorAll('[id^="alPeriod_"]').forEach(b => {
+    const on = b.id === 'alPeriod_' + p;
+    b.style.background = on ? 'var(--sky-500)' : 'var(--slate-100)';
+    b.style.color = on ? 'white' : 'var(--slate-600)';
+  });
+  loadActivityLogs(true);
+}
+
+function alGetPeriodStart() {
+  const now = new Date();
+  if (_alFilterPeriod === 'today') { now.setHours(0,0,0,0); return now.toISOString(); }
+  if (_alFilterPeriod === '7d') { now.setDate(now.getDate()-7); return now.toISOString(); }
+  if (_alFilterPeriod === '30d') { now.setDate(now.getDate()-30); return now.toISOString(); }
+  return null;
+}
+
+async function loadActivityLogs(reset = false) {
+  // Admin only
+  if (user?.role !== 'admin') {
+    const el = document.getElementById('alList');
+    if (el) el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--rose-500);">${lang==='lo'?'ບໍ່ມີສິດ':'ไม่มีสิทธิ์'}</div>`;
+    return;
+  }
+  
+  if (reset) { _alOffset = 0; _alData = []; }
+  
+  const listEl = document.getElementById('alList');
+  const loadMoreEl = document.getElementById('alLoadMore');
+  const totalEl = document.getElementById('alTotalBar');
+  if (!listEl) return;
+  if (reset) listEl.innerHTML = '<div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div>';
+  
+  try {
+    let q = sb.from('activity_logs').select('*', { count: 'exact' }).order('created_at', { ascending: false });
+    if (_alFilterAction !== 'all') q = q.eq('action', _alFilterAction);
+    const ps = alGetPeriodStart();
+    if (ps) q = q.gte('created_at', ps);
+    q = q.range(_alOffset, _alOffset + AL_PAGE_SIZE - 1);
+    
+    const { data, error, count } = await q;
+    if (error) {
+      listEl.innerHTML = `<div style="text-align:center;padding:30px;color:var(--rose-500);font-size:12px;">Error: ${error.message}</div>`;
+      return;
+    }
+    
+    _alData = _alData.concat(data || []);
+    _alOffset += (data?.length || 0);
+    if (totalEl) totalEl.textContent = `${count || 0} ${T('al_total')}`;
+    
+    if (_alData.length === 0) {
+      listEl.innerHTML = `<div style="text-align:center;padding:40px;color:var(--slate-400);font-size:13px;">📭 ${T('al_no_data')}</div>`;
+      if (loadMoreEl) loadMoreEl.innerHTML = '';
+      return;
+    }
+    
+    listEl.innerHTML = _alData.map(r => renderActivityLogRow(r)).join('');
+    
+    if (loadMoreEl) {
+      if (count && _alOffset < count) {
+        loadMoreEl.innerHTML = `<button onclick="loadActivityLogs(false)" style="width:100%;background:var(--slate-100);color:var(--slate-700);border:none;padding:11px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;">${T('al_load_more')} (${_alOffset}/${count})</button>`;
+      } else loadMoreEl.innerHTML = '';
+    }
+  } catch (e) {
+    listEl.innerHTML = `<div style="text-align:center;padding:30px;color:var(--rose-500);font-size:12px;">Error: ${e.message}</div>`;
+  }
+}
+
+function renderActivityLogRow(r) {
+  const meta = AL_ACTION_META[r.action] || { emoji: '•', color: 'var(--slate-400)', labelKey: null };
+  const actionLabel = meta.labelKey ? T(meta.labelKey) : r.action;
+  const dt = r.created_at ? new Date(r.created_at) : null;
+  const timeStr = dt ? `${dt.toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit'})} ${dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}` : '';
+  
+  return `
+    <div style="background:white;border:1px solid var(--slate-200);border-left:3px solid ${meta.color};border-radius:9px;padding:10px 11px;margin-bottom:7px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:9px;">
+        <div style="display:flex;align-items:center;gap:7px;min-width:0;">
+          <span style="font-size:16px;flex-shrink:0;">${meta.emoji}</span>
+          <div style="min-width:0;">
+            <div style="font-size:13px;font-weight:700;color:var(--slate-800);">
+              ${r.username || '-'} <span style="font-size:10px;color:var(--slate-400);font-weight:500;">(${r.user_role || '?'})</span>
+            </div>
+            <span style="background:${meta.color}22;color:${meta.color};font-size:10px;font-weight:700;padding:1px 7px;border-radius:5px;">${actionLabel}</span>
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:10px;color:var(--slate-400);">⏱ ${timeStr}</div>
+          ${r.branch_code ? `<div style="font-size:10px;color:var(--slate-500);">🏪 ${r.branch_code}</div>` : ''}
+        </div>
+      </div>
+      ${r.detail ? `<div style="font-size:11px;color:var(--slate-600);margin-top:5px;padding-left:23px;">${r.detail}</div>` : ''}
+    </div>
+  `;
+}
+
+// ==================== END SESSION 5 ACTIVITY LOG ====================
 
 function renderInvMovementPage() {
   const isLao = lang === 'lo';
@@ -6203,6 +6443,7 @@ async function editGapScan(gapId, event) {
   }
   
   showToast('✅ ' + (isLao ? 'ບັນທຶກແລ້ວ' : 'บันทึกแล้ว'), 'success');
+  logActivity('gap_edit', `แก้ไข gap: ${name} (${gap.barcode}) → จำนวน ${newQty}`);
   loadGapReport();
 }
 
@@ -6256,6 +6497,7 @@ async function deleteGapScan(gapId, event) {
   }
   
   showToast('✅ ' + (isLao ? 'ຍົກເລີກແລ້ວ' : 'ยกเลิกแล้ว'), 'success');
+  logActivity('gap_delete', `ลบ gap: ${name} (${gap.barcode})`);
   loadGapReport();
 }
 
@@ -21632,6 +21874,7 @@ async function runTestCleanup() {
   
   if (errorCount === 0) {
     showToast(`✅ ${T('tc_success')} (${successCount} tables)`, 'success');
+    logActivity('test_cleanup', `ล้างข้อมูล: ${tables.join(', ')} | สาขา: ${branchVal === 'ALL' ? 'ทุกสาขา' : branchVal}`);
   } else {
     const errMsgs = results.filter(r => r.status === 'error').map(r => `${r.tbl}: ${r.msg}`).join('\n');
     alert(`⚠️ บางรายการลบไม่สำเร็จ:\n\n${errMsgs}`);
@@ -22025,6 +22268,12 @@ window.renderInvMovementPage = renderInvMovementPage;
 window.loadInvMovements = loadInvMovements;
 window.imSetType = imSetType;
 window.imSetPeriod = imSetPeriod;
+// Session 5: Activity Log
+window.renderActivityLogPage = renderActivityLogPage;
+window.loadActivityLogs = loadActivityLogs;
+window.alSetAction = alSetAction;
+window.alSetPeriod = alSetPeriod;
+window.logActivity = logActivity;
 // Phase B (2026-05-27): workflow stage actions
 window.assignGapToMe = assignGapToMe;
 window.startGapWork = startGapWork;
