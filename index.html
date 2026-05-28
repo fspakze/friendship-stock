@@ -7467,31 +7467,23 @@ function getScannerConfig() {
     Html5QrcodeSupportedFormats.DATA_MATRIX
   ] : undefined;
   
-  // 🍎 iOS: qrbox 98% × 65% (เกือบเต็มจอ — Aggressive)
+  // 🍎 iOS: qrbox ใหญ่ขึ้น 95% × 65% (1D barcode ต้องการพื้นที่กว้าง)
   // 🤖 Android/Desktop: 85% × 45% (เดิม)
   const qrboxFunc = (vw, vh) => {
     const minEdge = Math.min(vw, vh);
-    const wRatio = isIOS ? 0.98 : 0.85;
+    const wRatio = isIOS ? 0.95 : 0.85;
     const hRatio = isIOS ? 0.65 : 0.45;
     const w = Math.floor(minEdge * wRatio);
     const h = Math.floor(w * hRatio);
     return { width: w, height: h };
   };
   
-  // 🍎 iOS Aggressive: Full HD (1920×1080) + continuous autofocus
+  // 🍎 iOS Balanced: resolution สูงขึ้น (1280×960) เพื่อ decode barcode เร็ว
   // 🤖 Android: 1280×720 (เดิม)
   const videoConstraints = isIOS ? {
-    facingMode: { ideal: "environment" },
-    width: { ideal: 1920 },
-    height: { ideal: 1080 },
-    // 🍎 iOS: focus mode ต่อเนื่อง (ช่วยอ่าน barcode ที่ห่างหรือใกล้)
-    focusMode: "continuous",
-    // 🍎 iOS: advanced constraints — บางตัว iOS อาจไม่รองรับ แต่จะ ignore เอง
-    advanced: [
-      { focusMode: "continuous" },
-      { exposureMode: "continuous" },
-      { whiteBalanceMode: "continuous" }
-    ]
+    facingMode: "environment",
+    width: { ideal: 1280 },
+    height: { ideal: 960 }
   } : {
     facingMode: "environment",
     width: { ideal: 1280 },
@@ -7499,7 +7491,7 @@ function getScannerConfig() {
   };
   
   const config = {
-    fps: isIOS ? 15 : 10,                          // 🍎 iOS Aggressive: 15 (decode บ่อยขึ้น), 🤖 Android: 10
+    fps: 10,                                       // 🍎 iOS Balanced: 10 (เท่า Android)
     qrbox: qrboxFunc,
     // ❌ ไม่ใส่ aspectRatio บน iOS (ปล่อย browser ตัดสินใจ ป้องกัน crop ผิด)
     disableFlip: isIOS ? true : false,             // 🍎 iOS: ไม่ flip (1D barcode ไม่ต้อง flip)
