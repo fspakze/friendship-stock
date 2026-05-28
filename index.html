@@ -1880,6 +1880,24 @@ const I18N = {
     sc_pog_save: 'ບັນທຶກ',
     sc_pog_saved: 'ບັນທຶກຕຳແໜ່ງແລ້ວ',
     sc_pog_no_loc: 'ບໍ່ມີຕຳແໜ່ງໃນສາຂາ',
+    // Session 5: Inventory Movement History
+    im_title: 'ປະຫວັດການເຄື່ອນສະຕ໋ອກ',
+    im_subtitle: 'ບັນທຶກການເຕີມ/ປັບສະຕ໋ອກທັງໝົດ',
+    im_filter_all: 'ທັງໝົດ',
+    im_type_replenish: 'ເຕີມຈາກຄັງ',
+    im_type_po_in: 'ຮັບເຂົ້າ (PO)',
+    im_type_count_adjust: 'ປັບຈາກນັບ',
+    im_type_manual_adjust: 'ປັບດ້ວຍມື',
+    im_period_today: 'ມື້ນີ້',
+    im_period_7d: '7 ມື້',
+    im_period_30d: '30 ມື້',
+    im_period_all: 'ທັງໝົດ',
+    im_no_data: 'ບໍ່ມີຂໍ້ມູນ',
+    im_load_more: 'ໂຫລດເພີ່ມ',
+    im_stock_in: 'ເຂົ້າ',
+    im_stock_out: 'ອອກ',
+    im_by: 'ໂດຍ',
+    im_total_records: 'ລາຍການ',
     // Session 5 Round 3: Test Mode Cleanup
     tc_title: '🧹 ລ້າງຂໍ້ມູນທົດລອງ',
     tc_subtitle: 'ສຳລັບ ADMIN ໃນໂໝດ TEST ເທົ່ານັ້ນ — DELETE ຈິງ',
@@ -2217,6 +2235,24 @@ const I18N = {
     sc_pog_save: 'บันทึก',
     sc_pog_saved: 'บันทึกตำแหน่งแล้ว',
     sc_pog_no_loc: 'ไม่มีตำแหน่งในสาขา',
+    // Session 5: Inventory Movement History
+    im_title: 'ประวัติการเคลื่อนสต๊อค',
+    im_subtitle: 'บันทึกการเติม/ปรับสต๊อคทั้งหมด',
+    im_filter_all: 'ทั้งหมด',
+    im_type_replenish: 'เติมจากคลัง',
+    im_type_po_in: 'รับเข้า (PO)',
+    im_type_count_adjust: 'ปรับจากนับ',
+    im_type_manual_adjust: 'ปรับด้วยมือ',
+    im_period_today: 'วันนี้',
+    im_period_7d: '7 วัน',
+    im_period_30d: '30 วัน',
+    im_period_all: 'ทั้งหมด',
+    im_no_data: 'ไม่มีข้อมูล',
+    im_load_more: 'โหลดเพิ่ม',
+    im_stock_in: 'เข้า',
+    im_stock_out: 'ออก',
+    im_by: 'โดย',
+    im_total_records: 'รายการ',
     // Session 5 Round 3: Test Mode Cleanup
     tc_title: '🧹 ล้างข้อมูลทดลอง',
     tc_subtitle: 'สำหรับ ADMIN ในโหมด TEST เท่านั้น — DELETE จริง',
@@ -4178,7 +4214,7 @@ const MENU_CONFIG = {
   ctl: {
     bottomTabs: ['stockcheck', 'floormap', 'tiebreaker', 'workflow'],
     drawerGroups: [
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport', 'issuereport'] },
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport', 'issuereport', 'invmovement'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
@@ -4186,7 +4222,7 @@ const MENU_CONFIG = {
     bottomTabs: ['stockcheck', 'dashboard', 'floormap', 'gapreport'],
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['tiebreaker'] },
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance', 'issuereport'] },
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -4195,7 +4231,7 @@ const MENU_CONFIG = {
     bottomTabs: ['stockcheck', 'dashboard', 'floormap', 'gapreport'],
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['tiebreaker'] },
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance', 'issuereport'] },
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'settings'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -4204,7 +4240,7 @@ const MENU_CONFIG = {
     bottomTabs: ['stockcheck', 'dashboard', 'floormap', 'gapreport'],
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['tiebreaker'] },
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance', 'issuereport'] },
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'settings'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -4228,7 +4264,8 @@ const PAGE_META = {
   users:      { iconSvg: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',                                                                                                        labelTh: 'พนักงาน',      labelLo: 'ພະນັກງານ',     page: 'users' },
   settings:   { iconSvg: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>', labelTh: 'ตั้งค่า',      labelLo: 'ຕັ້ງຄ່າ',      page: 'settings' },
   stockcheck: { iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',                                       labelTh: 'เช็คสต๊อก',    labelLo: 'ກວດສະຕ໋ອກ',     page: 'stockcheck' },
-  issuereport:{ iconSvg: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',                                                                                  labelTh: 'รายงานปัญหา',  labelLo: 'ລາຍງານປັນຫາ',   page: 'issuereport',    badge: 'tabIssueBadge' }
+  issuereport:{ iconSvg: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',                                                                                  labelTh: 'รายงานปัญหา',  labelLo: 'ລາຍງານປັນຫາ',   page: 'issuereport',    badge: 'tabIssueBadge' },
+  invmovement:{ iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="7.5 4.21 12 6.81 16.5 4.21"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>', labelTh: 'การเคลื่อนสต๊อค', labelLo: 'ການເຄື່ອນສະຕ໋ອກ', page: 'invmovement' }
 };
 
 /**
@@ -4501,6 +4538,9 @@ function goPage(page) {
   } else if (page === 'gapreport') {
     c.innerHTML = renderGapReportPage();
     loadGapReport();
+  } else if (page === 'invmovement') {
+    c.innerHTML = renderInvMovementPage();
+    loadInvMovements(true);
   } else if (page === 'users') {
     c.innerHTML = renderUsersPage();
     loadUsers();
@@ -5499,6 +5539,248 @@ async function updateGapWorkflowStage(gapId, newStage, extraFields) {
 // ==================== END PHASE B HELPERS ====================
 
 // ==================== GAP REPORT PAGE (Phase 2) ====================
+// ==================== SESSION 5: INVENTORY MOVEMENT HISTORY ====================
+// แสดงประวัติการเคลื่อนสต๊อค (inventory_movements)
+// - manager เท่านั้น (admin/scc/bcs/ctl)
+// - filter: movement_type + period (today/7d/30d/all)
+// - pagination: 50 ต่อหน้า + load more
+
+let _imData = [];
+let _imOffset = 0;
+const IM_PAGE_SIZE = 50;
+let _imFilterType = 'all';     // all | replenish | po_in | count_adjust | manual_adjust
+let _imFilterPeriod = '7d';    // today | 7d | 30d | all
+
+const IM_TYPE_META = {
+  replenish:     { emoji: '📦', color: 'var(--emerald-500)', labelKey: 'im_type_replenish' },
+  po_in:         { emoji: '🚚', color: 'var(--sky-500)',     labelKey: 'im_type_po_in' },
+  count_adjust:  { emoji: '🔢', color: 'var(--violet-500)',  labelKey: 'im_type_count_adjust' },
+  manual_adjust: { emoji: '✏️', color: 'var(--amber-500)',   labelKey: 'im_type_manual_adjust' }
+};
+
+function renderInvMovementPage() {
+  const isLao = lang === 'lo';
+  
+  // Filter chips — movement type
+  const typeChips = [
+    { key: 'all', label: T('im_filter_all') },
+    { key: 'replenish', label: T('im_type_replenish') },
+    { key: 'po_in', label: T('im_type_po_in') },
+    { key: 'count_adjust', label: T('im_type_count_adjust') },
+    { key: 'manual_adjust', label: T('im_type_manual_adjust') }
+  ].map(t => `
+    <button onclick="imSetType('${t.key}')" id="imType_${t.key}"
+            style="background:${_imFilterType === t.key ? 'var(--violet-500)' : 'var(--slate-100)'};color:${_imFilterType === t.key ? 'white' : 'var(--slate-600)'};border:none;border-radius:7px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">
+      ${t.label}
+    </button>
+  `).join('');
+  
+  // Period chips
+  const periodChips = [
+    { key: 'today', label: T('im_period_today') },
+    { key: '7d', label: T('im_period_7d') },
+    { key: '30d', label: T('im_period_30d') },
+    { key: 'all', label: T('im_period_all') }
+  ].map(p => `
+    <button onclick="imSetPeriod('${p.key}')" id="imPeriod_${p.key}"
+            style="background:${_imFilterPeriod === p.key ? 'var(--sky-500)' : 'var(--slate-100)'};color:${_imFilterPeriod === p.key ? 'white' : 'var(--slate-600)'};border:none;border-radius:7px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">
+      ${p.label}
+    </button>
+  `).join('');
+  
+  return `
+    <div style="margin-bottom:11px;">
+      <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">
+        📦 ${T('im_title')}
+      </h2>
+      <p style="font-size:11px;color:var(--slate-500);margin:0;">
+        ${T('im_subtitle')} • 🏪 ${isLao ? (branch.name_lo || branch.name_th) : (branch.name_th || branch.name_lo)}
+      </p>
+    </div>
+    
+    <!-- Filter: movement type -->
+    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:7px;margin-bottom:5px;">
+      ${typeChips}
+    </div>
+    
+    <!-- Filter: period -->
+    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:7px;margin-bottom:11px;">
+      ${periodChips}
+    </div>
+    
+    <!-- Total count -->
+    <div id="imTotalBar" style="font-size:11px;color:var(--slate-500);margin-bottom:9px;"></div>
+    
+    <!-- List -->
+    <div id="imList">
+      <div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div>
+    </div>
+    
+    <!-- Load more -->
+    <div id="imLoadMore" style="margin-top:11px;"></div>
+  `;
+}
+
+function imSetType(type) {
+  _imFilterType = type;
+  // อัปเดตสีปุ่ม
+  document.querySelectorAll('[id^="imType_"]').forEach(b => {
+    const isActive = b.id === 'imType_' + type;
+    b.style.background = isActive ? 'var(--violet-500)' : 'var(--slate-100)';
+    b.style.color = isActive ? 'white' : 'var(--slate-600)';
+  });
+  loadInvMovements(true);
+}
+
+function imSetPeriod(period) {
+  _imFilterPeriod = period;
+  document.querySelectorAll('[id^="imPeriod_"]').forEach(b => {
+    const isActive = b.id === 'imPeriod_' + period;
+    b.style.background = isActive ? 'var(--sky-500)' : 'var(--slate-100)';
+    b.style.color = isActive ? 'white' : 'var(--slate-600)';
+  });
+  loadInvMovements(true);
+}
+
+function imGetPeriodStart() {
+  const now = new Date();
+  if (_imFilterPeriod === 'today') {
+    now.setHours(0, 0, 0, 0);
+    return now.toISOString();
+  } else if (_imFilterPeriod === '7d') {
+    now.setDate(now.getDate() - 7);
+    return now.toISOString();
+  } else if (_imFilterPeriod === '30d') {
+    now.setDate(now.getDate() - 30);
+    return now.toISOString();
+  }
+  return null; // all
+}
+
+async function loadInvMovements(reset = false) {
+  if (reset) {
+    _imOffset = 0;
+    _imData = [];
+  }
+  
+  const listEl = document.getElementById('imList');
+  const loadMoreEl = document.getElementById('imLoadMore');
+  const totalEl = document.getElementById('imTotalBar');
+  if (!listEl) return;
+  
+  if (reset) {
+    listEl.innerHTML = '<div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div>';
+  }
+  
+  try {
+    // Build query
+    let q = sb.from('inventory_movements')
+      .select('*', { count: 'exact' })
+      .eq('branch_id', branch.id)
+      .order('created_at', { ascending: false });
+    
+    // Filter: movement_type
+    if (_imFilterType !== 'all') {
+      q = q.eq('movement_type', _imFilterType);
+    }
+    
+    // Filter: period
+    const periodStart = imGetPeriodStart();
+    if (periodStart) {
+      q = q.gte('created_at', periodStart);
+    }
+    
+    // Pagination
+    q = q.range(_imOffset, _imOffset + IM_PAGE_SIZE - 1);
+    
+    const { data, error, count } = await q;
+    
+    if (error) {
+      listEl.innerHTML = `<div style="text-align:center;padding:30px;color:var(--rose-500);font-size:12px;">Error: ${error.message}</div>`;
+      return;
+    }
+    
+    // Append data
+    _imData = _imData.concat(data || []);
+    _imOffset += (data?.length || 0);
+    
+    // Total bar
+    if (totalEl) {
+      totalEl.textContent = `${count || 0} ${T('im_total_records')}`;
+    }
+    
+    // Render
+    if (_imData.length === 0) {
+      listEl.innerHTML = `<div style="text-align:center;padding:40px;color:var(--slate-400);font-size:13px;">📭 ${T('im_no_data')}</div>`;
+      if (loadMoreEl) loadMoreEl.innerHTML = '';
+      return;
+    }
+    
+    listEl.innerHTML = _imData.map(m => renderInvMovementRow(m)).join('');
+    
+    // Load more button
+    if (loadMoreEl) {
+      if (count && _imOffset < count) {
+        loadMoreEl.innerHTML = `
+          <button onclick="loadInvMovements(false)" 
+                  style="width:100%;background:var(--slate-100);color:var(--slate-700);border:none;padding:11px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;">
+            ${T('im_load_more')} (${_imOffset}/${count})
+          </button>
+        `;
+      } else {
+        loadMoreEl.innerHTML = '';
+      }
+    }
+  } catch (e) {
+    listEl.innerHTML = `<div style="text-align:center;padding:30px;color:var(--rose-500);font-size:12px;">Error: ${e.message}</div>`;
+  }
+}
+
+function renderInvMovementRow(m) {
+  const isLao = lang === 'lo';
+  const meta = IM_TYPE_META[m.movement_type] || { emoji: '•', color: 'var(--slate-400)', labelKey: null };
+  const typeLabel = meta.labelKey ? T(meta.labelKey) : m.movement_type;
+  
+  // qty_change: + = เข้า (เขียว), - = ออก (แดง)
+  const qty = m.qty_change || 0;
+  const isIn = qty >= 0;
+  const qtyColor = isIn ? 'var(--emerald-600)' : 'var(--rose-500)';
+  const qtySign = isIn ? '+' : '';
+  const inOutLabel = isIn ? T('im_stock_in') : T('im_stock_out');
+  
+  // เวลา
+  const dt = m.created_at ? new Date(m.created_at) : null;
+  const timeStr = dt ? `${dt.toLocaleDateString('th-TH', {day:'2-digit', month:'2-digit'})} ${dt.toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'})}` : '';
+  
+  return `
+    <div style="background:white;border:1px solid var(--slate-200);border-left:3px solid ${meta.color};border-radius:9px;padding:11px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;gap:9px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+          ${m.product_name || m.barcode || '-'}
+        </div>
+        <div style="font-size:10px;color:var(--slate-400);font-family:monospace;margin-top:1px;">
+          ${m.barcode || ''}
+        </div>
+        <div style="display:flex;gap:7px;align-items:center;margin-top:4px;flex-wrap:wrap;">
+          <span style="background:${meta.color}22;color:${meta.color};font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;">
+            ${meta.emoji} ${typeLabel}
+          </span>
+          <span style="font-size:10px;color:var(--slate-400);">⏱ ${timeStr}</span>
+          ${m.note ? `<span style="font-size:10px;color:var(--slate-500);">📝 ${m.note}</span>` : ''}
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:18px;font-weight:800;color:${qtyColor};font-family:'Space Grotesk',monospace;">
+          ${qtySign}${qty}
+        </div>
+        <div style="font-size:9px;color:${qtyColor};font-weight:700;">${inOutLabel}</div>
+      </div>
+    </div>
+  `;
+}
+
+// ==================== END SESSION 5 INVENTORY MOVEMENT ====================
+
 function renderGapReportPage() {
   const isLao = lang === 'lo';
   return `
@@ -21737,6 +22019,11 @@ window.selectAllGaps = selectAllGaps;
 window.editGapScan = editGapScan;
 window.deleteGapScan = deleteGapScan;
 window.canModifyGap = canModifyGap;
+// Session 5: Inventory Movement History
+window.renderInvMovementPage = renderInvMovementPage;
+window.loadInvMovements = loadInvMovements;
+window.imSetType = imSetType;
+window.imSetPeriod = imSetPeriod;
 // Phase B (2026-05-27): workflow stage actions
 window.assignGapToMe = assignGapToMe;
 window.startGapWork = startGapWork;
