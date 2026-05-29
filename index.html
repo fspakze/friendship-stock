@@ -23093,6 +23093,7 @@ function renderExpiryForm(prod) {
       <input type="number" id="expQty" inputmode="numeric" min="1" placeholder="0"
              style="width:100%;padding:12px 13px;border:2px solid var(--slate-200);border-radius:11px;font-size:15px;font-family:'Space Grotesk',monospace;font-weight:700;background:white;outline:none;margin-bottom:13px;"
              onfocus="this.style.borderColor='var(--teal-500)';" onblur="this.style.borderColor='var(--slate-200)';">
+      <button onclick="if(typeof closeModal==='function')closeModal();" style="width:100%;background:var(--slate-100);color:var(--slate-600);border:none;padding:12px;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px;">✕ ${isLao ? 'ປິດ' : 'ปิด'}</button>
       <button onclick="saveExpiryBatch()" style="width:100%;background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;padding:14px;border-radius:11px;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">
         💾 ${isLao ? 'ບັນທຶກ' : 'บันทึก'}
       </button>
@@ -23562,7 +23563,7 @@ function scOpenExpiryModal() {
   const isLao = lang === 'lo';
   if (!_scCurrentProduct) { showToast(isLao ? 'ສະແກນສິນຄ້າກ່ອນ' : 'สแกนสินค้าก่อน', 'error'); return; }
   _expCurrentProduct = _scCurrentProduct;
-  showModal('<h3 style="font-size:15px;margin:0 0 9px;">\uD83D\uDCC5 ' + (isLao ? 'ບັນທຶກອາຍຸ' : 'บันทึกอายุ') + '</h3><div id="expProductCard"></div>');
+  showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;"><h3 style="font-size:15px;margin:0;">\uD83D\uDCC5 ' + (isLao ? 'ບັນທຶກອາຍຸ' : 'บันทึกอายุ') + '</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;color:var(--slate-600);flex-shrink:0;">\u2715</button></div><div id="expProductCard"></div>');
   renderExpiryForm(_scCurrentProduct);
 }
 
