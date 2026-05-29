@@ -7931,12 +7931,12 @@ function renderStockCheckResult(prod, pog, lastCount) {
       ${locHtml}
       ${lastCountHtml}
       
-      <button onclick="scOpenExpiryModal()" style="width:100%;background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:11px;display:flex;align-items:center;justify-content:center;gap:7px;">
-        📅 ${isLao ? 'ບັນທຶກອາຍຸ' : 'บันทึกอายุ'}
+      <button onclick="scShowBranchStock()" style="width:100%;background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:11px;display:flex;align-items:center;justify-content:center;gap:7px;">
+        🏪 ${T('sc_view_other_branches')}
       </button>
       
-      <button onclick="scShowBranchStock()" style="width:100%;background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:7px;display:flex;align-items:center;justify-content:center;gap:7px;">
-        🏪 ${T('sc_view_other_branches')}
+      <button onclick="scOpenExpiryModal()" style="width:100%;background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:7px;display:flex;align-items:center;justify-content:center;gap:7px;">
+        📅 ${isLao ? 'ບັນທຶກອາຍຸ' : 'บันทึกอายุ'}
       </button>
       
       <button onclick="scOpenPogPicker()" style="width:100%;background:linear-gradient(135deg,var(--violet-500),var(--violet-600));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:7px;display:flex;align-items:center;justify-content:center;gap:7px;">
