@@ -5855,9 +5855,16 @@ function renderMasterProductPage() {
   }
   const isLao = lang === 'lo';
   return `
-    <div style="margin-bottom:11px;">
-      <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">📦 Master Product</h2>
-      <p style="font-size:11px;color:var(--slate-500);margin:0;" id="mpSubtitle">${isLao?'ຄາຕາລ໋ອກສິນຄ້າຫຼັກ':'แคตตาล็อกสินค้าหลัก'}</p>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:9px;margin-bottom:11px;">
+      <div style="min-width:0;flex:1;">
+        <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">📦 Master Product</h2>
+        <p style="font-size:11px;color:var(--slate-500);margin:0;" id="mpSubtitle">${isLao?'ຄາຕາລ໋ອກສິນຄ້າຫຼັກ':'แคตตาล็อกสินค้าหลัก'}</p>
+      </div>
+      ${user && user.role === 'admin' ? `
+        <button onclick="mpOpenUploadModal()" style="background:var(--emerald-500);color:white;border:none;border-radius:9px;padding:9px 13px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+          📤 ${isLao?'ອັບໂຫຼດ':'อัพโหลด'}
+        </button>
+      ` : ''}
     </div>
     
     <!-- Search bar -->
@@ -6194,7 +6201,428 @@ async function mpSaveEdit() {
   }
 }
 
-// ==================== END SESSION 6 MASTER PRODUCT MODULE ====================
+// ==================== PHASE 3B: UPLOAD XLSX + UPSERT ====================
+// Permissions: admin ONLY (stricter than read/edit)
+// Reuses existing SheetJS (XLSX) library already loaded for gap report export
+// Workflow: pick file → parse → build diff → preview → execute UPSERT
+
+const MP_UPLOAD_ROLES = ['admin'];
+const MP_UPSERT_BATCH = 500;
+const MP_MD_BRANDS_LOWER = ['888. markdown', '999. markdown', '999.mark down'];
+
+// Field policy — what XLSX overwrites in DB
+const MP_OVERWRITE_FIELDS = [
+  'internal_code','name_lo','name_th','unit_lo',
+  'sell_price','sell_price_2','sell_price_3','sell_price_min','cost_price',
+  'category','product_group','brand','supplier'
+];
+// create_time, is_active, created_at, id, barcode = NEVER overwrite
+
+let _mpUploadParsed = null;  // { masterRows, mdRows, totalRaw }
+let _mpUploadDiff = null;    // { master: {insert, update, skip}, md: {...}, missing: [] }
+let _mpUploadRunning = false;
+
+function mpCanUpload() {
+  return user && MP_UPLOAD_ROLES.includes(user.role);
+}
+
+function mpOpenUploadModal() {
+  if (!mpCanUpload()) {
+    alert(lang==='lo'?'ບໍ່ມີສິດ upload (admin only)':'ไม่มีสิทธิ์ upload (admin only)');
+    return;
+  }
+  if (typeof XLSX === 'undefined') {
+    alert(lang==='lo'?'XLSX library ບໍ່ໂຫຼດ':'XLSX library ไม่ได้โหลด — refresh หน้า');
+    return;
+  }
+  
+  _mpUploadParsed = null;
+  _mpUploadDiff = null;
+  
+  const modal = document.getElementById('mpEditModal'); // reuse same modal container
+  if (!modal) return;
+  const isLao = lang === 'lo';
+  
+  modal.style.display = 'block';
+  modal.innerHTML = `
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center;" onclick="mpCloseEditModal(event)">
+      <div onclick="event.stopPropagation();" style="background:white;width:100%;max-width:560px;max-height:92vh;overflow-y:auto;border-radius:14px 14px 0 0;padding:18px;box-sizing:border-box;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px;">
+          <h3 style="font-size:15px;margin:0;color:var(--slate-900);">📤 ${isLao?'ອັບໂຫຼດ Master Product':'อัพโหลด Master Product'}</h3>
+          <button onclick="mpCloseEditModal()" style="background:none;border:none;font-size:20px;color:var(--slate-400);cursor:pointer;padding:0 6px;">×</button>
+        </div>
+        
+        <div id="mpUploadBody">
+          <!-- Step 1: File picker -->
+          <div style="border:2px dashed var(--slate-300);border-radius:11px;padding:24px;text-align:center;background:var(--slate-50);">
+            <div style="font-size:32px;margin-bottom:9px;">📂</div>
+            <div style="font-size:13px;color:var(--slate-700);font-weight:700;margin-bottom:5px;">
+              ${isLao?'ເລືອກໄຟລ໌ DATA_xxxxxx.xlsx':'เลือกไฟล์ DATA_xxxxxx.xlsx'}
+            </div>
+            <div style="font-size:11px;color:var(--slate-500);margin-bottom:13px;">
+              ${isLao?'Sheet ຊື່ "USE" (ຄາດໝາຍ 40,000+ rows)':'Sheet ชื่อ "USE" (คาดประมาณ 40,000+ rows)'}
+            </div>
+            <input type="file" id="mpUploadFile" accept=".xlsx,.xls" onchange="mpHandleFileSelected(event)"
+                   style="display:block;margin:0 auto;font-size:12px;">
+          </div>
+          
+          <div id="mpUploadStatus" style="margin-top:13px;font-size:12px;color:var(--slate-600);"></div>
+        </div>
+        
+        <div style="background:var(--amber-50);border-left:3px solid var(--amber-500);border-radius:5px;padding:9px 11px;margin-top:13px;font-size:11px;color:var(--slate-700);line-height:1.45;">
+          ⚠️ <b>${isLao?'ໝາຍເຫດ':'หมายเหตุ'}:</b><br>
+          • ${isLao?'ສິນຄ້າທີ່ມີໃນ DB ແຕ່ບໍ່ມີໃນໄຟລ໌ໃໝ່ \u2192 ບໍ່ທຳອັນໃດ (ເກັບໄວ້)':'สินค้าที่มีใน DB แต่ไม่อยู่ในไฟล์ใหม่ → ไม่ทำอะไร (เก็บไว้)'}<br>
+          • ${isLao?'create_time, is_active ບໍ່ຖືກອັບເດດ':'create_time, is_active ไม่ถูกอัพเดต'}<br>
+          • ${isLao?'ຈະ Preview ກ່ອນ confirm ສະເໝີ':'จะ Preview ก่อน confirm เสมอ'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function mpHandleFileSelected(ev) {
+  const file = ev.target.files?.[0];
+  if (!file) return;
+  
+  const statusEl = document.getElementById('mpUploadStatus');
+  const isLao = lang === 'lo';
+  const setStatus = msg => { if (statusEl) statusEl.innerHTML = msg; };
+  
+  setStatus(`<div style="text-align:center;"><div class="loader" style="margin:5px auto;"></div>${isLao?'ກຳລັງອ່ານໄຟລ໌...':'กำลังอ่านไฟล์...'}</div>`);
+  
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const sheetName = wb.SheetNames.includes('USE') ? 'USE' : wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: null });
+    
+    if (rows.length < 2) {
+      setStatus(`<div style="color:var(--rose-500);">${isLao?'ໄຟລ໌ວ່າງ':'ไฟล์ว่างเปล่า'}</div>`);
+      return;
+    }
+    
+    const header = rows[0].map(h => String(h || '').trim());
+    
+    // Required columns (by name match, ทนต่อการเปลี่ยนตำแหน่ง)
+    const COL = {
+      barcode:       header.findIndex(h => h.includes('Barcode')),  // ຫຼັກ
+      internal_code: header.findIndex(h => h === 'ລະຫັດສິນຄ້າ'),
+      name_lo:       header.findIndex(h => h === 'ຊື່ສິນຄ້າ'),
+      name_th:       header.findIndex(h => h === 'ชื่อสินค้า 2'),
+      unit_lo:       header.findIndex(h => h === 'ໜ່ວຍນ້ອຍສຸດ'),
+      sell_price:    header.findIndex(h => h === 'ລາຄາຂາຍ 1'),
+      sell_price_2:  header.findIndex(h => h === 'ລາຄາຂາຍ 2'),
+      sell_price_3:  header.findIndex(h => h === 'ລາຄາຂາຍ 3'),
+      sell_price_min:header.findIndex(h => h === 'ລາຄາຂາຍຕ່ຳສຸດ'),
+      cost_price:    header.findIndex(h => h === 'ຕົ້ນທຶນມາດຖານ'),
+      category:      header.findIndex(h => h === 'ประเภทสินค้า'),
+      product_group: header.findIndex(h => h === 'ກຸ່ມສິນຄ້າ'),
+      brand:         header.findIndex(h => h.startsWith('Brand')),
+      supplier:      header.findIndex(h => h.startsWith('Supplier')),
+      create_time:   header.findIndex(h => h === 'Create Time'),
+    };
+    
+    if (COL.barcode < 0) {
+      setStatus(`<div style="color:var(--rose-500);">${isLao?'ບໍ່ພົບຄໍລໍາ "Barcode ຫຼັກ"':'ไม่พบคอลัมน์ "Barcode ຫຼັກ"'}</div>`);
+      return;
+    }
+    
+    // Parse rows
+    const masterRows = [], mdRows = [];
+    let skippedNoBc = 0;
+    
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || !r.length) continue;
+      const barcode = mpCleanStr(r[COL.barcode]);
+      if (!barcode) { skippedNoBc++; continue; }
+      
+      const brand = mpCleanStr(r[COL.brand]) || '';
+      const isMD = MP_MD_BRANDS_LOWER.includes(brand.trim().toLowerCase());
+      
+      const rec = {
+        barcode,
+        internal_code: mpCleanStr(r[COL.internal_code]),
+        name_lo:       mpCleanStr(r[COL.name_lo]),
+        name_th:       mpCleanStr(r[COL.name_th]),
+        unit_lo:       mpCleanStr(r[COL.unit_lo]),
+        sell_price:    mpCleanNum(r[COL.sell_price]),
+        sell_price_2:  mpCleanNum(r[COL.sell_price_2]),
+        sell_price_3:  mpCleanNum(r[COL.sell_price_3]),
+        sell_price_min:mpCleanNum(r[COL.sell_price_min]),
+        cost_price:    mpCleanNum(r[COL.cost_price]),
+        category:      mpCleanStr(r[COL.category]),
+        product_group: mpCleanStr(r[COL.product_group]),
+        brand:         brand || null,
+        supplier:      mpCleanStr(r[COL.supplier]),
+        create_time:   mpParseCreateTime(r[COL.create_time]),
+      };
+      
+      if (isMD) mdRows.push(rec);
+      else      masterRows.push(rec);
+    }
+    
+    // Dedup by barcode (last wins) — แต่ในไฟล์ปกติไม่ควรมี dup
+    const dedup = arr => {
+      const m = new Map();
+      arr.forEach(r => m.set(r.barcode, r));
+      return Array.from(m.values());
+    };
+    const masterDedup = dedup(masterRows);
+    const mdDedup = dedup(mdRows);
+    
+    _mpUploadParsed = {
+      masterRows: masterDedup,
+      mdRows: mdDedup,
+      totalRaw: rows.length - 1,
+      skippedNoBc,
+      masterDups: masterRows.length - masterDedup.length,
+      mdDups: mdRows.length - mdDedup.length,
+    };
+    
+    setStatus(`
+      <div style="background:var(--emerald-50);border-radius:7px;padding:9px;font-size:12px;color:var(--slate-700);line-height:1.6;">
+        ✅ ${isLao?'ອ່ານໄຟລ໌ສຳເລັດ':'อ่านไฟล์สำเร็จ'}<br>
+        • Total rows: <b>${(rows.length-1).toLocaleString()}</b><br>
+        • Master: <b>${masterDedup.length.toLocaleString()}</b>${_mpUploadParsed.masterDups?` <span style="color:var(--amber-600);">(dup -${_mpUploadParsed.masterDups})</span>`:''}<br>
+        • MD: <b>${mdDedup.length.toLocaleString()}</b>${_mpUploadParsed.mdDups?` <span style="color:var(--amber-600);">(dup -${_mpUploadParsed.mdDups})</span>`:''}<br>
+        ${skippedNoBc?`• <span style="color:var(--amber-600);">Skipped no-bc: ${skippedNoBc}</span>`:''}
+      </div>
+      <button onclick="mpBuildDiff()" style="width:100%;margin-top:11px;background:var(--violet-500);color:white;border:none;padding:12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">
+        🔍 ${isLao?'ສ້າງ Preview Diff':'สร้าง Preview Diff'}
+      </button>
+    `);
+  } catch (e) {
+    setStatus(`<div style="color:var(--rose-500);">Error: ${mpEsc(e.message)}</div>`);
+  }
+}
+
+function mpCleanStr(v) {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return (s === '' || s.toLowerCase() === 'nan') ? null : s;
+}
+
+function mpCleanNum(v) {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (s === '' || s.toLowerCase() === 'nan') return null;
+  const n = Number(s);
+  return isFinite(n) ? n : null;
+}
+
+function mpParseCreateTime(v) {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+  // Try format "15 May 2019 (14:11:55)"
+  const m = s.match(/^(\d{1,2})\s+(\w+)\s+(\d{4})\s*\(?(\d{2}):(\d{2}):(\d{2})?\)?/);
+  if (m) {
+    const months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+    const mo = months[m[2].slice(0,3)];
+    if (mo != null) {
+      const d = new Date(Date.UTC(+m[3], mo, +m[1], +m[4], +m[5], +(m[6]||0)));
+      if (!isNaN(d.getTime())) return d.toISOString();
+    }
+  }
+  // Fallback: native Date
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+async function mpBuildDiff() {
+  if (!_mpUploadParsed) return;
+  const isLao = lang === 'lo';
+  const statusEl = document.getElementById('mpUploadStatus');
+  if (!statusEl) return;
+  
+  statusEl.innerHTML = `<div style="text-align:center;"><div class="loader" style="margin:5px auto;"></div>${isLao?'ກຳລັງສ້າງ diff...':'กำลังสร้าง diff...'}</div>`;
+  
+  try {
+    // Fetch all existing barcodes + key fields from both tables (chunked for large)
+    // Use pagination to avoid Supabase 1000-row default limit
+    async function fetchAll(table, fields) {
+      const PAGE = 1000;
+      let offset = 0, all = [];
+      while (true) {
+        const { data, error } = await sb.from(table).select(fields).range(offset, offset + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        all = all.concat(data);
+        if (data.length < PAGE) break;
+        offset += PAGE;
+      }
+      return all;
+    }
+    
+    const [existingMaster, existingMd] = await Promise.all([
+      fetchAll('master_products', 'id,barcode,' + MP_OVERWRITE_FIELDS.join(',')),
+      fetchAll('md_products', 'id,barcode')
+    ]);
+    
+    const existingMasterMap = new Map(existingMaster.map(r => [r.barcode, r]));
+    const existingMdMap = new Map(existingMd.map(r => [r.barcode, r]));
+    
+    // Build master diff
+    const mInsert = [], mUpdate = [], mSkip = [];
+    for (const newRow of _mpUploadParsed.masterRows) {
+      const old = existingMasterMap.get(newRow.barcode);
+      if (!old) {
+        mInsert.push(newRow);
+      } else {
+        // Check if any overwrite field differs
+        let changed = false;
+        for (const f of MP_OVERWRITE_FIELDS) {
+          const o = old[f] == null ? null : old[f];
+          const n = newRow[f] == null ? null : newRow[f];
+          if (typeof o === 'number' || typeof n === 'number') {
+            if (Number(o) !== Number(n)) { changed = true; break; }
+          } else if (o !== n) { changed = true; break; }
+        }
+        if (changed) mUpdate.push({ ...newRow, id: old.id });
+        else mSkip.push(newRow);
+      }
+    }
+    
+    // MD diff (เปรียบแค่ existence — ทับฟิลด์ตาม policy)
+    const mdInsert = [], mdUpdate = [];
+    for (const newRow of _mpUploadParsed.mdRows) {
+      const old = existingMdMap.get(newRow.barcode);
+      if (!old) mdInsert.push(newRow);
+      else mdUpdate.push({ ...newRow, id: old.id });
+    }
+    
+    // Missing — in DB but NOT in file (ตามที่ตกลง: ไม่ทำอะไร)
+    const filenameBarcodes = new Set(_mpUploadParsed.masterRows.map(r => r.barcode));
+    const missingMaster = existingMaster.filter(r => !filenameBarcodes.has(r.barcode));
+    
+    _mpUploadDiff = {
+      master: { insert: mInsert, update: mUpdate, skip: mSkip.length, missing: missingMaster.length },
+      md:     { insert: mdInsert, update: mdUpdate }
+    };
+    
+    statusEl.innerHTML = `
+      <div style="background:var(--sky-50);border-radius:9px;padding:11px;font-size:12px;color:var(--slate-800);line-height:1.7;">
+        <div style="font-weight:700;margin-bottom:7px;color:var(--sky-700);">📊 ${isLao?'Preview Diff':'Preview Diff'}</div>
+        <div style="border-bottom:1px solid var(--slate-200);padding-bottom:5px;margin-bottom:5px;">
+          <b style="color:var(--violet-700);">Master Products (${(_mpUploadParsed.masterRows.length).toLocaleString()})</b><br>
+          • <span style="color:var(--emerald-600);">➕ INSERT (ใหม่): <b>${mInsert.length.toLocaleString()}</b></span><br>
+          • <span style="color:var(--amber-600);">✏️ UPDATE (เปลี่ยน): <b>${mUpdate.length.toLocaleString()}</b></span><br>
+          • <span style="color:var(--slate-500);">⏭ SKIP (เหมือนเดิม): <b>${mSkip.length.toLocaleString()}</b></span><br>
+          • <span style="color:var(--slate-500);">📦 MISSING (ใน DB ไม่ใช่ในไฟล์): <b>${missingMaster.length.toLocaleString()}</b> ${isLao?'(ບໍ່ທຳອັນໃດ)':'(ไม่ทำอะไร)'}</span>
+        </div>
+        <div>
+          <b style="color:var(--rose-700);">MD Products (${(_mpUploadParsed.mdRows.length).toLocaleString()})</b><br>
+          • <span style="color:var(--emerald-600);">➕ INSERT: <b>${mdInsert.length.toLocaleString()}</b></span><br>
+          • <span style="color:var(--amber-600);">✏️ UPDATE: <b>${mdUpdate.length.toLocaleString()}</b></span>
+        </div>
+      </div>
+      <div style="display:flex;gap:7px;margin-top:13px;">
+        <button onclick="mpCloseEditModal()" style="flex:1;background:var(--slate-100);color:var(--slate-700);border:none;padding:12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">
+          ${isLao?'ຍົກເລີກ':'ยกเลิก'}
+        </button>
+        <button onclick="mpExecuteUpload()" id="mpExecuteBtn" style="flex:1;background:var(--violet-500);color:white;border:none;padding:12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">
+          🚀 ${isLao?'ຍຶນຍັນ Upload':'ยืนยัน Upload'}
+        </button>
+      </div>
+    `;
+  } catch (e) {
+    statusEl.innerHTML = `<div style="color:var(--rose-500);font-size:12px;">Error: ${mpEsc(e.message)}</div>`;
+  }
+}
+
+async function mpExecuteUpload() {
+  if (!_mpUploadDiff || _mpUploadRunning) return;
+  _mpUploadRunning = true;
+  
+  const isLao = lang === 'lo';
+  const statusEl = document.getElementById('mpUploadStatus');
+  const execBtn = document.getElementById('mpExecuteBtn');
+  if (execBtn) { execBtn.disabled = true; execBtn.textContent = '...'; }
+  
+  const totalOps =
+    _mpUploadDiff.master.insert.length + _mpUploadDiff.master.update.length +
+    _mpUploadDiff.md.insert.length + _mpUploadDiff.md.update.length;
+  let done = 0;
+  const updateProgress = () => {
+    const pct = totalOps > 0 ? Math.round(100 * done / totalOps) : 100;
+    if (statusEl) statusEl.innerHTML = `
+      <div style="text-align:center;padding:13px;">
+        <div style="font-size:24px;font-weight:700;color:var(--violet-700);">${pct}%</div>
+        <div style="font-size:11px;color:var(--slate-500);">${done.toLocaleString()} / ${totalOps.toLocaleString()} ops</div>
+        <div style="background:var(--slate-200);border-radius:5px;height:6px;margin-top:7px;overflow:hidden;">
+          <div style="background:var(--violet-500);height:100%;width:${pct}%;transition:width .3s;"></div>
+        </div>
+      </div>`;
+  };
+  updateProgress();
+  
+  const errors = [];
+  
+  async function upsertBatch(table, rows, forUpdate) {
+    // For UPSERT we use the supabase upsert helper with conflict on barcode
+    // forUpdate=true → use master_id-aware logic; here we just upsert by barcode
+    for (let i = 0; i < rows.length; i += MP_UPSERT_BATCH) {
+      const chunk = rows.slice(i, i + MP_UPSERT_BATCH).map(r => ({
+        ...r,
+        imported_at: new Date().toISOString(),
+        // do NOT include id (let DB keep) — UPSERT by barcode
+        imported_by: user?.id || null,
+      }));
+      // remove id field for INSERTs that came w/o it
+      // For UPDATEs we pre-set id, but upsert by barcode works either way
+      const { error } = await sb.from(table).upsert(chunk, { onConflict: 'barcode' });
+      if (error) errors.push(`${table} batch ${i}: ${error.message}`);
+      done += chunk.length;
+      updateProgress();
+    }
+  }
+  
+  try {
+    await upsertBatch('master_products', _mpUploadDiff.master.insert, false);
+    await upsertBatch('master_products', _mpUploadDiff.master.update, true);
+    await upsertBatch('md_products', _mpUploadDiff.md.insert, false);
+    await upsertBatch('md_products', _mpUploadDiff.md.update, true);
+    
+    // Resolve master_id for newly inserted MD rows
+    // (มี master_barcode column ที่ผู้ใช้ไม่ได้ระบุในไฟล์ — skip for now ใน Phase 3B,
+    //  จะทำใน Phase 3C ถ้าต้องการ rematch)
+    
+    const summary = `INSERT ${_mpUploadDiff.master.insert.length} | UPDATE ${_mpUploadDiff.master.update.length} | MD ins ${_mpUploadDiff.md.insert.length} | MD upd ${_mpUploadDiff.md.update.length}`;
+    
+    if (typeof logActivity === 'function') {
+      logActivity('master_upload', summary);
+    }
+    
+    if (statusEl) statusEl.innerHTML = `
+      <div style="background:${errors.length?'var(--rose-50)':'var(--emerald-50)'};border-radius:9px;padding:13px;text-align:center;">
+        <div style="font-size:32px;margin-bottom:5px;">${errors.length?'⚠️':'🎉'}</div>
+        <div style="font-size:14px;font-weight:700;color:${errors.length?'var(--rose-700)':'var(--emerald-700)'};">
+          ${errors.length ? (isLao?'ສຳເລັດບາງສ່ວນ':'สำเร็จบางส่วน') : (isLao?'ສຳເລັດ!':'สำเร็จ!')}
+        </div>
+        <div style="font-size:11px;color:var(--slate-600);margin-top:5px;">${summary}</div>
+        ${errors.length ? `<div style="background:white;border-radius:5px;padding:7px;margin-top:9px;font-size:10px;color:var(--rose-600);text-align:left;max-height:120px;overflow-y:auto;">${errors.slice(0,5).map(e=>mpEsc(e)).join('<br>')}${errors.length>5?'<br>...':''}</div>` : ''}
+      </div>
+      <button onclick="mpCloseEditModal();loadMasterProducts(true);" style="width:100%;margin-top:11px;background:var(--violet-500);color:white;border:none;padding:12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">
+        ✅ ${isLao?'ປິດ + ໂຫຼດໃໝ່':'ปิด + โหลดใหม่'}
+      </button>
+    `;
+  } catch (e) {
+    if (statusEl) statusEl.innerHTML = `<div style="color:var(--rose-500);font-size:12px;padding:11px;">Error: ${mpEsc(e.message)}</div>`;
+  } finally {
+    _mpUploadRunning = false;
+  }
+}
+
+// ──── Inject Upload button into render page ────────────────────────────────
+// Hook: after renderMasterProductPage returns HTML, inject button if admin
+// Better: modify the page render to include the button conditionally.
+// We add via a thin wrapper post-render in goPage but cleanest is via subtitle area.
+// (See edit to renderMasterProductPage subtitle handling below — added inline button)
+
+// ==================== END PHASE 3B UPLOAD ====================
+
 
 
 function renderInvMovementPage() {
@@ -22682,6 +23110,11 @@ window.mpToggleNew = mpToggleNew;
 window.mpOpenEditModal = mpOpenEditModal;
 window.mpCloseEditModal = mpCloseEditModal;
 window.mpSaveEdit = mpSaveEdit;
+// Session 6: Master Product (Phase 3B — Upload XLSX)
+window.mpOpenUploadModal = mpOpenUploadModal;
+window.mpHandleFileSelected = mpHandleFileSelected;
+window.mpBuildDiff = mpBuildDiff;
+window.mpExecuteUpload = mpExecuteUpload;
 // Phase B (2026-05-27): workflow stage actions
 window.assignGapToMe = assignGapToMe;
 window.startGapWork = startGapWork;
