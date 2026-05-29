@@ -23385,11 +23385,55 @@ async function openExpiryAction(id) {
 
 async function expDoMarkdown(id, step) {
   const isLao = lang === 'lo';
-  const { error } = await sb.from('expiry_batches').update({ md_step: step, status: 'marked_down', updated_at: new Date().toISOString() }).eq('id', id);
-  if (error) { showToast('Error: ' + error.message, 'error'); return; }
   const item = (window._expTrackData || []).find(x => x.id === id);
-  logActivity('expiry_markdown', `${item ? item.barcode : id} | Step ${step}`);
-  showToast(isLao ? `Markdown Step ${step} ✓` : `บันทึก Markdown Step ${step} ✓`, 'success');
+  if (!item) return;
+  // คำนวณบาร์ markdown จากบาร์ปกติ: ตัวเลขล้วน -> '888'+barcode ; อื่นๆ (fresh ใช้ชื่อ) -> barcode+'MD'
+  let autoMd = '';
+  const _bc = String(item.barcode || '').trim();
+  if (/^\d+$/.test(_bc)) autoMd = '888' + _bc;
+  else if (_bc) autoMd = _bc + 'MD';
+  const foundHtml = autoMd
+    ? '<div style="font-size:10px;color:var(--emerald-700);background:var(--emerald-50);border-radius:6px;padding:5px 8px;margin-bottom:9px;">\u2713 Auto: <strong>' + autoMd + '</strong> ' + (isLao ? '(ແກ້ໄດ້)' : '(แก้ได้)') + '</div>'
+    : '';
+  showModal(''
+    + '<h3 style="font-size:15px;margin:0 0 4px;">' + (isLao ? 'ໂອນເປັນ Markdown' : 'โอนเป็น Markdown') + ' (Step ' + step + ')</h3>'
+    + '<p style="font-size:11px;color:var(--slate-500);margin:0 0 11px;">' + (item.product_name || item.barcode) + '<br>' + (isLao ? 'ບາร์ปกติ' : 'บาร์ปกติ') + ': ' + item.barcode + '</p>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ບາร์ Markdown (888...)' : 'บาร์ Markdown (888...)') + '</label>'
+    + '<input class="form-input" id="mdBarcodeInput" type="text" value="' + autoMd + '" placeholder="' + (isLao ? 'ສະແກນ ຫຼື ພິມ' : 'สแกน หรือ พิมพ์') + '"></div>'
+    + '<button onclick="startScanForMd()" style="width:100%;background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;border-radius:11px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:9px;">\uD83D\uDCF7 ' + (isLao ? 'ສະແກนບາร์ Markdown' : 'สแกนบาร์ Markdown') + '</button>'
+    + foundHtml
+    + '<div class="action-row"><button class="btn btn-secondary" onclick="closeModal()">' + (isLao ? 'ຍົກເລີກ' : 'ยกเลิก') + '</button>'
+    + '<button class="btn btn-primary" onclick="expConfirmToMd()">' + (isLao ? 'ຢืนยัน' : 'ยืนยัน') + '</button></div>'
+  );
+}
+
+async function startScanForMd() {
+  window._scanCallback = (barcode) => {
+    const el = document.getElementById('mdBarcodeInput');
+    if (el) el.value = barcode;
+  };
+  await startScan();
+}
+
+async function expConfirmToMd() {
+  const isLao = lang === 'lo';
+  const ctx = window._expMdContext;
+  if (!ctx) { closeModal(); return; }
+  const el = document.getElementById('mdBarcodeInput');
+  const mdBc = el ? el.value.trim() : '';
+  if (!mdBc) { showToast(isLao ? 'ກະລุนาໃส่บาร์ markdown' : 'กรุณาใส่บาร์ markdown', 'error'); return; }
+  let mdProd = null;
+  try {
+    const { data } = await sb.from('products').select('*').eq('barcode', mdBc).eq('branch_id', branch.id).eq('is_active', true).maybeSingle();
+    mdProd = data || null;
+  } catch (e) {}
+  const upd = { barcode: mdBc, status: 'marked_down', md_step: ctx.step, updated_at: new Date().toISOString() };
+  if (mdProd) { upd.product_id = mdProd.id; if (mdProd.category_id) upd.category_id = mdProd.category_id; }
+  const { error } = await sb.from('expiry_batches').update(upd).eq('id', ctx.id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  logActivity('expiry_to_md', (ctx.origBarcode || '') + ' \u2192 ' + mdBc + ' | Step ' + ctx.step);
+  showToast(isLao ? 'ໂອນເປັນ Markdown ແລ້ວ \u2713' : 'โอนเป็น Markdown แล้ว \u2713', 'success');
+  window._expMdContext = null;
   closeModal();
   loadExpiryTrack();
 }
@@ -23518,6 +23562,8 @@ window.etrkSetCat = etrkSetCat;
 window.renderExpiryDash = renderExpiryDash;
 window.openExpiryAction = openExpiryAction;
 window.expDoMarkdown = expDoMarkdown;
+window.startScanForMd = startScanForMd;
+window.expConfirmToMd = expConfirmToMd;
 window.expDoMarkzero = expDoMarkzero;
 window.expDoTransfer = expDoTransfer;
 window.expConfirmTransfer = expConfirmTransfer;
