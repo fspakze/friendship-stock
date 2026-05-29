@@ -23118,6 +23118,7 @@ async function saveExpiryBatch() {
   const payload = {
     branch_id: branch.id,
     product_id: p.id || null,
+    category_id: p.category_id || null,
     barcode: p.barcode,
     product_name: p.name_th || p.name_lo || null,
     expiry_date: expDate,
@@ -23189,6 +23190,43 @@ window.loadExpiryRecent = loadExpiryRecent;
    Added 2026-05-29 by Anya — list ทั้งสาขา เรียงตาม DTE + Markdown/Markzero/โอน
    action เฉพาะ role manager (admin/scc/bcs/ctl) — mirror canModifyGap */
 let _etrkBucket = 'all';
+
+/* ปฏิทิน Markdown ตามหมวดสินค้า (จากไฟล์เกณฑ์จริง) — key = เลขหมวด 2 หลัก
+   days = จำนวนวันก่อนหมดอายุที่ถึงเกณฑ์ Step นั้น (null = ใช้ Non-Move ไม่อิงวันหมดอายุ) */
+const EXP_MD_CALENDAR = {
+  '01': { steps: [{ label: '1 เดือน', pct: '-20%', days: 30 }, { label: '15 วัน', pct: '-30%', days: 15 }, { label: '7 วัน', pct: '-40-50%', days: 7 }] },
+  '02': { steps: [{ label: 'NM 3ด./DOH>1ปี', pct: '-10%', days: null }, { label: 'NM 5ด.', pct: '-20%', days: null }, { label: 'NM 6ด.', pct: '-30%', days: null }], note: 'ใช้ Non-Move ไม่อิงวันหมดอายุ' },
+  '03': { steps: [{ label: '2 เดือน', pct: '-10-20%', days: 60 }, { label: '1 เดือน', pct: '-20-25%', days: 30 }, { label: '15 วัน', pct: '-30-40%', days: 15 }] },
+  '04': { steps: [{ label: '2 เดือน', pct: '-10-20%', days: 60 }, { label: '1 เดือน', pct: '-20-25%', days: 30 }, { label: '15 วัน', pct: '-30-40%', days: 15 }], note: 'อิงหมวด 03 — รอผู้จัดการยืนยัน' },
+  '05': { steps: [{ label: '2 เดือน', pct: '-5-10%', days: 60 }, { label: '1 เดือน', pct: '-15-20%', days: 30 }, { label: '15 วัน', pct: '-25-30%', days: 15 }, { label: '7 วัน', pct: '-40-50%', days: 7 }] },
+  '06': { steps: [{ label: '7 วัน', pct: '-10-20%', days: 7 }, { label: '3 วัน', pct: '-30-40%', days: 3 }, { label: '1 วัน', pct: '-50-70%', days: 1 }] },
+  '07': { steps: [{ label: '2 เดือน', pct: '-5-10%', days: 60 }, { label: '1 เดือน', pct: '-15-20%', days: 30 }, { label: '15 วัน', pct: '-25-30%', days: 15 }, { label: '7 วัน', pct: '-40-50%', days: 7 }] },
+  '08': { steps: [{ label: '5 วัน', pct: '-10-20%', days: 5 }, { label: '3 วัน', pct: '-30-40%', days: 3 }, { label: '1 วัน', pct: '-50-70%', days: 1 }] },
+  '09': { steps: [{ label: '7 วัน', pct: '-10-20%', days: 7 }, { label: '3 วัน', pct: '-30-40%', days: 3 }, { label: '1 วัน', pct: '-50-70%', days: 1 }] },
+  '10': { steps: [{ label: '1 เดือน', pct: '-10-15%', days: 30 }, { label: '15 วัน', pct: '-20-30%', days: 15 }, { label: '7 วัน', pct: '-30-40%', days: 7 }], note: 'ไม่ควรถึง Step 3' },
+  '11': { steps: [{ label: '1 เดือน', pct: '-10-15%', days: 30 }, { label: '15 วัน', pct: '-20-30%', days: 15 }, { label: '7 วัน', pct: '-30-40%', days: 7 }] },
+  '13': { steps: [{ label: '2 เดือน', pct: 'แยกขาย', days: 60 }] },
+  '15': { steps: [{ label: '5 วัน', pct: '-10%', days: 5 }, { label: '3 วัน', pct: '-20-30%', days: 3 }, { label: '1 วัน', pct: '-50-70%', days: 1 }] }
+};
+
+async function loadCategoriesCache() {
+  if (window._catNoById) return window._catNoById;
+  try {
+    const { data, error } = await sb.from('categories').select('id, name_th, name_lo').order('id');
+    if (error) throw error;
+    const map = {};
+    (data || []).forEach(c => {
+      const m = String(c.name_th || c.name_lo || '').match(/(\d{2})/);
+      if (m) map[c.id] = m[1];
+    });
+    window._catNoById = map;
+    return map;
+  } catch (e) {
+    console.warn('[FS] loadCategoriesCache:', (e && e.message) ? e.message : e);
+    window._catNoById = {};
+    return {};
+  }
+}
 
 function renderExpiryTrackPage() {
   const isLao = lang === 'lo';
@@ -23279,30 +23317,52 @@ function renderExpiryTrackList() {
   listEl.innerHTML = html;
 }
 
-function openExpiryAction(id) {
+async function openExpiryAction(id) {
   const isLao = lang === 'lo';
   const item = (window._expTrackData || []).find(x => x.id === id);
   if (!item) return;
   const isManager = ['admin', 'scc', 'bcs', 'ctl'].includes(user.role);
   const dte = Math.ceil((new Date(item.expiry_date).getTime() - Date.now()) / 86400000);
-  const dteLabel = dte < 0 ? (isLao ? `ໝົດ ${-dte} ມື້` : `หมดอายุแล้ว ${-dte} วัน`) : (isLao ? `ເຫຼືອ ${dte} ມື້` : `เหลือ ${dte} วัน`);
+  const dteLabel = dte < 0 ? (isLao ? ('ໝົດ ' + (-dte) + ' ມື້') : ('หมดอายุแล้ว ' + (-dte) + ' วัน')) : (isLao ? ('ເຫຼືອ ' + dte + ' ມື້') : ('เหลือ ' + dte + ' วัน'));
+  let catNo = null;
+  if (item.category_id) { await loadCategoriesCache(); catNo = (window._catNoById || {})[item.category_id] || null; }
+  const cal = catNo ? EXP_MD_CALENDAR[catNo] : null;
   let actions = '';
   if (isManager) {
-    const steps = [1, 2, 3, 4].map(s => `<button onclick="expDoMarkdown(${id},${s})" style="flex:1;min-width:64px;background:var(--violet-500);color:white;border:none;border-radius:9px;padding:11px 6px;font-size:12px;font-weight:800;cursor:pointer;">Step ${s}</button>`).join('');
-    actions = `
-      <div style="font-size:11px;font-weight:700;color:var(--slate-600);margin:6px 0 5px;">🏷️ ${isLao ? 'ລົດລາຄາ (ຕາມปฏิทินหมวดสินค้า)' : 'ลดราคา (Markdown — ตามปฏิทินหมวดสินค้า)'}</div>
-      <div style="display:flex;gap:6px;margin-bottom:11px;">${steps}</div>
-      <button onclick="expDoTransfer(${id})" style="width:100%;background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;border:none;border-radius:11px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:7px;">🔄 ${isLao ? 'ໂອນສາຂາ' : 'โอนสาขา'}</button>
-      <button onclick="expDoMarkzero(${id})" style="width:100%;background:linear-gradient(135deg,var(--rose-500),var(--rose-600));color:white;border:none;border-radius:11px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">🗑 ${isLao ? 'Markzero (ຕັດຖິ້ມ)' : 'Markzero (ตัดทิ้ง)'}</button>`;
+    let stepsHtml = '';
+    if (cal && cal.steps && cal.steps.length) {
+      let recIdx = -1;
+      cal.steps.forEach((st, i2) => { if (st.days != null && dte <= st.days) recIdx = i2; });
+      stepsHtml = cal.steps.map((st, i2) => {
+        const active = i2 === recIdx;
+        const bgc = active ? 'var(--rose-500)' : 'var(--violet-500)';
+        const ring = active ? 'box-shadow:0 0 0 3px var(--rose-200);' : '';
+        return '<button onclick="expDoMarkdown(' + id + ',' + (i2 + 1) + ')" style="flex:1;min-width:78px;background:' + bgc + ';color:white;border:none;border-radius:9px;padding:9px 5px;font-weight:800;cursor:pointer;' + ring + '">'
+          + '<div style="font-size:11px;">Step ' + (i2 + 1) + (active ? ' \u25C0' : '') + '</div>'
+          + '<div style="font-size:13px;">' + st.pct + '</div>'
+          + '<div style="font-size:8px;opacity:0.92;font-weight:600;">' + st.label + '</div>'
+          + '</button>';
+      }).join('');
+    } else {
+      stepsHtml = [1, 2, 3, 4].map(s2 => '<button onclick="expDoMarkdown(' + id + ',' + s2 + ')" style="flex:1;min-width:64px;background:var(--violet-500);color:white;border:none;border-radius:9px;padding:11px 6px;font-size:12px;font-weight:800;cursor:pointer;">Step ' + s2 + '</button>').join('');
+    }
+    const catLabel = catNo ? (isLao ? ('ໝວດ ' + catNo) : ('หมวด ' + catNo)) : (isLao ? 'ບໍ່ມີປະຕິທິນ — ກຳນົດເອງ' : 'ไม่มีปฏิทิน — กำหนดเอง');
+    const noteHtml = (cal && cal.note) ? ('<div style="font-size:10px;color:var(--amber-700);background:var(--amber-50);border-radius:6px;padding:5px 8px;margin-bottom:8px;">\u26A0 ' + cal.note + '</div>') : '';
+    actions = ''
+      + '<div style="font-size:11px;font-weight:700;color:var(--slate-600);margin:6px 0 5px;">\uD83C\uDFF7\uFE0F ' + (isLao ? 'ລົດລາຄາ Markdown' : 'ลดราคา Markdown') + ' <span style="color:var(--slate-400);font-weight:600;">(' + catLabel + ')</span></div>'
+      + noteHtml
+      + '<div style="display:flex;gap:6px;margin-bottom:11px;flex-wrap:wrap;">' + stepsHtml + '</div>'
+      + '<button onclick="expDoTransfer(' + id + ')" style="width:100%;background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;border:none;border-radius:11px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:7px;">\uD83D\uDD04 ' + (isLao ? 'ໂອນສາຂາ' : 'โอนสาขา') + '</button>'
+      + '<button onclick="expDoMarkzero(' + id + ')" style="width:100%;background:linear-gradient(135deg,var(--rose-500),var(--rose-600));color:white;border:none;border-radius:11px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">\uD83D\uDDD1 ' + (isLao ? 'Markzero (ຕັດຖິ້ມ)' : 'Markzero (ตัดทิ้ง)') + '</button>';
   } else {
-    actions = `<div style="font-size:11px;color:var(--slate-500);padding:8px 0;">${isLao ? 'ເບິ່ງຢ່າງດຽວ — ສະເພາະຫົວໜ້າเທົ່ານั้นທີ່ทำລາຍການได้' : 'ดูอย่างเดียว — เฉพาะหัวหน้าทำรายการได้'}</div>`;
+    actions = '<div style="font-size:11px;color:var(--slate-500);padding:8px 0;">' + (isLao ? 'ເບິ່ງຢ່າງດຽວ — ສະເພາະຫົວໜ້າເທົ່ານັ້ນ' : 'ดูอย่างเดียว — เฉพาะหัวหน้าทำรายการได้') + '</div>';
   }
-  showModal(`
-    <h3 style="font-size:15px;margin:0 0 4px;">${item.product_name || item.barcode}</h3>
-    <p style="font-size:11px;color:var(--slate-500);margin:0 0 11px;">${item.barcode} • ${item.expiry_date} • <strong>${dteLabel}</strong> • ${item.qty} ${isLao ? 'ຊິ້ນ' : 'ชิ้น'}</p>
-    ${actions}
-    <div class="action-row" style="margin-top:11px;"><button class="btn btn-secondary" onclick="closeModal()">${isLao ? 'ປິດ' : 'ปิด'}</button></div>
-  `);
+  showModal(''
+    + '<h3 style="font-size:15px;margin:0 0 4px;">' + (item.product_name || item.barcode) + '</h3>'
+    + '<p style="font-size:11px;color:var(--slate-500);margin:0 0 11px;">' + item.barcode + ' \u2022 ' + item.expiry_date + ' \u2022 <strong>' + dteLabel + '</strong> \u2022 ' + item.qty + ' ' + (isLao ? 'ຊິ້ນ' : 'ชิ้น') + '</p>'
+    + actions
+    + '<div class="action-row" style="margin-top:11px;"><button class="btn btn-secondary" onclick="closeModal()">' + (isLao ? 'ປິດ' : 'ปิด') + '</button></div>'
+  );
 }
 
 async function expDoMarkdown(id, step) {
