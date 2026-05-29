@@ -13348,6 +13348,11 @@ function renderHistoryPage() {
         📐 <span>Pan-O-Gram</span>
         <span id="histSubBadgePog" style="background:var(--slate-300);color:var(--slate-700);padding:1px 7px;border-radius:8px;font-size:10px;">0</span>
       </button>
+      <button id="histSubTabWork" onclick="switchHistorySubTab('work')" 
+              style="flex:1;padding:9px;border:none;border-radius:8px;background:transparent;color:var(--slate-600);font-weight:700;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all 0.2s;">
+        📢 <span>${isLao ? 'งานที่แจ้ง' : 'งานที่แจ้ง'}</span>
+        <span id="histSubBadgeWork" style="background:var(--slate-300);color:var(--slate-700);padding:1px 7px;border-radius:8px;font-size:10px;">0</span>
+      </button>
     </div>
     
     <!-- Counts Section -->
@@ -13386,6 +13391,17 @@ function renderHistoryPage() {
         <div class="history-list" id="histPogList"></div>
       </div>
     </div>
+
+    <!-- งานที่ฉันแจ้ง Section -->
+    <div id="histSecWork" style="display:none;">
+      <div class="history-card">
+        <div class="section-title" style="color:var(--teal-600);">
+          📢 ${isLao ? 'งานที่ฉันแจ้ง' : 'งานที่ฉันแจ้ง'}
+          <span class="badge" id="histWorkCount" style="background:var(--teal-100);color:var(--teal-700);">0</span>
+        </div>
+        <div class="history-list" id="histWorkList"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
+      </div>
+    </div>
   `;
 }
 
@@ -13395,28 +13411,28 @@ function switchHistorySubTab(tab) {
   _historySubTab = tab;
   const tabBtnCounts = document.getElementById('histSubTabCounts');
   const tabBtnPog = document.getElementById('histSubTabPog');
+  const tabBtnWork = document.getElementById('histSubTabWork');
   const secCounts = document.getElementById('histSecCounts');
   const secPog = document.getElementById('histSecPog');
-  
+  const secWork = document.getElementById('histSecWork');
+
+  // reset ปุ่มทุกอันเป็น inactive
+  [tabBtnCounts, tabBtnPog, tabBtnWork].forEach(b => { if (b) { b.style.background = 'transparent'; b.style.color = 'var(--slate-600)'; } });
+  if (secCounts) secCounts.style.display = 'none';
+  if (secPog) secPog.style.display = 'none';
+  if (secWork) secWork.style.display = 'none';
+
   if (tab === 'counts') {
-    tabBtnCounts.style.background = 'var(--teal-600)';
-    tabBtnCounts.style.color = 'white';
-    tabBtnPog.style.background = 'transparent';
-    tabBtnPog.style.color = 'var(--slate-600)';
+    if (tabBtnCounts) { tabBtnCounts.style.background = 'var(--teal-600)'; tabBtnCounts.style.color = 'white'; }
     if (secCounts) secCounts.style.display = '';
-    if (secPog) secPog.style.display = 'none';
-  } else {
-    tabBtnPog.style.background = 'var(--violet-500)';
-    tabBtnPog.style.color = 'white';
-    tabBtnCounts.style.background = 'transparent';
-    tabBtnCounts.style.color = 'var(--slate-600)';
-    if (secCounts) secCounts.style.display = 'none';
+  } else if (tab === 'pog') {
+    if (tabBtnPog) { tabBtnPog.style.background = 'var(--violet-500)'; tabBtnPog.style.color = 'white'; }
     if (secPog) secPog.style.display = '';
-    
-    // Lazy load Pan-O-Gram list (only when switching to that tab)
-    if (!window._historyPogLoaded) {
-      loadHistoryPog();
-    }
+    if (!window._historyPogLoaded) loadHistoryPog();
+  } else if (tab === 'work') {
+    if (tabBtnWork) { tabBtnWork.style.background = 'var(--teal-600)'; tabBtnWork.style.color = 'white'; }
+    if (secWork) secWork.style.display = '';
+    loadHistoryWork();
   }
 }
 
@@ -23481,6 +23497,36 @@ async function wtSetStatus(id, st) {
   loadWorkTickets();
 }
 
+// ---------- ประวัติงานที่ฉันแจ้ง (ในแท็บประวัติ) ----------
+async function loadHistoryWork() {
+  const isLao = lang === 'lo';
+  const list = document.getElementById('histWorkList');
+  if (!list) return;
+  let rows = [];
+  try {
+    const { data, error } = await sb.from('work_tickets').select('*').eq('reporter_id', user.id).order('created_at', { ascending: false });
+    if (!error) rows = data || [];
+  } catch (e) {}
+  const badge = document.getElementById('histWorkCount');
+  if (badge) badge.textContent = rows.length;
+  if (!rows.length) {
+    list.innerHTML = '<div style="text-align:center;padding:36px;color:var(--slate-400);"><div style="font-size:32px;">📭</div>' + (isLao ? 'ຍັງບໍ່ມีงานที่แจ้ง' : 'ยังไม่มีงานที่คุณแจ้ง') + '</div>';
+    return;
+  }
+  list.innerHTML = rows.map(t => {
+    const s = wtStatusOf(t);
+    return '<div onclick="wtOpen(' + t.id + ')" style="background:white;border:1px solid var(--slate-200);border-radius:11px;padding:11px 12px;margin:0 14px 8px;cursor:pointer;">'
+      + '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:5px;"><span style="font-weight:700;font-size:13px;flex:1;min-width:110px;">' + wtEsc(t.title) + '</span>' + wtBadge(s) + '</div>'
+      + '<div style="display:flex;gap:9px;flex-wrap:wrap;font-size:10px;color:var(--slate-500);">'
+      + '<span style="font-family:monospace;font-weight:700;">' + t.ticket_no + '</span>'
+      + '<span>➡️ ' + wtEsc(t.dept) + '</span>'
+      + ((t.photo_urls && t.photo_urls.length) ? '<span>📷 ' + t.photo_urls.length + '</span>' : '')
+      + (t.status === 'done' && t.handled_name ? '<span style="color:var(--emerald-600);">✓ ' + wtEsc(t.handled_name) + '</span>' : '')
+      + '</div></div>';
+  }).join('');
+}
+
+
 
 
 async function loadCategoriesCache() {
@@ -23854,6 +23900,7 @@ window.wrReset = wrReset;
 window.wtSetFilter = wtSetFilter;
 window.wtOpen = wtOpen;
 window.wtSetStatus = wtSetStatus;
+window.loadHistoryWork = loadHistoryWork;
 window.wrOnPhotoSelected = wrOnPhotoSelected;
 window.wrRemovePhoto = wrRemovePhoto;
 window.expDoMarkdown = expDoMarkdown;
