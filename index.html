@@ -6341,26 +6341,45 @@ async function mpHandleFileSelected(ev) {
       const brand = mpCleanStr(r[COL.brand]) || '';
       const isMD = MP_MD_BRANDS_LOWER.includes(brand.trim().toLowerCase());
       
-      const rec = {
-        barcode,
-        internal_code: mpCleanStr(r[COL.internal_code]),
-        name_lo:       mpCleanStr(r[COL.name_lo]),
-        name_th:       mpCleanStr(r[COL.name_th]),
-        unit_lo:       mpCleanStr(r[COL.unit_lo]),
-        sell_price:    mpCleanNum(r[COL.sell_price]),
-        sell_price_2:  mpCleanNum(r[COL.sell_price_2]),
-        sell_price_3:  mpCleanNum(r[COL.sell_price_3]),
-        sell_price_min:mpCleanNum(r[COL.sell_price_min]),
-        cost_price:    mpCleanNum(r[COL.cost_price]),
-        category:      mpCleanStr(r[COL.category]),
-        product_group: mpCleanStr(r[COL.product_group]),
-        brand:         brand || null,
-        supplier:      mpCleanStr(r[COL.supplier]),
-        create_time:   mpParseCreateTime(r[COL.create_time]),
-      };
-      
-      if (isMD) mdRows.push(rec);
-      else      masterRows.push(rec);
+      if (isMD) {
+        // md_products schema — NO sell_price_2/3/min, NO product_group columns? Has them.
+        // Per Migration 46: md_products has barcode, master_barcode, master_id,
+        // internal_code, name_lo, name_th, unit_lo, unit_th, sell_price, cost_price,
+        // category, product_group, brand, supplier, create_time, is_active, imported_*
+        mdRows.push({
+          barcode,
+          internal_code: mpCleanStr(r[COL.internal_code]),
+          name_lo:       mpCleanStr(r[COL.name_lo]),
+          name_th:       mpCleanStr(r[COL.name_th]),
+          unit_lo:       mpCleanStr(r[COL.unit_lo]),
+          sell_price:    mpCleanNum(r[COL.sell_price]),
+          cost_price:    mpCleanNum(r[COL.cost_price]),
+          category:      mpCleanStr(r[COL.category]),
+          product_group: mpCleanStr(r[COL.product_group]),
+          brand:         brand || null,
+          supplier:      mpCleanStr(r[COL.supplier]),
+          create_time:   mpParseCreateTime(r[COL.create_time]),
+        });
+      } else {
+        // master_products schema — has all sell_price tiers
+        masterRows.push({
+          barcode,
+          internal_code: mpCleanStr(r[COL.internal_code]),
+          name_lo:       mpCleanStr(r[COL.name_lo]),
+          name_th:       mpCleanStr(r[COL.name_th]),
+          unit_lo:       mpCleanStr(r[COL.unit_lo]),
+          sell_price:    mpCleanNum(r[COL.sell_price]),
+          sell_price_2:  mpCleanNum(r[COL.sell_price_2]),
+          sell_price_3:  mpCleanNum(r[COL.sell_price_3]),
+          sell_price_min:mpCleanNum(r[COL.sell_price_min]),
+          cost_price:    mpCleanNum(r[COL.cost_price]),
+          category:      mpCleanStr(r[COL.category]),
+          product_group: mpCleanStr(r[COL.product_group]),
+          brand:         brand || null,
+          supplier:      mpCleanStr(r[COL.supplier]),
+          create_time:   mpParseCreateTime(r[COL.create_time]),
+        });
+      }
     }
     
     // Dedup by barcode (last wins) — แต่ในไฟล์ปกติไม่ควรมี dup
