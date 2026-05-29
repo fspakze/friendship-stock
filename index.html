@@ -7931,21 +7931,20 @@ function renderStockCheckResult(prod, pog, lastCount) {
       ${locHtml}
       ${lastCountHtml}
       
-      <button onclick="scShowBranchStock()" style="width:100%;background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:11px;display:flex;align-items:center;justify-content:center;gap:7px;">
-        🏪 ${T('sc_view_other_branches')}
-      </button>
-      
-      <button onclick="scOpenExpiryModal()" style="width:100%;background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:7px;display:flex;align-items:center;justify-content:center;gap:7px;">
-        📅 ${isLao ? 'ບັນທຶກອາຍຸ' : 'บันทึกอายุ'}
-      </button>
-      
-      <button onclick="scOpenPogPicker()" style="width:100%;background:linear-gradient(135deg,var(--violet-500),var(--violet-600));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:7px;display:flex;align-items:center;justify-content:center;gap:7px;">
-        ${pog?.location_code ? `✏️ ${T('sc_edit_pog')}` : `📍 ${T('sc_set_pog')}`}
-      </button>
-      
-      <button onclick="scOpenIssueModal()" style="width:100%;background:linear-gradient(135deg,var(--rose-500),var(--amber-500));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:7px;display:flex;align-items:center;justify-content:center;gap:7px;">
-        🚨 ${T('sc_report_issue')}
-      </button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:11px;">
+        <button onclick="scShowBranchStock()" style="background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;border:none;padding:12px 8px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;line-height:1.2;">
+          <span style="font-size:19px;">🏪</span>${T('sc_view_other_branches')}
+        </button>
+        <button onclick="scOpenExpiryModal()" style="background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;padding:12px 8px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;line-height:1.2;">
+          <span style="font-size:19px;">📅</span>${isLao ? 'ບັນທຶກອາຍຸ' : 'บันทึกอายุ'}
+        </button>
+        <button onclick="scOpenPogPicker()" style="background:linear-gradient(135deg,var(--violet-500),var(--violet-600));color:white;border:none;padding:12px 8px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;line-height:1.2;">
+          <span style="font-size:19px;">${pog?.location_code ? '✏️' : '📍'}</span>${pog?.location_code ? T('sc_edit_pog') : T('sc_set_pog')}
+        </button>
+        <button onclick="scOpenIssueModal()" style="background:linear-gradient(135deg,var(--rose-500),var(--amber-500));color:white;border:none;padding:12px 8px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;line-height:1.2;">
+          <span style="font-size:19px;">🚨</span>${T('sc_report_issue')}
+        </button>
+      </div>
     </div>
   `;
 }
@@ -9074,9 +9073,6 @@ function showFocusIndicator(video, clientX, clientY) {
 })();
 
 // keep old name for compat
-function fixIOSVideoElement(containerId) {
-  return fixVideoElement(containerId);
-}
 
 // Fallback start: ถ้า facingMode fail ลอง enumerate cameras แล้วเลือก back camera
 async function tryStartScannerFallback(scannerInstance, containerId, onSuccess) {
@@ -21064,9 +21060,6 @@ async function showLocationDetail(locationCode) {
 }
 
 // Render the list inside the modal based on current sort
-function renderLocationDetailList_OLD_UNUSED_PLACEHOLDER() {
-  // (placeholder — replaced by new logic below)
-}
 
 // Helper สำหรับเปลี่ยน view
 function setLocDetailView(view, btnEl) {
@@ -22989,89 +22982,6 @@ window.filterByBranch = filterByBranch;
    reuse: startScan / _scanCallback, products lookup, logActivity, showToast, beep */
 let _expCurrentProduct = null;
 
-function renderExpiryEntryPage() {
-  const isLao = lang === 'lo';
-  return `
-    <div style="background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border-radius:13px;padding:13px;margin-bottom:11px;">
-      <div style="font-size:18px;font-weight:800;display:flex;align-items:center;gap:9px;">
-        📅 ${isLao ? 'ບັນທຶກອາຍຸສິນຄ້າ' : 'บันทึกอายุสินค้า'}
-      </div>
-      <div style="font-size:11px;opacity:0.95;margin-top:3px;line-height:1.4;">
-        ${isLao ? 'ສະແກນສິນຄ້າ → ໃສ່ວັນໝົດອາຍຸ + ຈຳນວນ' : 'สแกนสินค้า → ใส่วันหมดอายุ + จำนวน'}
-      </div>
-    </div>
-
-    <div class="scan-card">
-      <div class="scan-frame" id="expScanFrame">
-        <div class="scan-placeholder" id="expScanPlaceholder">
-          <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="color:var(--teal-500);"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          <p>${isLao ? 'ກົດປຸ່ມເພື່ອສະແກນ' : 'กดปุ่มเพื่อสแกน'}</p>
-        </div>
-      </div>
-      <div class="scan-controls" style="display:flex;flex-direction:column;gap:9px;padding:11px;">
-        <input type="text" id="expBarcodeInput"
-               placeholder="${isLao ? '⌨️ ໃສ່ Barcode ຫຼື ສະແກນ...' : '⌨️ ใส่ Barcode หรือ สแกน...'}"
-               onkeypress="if(event.key==='Enter')onExpBarcodeEnter()"
-               style="width:100%;padding:13px 14px;border:2px solid var(--slate-200);border-radius:11px;font-size:15px;font-family:'Space Grotesk',monospace;font-weight:600;background:white;outline:none;"
-               onfocus="this.style.borderColor='var(--teal-500)';" onblur="this.style.borderColor='var(--slate-200)';">
-        <button class="btn" style="background:linear-gradient(135deg,var(--violet-500),var(--violet-600));color:white;border:none;padding:13px;font-size:14px;font-weight:800;border-radius:11px;width:100%;cursor:pointer;" onclick="onExpBarcodeEnter()">
-          🔍 ${isLao ? 'ຄົ້ນຫາ' : 'ค้นหา'}
-        </button>
-        <button class="btn btn-primary" style="background:linear-gradient(135deg,var(--teal-500),var(--sky-500));padding:13px;font-size:14px;font-weight:800;border-radius:11px;width:100%;" onclick="startScanForExpiry()">
-          📷 ${isLao ? 'ສະແກນດ້ວຍກ້ອງ' : 'สแกนด้วยกล้อง'}
-        </button>
-      </div>
-    </div>
-
-    <div id="expProductCard" style="margin-top:11px;"></div>
-
-    <div style="margin-top:11px;">
-      <div style="font-size:11px;font-weight:700;color:var(--slate-700);margin-bottom:5px;display:flex;align-items:center;justify-content:space-between;">
-        <span>📋 ${isLao ? 'ບັນທຶກລ່າສຸດ' : 'บันทึกล่าสุด'}</span>
-        <span id="expRecentCount" style="background:var(--teal-100);color:var(--teal-600);padding:2px 7px;border-radius:5px;font-size:10px;">0</span>
-      </div>
-      <div id="expRecentList"></div>
-    </div>
-  `;
-}
-
-async function startScanForExpiry() {
-  window._scanCallback = (barcode) => {
-    const input = document.getElementById('expBarcodeInput');
-    if (input) input.value = barcode;
-    expLookup();
-  };
-  await startScan();
-}
-
-async function onExpBarcodeEnter() {
-  const input = document.getElementById('expBarcodeInput');
-  if (!input || !input.value.trim()) return;
-  await expLookup();
-}
-
-async function expLookup() {
-  const isLao = lang === 'lo';
-  const input = document.getElementById('expBarcodeInput');
-  if (!input) return;
-  const barcode = input.value.trim();
-  if (!barcode) return;
-  beep();
-  if (!branch || !branch.id) { showToast(isLao ? 'ບໍ່ມີສາຂາ' : 'ไม่มีสาขา', 'error'); return; }
-  const card = document.getElementById('expProductCard');
-  if (card) card.innerHTML = `<div style="text-align:center;padding:20px;color:var(--slate-500);font-size:12px;">⏳ ${isLao ? 'ກຳລັງໂຫລດ...' : 'กำลังโหลด...'}</div>`;
-  const { data: prod, error } = await sb.from('products').select('*')
-    .eq('barcode', barcode).eq('branch_id', branch.id).eq('is_active', true).maybeSingle();
-  if (error) { showToast('Error: ' + error.message, 'error'); if (card) card.innerHTML = ''; return; }
-  if (!prod) {
-    _expCurrentProduct = null;
-    if (card) card.innerHTML = `<div style="background:var(--rose-50);border:2px solid var(--rose-300);border-radius:11px;padding:15px;text-align:center;color:var(--rose-700);font-size:13px;font-weight:700;">⚠️ ${isLao ? 'ບໍ່ພົບສິນຄ້າ' : 'ไม่พบสินค้า'}: <code>${barcode}</code></div>`;
-    return;
-  }
-  _expCurrentProduct = prod;
-  renderExpiryForm(prod);
-}
-
 function renderExpiryForm(prod) {
   const isLao = lang === 'lo';
   const card = document.getElementById('expProductCard');
@@ -23080,7 +22990,7 @@ function renderExpiryForm(prod) {
   const unit = isLao ? (prod.unit_lo || 'pcs') : (prod.unit_th || 'ชิ้น');
   const today = new Date().toISOString().slice(0, 10);
   card.innerHTML = `
-    <div style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:15px;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+    <div style="padding:2px 0;">
       <div style="margin-bottom:13px;padding-bottom:11px;border-bottom:1px solid var(--slate-200);">
         <div style="font-size:14px;font-weight:800;color:var(--slate-800);margin-bottom:3px;line-height:1.3;">${name}</div>
         <div style="font-size:10px;color:var(--slate-400);font-family:monospace;">${prod.barcode}</div>
@@ -23128,61 +23038,11 @@ async function saveExpiryBatch() {
   showToast(isLao ? 'ບັນທຶກສຳເລັດ ✓' : 'บันทึกสำเร็จ ✓', 'success');
   logActivity('expiry_add', `${p.barcode} | ${expDate} | ${qty}`);
   _expCurrentProduct = null;
-  const card = document.getElementById('expProductCard'); if (card) card.innerHTML = '';
-  const bc = document.getElementById('expBarcodeInput'); if (bc) bc.value = '';
-  loadExpiryRecent();
   if (typeof closeModal === 'function') closeModal();
 }
 
-async function loadExpiryRecent() {
-  const isLao = lang === 'lo';
-  const listEl = document.getElementById('expRecentList');
-  const countEl = document.getElementById('expRecentCount');
-  if (!listEl) return;
-  try {
-    const { data, error } = await sb.from('expiry_batches')
-      .select('*')
-      .eq('branch_id', branch.id).eq('user_id', user.id)
-      .order('created_at', { ascending: false }).limit(10);
-    if (error) throw error;
-    if (countEl) countEl.textContent = (data || []).length;
-    if (!data || data.length === 0) {
-      listEl.innerHTML = `<div style="text-align:center;padding:25px;color:var(--slate-400);background:white;border-radius:9px;"><div style="font-size:32px;margin-bottom:5px;">📭</div><div style="font-size:11px;color:var(--slate-500);">${isLao ? 'ຍັງບໍ່ມີຂໍ້ມູນ' : 'ยังไม่มีข้อมูล'}</div></div>`;
-      return;
-    }
-    const todayMs = Date.now();
-    let html = '';
-    data.forEach(b => {
-      const dte = Math.ceil((new Date(b.expiry_date).getTime() - todayMs) / 86400000);
-      const color = dte < 7 ? 'var(--rose-500)' : dte < 30 ? 'var(--amber-500)' : 'var(--emerald-500)';
-      const bg = dte < 7 ? 'var(--rose-50)' : dte < 30 ? 'var(--amber-50)' : 'var(--emerald-50)';
-      const dteLabel = dte < 0 ? (isLao ? `ໝົດແລ້ວ ${-dte} ມື້` : `หมดแล้ว ${-dte} วัน`) : (isLao ? `ເຫຼືອ ${dte} ມື້` : `เหลือ ${dte} วัน`);
-      const time = new Date(b.created_at).toLocaleString(isLao ? 'lo-LA' : 'th-TH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-      html += `
-        <div style="background:${bg};border-left:3px solid ${color};border-radius:7px;padding:7px 9px;margin-bottom:5px;display:flex;align-items:center;gap:7px;font-size:10px;">
-          <div style="font-size:16px;flex-shrink:0;">📅</div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${b.product_name || b.barcode}</div>
-            <div style="font-size:9px;color:var(--slate-500);">${b.expiry_date} • ${time}</div>
-          </div>
-          <div style="text-align:right;flex-shrink:0;">
-            <div style="background:${color};color:white;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:800;">${dteLabel}</div>
-            <div style="font-size:11px;font-weight:800;color:${color};font-family:'Space Grotesk',monospace;margin-top:2px;">${b.qty}</div>
-          </div>
-        </div>`;
-    });
-    listEl.innerHTML = html;
-  } catch (e) {
-    listEl.innerHTML = `<div style="background:var(--rose-100);color:var(--rose-500);padding:9px;border-radius:7px;font-size:10px;">❌ ${(e && e.message) ? e.message : e}</div>`;
-  }
-}
 
-window.renderExpiryEntryPage = renderExpiryEntryPage;
-window.startScanForExpiry = startScanForExpiry;
-window.onExpBarcodeEnter = onExpBarcodeEnter;
-window.expLookup = expLookup;
 window.saveExpiryBatch = saveExpiryBatch;
-window.loadExpiryRecent = loadExpiryRecent;
 
 /* ==================== PHASE 2B + 2C: EXPIRY TRACK + ACTIONS ====================
    Added 2026-05-29 by Anya — list ทั้งสาขา เรียงตาม DTE + Markdown/Markzero/โอน
@@ -23250,7 +23110,7 @@ function renderExpiryTrackPage() {
     <div id="etrkDash"></div>
     <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:7px;margin-bottom:9px;">${chips}</div>
     <div id="etrkTotal" style="font-size:11px;color:var(--slate-500);margin-bottom:9px;"></div>
-    <div id="etrkList"><div style="text-align:center;padding:30px;color:var(--slate-400);">⏳</div></div>
+    <div id="etrkList"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
   `;
 }
 
@@ -23368,6 +23228,7 @@ async function openExpiryAction(id) {
       + '<div style="font-size:11px;font-weight:700;color:var(--slate-600);margin:6px 0 5px;">\uD83C\uDFF7\uFE0F ' + (isLao ? 'ລົດລາຄາ Markdown' : 'ลดราคา Markdown') + ' <span style="color:var(--slate-400);font-weight:600;">(' + catLabel + ')</span></div>'
       + noteHtml
       + '<div style="display:flex;gap:6px;margin-bottom:11px;flex-wrap:wrap;">' + stepsHtml + '</div>'
+      + '<div style="font-size:9px;color:var(--slate-400);margin:-4px 0 9px;">→ ' + (isLao ? 'Step = ໂອນເປັນ markdown' : 'แตะ Step = โอนเป็นบาร์ markdown') + '</div>'
       + '<button onclick="expDoTransfer(' + id + ')" style="width:100%;background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;border:none;border-radius:11px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:7px;">\uD83D\uDD04 ' + (isLao ? 'ໂອນສາຂາ' : 'โอนสาขา') + '</button>'
       + '<button onclick="expDoMarkzero(' + id + ')" style="width:100%;background:linear-gradient(135deg,var(--rose-500),var(--rose-600));color:white;border:none;border-radius:11px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">\uD83D\uDDD1 ' + (isLao ? 'Markzero (ຕັດຖິ້ມ)' : 'Markzero (ตัดทิ้ง)') + '</button>';
   } else {
@@ -23537,12 +23398,12 @@ function renderExpiryDash() {
     + '</div>'
     + '<div style="background:white;border:1px solid var(--slate-200);border-radius:11px;overflow:hidden;margin-bottom:11px;">'
     + '<div style="font-size:11px;font-weight:800;padding:8px 10px;background:var(--slate-50);color:var(--slate-700);">\uD83D\uDCCA ' + (isLao ? 'ສະຫຼຸບຕາມໝວດ' : 'สรุปตามหมวด') + ' <span style="color:var(--slate-400);font-weight:500;">' + hint + '</span></div>'
-    + '<table style="width:100%;border-collapse:collapse;">'
+    + '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:290px;">'
     + '<thead><tr style="background:var(--slate-50);font-size:9px;color:var(--slate-500);">'
     + '<th style="padding:5px 6px;text-align:left;">' + (isLao ? 'ໝວດ' : 'หมวด') + '</th><th style="padding:5px 4px;">' + (isLao ? 'ຊິ້ນ' : 'ชิ้น') + '</th><th style="padding:5px 4px;text-align:right;">\u20ad</th><th style="padding:5px 4px;">&lt;7</th><th style="padding:5px 4px;">&lt;30</th><th style="padding:5px 4px;">MD</th>'
     + '</tr></thead><tbody>'
     + (catRows || ('<tr><td colspan="6" style="padding:12px;text-align:center;color:var(--slate-400);font-size:11px;">' + (isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล') + '</td></tr>'))
-    + '</tbody></table></div>';
+    + '</tbody></table></div></div>';
 }
 
 function etrkSetCat(catId) {
