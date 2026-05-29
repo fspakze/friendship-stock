@@ -23190,6 +23190,7 @@ window.loadExpiryRecent = loadExpiryRecent;
    Added 2026-05-29 by Anya — list ทั้งสาขา เรียงตาม DTE + Markdown/Markzero/โอน
    action เฉพาะ role manager (admin/scc/bcs/ctl) — mirror canModifyGap */
 let _etrkBucket = 'all';
+let _etrkCat = null;
 
 /* ปฏิทิน Markdown ตามหมวดสินค้า (จากไฟล์เกณฑ์จริง) — key = เลขหมวด 2 หลัก
    days = จำนวนวันก่อนหมดอายุที่ถึงเกณฑ์ Step นั้น (null = ใช้ Non-Move ไม่อิงวันหมดอายุ) */
@@ -23215,11 +23216,15 @@ async function loadCategoriesCache() {
     const { data, error } = await sb.from('categories').select('id, name_th, name_lo').order('id');
     if (error) throw error;
     const map = {};
+    const nameMap = {};
     (data || []).forEach(c => {
-      const m = String(c.name_th || c.name_lo || '').match(/(\d{2})/);
-      if (m) map[c.id] = m[1];
+      const nm = String(c.name_th || c.name_lo || '');
+      const mm = nm.match(/(\d{2})/);
+      if (mm) map[c.id] = mm[1];
+      nameMap[c.id] = nm.replace(/^\d{2}\s*[-\s]?\s*/, '').trim();
     });
     window._catNoById = map;
+    window._catNameById = nameMap;
     return map;
   } catch (e) {
     console.warn('[FS] loadCategoriesCache:', (e && e.message) ? e.message : e);
@@ -23244,6 +23249,7 @@ function renderExpiryTrackPage() {
       <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">📅 ${isLao ? 'ຕິດຕາມອາຍຸສິນຄ້າ' : 'ติดตามอายุสินค้า'}</h2>
       <p style="font-size:11px;color:var(--slate-500);margin:0;">${isLao ? 'ແຕະລາຍການເພື່ອ Markdown / ໂອນ / Markzero' : 'แตะรายการเพื่อ Markdown / โอน / Markzero'} • 🏪 ${brName}</p>
     </div>
+    <div id="etrkDash"></div>
     <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:7px;margin-bottom:9px;">${chips}</div>
     <div id="etrkTotal" style="font-size:11px;color:var(--slate-500);margin-bottom:9px;"></div>
     <div id="etrkList"><div style="text-align:center;padding:30px;color:var(--slate-400);">⏳</div></div>
@@ -23260,6 +23266,17 @@ async function loadExpiryTrack() {
       .order('expiry_date', { ascending: true }).limit(300);
     if (error) throw error;
     window._expTrackData = data || [];
+    await loadCategoriesCache();
+    try {
+      const bcs = [...new Set((data || []).map(b => b.barcode).filter(Boolean))];
+      if (bcs.length) {
+        const { data: prods } = await sb.from('products').select('barcode, sell_price').eq('branch_id', branch.id).in('barcode', bcs);
+        const pmap = {};
+        (prods || []).forEach(pr => { pmap[pr.barcode] = pr.sell_price || 0; });
+        window._expTrackData.forEach(b => { b._price = pmap[b.barcode] || 0; });
+      }
+    } catch (e) { console.warn('[FS] price enrich:', (e && e.message) ? e.message : e); }
+    renderExpiryDash();
     renderExpiryTrackList();
   } catch (e) {
     listEl.innerHTML = `<div style="background:var(--rose-100);color:var(--rose-500);padding:9px;border-radius:7px;font-size:10px;">❌ ${(e && e.message) ? e.message : e}</div>`;
@@ -23292,6 +23309,7 @@ function renderExpiryTrackList() {
   const now = Date.now();
   let rows = (window._expTrackData || []).map(b => ({ ...b, _dte: Math.ceil((new Date(b.expiry_date).getTime() - now) / 86400000) }));
   if (_etrkBucket !== 'all') rows = rows.filter(b => etrkBucketOf(b._dte) === _etrkBucket);
+  if (_etrkCat) rows = rows.filter(b => b.category_id === _etrkCat);
   rows.sort((a, b) => a._dte - b._dte);
   if (totalEl) totalEl.textContent = (isLao ? 'ທັງໝົດ ' : 'ทั้งหมด ') + rows.length + (isLao ? ' ລາຍການ' : ' รายการ');
   if (!rows.length) {
@@ -23425,9 +23443,79 @@ async function expConfirmTransfer(id) {
   loadExpiryTrack();
 }
 
+function renderExpiryDash() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('etrkDash');
+  if (!el) return;
+  const now = Date.now();
+  const rows = (window._expTrackData || []).map(b => ({ ...b, _dte: Math.ceil((new Date(b.expiry_date).getTime() - now) / 86400000), _val: (b.qty || 0) * (b._price || 0) }));
+  const fmt = n => Number(n || 0).toLocaleString();
+  let eN = 0, eV = 0, n7 = 0, v7 = 0, n30 = 0, v30 = 0, md = 0;
+  rows.forEach(b => {
+    if (b.status === 'marked_down') md++;
+    if (b._dte < 0) { eN++; eV += b._val; }
+    else if (b._dte < 7) { n7++; v7 += b._val; }
+    else if (b._dte < 30) { n30++; v30 += b._val; }
+  });
+  const card = (label, n, v, color) => '<div style="flex:1;min-width:74px;background:' + color + '14;border:1px solid ' + color + '40;border-radius:10px;padding:8px;text-align:center;">'
+    + '<div style="font-size:9px;color:var(--slate-500);">' + label + '</div>'
+    + '<div style="font-size:19px;font-weight:800;color:' + color + ';font-family:\'Space Grotesk\',monospace;line-height:1.15;">' + n + '</div>'
+    + (v != null ? '<div style="font-size:8px;color:var(--slate-400);">' + fmt(v) + ' \u20ad</div>' : '')
+    + '</div>';
+  const byCat = {};
+  rows.forEach(b => {
+    const id = b.category_id || 0;
+    if (!byCat[id]) byCat[id] = { n: 0, v: 0, d7: 0, d30: 0, md: 0 };
+    const c = byCat[id]; c.n++; c.v += b._val;
+    if (b._dte < 7) c.d7++; else if (b._dte < 30) c.d30++;
+    if (b.status === 'marked_down') c.md++;
+  });
+  const noMap = window._catNoById || {}, nameMap = window._catNameById || {};
+  const catRows = Object.keys(byCat).sort((a, b) => byCat[b].d7 - byCat[a].d7 || byCat[b].n - byCat[a].n).map(id => {
+    const c = byCat[id];
+    const sel = (String(_etrkCat) === String(id) && _etrkCat);
+    const no = noMap[id] || '\u2014';
+    const nm = nameMap[id] || '';
+    return '<tr onclick="etrkSetCat(' + id + ')" style="cursor:pointer;border-top:1px solid var(--slate-100);background:' + (sel ? 'var(--teal-50)' : 'white') + ';">'
+      + '<td style="padding:6px 6px;font-size:10px;font-weight:700;">' + no + (nm ? ' <span style="color:var(--slate-400);font-weight:400;">' + nm + '</span>' : '') + '</td>'
+      + '<td style="padding:6px 4px;text-align:center;font-size:11px;font-weight:700;">' + c.n + '</td>'
+      + '<td style="padding:6px 4px;text-align:right;font-size:10px;">' + fmt(c.v) + '</td>'
+      + '<td style="padding:6px 4px;text-align:center;color:var(--rose-500);font-weight:700;font-size:11px;">' + (c.d7 || '') + '</td>'
+      + '<td style="padding:6px 4px;text-align:center;color:var(--amber-600);font-weight:700;font-size:11px;">' + (c.d30 || '') + '</td>'
+      + '<td style="padding:6px 4px;text-align:center;color:var(--violet-500);font-weight:700;font-size:11px;">' + (c.md || '') + '</td>'
+      + '</tr>';
+  }).join('');
+  const hint = _etrkCat ? (isLao ? 'แตะหมวดเดิมเพื่อล้างตัวกรอง' : 'แตะหมวดเดิมเพื่อล้างตัวกรอง') : (isLao ? '(แตะเพื่อกรอง)' : '(แตะเพื่อกรอง)');
+  el.innerHTML = ''
+    + '<div style="display:flex;gap:6px;margin-bottom:9px;flex-wrap:wrap;">'
+    + card(isLao ? 'ໝົດແລ້ວ' : 'หมดแล้ว', eN, eV, '#e11d48')
+    + card('< 7', n7, v7, '#f43f5e')
+    + card('< 30', n30, v30, '#d97706')
+    + card(isLao ? 'ລົດແລ້ວ' : 'ลดแล้ว', md, null, '#7c3aed')
+    + '</div>'
+    + '<div style="background:white;border:1px solid var(--slate-200);border-radius:11px;overflow:hidden;margin-bottom:11px;">'
+    + '<div style="font-size:11px;font-weight:800;padding:8px 10px;background:var(--slate-50);color:var(--slate-700);">\uD83D\uDCCA ' + (isLao ? 'ສະຫຼຸບຕາມໝວດ' : 'สรุปตามหมวด') + ' <span style="color:var(--slate-400);font-weight:500;">' + hint + '</span></div>'
+    + '<table style="width:100%;border-collapse:collapse;">'
+    + '<thead><tr style="background:var(--slate-50);font-size:9px;color:var(--slate-500);">'
+    + '<th style="padding:5px 6px;text-align:left;">' + (isLao ? 'ໝວດ' : 'หมวด') + '</th><th style="padding:5px 4px;">' + (isLao ? 'ຊິ້ນ' : 'ชิ้น') + '</th><th style="padding:5px 4px;text-align:right;">\u20ad</th><th style="padding:5px 4px;">&lt;7</th><th style="padding:5px 4px;">&lt;30</th><th style="padding:5px 4px;">MD</th>'
+    + '</tr></thead><tbody>'
+    + (catRows || ('<tr><td colspan="6" style="padding:12px;text-align:center;color:var(--slate-400);font-size:11px;">' + (isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล') + '</td></tr>'))
+    + '</tbody></table></div>';
+}
+
+function etrkSetCat(catId) {
+  _etrkCat = (String(_etrkCat) === String(catId) && _etrkCat) ? null : catId;
+  renderExpiryDash();
+  renderExpiryTrackList();
+  const list = document.getElementById('etrkList');
+  if (list && list.scrollIntoView) list.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 window.renderExpiryTrackPage = renderExpiryTrackPage;
 window.loadExpiryTrack = loadExpiryTrack;
 window.etrkSetBucket = etrkSetBucket;
+window.etrkSetCat = etrkSetCat;
+window.renderExpiryDash = renderExpiryDash;
 window.openExpiryAction = openExpiryAction;
 window.expDoMarkdown = expDoMarkdown;
 window.expDoMarkzero = expDoMarkzero;
