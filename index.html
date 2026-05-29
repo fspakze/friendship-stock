@@ -23450,6 +23450,10 @@ function wtOpen(id) {
     + kv(isLao ? 'ແຈ້ງเมื่อ' : 'แจ้งเมื่อ', wtFmtDate(t.created_at))
     + kv(isLao ? 'ກຳນົดเสร็จ' : 'กำหนดเสร็จ', wtFmtDate(t.due_at) + (s === 'over' ? ' (' + (isLao ? 'ເກີນ' : 'เกินกำหนด') + ')' : ''), s === 'over' ? 'var(--rose-500)' : '')
     + '<div style="margin-top:14px;">' + actions + '</div>'
+    + ((user && user.role === 'admin') ? '<div style="display:flex;gap:8px;margin-top:9px;border-top:1px solid var(--slate-100);padding-top:11px;">'
+        + '<button onclick="wtEditOpen(' + id + ')" style="flex:1;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;">✏️ ' + (isLao ? 'ແກ້ໄຂ' : 'แก้ไข') + '</button>'
+        + '<button onclick="wtDelete(' + id + ')" style="flex:1;background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:10px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;">🗑️ ' + (isLao ? 'ລຶບ' : 'ลบ') + '</button>'
+        + '</div>' : '')
   );
 }
 
@@ -23462,6 +23466,79 @@ async function wtSetStatus(id, st) {
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   logActivity('work_ticket_status', id + ' -> ' + st);
   showToast(st === 'done' ? (isLao ? 'ປິดงานแล้ว ✓' : 'ปิดงานแล้ว ✓') : (isLao ? 'ອัปเดตแล้ว' : 'อัปเดตแล้ว'), 'success');
+  closeModal();
+  loadWorkTickets();
+}
+
+// ---------- admin: แก้ไข / ลบ ticket ----------
+function wtEditOpen(id) {
+  const isLao = lang === 'lo';
+  if (!(user && user.role === 'admin')) { showToast(isLao ? 'ສະເພาะ admin' : 'เฉพาะ admin', 'error'); return; }
+  const t = _wtData.find(x => x.id === id);
+  if (!t) return;
+  const cats = WT_CATEGORIES.map(g =>
+    '<optgroup label="' + g.group + '">' +
+    g.items.map(it => '<option value="' + it.v + '"' + (it.v === t.category ? ' selected' : '') + '>' + it.th + '</option>').join('') +
+    '</optgroup>'
+  ).join('');
+  const depts = WT_DEPTS.map(d => '<option value="' + d + '"' + (d === t.dept ? ' selected' : '') + '>' + d + '</option>').join('');
+  const priOpt = [['low', WT_PRI_LABEL.low], ['mid', WT_PRI_LABEL.mid], ['high', WT_PRI_LABEL.high]]
+    .map(([v, l]) => '<option value="' + v + '"' + (v === t.priority ? ' selected' : '') + '>' + l + '</option>').join('');
+  const stOpt = [['new', WT_STATUS_LABEL.new], ['prog', WT_STATUS_LABEL.prog], ['done', WT_STATUS_LABEL.done]]
+    .map(([v, l]) => '<option value="' + v + '"' + (v === t.status ? ' selected' : '') + '>' + l + '</option>').join('');
+  showModal(''
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;"><h3 style="font-size:15px;margin:0;">✏️ ' + (isLao ? 'ແກ້ໄຂງານ' : 'แก้ไขงาน') + ' ' + t.ticket_no + '</h3>'
+    + '<button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;color:var(--slate-600);">✕</button></div>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ປະເພດ' : 'ประเภท') + '</label><select class="form-input" id="wteCat">' + cats + '</select></div>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ຫົວข้อ' : 'หัวข้อ') + '</label><input class="form-input" id="wteTitle" type="text" value="' + wtEsc(t.title) + '"></div>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ລາຍລະອຽດ' : 'รายละเอียด') + '</label><textarea class="form-input" id="wteDesc" rows="3">' + wtEsc(t.description || '') + '</textarea></div>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ແผนก' : 'แผนก') + '</label><select class="form-input" id="wteDept">' + depts + '</select></div>'
+    + '<div style="display:flex;gap:8px;"><div class="form-group" style="flex:1;"><label class="form-label">' + (isLao ? 'ເร่งด่วน' : 'เร่งด่วน') + '</label><select class="form-input" id="wtePri">' + priOpt + '</select></div>'
+    + '<div class="form-group" style="flex:1;"><label class="form-label">' + (isLao ? 'ສະຖານะ' : 'สถานะ') + '</label><select class="form-input" id="wteStatus">' + stOpt + '</select></div></div>'
+    + '<div class="action-row"><button class="btn btn-secondary" onclick="wtOpen(' + id + ')">' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
+    + '<button class="btn btn-primary" onclick="wtEditSave(' + id + ')">' + (isLao ? 'ບันทึก' : 'บันทึก') + '</button></div>'
+  );
+}
+
+async function wtEditSave(id) {
+  const isLao = lang === 'lo';
+  if (!(user && user.role === 'admin')) { showToast(isLao ? 'ສະເພาะ admin' : 'เฉพาะ admin', 'error'); return; }
+  const g = elid => document.getElementById(elid);
+  const upd = {
+    category: g('wteCat').value,
+    title: g('wteTitle').value.trim(),
+    description: g('wteDesc').value.trim(),
+    dept: g('wteDept').value,
+    priority: g('wtePri').value,
+    status: g('wteStatus').value,
+    updated_at: new Date().toISOString(),
+  };
+  if (!upd.title) { showToast(isLao ? 'ໃສ່ຫົວข้อ' : 'ใส่หัวข้อ', 'error'); return; }
+  const { error } = await sb.from('work_tickets').update(upd).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  logActivity('work_ticket_edit', id + ' | ' + upd.title);
+  showToast(isLao ? 'ບันทึกแล้ว ✓' : 'บันทึกแล้ว ✓', 'success');
+  closeModal();
+  loadWorkTickets();
+}
+
+async function wtDelete(id) {
+  const isLao = lang === 'lo';
+  if (!(user && user.role === 'admin')) { showToast(isLao ? 'ສະເພาะ admin' : 'เฉพาะ admin', 'error'); return; }
+  const t = _wtData.find(x => x.id === id);
+  if (!t) return;
+  if (!confirm((isLao ? 'ລຶບງານ ' : 'ลบงาน ') + t.ticket_no + ' ?\n' + (isLao ? 'ລຶບແລ້ວกู้คืนไม่ได้' : 'ลบแล้วกู้คืนไม่ได้'))) return;
+  // ลบรูปใน storage ก่อน (ถ้ามี)
+  if (t.photo_urls && t.photo_urls.length) {
+    try {
+      const paths = t.photo_urls.map(u => { const i = u.indexOf('/ticket-photos/'); return i >= 0 ? u.slice(i + '/ticket-photos/'.length) : null; }).filter(Boolean);
+      if (paths.length) await sb.storage.from('ticket-photos').remove(paths);
+    } catch (e) { console.warn('[FS] del photos:', (e && e.message) ? e.message : e); }
+  }
+  const { error } = await sb.from('work_tickets').delete().eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  logActivity('work_ticket_delete', t.ticket_no + ' | ' + t.title);
+  showToast(isLao ? 'ລຶບແລ້ວ ✓' : 'ลบแล้ว ✓', 'success');
   closeModal();
   loadWorkTickets();
 }
@@ -23870,6 +23947,9 @@ window.wtSetFilter = wtSetFilter;
 window.wtOpen = wtOpen;
 window.wtSetStatus = wtSetStatus;
 window.loadHistoryWork = loadHistoryWork;
+window.wtEditOpen = wtEditOpen;
+window.wtEditSave = wtEditSave;
+window.wtDelete = wtDelete;
 window.wrOnPhotoSelected = wrOnPhotoSelected;
 window.wrRemovePhoto = wrRemovePhoto;
 window.expDoMarkdown = expDoMarkdown;
