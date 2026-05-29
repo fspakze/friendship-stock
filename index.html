@@ -4233,14 +4233,12 @@ const MENU_CONFIG = {
   counter: {
     bottomTabs: ['stockcheck', 'scan', 'gapscan', 'history'],
     drawerGroups: [
-      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expiryentry'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
   staff: {
     bottomTabs: ['stockcheck', 'scan', 'gapscan', 'history'],
     drawerGroups: [
-      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expiryentry'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -4248,21 +4246,19 @@ const MENU_CONFIG = {
   verifier: {
     bottomTabs: ['stockcheck', 'tiebreaker', 'scan', 'history'],
     drawerGroups: [
-      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expiryentry'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
   audit: {
     bottomTabs: ['stockcheck', 'tiebreaker', 'scan', 'history'],
     drawerGroups: [
-      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expiryentry'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
   ctl: {
     bottomTabs: ['stockcheck', 'floormap', 'tiebreaker', 'workflow'],
     drawerGroups: [
-      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expiryentry', 'expirytrack'] },
+      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport', 'issuereport', 'invmovement'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -4270,7 +4266,7 @@ const MENU_CONFIG = {
   bcs: {
     bottomTabs: ['stockcheck', 'dashboard', 'floormap', 'gapreport'],
     drawerGroups: [
-      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expiryentry', 'expirytrack', 'tiebreaker'] },
+      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'tiebreaker'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -4279,7 +4275,7 @@ const MENU_CONFIG = {
   admin: {
     bottomTabs: ['stockcheck', 'dashboard', 'floormap', 'gapreport'],
     drawerGroups: [
-      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expiryentry', 'expirytrack', 'scan', 'gapscan', 'history', 'workflow', 'tiebreaker'] },
+      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'scan', 'gapscan', 'history', 'workflow', 'tiebreaker'] },
       { titleTh: 'วิเคราะห์', titleLo: 'ວິເຄາະ', items: ['kpi', 'performance', 'health', 'variance'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['issuereport', 'invmovement'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct', 'settings', 'activitylog'] },
@@ -4289,7 +4285,7 @@ const MENU_CONFIG = {
   scc: {
     bottomTabs: ['stockcheck', 'dashboard', 'floormap', 'gapreport'],
     drawerGroups: [
-      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expiryentry', 'expirytrack', 'tiebreaker'] },
+      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'tiebreaker'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct', 'settings'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -4318,7 +4314,6 @@ const PAGE_META = {
   invmovement:{ iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="7.5 4.21 12 6.81 16.5 4.21"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>', labelTh: 'การเคลื่อนสต๊อค', labelLo: 'ການເຄື່ອນສະຕ໋ອກ', page: 'invmovement' },
   activitylog:{ iconSvg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>', labelTh: 'บันทึกกิจกรรม', labelLo: 'ບັນທຶກກິດຈະກຳ', page: 'activitylog' },
   expirytrack:{ iconSvg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', labelTh: 'ติดตามอายุ', labelLo: 'ຕິດຕາມອາຍຸ', page: 'expirytrack' },
-  expiryentry:{ iconSvg: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M12 13.5v3.5"/><path d="M10.25 15.25h3.5"/>', labelTh: 'บันทึกอายุ', labelLo: 'ບັນທຶກອາຍຸ', page: 'expiryentry' },
   masterproduct: { iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/><path d="M7.5 4.5l9 5.2"/>', labelTh: 'Master Product', labelLo: 'Master Product', page: 'masterproduct' }
 };
 
@@ -4618,9 +4613,6 @@ function goPage(page) {
   } else if (page === 'issuereport') {
     c.innerHTML = renderIssueReportPage();
     loadIssueReports();
-  } else if (page === 'expiryentry') {
-    c.innerHTML = renderExpiryEntryPage();
-    setTimeout(() => loadExpiryRecent(), 100);
   } else if (page === 'expirytrack') {
     c.innerHTML = renderExpiryTrackPage();
     setTimeout(() => loadExpiryTrack(), 50);
@@ -7939,7 +7931,11 @@ function renderStockCheckResult(prod, pog, lastCount) {
       ${locHtml}
       ${lastCountHtml}
       
-      <button onclick="scShowBranchStock()" style="width:100%;background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:11px;display:flex;align-items:center;justify-content:center;gap:7px;">
+      <button onclick="scOpenExpiryModal()" style="width:100%;background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:11px;display:flex;align-items:center;justify-content:center;gap:7px;">
+        📅 ${isLao ? 'ບັນທຶກອາຍຸ' : 'บันทึกอายุ'}
+      </button>
+      
+      <button onclick="scShowBranchStock()" style="width:100%;background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;margin-top:7px;display:flex;align-items:center;justify-content:center;gap:7px;">
         🏪 ${T('sc_view_other_branches')}
       </button>
       
@@ -23134,6 +23130,7 @@ async function saveExpiryBatch() {
   const card = document.getElementById('expProductCard'); if (card) card.innerHTML = '';
   const bc = document.getElementById('expBarcodeInput'); if (bc) bc.value = '';
   loadExpiryRecent();
+  if (typeof closeModal === 'function') closeModal();
 }
 
 async function loadExpiryRecent() {
@@ -23561,6 +23558,15 @@ window.etrkSetBucket = etrkSetBucket;
 window.etrkSetCat = etrkSetCat;
 window.renderExpiryDash = renderExpiryDash;
 window.openExpiryAction = openExpiryAction;
+function scOpenExpiryModal() {
+  const isLao = lang === 'lo';
+  if (!_scCurrentProduct) { showToast(isLao ? 'ສະແກນສິນຄ້າກ່ອນ' : 'สแกนสินค้าก่อน', 'error'); return; }
+  _expCurrentProduct = _scCurrentProduct;
+  showModal('<h3 style="font-size:15px;margin:0 0 9px;">\uD83D\uDCC5 ' + (isLao ? 'ບັນທຶກອາຍຸ' : 'บันทึกอายุ') + '</h3><div id="expProductCard"></div>');
+  renderExpiryForm(_scCurrentProduct);
+}
+
+window.scOpenExpiryModal = scOpenExpiryModal;
 window.expDoMarkdown = expDoMarkdown;
 window.startScanForMd = startScanForMd;
 window.expConfirmToMd = expConfirmToMd;
