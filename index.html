@@ -23184,6 +23184,11 @@ function renderWorkReportPage() {
           </select>
           <div style="font-size:10px;color:var(--slate-400);margin-top:4px;">${isLao ? 'ລະບົບແນະນຳແผนกให้อัตโนมัติ แก้ได้' : 'ระบบแนะนำแผนกให้อัตโนมัติ แก้ได้'}</div>
         </div>
+        <div class="form-group"><label class="form-label">${isLao ? 'ຮูป (ไม่เกิน 3)' : 'รูปภาพ (ไม่เกิน 3)'}</label>
+          <input type="file" id="wrPhotoInput" accept="image/*" capture="environment" multiple style="display:none;" onchange="wrOnPhotoSelected(event)">
+          <button type="button" onclick="document.getElementById('wrPhotoInput').click()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:12px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">📷 ${isLao ? 'ຖ່າຍຮูป / ເລືອกรูป' : 'ถ่ายรูป / เลือกรูป'}</button>
+          <div id="wrPhotoPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;"></div>
+        </div>
         <button onclick="wrSubmit()" style="width:100%;background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;margin-top:6px;">${isLao ? 'ສົ່ງແຈ້ງงาน' : 'ส่งแจ้งงาน'} →</button>
       </div>
     </div>`;
@@ -23199,6 +23204,63 @@ function wrSetPri(pri) {
     b.style.color = on ? 'var(--teal-700)' : 'var(--slate-600)';
   });
 }
+
+// ---------- รูปถ่ายในใบแจ้งงาน ----------
+let _wrPhotos = []; // เก็บ {blob, dataUrl} ก่อนอัป
+function wrOnPhotoSelected(e) {
+  const files = Array.from(e.target.files || []);
+  e.target.value = '';
+  files.forEach(f => {
+    if (_wrPhotos.length >= 3) { showToast(lang === 'lo' ? 'ສูงสุด 3 รูป' : 'สูงสุด 3 รูป', 'warning'); return; }
+    wrCompressImage(f, (blob, dataUrl) => {
+      _wrPhotos.push({ blob, dataUrl });
+      wrRenderPhotoPreview();
+    });
+  });
+}
+function wrCompressImage(file, cb) {
+  const img = new Image();
+  const reader = new FileReader();
+  reader.onload = ev => {
+    img.onload = () => {
+      const max = 1280;
+      let w = img.width, h = img.height;
+      if (w > max || h > max) { if (w >= h) { h = Math.round(h * max / w); w = max; } else { w = Math.round(w * max / h); h = max; } }
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      cv.toBlob(blob => cb(blob, cv.toDataURL('image/jpeg', 0.7)), 'image/jpeg', 0.7);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function wrRenderPhotoPreview() {
+  const pv = document.getElementById('wrPhotoPreview');
+  if (!pv) return;
+  pv.innerHTML = _wrPhotos.map((p, i) =>
+    '<div style="position:relative;width:68px;height:68px;border-radius:9px;overflow:hidden;border:1px solid var(--slate-200);">'
+    + '<img src="' + p.dataUrl + '" style="width:100%;height:100%;object-fit:cover;">'
+    + '<button type="button" onclick="wrRemovePhoto(' + i + ')" style="position:absolute;top:2px;right:2px;background:rgba(225,29,72,0.9);color:white;border:none;width:18px;height:18px;border-radius:50%;font-size:11px;line-height:1;cursor:pointer;">✕</button>'
+    + '</div>'
+  ).join('');
+}
+function wrRemovePhoto(i) { _wrPhotos.splice(i, 1); wrRenderPhotoPreview(); }
+
+async function wrUploadPhotos(ticketNo) {
+  const urls = [];
+  for (let i = 0; i < _wrPhotos.length; i++) {
+    const path = ticketNo + '_' + Date.now() + '_' + i + '.jpg';
+    try {
+      const { error } = await sb.storage.from('ticket-photos').upload(path, _wrPhotos[i].blob, { contentType: 'image/jpeg', upsert: false });
+      if (error) { console.warn('[FS] photo upload:', error.message); continue; }
+      const { data } = sb.storage.from('ticket-photos').getPublicUrl(path);
+      if (data && data.publicUrl) urls.push(data.publicUrl);
+    } catch (e) { console.warn('[FS] photo upload ex:', (e && e.message) ? e.message : e); }
+  }
+  return urls;
+}
+
 function wrOnCatChange() {
   const v = document.getElementById('wrCat').value;
   const dept = wtCatDept(v);
@@ -23212,6 +23274,8 @@ function wrReset() {
   document.getElementById('wrDesc').value = '';
   document.getElementById('wrDept').value = '';
   wrSetPri('low');
+  _wrPhotos = [];
+  const pv = document.getElementById('wrPhotoPreview'); if (pv) pv.innerHTML = '';
 }
 async function wrSubmit() {
   const isLao = lang === 'lo';
@@ -23240,6 +23304,7 @@ async function wrSubmit() {
     category: cat, title: title, description: desc,
     priority: _wrPri, dept: dept,
     status: 'new', due_at: dueAt,
+    photo_urls: _wrPhotos.length ? await wrUploadPhotos(ticketNo) : [],
   };
   const { error } = await sb.from('work_tickets').insert(payload).select().single();
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
@@ -23393,6 +23458,7 @@ function wtOpen(id) {
     + '<button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;color:var(--slate-600);flex-shrink:0;">✕</button></div>'
     + '<div style="font-size:11px;color:var(--slate-400);font-family:monospace;margin-bottom:10px;">' + t.ticket_no + '</div>'
     + (t.description ? '<div style="background:var(--slate-50);border-radius:9px;padding:10px;font-size:12px;color:var(--slate-700);margin-bottom:10px;white-space:pre-wrap;">' + wtEsc(t.description) + '</div>' : '')
+    + ((t.photo_urls && t.photo_urls.length) ? '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px;">' + t.photo_urls.map(u => '<a href="' + u + '" target="_blank" rel="noopener" style="display:block;width:72px;height:72px;border-radius:9px;overflow:hidden;border:1px solid var(--slate-200);"><img src="' + u + '" style="width:100%;height:100%;object-fit:cover;"></a>').join('') + '</div>' : '')
     + kv(isLao ? 'ຜູ້ແຈ້ง' : 'ผู้แจ้ง', wtEsc(t.reporter_name || '—'))
     + kv(isLao ? 'ປະເພດ' : 'ประเภท', wtCatLabel(t.category))
     + kv(isLao ? 'ສົ່ງຕໍ່' : 'ส่งต่อไปยัง', wtEsc(t.dept))
@@ -23789,6 +23855,8 @@ window.wrReset = wrReset;
 window.wtSetFilter = wtSetFilter;
 window.wtOpen = wtOpen;
 window.wtSetStatus = wtSetStatus;
+window.wrOnPhotoSelected = wrOnPhotoSelected;
+window.wrRemovePhoto = wrRemovePhoto;
 window.expDoMarkdown = expDoMarkdown;
 window.startScanForMd = startScanForMd;
 window.expConfirmToMd = expConfirmToMd;
