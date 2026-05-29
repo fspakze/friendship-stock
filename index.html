@@ -4262,7 +4262,7 @@ const MENU_CONFIG = {
   ctl: {
     bottomTabs: ['stockcheck', 'floormap', 'tiebreaker', 'workflow'],
     drawerGroups: [
-      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expiryentry'] },
+      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expiryentry', 'expirytrack'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport', 'issuereport', 'invmovement'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -4270,7 +4270,7 @@ const MENU_CONFIG = {
   bcs: {
     bottomTabs: ['stockcheck', 'dashboard', 'floormap', 'gapreport'],
     drawerGroups: [
-      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expiryentry', 'tiebreaker'] },
+      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expiryentry', 'expirytrack', 'tiebreaker'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -4279,7 +4279,7 @@ const MENU_CONFIG = {
   admin: {
     bottomTabs: ['stockcheck', 'dashboard', 'floormap', 'gapreport'],
     drawerGroups: [
-      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expiryentry', 'scan', 'gapscan', 'history', 'workflow', 'tiebreaker'] },
+      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expiryentry', 'expirytrack', 'scan', 'gapscan', 'history', 'workflow', 'tiebreaker'] },
       { titleTh: 'วิเคราะห์', titleLo: 'ວິເຄາະ', items: ['kpi', 'performance', 'health', 'variance'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['issuereport', 'invmovement'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct', 'settings', 'activitylog'] },
@@ -4289,7 +4289,7 @@ const MENU_CONFIG = {
   scc: {
     bottomTabs: ['stockcheck', 'dashboard', 'floormap', 'gapreport'],
     drawerGroups: [
-      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expiryentry', 'tiebreaker'] },
+      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expiryentry', 'expirytrack', 'tiebreaker'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct', 'settings'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -4317,6 +4317,7 @@ const PAGE_META = {
   issuereport:{ iconSvg: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',                                                                                  labelTh: 'รายงานปัญหา',  labelLo: 'ລາຍງານປັນຫາ',   page: 'issuereport',    badge: 'tabIssueBadge' },
   invmovement:{ iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="7.5 4.21 12 6.81 16.5 4.21"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>', labelTh: 'การเคลื่อนสต๊อค', labelLo: 'ການເຄື່ອນສະຕ໋ອກ', page: 'invmovement' },
   activitylog:{ iconSvg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>', labelTh: 'บันทึกกิจกรรม', labelLo: 'ບັນທຶກກິດຈະກຳ', page: 'activitylog' },
+  expirytrack:{ iconSvg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', labelTh: 'ติดตามอายุ', labelLo: 'ຕິດຕາມອາຍຸ', page: 'expirytrack' },
   expiryentry:{ iconSvg: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M12 13.5v3.5"/><path d="M10.25 15.25h3.5"/>', labelTh: 'บันทึกอายุ', labelLo: 'ບັນທຶກອາຍຸ', page: 'expiryentry' },
   masterproduct: { iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/><path d="M7.5 4.5l9 5.2"/>', labelTh: 'Master Product', labelLo: 'Master Product', page: 'masterproduct' }
 };
@@ -4620,6 +4621,9 @@ function goPage(page) {
   } else if (page === 'expiryentry') {
     c.innerHTML = renderExpiryEntryPage();
     setTimeout(() => loadExpiryRecent(), 100);
+  } else if (page === 'expirytrack') {
+    c.innerHTML = renderExpiryTrackPage();
+    setTimeout(() => loadExpiryTrack(), 50);
   }
   
   updateTbBadge();
@@ -23180,6 +23184,195 @@ window.onExpBarcodeEnter = onExpBarcodeEnter;
 window.expLookup = expLookup;
 window.saveExpiryBatch = saveExpiryBatch;
 window.loadExpiryRecent = loadExpiryRecent;
+
+/* ==================== PHASE 2B + 2C: EXPIRY TRACK + ACTIONS ====================
+   Added 2026-05-29 by Anya — list ทั้งสาขา เรียงตาม DTE + Markdown/Markzero/โอน
+   action เฉพาะ role manager (admin/scc/bcs/ctl) — mirror canModifyGap */
+let _etrkBucket = 'all';
+
+function renderExpiryTrackPage() {
+  const isLao = lang === 'lo';
+  const brName = isLao ? (branch.name_lo || branch.name_th || branch.code) : (branch.name_th || branch.name_lo || branch.code);
+  const buckets = [
+    { k: 'all', l: isLao ? 'ທັງໝົດ' : 'ทั้งหมด' },
+    { k: 'expired', l: isLao ? 'ໝົດແລ້ວ' : 'หมดแล้ว' },
+    { k: 'd7', l: '< 7' }, { k: 'd30', l: '< 30' }, { k: 'd90', l: '< 90' }
+  ];
+  const chips = buckets.map(x => `
+    <button id="etrkB_${x.k}" onclick="etrkSetBucket('${x.k}')"
+            style="background:${_etrkBucket === x.k ? 'var(--teal-500)' : 'var(--slate-100)'};color:${_etrkBucket === x.k ? 'white' : 'var(--slate-600)'};border:none;border-radius:7px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">${x.l}</button>`).join('');
+  return `
+    <div style="margin-bottom:11px;">
+      <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">📅 ${isLao ? 'ຕິດຕາມອາຍຸສິນຄ້າ' : 'ติดตามอายุสินค้า'}</h2>
+      <p style="font-size:11px;color:var(--slate-500);margin:0;">${isLao ? 'ແຕະລາຍການເພື່ອ Markdown / ໂອນ / Markzero' : 'แตะรายการเพื่อ Markdown / โอน / Markzero'} • 🏪 ${brName}</p>
+    </div>
+    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:7px;margin-bottom:9px;">${chips}</div>
+    <div id="etrkTotal" style="font-size:11px;color:var(--slate-500);margin-bottom:9px;"></div>
+    <div id="etrkList"><div style="text-align:center;padding:30px;color:var(--slate-400);">⏳</div></div>
+  `;
+}
+
+async function loadExpiryTrack() {
+  const isLao = lang === 'lo';
+  const listEl = document.getElementById('etrkList');
+  if (!listEl) return;
+  try {
+    const { data, error } = await sb.from('expiry_batches').select('*')
+      .eq('branch_id', branch.id).in('status', ['active', 'marked_down'])
+      .order('expiry_date', { ascending: true }).limit(300);
+    if (error) throw error;
+    window._expTrackData = data || [];
+    renderExpiryTrackList();
+  } catch (e) {
+    listEl.innerHTML = `<div style="background:var(--rose-100);color:var(--rose-500);padding:9px;border-radius:7px;font-size:10px;">❌ ${(e && e.message) ? e.message : e}</div>`;
+  }
+}
+
+function etrkBucketOf(dte) {
+  if (dte < 0) return 'expired';
+  if (dte < 7) return 'd7';
+  if (dte < 30) return 'd30';
+  if (dte < 90) return 'd90';
+  return 'ok';
+}
+
+function etrkSetBucket(key) {
+  _etrkBucket = key;
+  document.querySelectorAll('[id^="etrkB_"]').forEach(b => {
+    const a = b.id === 'etrkB_' + key;
+    b.style.background = a ? 'var(--teal-500)' : 'var(--slate-100)';
+    b.style.color = a ? 'white' : 'var(--slate-600)';
+  });
+  renderExpiryTrackList();
+}
+
+function renderExpiryTrackList() {
+  const isLao = lang === 'lo';
+  const listEl = document.getElementById('etrkList');
+  const totalEl = document.getElementById('etrkTotal');
+  if (!listEl) return;
+  const now = Date.now();
+  let rows = (window._expTrackData || []).map(b => ({ ...b, _dte: Math.ceil((new Date(b.expiry_date).getTime() - now) / 86400000) }));
+  if (_etrkBucket !== 'all') rows = rows.filter(b => etrkBucketOf(b._dte) === _etrkBucket);
+  rows.sort((a, b) => a._dte - b._dte);
+  if (totalEl) totalEl.textContent = (isLao ? 'ທັງໝົດ ' : 'ทั้งหมด ') + rows.length + (isLao ? ' ລາຍການ' : ' รายการ');
+  if (!rows.length) {
+    listEl.innerHTML = `<div style="text-align:center;padding:25px;color:var(--slate-400);background:white;border-radius:9px;"><div style="font-size:32px;margin-bottom:5px;">📭</div><div style="font-size:11px;color:var(--slate-500);">${isLao ? 'ບໍ່ມີລາຍການ' : 'ไม่มีรายการ'}</div></div>`;
+    return;
+  }
+  let html = '';
+  rows.forEach(b => {
+    const dte = b._dte;
+    const color = dte < 7 ? 'var(--rose-500)' : dte < 30 ? 'var(--amber-500)' : 'var(--emerald-500)';
+    const bg = dte < 7 ? 'var(--rose-50)' : dte < 30 ? 'var(--amber-50)' : 'var(--emerald-50)';
+    const dteLabel = dte < 0 ? (isLao ? `ໝົດ ${-dte} ມື້` : `หมด ${-dte} วัน`) : (isLao ? `ເຫຼືອ ${dte} ມື້` : `เหลือ ${dte} วัน`);
+    const mdBadge = b.status === 'marked_down' ? `<span style="background:var(--violet-500);color:white;padding:1px 5px;border-radius:4px;font-size:8px;font-weight:800;margin-left:4px;">MD${b.md_step || ''}</span>` : '';
+    html += `
+      <div onclick="openExpiryAction(${b.id})" style="cursor:pointer;background:${bg};border-left:3px solid ${color};border-radius:7px;padding:8px 10px;margin-bottom:5px;display:flex;align-items:center;gap:7px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:11px;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${b.product_name || b.barcode}${mdBadge}</div>
+          <div style="font-size:9px;color:var(--slate-500);">${b.expiry_date} • ${b.qty} ${isLao ? 'ຊິ້ນ' : 'ชิ้น'}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;"><div style="background:${color};color:white;padding:1px 7px;border-radius:4px;font-size:9px;font-weight:800;">${dteLabel}</div></div>
+      </div>`;
+  });
+  listEl.innerHTML = html;
+}
+
+function openExpiryAction(id) {
+  const isLao = lang === 'lo';
+  const item = (window._expTrackData || []).find(x => x.id === id);
+  if (!item) return;
+  const isManager = ['admin', 'scc', 'bcs', 'ctl'].includes(user.role);
+  const dte = Math.ceil((new Date(item.expiry_date).getTime() - Date.now()) / 86400000);
+  const dteLabel = dte < 0 ? (isLao ? `ໝົດ ${-dte} ມື້` : `หมดอายุแล้ว ${-dte} วัน`) : (isLao ? `ເຫຼືອ ${dte} ມື້` : `เหลือ ${dte} วัน`);
+  let actions = '';
+  if (isManager) {
+    const steps = [1, 2, 3, 4].map(s => `<button onclick="expDoMarkdown(${id},${s})" style="flex:1;min-width:64px;background:var(--violet-500);color:white;border:none;border-radius:9px;padding:11px 6px;font-size:12px;font-weight:800;cursor:pointer;">Step ${s}</button>`).join('');
+    actions = `
+      <div style="font-size:11px;font-weight:700;color:var(--slate-600);margin:6px 0 5px;">🏷️ ${isLao ? 'ລົດລາຄາ (ຕາມปฏิทินหมวดสินค้า)' : 'ลดราคา (Markdown — ตามปฏิทินหมวดสินค้า)'}</div>
+      <div style="display:flex;gap:6px;margin-bottom:11px;">${steps}</div>
+      <button onclick="expDoTransfer(${id})" style="width:100%;background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;border:none;border-radius:11px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:7px;">🔄 ${isLao ? 'ໂອນສາຂາ' : 'โอนสาขา'}</button>
+      <button onclick="expDoMarkzero(${id})" style="width:100%;background:linear-gradient(135deg,var(--rose-500),var(--rose-600));color:white;border:none;border-radius:11px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">🗑 ${isLao ? 'Markzero (ຕັດຖິ້ມ)' : 'Markzero (ตัดทิ้ง)'}</button>`;
+  } else {
+    actions = `<div style="font-size:11px;color:var(--slate-500);padding:8px 0;">${isLao ? 'ເບິ່ງຢ່າງດຽວ — ສະເພາະຫົວໜ້າเທົ່ານั้นທີ່ทำລາຍການได้' : 'ดูอย่างเดียว — เฉพาะหัวหน้าทำรายการได้'}</div>`;
+  }
+  showModal(`
+    <h3 style="font-size:15px;margin:0 0 4px;">${item.product_name || item.barcode}</h3>
+    <p style="font-size:11px;color:var(--slate-500);margin:0 0 11px;">${item.barcode} • ${item.expiry_date} • <strong>${dteLabel}</strong> • ${item.qty} ${isLao ? 'ຊິ້ນ' : 'ชิ้น'}</p>
+    ${actions}
+    <div class="action-row" style="margin-top:11px;"><button class="btn btn-secondary" onclick="closeModal()">${isLao ? 'ປິດ' : 'ปิด'}</button></div>
+  `);
+}
+
+async function expDoMarkdown(id, step) {
+  const isLao = lang === 'lo';
+  const { error } = await sb.from('expiry_batches').update({ md_step: step, status: 'marked_down', updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  const item = (window._expTrackData || []).find(x => x.id === id);
+  logActivity('expiry_markdown', `${item ? item.barcode : id} | Step ${step}`);
+  showToast(isLao ? `Markdown Step ${step} ✓` : `บันทึก Markdown Step ${step} ✓`, 'success');
+  closeModal();
+  loadExpiryTrack();
+}
+
+async function expDoMarkzero(id) {
+  const isLao = lang === 'lo';
+  const { error } = await sb.from('expiry_batches').update({ status: 'markzero', updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  const item = (window._expTrackData || []).find(x => x.id === id);
+  logActivity('expiry_markzero', `${item ? item.barcode : id} | qty ${item ? item.qty : ''}`);
+  showToast(isLao ? 'ຕັດ Markzero ແລ້ວ ✓' : 'ตัด Markzero แล้ว ✓', 'success');
+  closeModal();
+  loadExpiryTrack();
+}
+
+async function expDoTransfer(id) {
+  const isLao = lang === 'lo';
+  let branches = window._allBranchesCache;
+  if (!branches) {
+    const { data } = await sb.from('branches').select('*').eq('is_active', true).order('id');
+    branches = data || [];
+    window._allBranchesCache = branches;
+  }
+  const opts = branches.filter(b => b.id !== branch.id)
+    .map(b => `<option value="${b.id}|${b.code || ''}">${b.code || ''} ${isLao ? (b.name_lo || b.name_th || '') : (b.name_th || b.name_lo || '')}</option>`).join('');
+  showModal(`
+    <h3 style="font-size:15px;margin:0 0 11px;">🔄 ${isLao ? 'ໂອນສາຂາ' : 'โอนสาขา'}</h3>
+    <div class="form-group">
+      <label class="form-label">${isLao ? 'ສາຂາปາຍທາງ' : 'สาขาปลายทาง'}</label>
+      <select class="form-select" id="etrkDest">${opts}</select>
+    </div>
+    <div class="action-row">
+      <button class="btn btn-secondary" onclick="closeModal()">${isLao ? 'ຍົກເລີກ' : 'ยกเลิก'}</button>
+      <button class="btn btn-primary" onclick="expConfirmTransfer(${id})">${isLao ? 'ຢືนยัน' : 'ยืนยัน'}</button>
+    </div>
+  `);
+}
+
+async function expConfirmTransfer(id) {
+  const isLao = lang === 'lo';
+  const sel = document.getElementById('etrkDest');
+  const val = sel ? sel.value : '';
+  if (!val) { closeModal(); return; }
+  const destCode = val.split('|')[1] || val;
+  const { error } = await sb.from('expiry_batches').update({ status: 'transferred', updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  const item = (window._expTrackData || []).find(x => x.id === id);
+  logActivity('expiry_transfer', `${item ? item.barcode : id} → ${destCode}`);
+  showToast(isLao ? 'ໂອນແລ້ວ ✓' : 'โอนแล้ว ✓', 'success');
+  closeModal();
+  loadExpiryTrack();
+}
+
+window.renderExpiryTrackPage = renderExpiryTrackPage;
+window.loadExpiryTrack = loadExpiryTrack;
+window.etrkSetBucket = etrkSetBucket;
+window.openExpiryAction = openExpiryAction;
+window.expDoMarkdown = expDoMarkdown;
+window.expDoMarkzero = expDoMarkzero;
+window.expDoTransfer = expDoTransfer;
+window.expConfirmTransfer = expConfirmTransfer;
 window.openPanOGramModal = openPanOGramModal;
 window.updatePogCalc = updatePogCalc;
 window.savePanOGram = savePanOGram;
