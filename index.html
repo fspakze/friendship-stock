@@ -4265,31 +4265,31 @@ const MENU_CONFIG = {
     ]
   },
   bcs: {
-    bottomTabs: ['stockcheck', 'dashboard', 'floormap', 'gapreport'],
+    bottomTabs: ['stockcheck', 'floormap', 'gapreport'],
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'workreport', 'worktrack', 'tiebreaker'] },
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
   admin: {
-    bottomTabs: ['stockcheck', 'dashboard', 'floormap', 'gapreport'],
+    bottomTabs: ['stockcheck', 'floormap', 'gapreport'],
     drawerGroups: [
       { titleTh: '🛒 งานสต๊อก', titleLo: '🛒 ງານສະຕ໋ອກ', items: ['scan', 'gapscan', 'expirytrack', 'tiebreaker', 'workflow'] },
       { titleTh: '📢 ระบบแจ้งงาน', titleLo: '📢 ລະບົບແຈ້ງงาน', items: ['workreport', 'worktrack'] },
       { titleTh: '🕘 ประวัติ', titleLo: '🕘 ປະຫວັດ', items: ['history'] },
-      { titleTh: 'วิเคราะห์', titleLo: 'ວິເຄາະ', items: ['kpi', 'performance', 'health', 'variance'] },
+      { titleTh: 'วิเคราะห์', titleLo: 'ວິເຄາະ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['issuereport', 'invmovement'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct', 'settings', 'activitylog'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
   scc: {
-    bottomTabs: ['stockcheck', 'dashboard', 'floormap', 'gapreport'],
+    bottomTabs: ['stockcheck', 'floormap', 'gapreport'],
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'workreport', 'worktrack', 'tiebreaker'] },
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct', 'settings'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -21862,7 +21862,7 @@ function renderWorkflowSummary(items) {
 function renderWorkflowList(items) {
   const list = document.getElementById('wfList');
   if (!list) return;
-  
+
   // Apply filter
   let filtered = items;
   if (wfFilter === 'active') {
@@ -21872,60 +21872,27 @@ function renderWorkflowList(items) {
   } else if (wfFilter === 'completed') {
     filtered = items.filter(x => x.status === 'completed');
   }
-  
+
   if (!filtered.length) {
     list.innerHTML = `<div class="empty-state"><p>${T('no_gondolas_active')}</p></div>`;
     return;
   }
-  
-  list.innerHTML = filtered.map(item => {
+
+  // แสดงเป็น grid แบบเดียวกับหน้าแผนผัง (fm-cell) — แตะเพื่อเปิด action panel
+  const cells = filtered.map(item => {
     const status = item.status || 'closed';
-    const statusText = T('status_' + status);
-    
-    // Action buttons based on status + undo button
-    let actions = '';
-    let undoBtn = '';
-    
-    if (status === 'closed') {
-      actions = `<button class="wf-btn wf-btn-open" onclick="wfOpenForCounter('${item.location_code}')">${T('open_for_counter')}</button>`;
-    } else if (status === 'open_for_counting') {
-      actions = `<button class="wf-btn wf-btn-close" onclick="wfCloseCounter('${item.location_code}')">${T('close_counter')} →</button>`;
-      undoBtn = `<button class="wf-btn wf-btn-reopen" onclick="if(confirm('ยกเลิก ${item.location_code}?')){wfResetTo('${item.location_code}','closed');loadWorkflowList();}" style="font-size:10px;flex:0 0 auto;">⟲</button>`;
-    } else if (status === 'counting') {
-      actions = `<button class="wf-btn wf-btn-close" onclick="wfCloseCounter('${item.location_code}')">${T('close_counter')} ✓</button>`;
-      undoBtn = `<button class="wf-btn wf-btn-reopen" onclick="if(confirm('ยังไม่นับ - กลับ Closed?')){wfResetTo('${item.location_code}','closed');loadWorkflowList();}" style="font-size:10px;flex:0 0 auto;">⟲</button>`;
-    } else if (status === 'counted') {
-      actions = `<button class="wf-btn wf-btn-verify" onclick="wfOpenForVerifier('${item.location_code}')">${T('open_for_verifier')} →</button>`;
-      undoBtn = `<button class="wf-btn wf-btn-reopen" onclick="if(confirm('กลับไปนับใหม่?')){wfResetTo('${item.location_code}','open_for_counting');loadWorkflowList();}" style="font-size:10px;flex:0 0 auto;">⟲</button>`;
-    } else if (status === 'open_for_verify' || status === 'verifying') {
-      actions = `<button class="wf-btn wf-btn-verify" onclick="wfCloseVerifier('${item.location_code}')">${T('close_verifier')} ✓</button>`;
-      undoBtn = `<button class="wf-btn wf-btn-reopen" onclick="if(confirm('ยังไม่ตรวจ - กลับ Counter เสร็จ?')){wfResetTo('${item.location_code}','counted');loadWorkflowList();}" style="font-size:10px;flex:0 0 auto;">⟲</button>`;
-    } else if (status === 'verified' || status === 'tiebreaker_needed' || status === 'tiebreaker') {
-      actions = `<button class="wf-btn wf-btn-complete" onclick="wfMarkCompleted('${item.location_code}')">${T('mark_completed')} ✓</button>`;
-      undoBtn = `<button class="wf-btn wf-btn-reopen" onclick="if(confirm('กลับไป Verify ใหม่?')){wfResetTo('${item.location_code}','open_for_verify');loadWorkflowList();}" style="font-size:10px;flex:0 0 auto;">⟲</button>`;
-    } else if (status === 'completed') {
-      actions = `<button class="wf-btn wf-btn-reopen" onclick="wfReopen('${item.location_code}')">${T('reopen')}</button>`;
-    }
-    
-    const counter = item.counter_name ? `<span class="wf-stat-chip">👤 ${item.counter_name}: ${item.counter_count || 0}</span>` : '';
-    const verifier = item.verifier_name ? `<span class="wf-stat-chip">🔍 ${item.verifier_name}: ${item.verifier_count || 0}</span>` : '';
-    const tb = item.tb_count > 0 ? `<span class="wf-stat-chip">⚖️ TB: ${item.tb_count}</span>` : '';
-    const zone = item.zone_code ? `Zone ${item.zone_code}` : '';
-    
+    const cn = item.counter_name ? '👤' : '';
+    const vn = item.verifier_name ? '🔍' : '';
+    const mark = (cn || vn) ? '<div style="position:absolute;top:1px;left:3px;font-size:8px;">' + cn + vn + '</div>' : '';
     return `
-      <div class="wf-card s-${status}">
-        <div class="wf-row">
-          <div class="wf-loc">${item.location_code}</div>
-          <div class="wf-info">
-            <div class="wf-status-text">${statusText}</div>
-            <div class="wf-meta">${zone}</div>
-            <div class="wf-stats">${counter}${verifier}${tb}</div>
-          </div>
-        </div>
-        <div class="wf-actions">${actions}${undoBtn}</div>
-      </div>
-    `;
+      <div class="fm-cell s-${status}"
+           onclick="showGondolaActions('${item.location_code}', '${status}')"
+           title="${item.location_code} - ${T('status_' + status)}${item.counter_name ? ' • Counter: ' + item.counter_name : ''}${item.verifier_name ? ' • Verifier: ' + item.verifier_name : ''}">
+        ${mark}
+        <div class="fm-code">${item.location_code}</div>
+      </div>`;
   }).join('');
+  list.innerHTML = '<div class="fm-grid">' + cells + '</div>';
 }
 
 // === Workflow Actions ===
