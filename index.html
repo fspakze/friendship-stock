@@ -23390,8 +23390,8 @@ async function expDoMarkdown(id, step) {
   // คำนวณบาร์ markdown จากบาร์ปกติ: ตัวเลขล้วน -> '888'+barcode ; อื่นๆ (fresh ใช้ชื่อ) -> barcode+'MD'
   let autoMd = '';
   const _bc = String(item.barcode || '').trim();
-  if (/^\d+$/.test(_bc)) autoMd = '888' + _bc;
-  else if (_bc) autoMd = _bc + 'MD';
+  if (/^\d+$/.test(_bc)) autoMd = '888' + _bc;   // สินค้าทั่วไป (บาร์เลขล้วน) → 888+บาร์
+  // Fresh food (บาร์ = เลข+ชื่อ): เลข md คาดเดาไม่ได้ → เว้นว่าง ให้ SC สแกน/พิมพ์เอง
   const foundHtml = autoMd
     ? '<div style="font-size:10px;color:var(--emerald-700);background:var(--emerald-50);border-radius:6px;padding:5px 8px;margin-bottom:9px;">\u2713 Auto: <strong>' + autoMd + '</strong> ' + (isLao ? '(ແກ້ໄດ້)' : '(แก้ได้)') + '</div>'
     : '';
