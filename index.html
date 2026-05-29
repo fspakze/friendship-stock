@@ -4267,7 +4267,7 @@ const MENU_CONFIG = {
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['tiebreaker'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
-      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users'] },
+      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
@@ -4277,7 +4277,7 @@ const MENU_CONFIG = {
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['scan', 'gapscan', 'history', 'workflow', 'tiebreaker'] },
       { titleTh: 'วิเคราะห์', titleLo: 'ວິເຄາະ', items: ['kpi', 'performance', 'health', 'variance'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['issuereport', 'invmovement'] },
-      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'settings', 'activitylog'] },
+      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct', 'settings', 'activitylog'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
@@ -4286,7 +4286,7 @@ const MENU_CONFIG = {
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['tiebreaker'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
-      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'settings'] },
+      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct', 'settings'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   }
@@ -4311,7 +4311,8 @@ const PAGE_META = {
   stockcheck: { iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',                                       labelTh: 'เช็คสต๊อก',    labelLo: 'ກວດສະຕ໋ອກ',     page: 'stockcheck' },
   issuereport:{ iconSvg: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',                                                                                  labelTh: 'รายงานปัญหา',  labelLo: 'ລາຍງານປັນຫາ',   page: 'issuereport',    badge: 'tabIssueBadge' },
   invmovement:{ iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="7.5 4.21 12 6.81 16.5 4.21"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>', labelTh: 'การเคลื่อนสต๊อค', labelLo: 'ການເຄື່ອນສະຕ໋ອກ', page: 'invmovement' },
-  activitylog:{ iconSvg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>', labelTh: 'บันทึกกิจกรรม', labelLo: 'ບັນທຶກກິດຈະກຳ', page: 'activitylog' }
+  activitylog:{ iconSvg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>', labelTh: 'บันทึกกิจกรรม', labelLo: 'ບັນທຶກກິດຈະກຳ', page: 'activitylog' },
+  masterproduct: { iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/><path d="M7.5 4.5l9 5.2"/>', labelTh: 'Master Product', labelLo: 'Master Product', page: 'masterproduct' }
 };
 
 /**
@@ -4590,6 +4591,9 @@ function goPage(page) {
   } else if (page === 'activitylog') {
     c.innerHTML = renderActivityLogPage();
     loadActivityLogs(true);
+  } else if (page === 'masterproduct') {
+    c.innerHTML = renderMasterProductPage();
+    loadMasterProducts(true);
   } else if (page === 'users') {
     c.innerHTML = renderUsersPage();
     loadUsers();
@@ -5798,6 +5802,400 @@ function renderActivityLogRow(r) {
 }
 
 // ==================== END SESSION 5 ACTIVITY LOG ====================
+
+// ==================== SESSION 6: MASTER PRODUCT MODULE (Phase 3A — Read + Edit) ====================
+// Tables: master_products, md_products (Migration 46 — ran 2026-05-29)
+// Permissions: admin / scc / bcs
+// Phase 3A scope: List, Search, Filter, New Item badge, Edit single record
+// Phase 3B (next): Upload XLSX + UPSERT, Reminder banner
+// Phase 4 (later): Fallback in Gap Scan / Stock Check
+
+const MP_PAGE_SIZE = 50;
+const MP_NEW_ITEM_DAYS = 90;
+const MP_ALLOWED_ROLES = ['admin', 'scc', 'bcs'];
+
+let _mpData = [];
+let _mpOffset = 0;
+let _mpTotalCount = 0;
+let _mpSearchTerm = '';
+let _mpFilterBrand = '';
+let _mpFilterCategory = '';
+let _mpShowOnlyNew = false;
+let _mpBrandOptions = [];      // cached list of distinct brands
+let _mpCategoryOptions = [];   // cached list of distinct categories
+let _mpEditingId = null;       // currently editing record id
+
+function mpHasAccess() {
+  return user && MP_ALLOWED_ROLES.includes(user.role);
+}
+
+function mpIsNewItem(createTime) {
+  if (!createTime) return false;
+  const days = (Date.now() - new Date(createTime).getTime()) / 86400000;
+  return days >= 0 && days <= MP_NEW_ITEM_DAYS;
+}
+
+function mpFmtPrice(v) {
+  if (v == null || v === '') return '-';
+  const n = Number(v);
+  if (!isFinite(n)) return '-';
+  return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
+function mpEsc(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function renderMasterProductPage() {
+  if (!mpHasAccess()) {
+    return `<div style="text-align:center;padding:40px;color:var(--rose-500);">${lang==='lo'?'ບໍ່ມີສິດ':'ไม่มีสิทธิ์เข้าถึง'}</div>`;
+  }
+  const isLao = lang === 'lo';
+  return `
+    <div style="margin-bottom:11px;">
+      <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">📦 Master Product</h2>
+      <p style="font-size:11px;color:var(--slate-500);margin:0;" id="mpSubtitle">${isLao?'ຄາຕາລ໋ອກສິນຄ້າຫຼັກ':'แคตตาล็อกสินค้าหลัก'}</p>
+    </div>
+    
+    <!-- Search bar -->
+    <div style="margin-bottom:9px;">
+      <input id="mpSearch" type="text" placeholder="${isLao?'🔍 ຄົ້ນຫາ barcode/ຊື່':'🔍 ค้นหา barcode/ชื่อ'}"
+             oninput="mpOnSearchInput(this.value)"
+             style="width:100%;padding:9px 11px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;box-sizing:border-box;">
+    </div>
+    
+    <!-- Filter row: brand + category + new toggle -->
+    <div style="display:flex;gap:6px;margin-bottom:9px;flex-wrap:wrap;">
+      <select id="mpFilterBrand" onchange="mpSetBrand(this.value)"
+              style="flex:1;min-width:130px;padding:7px 9px;border:1px solid var(--slate-300);border-radius:7px;font-size:12px;background:white;">
+        <option value="">${isLao?'ທຸກຍີ່ຫໍ້':'ทุก Brand'}</option>
+      </select>
+      <select id="mpFilterCategory" onchange="mpSetCategory(this.value)"
+              style="flex:1;min-width:130px;padding:7px 9px;border:1px solid var(--slate-300);border-radius:7px;font-size:12px;background:white;">
+        <option value="">${isLao?'ທຸກປະເພດ':'ทุกประเภท'}</option>
+      </select>
+      <button onclick="mpToggleNew()" id="mpNewBtn"
+              style="background:${_mpShowOnlyNew?'var(--emerald-500)':'var(--slate-100)'};color:${_mpShowOnlyNew?'white':'var(--slate-600)'};border:none;border-radius:7px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">
+        🆕 ${isLao?'ໃໝ່ 90 ມື້':'ใหม่ 90 วัน'}
+      </button>
+    </div>
+    
+    <div id="mpTotalBar" style="font-size:11px;color:var(--slate-500);margin-bottom:7px;"></div>
+    <div id="mpList"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
+    <div id="mpLoadMore" style="margin-top:11px;"></div>
+    
+    <!-- Edit modal placeholder -->
+    <div id="mpEditModal" style="display:none;"></div>
+  `;
+}
+
+// Search debounce
+let _mpSearchTimer = null;
+function mpOnSearchInput(v) {
+  _mpSearchTerm = (v || '').trim();
+  clearTimeout(_mpSearchTimer);
+  _mpSearchTimer = setTimeout(() => loadMasterProducts(true), 350);
+}
+
+function mpSetBrand(v) {
+  _mpFilterBrand = v || '';
+  loadMasterProducts(true);
+}
+
+function mpSetCategory(v) {
+  _mpFilterCategory = v || '';
+  loadMasterProducts(true);
+}
+
+function mpToggleNew() {
+  _mpShowOnlyNew = !_mpShowOnlyNew;
+  const btn = document.getElementById('mpNewBtn');
+  if (btn) {
+    btn.style.background = _mpShowOnlyNew ? 'var(--emerald-500)' : 'var(--slate-100)';
+    btn.style.color = _mpShowOnlyNew ? 'white' : 'var(--slate-600)';
+  }
+  loadMasterProducts(true);
+}
+
+// Lazy-load brand + category options (called once on first page open)
+async function mpLoadFilterOptions() {
+  if (_mpBrandOptions.length > 0) return; // cached
+  try {
+    // Distinct brands (top 200 by alphabetical) — limit to keep dropdown manageable
+    const { data: brandRows } = await sb
+      .from('master_products')
+      .select('brand')
+      .not('brand', 'is', null)
+      .order('brand', { ascending: true })
+      .limit(2000);
+    const brandSet = new Set();
+    (brandRows || []).forEach(r => { if (r.brand) brandSet.add(r.brand); });
+    _mpBrandOptions = Array.from(brandSet).sort();
+    
+    const { data: catRows } = await sb
+      .from('master_products')
+      .select('category')
+      .not('category', 'is', null)
+      .order('category', { ascending: true })
+      .limit(2000);
+    const catSet = new Set();
+    (catRows || []).forEach(r => { if (r.category) catSet.add(r.category); });
+    _mpCategoryOptions = Array.from(catSet).sort();
+    
+    // Populate dropdowns
+    const bSel = document.getElementById('mpFilterBrand');
+    if (bSel) {
+      _mpBrandOptions.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b; opt.textContent = b.length > 40 ? b.slice(0, 37) + '...' : b;
+        bSel.appendChild(opt);
+      });
+    }
+    const cSel = document.getElementById('mpFilterCategory');
+    if (cSel) {
+      _mpCategoryOptions.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c; opt.textContent = c.length > 40 ? c.slice(0, 37) + '...' : c;
+        cSel.appendChild(opt);
+      });
+    }
+  } catch (e) {
+    log('mpLoadFilterOptions error', e);
+  }
+}
+
+async function loadMasterProducts(reset = false) {
+  if (!mpHasAccess()) return;
+  if (reset) { _mpOffset = 0; _mpData = []; }
+  
+  const listEl = document.getElementById('mpList');
+  const loadMoreEl = document.getElementById('mpLoadMore');
+  const totalEl = document.getElementById('mpTotalBar');
+  if (!listEl) return;
+  if (reset) listEl.innerHTML = '<div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div>';
+  
+  // Lazy-load filter options on first call
+  if (_mpBrandOptions.length === 0) mpLoadFilterOptions();
+  
+  try {
+    let q = sb.from('master_products')
+      .select('*', { count: 'exact' })
+      .eq('is_active', true)
+      .order('create_time', { ascending: false, nullsFirst: false });
+    
+    if (_mpSearchTerm) {
+      // Search barcode (exact prefix) OR name fuzzy
+      // PostgREST or filter syntax: or=(barcode.ilike.%X%,name_lo.ilike.%X%,name_th.ilike.%X%)
+      const term = _mpSearchTerm.replace(/[%,]/g, '');
+      q = q.or(`barcode.ilike.%${term}%,name_lo.ilike.%${term}%,name_th.ilike.%${term}%`);
+    }
+    if (_mpFilterBrand) q = q.eq('brand', _mpFilterBrand);
+    if (_mpFilterCategory) q = q.eq('category', _mpFilterCategory);
+    if (_mpShowOnlyNew) {
+      const cutoff = new Date(Date.now() - MP_NEW_ITEM_DAYS * 86400000).toISOString();
+      q = q.gte('create_time', cutoff);
+    }
+    q = q.range(_mpOffset, _mpOffset + MP_PAGE_SIZE - 1);
+    
+    const { data, error, count } = await q;
+    if (error) {
+      listEl.innerHTML = `<div style="text-align:center;padding:30px;color:var(--rose-500);font-size:12px;">Error: ${mpEsc(error.message)}</div>`;
+      return;
+    }
+    
+    _mpData = _mpData.concat(data || []);
+    _mpOffset += (data?.length || 0);
+    _mpTotalCount = count || 0;
+    if (totalEl) totalEl.textContent = `${(_mpTotalCount).toLocaleString()} ${lang==='lo'?'ລາຍການ':'รายการ'}`;
+    
+    if (_mpData.length === 0) {
+      listEl.innerHTML = `<div style="text-align:center;padding:40px;color:var(--slate-400);font-size:13px;">📭 ${lang==='lo'?'ບໍ່ພົບຂໍ້ມູນ':'ไม่พบข้อมูล'}</div>`;
+      if (loadMoreEl) loadMoreEl.innerHTML = '';
+      return;
+    }
+    
+    listEl.innerHTML = _mpData.map(r => renderMasterProductRow(r)).join('');
+    
+    if (loadMoreEl) {
+      if (_mpOffset < _mpTotalCount) {
+        loadMoreEl.innerHTML = `<button onclick="loadMasterProducts(false)" style="width:100%;background:var(--slate-100);color:var(--slate-700);border:none;padding:11px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;">${lang==='lo'?'ໂຫຼດເພີ່ມ':'โหลดเพิ่ม'} (${_mpOffset}/${_mpTotalCount.toLocaleString()})</button>`;
+      } else loadMoreEl.innerHTML = '';
+    }
+  } catch (e) {
+    listEl.innerHTML = `<div style="text-align:center;padding:30px;color:var(--rose-500);font-size:12px;">Error: ${mpEsc(e.message)}</div>`;
+  }
+}
+
+function renderMasterProductRow(r) {
+  const isNew = mpIsNewItem(r.create_time);
+  const newBadge = isNew ? `<span style="background:var(--emerald-500);color:white;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-right:5px;">🆕 NEW</span>` : '';
+  const name = r.name_lo || r.name_th || '(no name)';
+  const price = mpFmtPrice(r.sell_price);
+  
+  return `
+    <div style="background:white;border:1px solid var(--slate-200);border-left:3px solid ${isNew?'var(--emerald-500)':'var(--slate-300)'};border-radius:9px;padding:10px 11px;margin-bottom:7px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:9px;">
+        <div style="min-width:0;flex:1;">
+          <div style="font-size:11px;color:var(--slate-500);font-family:monospace;margin-bottom:3px;">
+            ${newBadge}${mpEsc(r.barcode)}
+          </div>
+          <div style="font-size:13px;font-weight:600;color:var(--slate-800);line-height:1.35;word-break:break-word;">
+            ${mpEsc(name)}
+          </div>
+          <div style="font-size:11px;color:var(--slate-500);margin-top:4px;display:flex;gap:9px;flex-wrap:wrap;">
+            <span style="color:var(--violet-600);font-weight:700;">฿${price}</span>
+            ${r.brand ? `<span>🏷 ${mpEsc(r.brand.slice(0,25))}</span>` : ''}
+            ${r.supplier ? `<span title="${mpEsc(r.supplier)}">🚚 ${mpEsc(r.supplier.slice(0,20))}${r.supplier.length>20?'...':''}</span>` : ''}
+          </div>
+        </div>
+        <button onclick="mpOpenEditModal(${r.id})"
+                style="background:var(--violet-100);color:var(--violet-700);border:none;border-radius:7px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;">
+          ✏️
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// ──── Edit Modal ────────────────────────────────────────────────────────────
+
+function mpOpenEditModal(id) {
+  if (!mpHasAccess()) return;
+  const rec = _mpData.find(r => r.id === id);
+  if (!rec) return;
+  _mpEditingId = id;
+  
+  const isLao = lang === 'lo';
+  const modal = document.getElementById('mpEditModal');
+  if (!modal) return;
+  
+  modal.style.display = 'block';
+  modal.innerHTML = `
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center;" onclick="mpCloseEditModal(event)">
+      <div onclick="event.stopPropagation();" style="background:white;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;border-radius:14px 14px 0 0;padding:18px;box-sizing:border-box;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px;">
+          <h3 style="font-size:15px;margin:0;color:var(--slate-900);">✏️ ${isLao?'ແກ້ໄຂ Master Product':'แก้ไข Master Product'}</h3>
+          <button onclick="mpCloseEditModal()" style="background:none;border:none;font-size:20px;color:var(--slate-400);cursor:pointer;padding:0 6px;">×</button>
+        </div>
+        
+        <div style="background:var(--slate-50);border-radius:9px;padding:10px;margin-bottom:13px;">
+          <div style="font-size:10px;color:var(--slate-500);font-family:monospace;">${mpEsc(rec.barcode)}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--slate-800);margin-top:3px;line-height:1.35;">${mpEsc(rec.name_lo || rec.name_th || '-')}</div>
+        </div>
+        
+        <div style="display:flex;flex-direction:column;gap:11px;">
+          <div>
+            <label style="font-size:11px;color:var(--slate-600);font-weight:700;display:block;margin-bottom:4px;">${isLao?'ລາຄາຂາຍ':'ราคาขาย'} (sell_price)</label>
+            <input id="mpEditSellPrice" type="number" step="0.01" value="${rec.sell_price ?? ''}"
+                   style="width:100%;padding:9px 11px;border:1px solid var(--slate-300);border-radius:7px;font-size:13px;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--slate-600);font-weight:700;display:block;margin-bottom:4px;">${isLao?'ຍີ່ຫໍ້':'Brand'}</label>
+            <input id="mpEditBrand" type="text" value="${mpEsc(rec.brand || '')}"
+                   style="width:100%;padding:9px 11px;border:1px solid var(--slate-300);border-radius:7px;font-size:13px;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--slate-600);font-weight:700;display:block;margin-bottom:4px;">${isLao?'ຜູ້ສະໜອງ':'Supplier'}</label>
+            <input id="mpEditSupplier" type="text" value="${mpEsc(rec.supplier || '')}"
+                   style="width:100%;padding:9px 11px;border:1px solid var(--slate-300);border-radius:7px;font-size:13px;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--slate-600);font-weight:700;display:block;margin-bottom:4px;">${isLao?'ປະເພດ':'Category'}</label>
+            <input id="mpEditCategory" type="text" value="${mpEsc(rec.category || '')}"
+                   style="width:100%;padding:9px 11px;border:1px solid var(--slate-300);border-radius:7px;font-size:13px;box-sizing:border-box;">
+          </div>
+        </div>
+        
+        <div style="display:flex;gap:7px;margin-top:18px;">
+          <button onclick="mpCloseEditModal()"
+                  style="flex:1;background:var(--slate-100);color:var(--slate-700);border:none;padding:12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">
+            ${isLao?'ຍົກເລີກ':'ยกเลิก'}
+          </button>
+          <button onclick="mpSaveEdit()" id="mpSaveBtn"
+                  style="flex:1;background:var(--violet-500);color:white;border:none;padding:12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">
+            💾 ${isLao?'ບັນທຶກ':'บันทึก'}
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function mpCloseEditModal(e) {
+  if (e && e.target !== e.currentTarget) return;
+  const modal = document.getElementById('mpEditModal');
+  if (modal) { modal.style.display = 'none'; modal.innerHTML = ''; }
+  _mpEditingId = null;
+}
+
+async function mpSaveEdit() {
+  if (!mpHasAccess() || _mpEditingId == null) return;
+  
+  const sellPriceRaw = document.getElementById('mpEditSellPrice')?.value;
+  const brand = (document.getElementById('mpEditBrand')?.value || '').trim();
+  const supplier = (document.getElementById('mpEditSupplier')?.value || '').trim();
+  const category = (document.getElementById('mpEditCategory')?.value || '').trim();
+  
+  const sellPrice = sellPriceRaw === '' ? null : Number(sellPriceRaw);
+  if (sellPrice != null && !isFinite(sellPrice)) {
+    alert(lang==='lo'?'ລາຄາບໍ່ຖືກຕ້ອງ':'ราคาไม่ถูกต้อง');
+    return;
+  }
+  
+  const btn = document.getElementById('mpSaveBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  
+  // Snapshot old values for log
+  const oldRec = _mpData.find(r => r.id === _mpEditingId) || {};
+  const changes = [];
+  if (sellPrice !== (oldRec.sell_price ?? null)) changes.push(`price:${oldRec.sell_price ?? '-'}→${sellPrice ?? '-'}`);
+  if (brand !== (oldRec.brand || '')) changes.push('brand');
+  if (supplier !== (oldRec.supplier || '')) changes.push('supplier');
+  if (category !== (oldRec.category || '')) changes.push('category');
+  
+  try {
+    const { data, error } = await sb.from('master_products')
+      .update({
+        sell_price: sellPrice,
+        brand: brand || null,
+        supplier: supplier || null,
+        category: category || null
+      })
+      .eq('id', _mpEditingId)
+      .select()
+      .single();
+    
+    if (error) {
+      alert('Error: ' + error.message);
+      if (btn) { btn.disabled = false; btn.textContent = '💾 ' + (lang==='lo'?'ບັນທຶກ':'บันทึก'); }
+      return;
+    }
+    
+    // Update local data
+    const idx = _mpData.findIndex(r => r.id === _mpEditingId);
+    if (idx >= 0) _mpData[idx] = data;
+    
+    // Log activity
+    if (typeof logActivity === 'function' && changes.length > 0) {
+      logActivity('master_edit', `${oldRec.barcode || _mpEditingId}: ${changes.join(', ')}`);
+    }
+    
+    mpCloseEditModal();
+    
+    // Refresh visible row
+    const listEl = document.getElementById('mpList');
+    if (listEl) listEl.innerHTML = _mpData.map(r => renderMasterProductRow(r)).join('');
+  } catch (e) {
+    alert('Error: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '💾 ' + (lang==='lo'?'ບັນທຶກ':'บันทึก'); }
+  }
+}
+
+// ==================== END SESSION 6 MASTER PRODUCT MODULE ====================
+
 
 function renderInvMovementPage() {
   const isLao = lang === 'lo';
@@ -22274,6 +22672,16 @@ window.loadActivityLogs = loadActivityLogs;
 window.alSetAction = alSetAction;
 window.alSetPeriod = alSetPeriod;
 window.logActivity = logActivity;
+// Session 6: Master Product (Phase 3A)
+window.renderMasterProductPage = renderMasterProductPage;
+window.loadMasterProducts = loadMasterProducts;
+window.mpOnSearchInput = mpOnSearchInput;
+window.mpSetBrand = mpSetBrand;
+window.mpSetCategory = mpSetCategory;
+window.mpToggleNew = mpToggleNew;
+window.mpOpenEditModal = mpOpenEditModal;
+window.mpCloseEditModal = mpCloseEditModal;
+window.mpSaveEdit = mpSaveEdit;
 // Phase B (2026-05-27): workflow stage actions
 window.assignGapToMe = assignGapToMe;
 window.startGapWork = startGapWork;
