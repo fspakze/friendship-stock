@@ -24347,6 +24347,7 @@ if (typeof isPWAMode === 'function') {
       
       // โหลด zones+locations เสมอ
       await loadZonesAndLocations();
+      await loadAppSettings();
       
       // เช็ค use_zones ของ branch (per-branch toggle)
       const branchUseZones = branch?.use_zones !== false;
