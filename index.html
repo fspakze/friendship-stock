@@ -2601,6 +2601,42 @@ async function login() {
   }
 }
 
+let _countMenuEnabled = true; // เปิด/ปิดเมนูนับสต๊อก (scan+tiebreaker) ของ counter/verifier
+async function loadAppSettings() {
+  try {
+    const { data } = await sb.from('app_settings').select('key, value').eq('key', 'count_menu_enabled').maybeSingle();
+    _countMenuEnabled = !data || data.value !== 'off'; // default เปิด
+  } catch (e) { _countMenuEnabled = true; }
+}
+window._getCountMenuEnabled = () => _countMenuEnabled;
+
+// เปิด/ปิดเมนูนับสต๊อก (admin/scc) → เก็บ Supabase → มีผลทุกเครื่อง
+async function toggleCountMenu() {
+  const isLao = lang === 'lo';
+  if (!['admin', 'scc'].includes(user.role)) { showToast(isLao ? 'ບໍ່ມีสิทธิ์' : 'ไม่มีสิทธิ์', 'error'); return; }
+  const next = !_countMenuEnabled;
+  const { error } = await sb.from('app_settings').upsert({ key: 'count_menu_enabled', value: next ? 'on' : 'off', updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: 'key' });
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  _countMenuEnabled = next;
+  logActivity('toggle_count_menu', next ? 'on' : 'off');
+  showToast(next ? (isLao ? 'ເປີດເມนูนับสต๊อกแล้ว' : 'เปิดเมนูนับสต๊อกแล้ว') : (isLao ? 'ປິດເມนูนับสต๊อกแล้ว' : 'ปิดเมนูนับสต๊อกแล้ว'), 'success');
+  // อัปเดตปุ่ม toggle ทันที
+  const btn = document.getElementById('countMenuToggle');
+  const status = document.getElementById('countMenuStatus');
+  if (btn) {
+    btn.style.background = next ? 'var(--teal-500)' : 'var(--slate-300)';
+    const knob = btn.querySelector('span');
+    if (knob) knob.style.left = next ? '29px' : '3px';
+  }
+  if (status) {
+    status.style.color = next ? 'var(--teal-600)' : 'var(--slate-400)';
+    status.textContent = next ? (isLao ? '● ເປີດ' : '● เปิดอยู่') : (isLao ? '○ ປິด' : '○ ปิดอยู่');
+  }
+  // re-render shell เพื่อให้เมนูที่เปิดอยู่ (ถ้าเป็น counter/verifier บนเครื่องเดียวกัน) อัปเดต
+  if (typeof renderApp === 'function' && (user.role === 'counter' || user.role === 'verifier')) renderApp();
+}
+
+
 async function afterLogin() {
   // CTL, BCS, Admin, SCC ไม่ต้องเลือก Zone/Location (ดูภาพรวม + ควบคุม)
   // Counter, Verifier, Staff, Audit ต้องเลือก (ต้องสแกนนับ)
@@ -2608,6 +2644,7 @@ async function afterLogin() {
   
   // โหลด zones+locations เสมอ (เพื่อให้ Floor Map + Workflow Control ใช้)
   await loadZonesAndLocations();
+  await loadAppSettings();
   
   const branchUseZones = branch?.use_zones !== false;
   
@@ -4392,11 +4429,23 @@ function renderMenuButton(hasDrawerItems) {
     </button>`;
 }
 
+// กรองเมนูนับสต๊อก (scan+tiebreaker) ออกจาก counter/verifier เมื่อปิดสวิตช์
+function wtFilterMenuCfg(cfg, role) {
+  if (!cfg) return cfg;
+  if (_countMenuEnabled) return cfg;
+  if (role !== 'counter' && role !== 'verifier') return cfg;
+  const hide = ['scan', 'tiebreaker'];
+  return {
+    bottomTabs: (cfg.bottomTabs || []).filter(x => !hide.includes(x)),
+    drawerGroups: (cfg.drawerGroups || []).map(g => ({ ...g, items: g.items.filter(x => !hide.includes(x)) })).filter(g => g.items.length > 0),
+  };
+}
+
 /**
  * Render the slide-in drawer with groups
  */
 function renderMenuDrawer(role) {
-  const cfg = MENU_CONFIG[role];
+  const cfg = wtFilterMenuCfg(MENU_CONFIG[role], role);
   if (!cfg || cfg.drawerGroups.length === 0) return '';
   
   const isLao = lang === 'lo';
@@ -4486,7 +4535,7 @@ function renderShell() {
   const r = user.role;
   
   // ⭐ NEW: Use MENU_CONFIG to render tabs (single source of truth)
-  const cfg = MENU_CONFIG[r] || MENU_CONFIG.counter;
+  const cfg = wtFilterMenuCfg(MENU_CONFIG[r] || MENU_CONFIG.counter, r);
   let tabs = '';
   cfg.bottomTabs.forEach(pk => { tabs += renderBottomTab(pk); });
   // Add ☰ Menu button if there are drawer items
@@ -22085,6 +22134,22 @@ function renderSettingsPage() {
     </div>
     
     ${['admin', 'scc', 'bcs'].includes(user.role) ? `
+    ${['admin', 'scc'].includes(user.role) ? `
+    <!-- Toggle เมนูนับสต๊อก -->
+    <div style="background:white;border:2px solid var(--teal-200);border-radius:14px;padding:16px;margin-top:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:800;color:var(--slate-800);">📦 ${lang === 'lo' ? 'ເມນູນັບສະຕ໋ອກ (Counter/Verifier)' : 'เมนูนับสต๊อก (Counter/Verifier)'}</div>
+          <div style="font-size:11px;color:var(--slate-500);margin-top:3px;">${lang === 'lo' ? 'ເປີດເມื่อ จะนับสต๊อก ປິดเมื่อ ບໍ່ໃຊ້' : 'เปิดเมื่อจะนับสต๊อก · ปิดเมื่อไม่ใช้ (ซ่อน นับสต๊อค+ตัดสิน)'}</div>
+        </div>
+        <button id="countMenuToggle" onclick="toggleCountMenu()" style="flex-shrink:0;width:56px;height:30px;border-radius:20px;border:none;cursor:pointer;position:relative;background:${_countMenuEnabled ? 'var(--teal-500)' : 'var(--slate-300)'};transition:background 0.2s;">
+          <span style="position:absolute;top:3px;left:${_countMenuEnabled ? '29px' : '3px'};width:24px;height:24px;border-radius:50%;background:white;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></span>
+        </button>
+      </div>
+      <div id="countMenuStatus" style="font-size:11px;font-weight:700;margin-top:9px;color:${_countMenuEnabled ? 'var(--teal-600)' : 'var(--slate-400)'};">${_countMenuEnabled ? (lang === 'lo' ? '● ເປີດ' : '● เปิดอยู่') : (lang === 'lo' ? '○ ປິด' : '○ ปิดอยู่')}</div>
+    </div>
+    ` : ''}
+
     <!-- Branch Switcher (Admin Only) -->
     <div style="background:white;border:2px solid var(--violet-300);border-radius:14px;padding:16px;margin-top:14px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
@@ -23950,6 +24015,8 @@ window.loadHistoryWork = loadHistoryWork;
 window.wtEditOpen = wtEditOpen;
 window.wtEditSave = wtEditSave;
 window.wtDelete = wtDelete;
+window.toggleCountMenu = toggleCountMenu;
+window.loadAppSettings = loadAppSettings;
 window.wrOnPhotoSelected = wrOnPhotoSelected;
 window.wrRemovePhoto = wrRemovePhoto;
 window.expDoMarkdown = expDoMarkdown;
