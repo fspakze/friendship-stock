@@ -2587,10 +2587,10 @@ async function login() {
     localStorage.setItem('fs_branch', JSON.stringify(branch));
     localStorage.setItem('fs_last_branch_id', String(branch.id));
     
-    await afterLogin();
-    
-    // 📋 Audit log
+    // 📋 Audit log — บันทึกก่อนเข้า app (กัน afterLogin re-render ขัดจังหวะ)
     logActivity('login', `${user.role} เข้าระบบ สาขา ${branch.code}`);
+    
+    await afterLogin();
     
   } catch (e) {
     console.error('[FS] Login error:', e);
