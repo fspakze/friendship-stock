@@ -2602,6 +2602,66 @@ async function login() {
 }
 
 let _countMenuEnabled = true; // เปิด/ปิดเมนูนับสต๊อก (scan+tiebreaker) ของ counter/verifier
+
+// ---------- Banner เตือน Admin อัพเดทข้อมูลรายวัน ----------
+const DATA_UPDATE_TASKS = [
+  { key: 'last_update_status', th: 'Status สินค้า', lo: 'Status สินค้า', page: 'productstatus' },
+  { key: 'last_update_pos',    th: 'Stock (POS)',   lo: 'Stock (POS)',   page: 'settings' },
+  { key: 'last_update_master', th: 'Master Product', lo: 'Master Product', page: 'masterproduct' },
+];
+function isSameDay(iso) {
+  if (!iso) return false;
+  const d = new Date(iso), n = new Date();
+  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
+}
+async function loadUpdateReminder() {
+  // เฉพาะ admin
+  if (!user || user.role !== 'admin') return;
+  const host = document.getElementById('updateReminder');
+  if (!host) return;
+  let settings = {};
+  try {
+    const { data } = await sb.from('app_settings').select('key, value').in('key', DATA_UPDATE_TASKS.map(t => t.key));
+    (data || []).forEach(r => { settings[r.key] = r.value; });
+  } catch (e) {}
+  const isLao = lang === 'lo';
+  const pending = DATA_UPDATE_TASKS.filter(t => !isSameDay(settings[t.key]));
+  if (!pending.length) {
+    host.innerHTML = '<div class="banner" style="background:var(--emerald-50);border:1px solid var(--emerald-300);">'
+      + '<div class="banner-icon" style="background:var(--emerald-500);">✓</div>'
+      + '<div class="banner-text"><h4 style="color:var(--emerald-700);">' + (isLao ? 'ອัปเดตข้อมูลครบแล้ววันนี้' : 'อัปเดตข้อมูลครบแล้ววันนี้') + '</h4>'
+      + '<p style="color:var(--emerald-600);">Status · Stock · Master ' + (isLao ? 'ລ່າสุดวันนี้' : 'ล่าสุดวันนี้') + '</p></div></div>';
+    return;
+  }
+  const items = pending.map(t =>
+    '<button onclick="goPage(\'' + t.page + '\')" style="display:flex;align-items:center;gap:7px;width:100%;text-align:left;background:white;border:1px solid var(--amber-300);border-radius:9px;padding:9px 11px;margin-top:6px;cursor:pointer;">'
+    + '<span style="font-size:15px;">⬆️</span>'
+    + '<span style="flex:1;font-size:12px;font-weight:700;color:var(--slate-700);">' + (isLao ? t.lo : t.th) + '</span>'
+    + '<span style="font-size:10px;color:var(--amber-600);font-weight:700;">' + (settings[t.key] ? (isLao ? 'ອัปเดตล่าสุด ' : 'ล่าสุด ') + reminderAgo(settings[t.key], isLao) : (isLao ? 'ຍັງບໍ່ເຄີຍ' : 'ยังไม่เคย')) + '</span>'
+    + '<span style="font-size:13px;color:var(--amber-500);">›</span></button>'
+  ).join('');
+  host.innerHTML = '<div class="banner amber" style="flex-direction:column;align-items:stretch;">'
+    + '<div style="display:flex;gap:10px;align-items:center;">'
+    + '<div class="banner-icon">🔔</div>'
+    + '<div class="banner-text"><h4>' + (isLao ? 'ເຕືອນ: อัปเดตข้อมูลประจำวัน' : 'เตือน: อัปเดตข้อมูลประจำวัน') + '</h4>'
+    + '<p>' + (isLao ? 'ມี ' : 'มี ') + pending.length + (isLao ? ' รายการที่ยังไม่อัปเดตวันนี้' : ' รายการที่ยังไม่อัปเดตวันนี้') + '</p></div></div>'
+    + items + '</div>';
+}
+function reminderAgo(iso, isLao) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days === 0) return isLao ? 'ມື้นี้' : 'วันนี้';
+  if (days === 1) return isLao ? 'ມื้วาน' : 'เมื่อวาน';
+  return days + (isLao ? ' ມื้ก่อน' : ' วันก่อน');
+}
+
+// บันทึกวันที่อัพเดทล่าสุดของงาน (สำหรับ banner เตือน Admin)
+async function markDataUpdated(key) {
+  try {
+    await sb.from('app_settings').upsert({ key: key, value: new Date().toISOString(), updated_at: new Date().toISOString(), updated_by: (user && user.id) || null }, { onConflict: 'key' });
+  } catch (e) { console.warn('[FS] markDataUpdated:', (e && e.message) || e); }
+}
+
 async function loadAppSettings() {
   try {
     const { data } = await sb.from('app_settings').select('key, value').eq('key', 'count_menu_enabled').maybeSingle();
@@ -4634,6 +4694,7 @@ function goPage(page) {
   } else if (page === 'dashboard') {
     c.innerHTML = renderDashboardPage();
     loadDashboard();
+    setTimeout(() => loadUpdateReminder(), 60);
   } else if (page === 'kpi') {
     c.innerHTML = renderKPIPage();
     loadKPI();
@@ -6129,6 +6190,7 @@ async function psHandleFile(ev) {
       set('<div style="text-align:center;"><div class="loader" style="margin:5px auto;"></div>' + (isLao ? 'ກຳລັງบันทึก...' : 'กำลังบันทึก...') + ' ' + done.toLocaleString() + '/' + data.length.toLocaleString() + '</div>');
     }
     logActivity('product_status_upload', done + ' rows, ' + branchCols.length + ' branches');
+    markDataUpdated('last_update_status');
     set('<div style="background:var(--emerald-50);border:1px solid var(--emerald-200);border-radius:10px;padding:12px;color:var(--emerald-700);font-size:12px;font-weight:700;text-align:center;">✓ '
       + (isLao ? 'ສຳเร็จ' : 'สำเร็จ') + ' ' + done.toLocaleString() + ' ' + (isLao ? 'ລາຍการ' : 'รายการ')
       + (failed ? ' · ' + (isLao ? 'ລົ້มเหลว' : 'ล้มเหลว') + ' ' + failed : '')
@@ -6903,6 +6965,7 @@ async function mpExecuteUpload() {
     
     if (typeof logActivity === 'function') {
       logActivity('master_upload', summary);
+      markDataUpdated('last_update_master');
     }
     
     if (statusEl) statusEl.innerHTML = `
@@ -14844,6 +14907,7 @@ function updateLastSync() {
 function renderDashboardPage() {
   const showQuickBackup = ['admin', 'scc', 'bcs'].includes(user.role);
   return `
+    <div id="updateReminder"></div>
     <div class="banner sky">
       <div class="banner-icon">
         <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5"/></svg>
@@ -18562,6 +18626,7 @@ async function executeImport() {
     `);
     
     _pendingImport = null;
+    markDataUpdated('last_update_pos');
     
   } catch (e) {
     console.error('[FS] Import error:', e);
@@ -25067,6 +25132,7 @@ window.scEditSave = scEditSave;
 window.scDelete = scDelete;
 window.toggleCountMenu = toggleCountMenu;
 window.loadAppSettings = loadAppSettings;
+window.loadUpdateReminder = loadUpdateReminder;
 window.wrOnPhotoSelected = wrOnPhotoSelected;
 window.wrRemovePhoto = wrRemovePhoto;
 window.expDoMarkdown = expDoMarkdown;
