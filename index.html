@@ -23501,30 +23501,30 @@ async function dbMarkDone(id) {
 // ==================== บันทึกการทำงานรายวัน SC/หัวหน้าสาขา (CTL) ====================
 const SC_CHECKLIST = [
   { group: '1. เริ่มกะ', groupLo: '1. ເລີ່ມກະ', items: [
-    { k: 'lb_read',          th: 'Logbook : อ่านบันทึกจากกะก่อนหน้า ปัญหาคงค้าง/ต้องแก้ไข' },
-    { k: 'morning_brief',    th: 'Morning brief : ประชุมพนักงาน แจ้งเป้าหมายวันนี้' },
-    { k: 'staff_check',      th: 'Staff check : จำนวนพนักงานในกะ มอบหมายงานประจำวัน' },
-    { k: 'zone_check_start', th: 'ตรวจสอบโซน : เดินตรวจความเรียบร้อย / Gap scan' },
+    { k: 'lb_read',          w: 10, th: 'Logbook : อ่านบันทึกจากกะก่อนหน้า ปัญหาคงค้าง/ต้องแก้ไข' },
+    { k: 'morning_brief',    w: 10, th: 'Morning brief : ประชุมพนักงาน แจ้งเป้าหมายวันนี้' },
+    { k: 'staff_check',      w: 10, th: 'Staff check : จำนวนพนักงานในกะ มอบหมายงานประจำวัน' },
+    { k: 'zone_check_start', w: 20, th: 'ตรวจสอบโซน : เดินตรวจความเรียบร้อย / Gap scan' },
   ]},
   { group: '2. ระหว่างวัน', groupLo: '2. ລະຫວ່າງມື້', items: [
-    { k: 'fefo',      th: 'FEFO check : สุ่มตรวจอายุสินค้า' },
-    { k: 'markdown',  th: 'Markdown : ติดตามสินค้า MD / จัดทำเอกสาร MD' },
-    { k: 'promotion', th: 'Promotion : ติดตามยอดขาย 10.00/14.00/16.00 ขอจัดราคาพิเศษ' },
-    { k: 'nonmove',   th: 'Nonmove : ติดตามสินค้า Nonmove จัดทำรายการขาย/จุดวาง' },
-    { k: 'equipment', th: 'Check อุปกรณ์ : ตู้แช่ ชั้นวาง อุปกรณ์สำนักงาน' },
+    { k: 'fefo',      w: 10, th: 'FEFO check : สุ่มตรวจอายุสินค้า' },
+    { k: 'markdown',  w: 20, th: 'Markdown : ติดตามสินค้า MD / จัดทำเอกสาร MD' },
+    { k: 'promotion', w: 20, th: 'Promotion : ติดตามยอดขาย 10.00/14.00/16.00 ขอจัดราคาพิเศษ' },
+    { k: 'nonmove',   w: 10, th: 'Nonmove : ติดตามสินค้า Nonmove จัดทำรายการขาย/จุดวาง' },
+    { k: 'equipment', w: 5,  th: 'Check อุปกรณ์ : ตู้แช่ ชั้นวาง อุปกรณ์สำนักงาน' },
   ]},
   { group: '3. สรุปผลงาน', groupLo: '3. ສະຫຼຸບຜົນງານ', items: [
-    { k: 'daily_sales',   th: 'Daily sales : รายงานยอดขายเทียบเป้า (ถ้าไม่ถึงระบุสาเหตุ)', reason: true },
-    { k: 'waste',         th: 'Waste/shrinkage : สรุปยอดสูญเสีย/หมดอายุ' },
-    { k: 'lb_record',     th: 'Logbook record : บันทึกในสมุดส่งมอบงาน' },
-    { k: 'zone_check_end', th: 'Zone check : เดินตรวจโซนก่อนเลิกงาน แจ้งงานต่อกะ' },
+    { k: 'daily_sales',   w: 10, th: 'Daily sales : รายงานยอดขายเทียบเป้า (ถ้าไม่ถึงระบุสาเหตุ)', reason: true },
+    { k: 'waste',         w: 20, th: 'Waste/shrinkage : สรุปยอดสูญเสีย/หมดอายุ' },
+    { k: 'lb_record',     w: 20, th: 'Logbook record : บันทึกในสมุดส่งมอบงาน' },
+    { k: 'zone_check_end', w: 10, th: 'Zone check : เดินตรวจโซนก่อนเลิกงาน แจ้งงานต่อกะ' },
   ]},
   { group: 'งานประจำบางวัน', groupLo: 'ງານบางวัน', items: [
-    { k: 'cycle_count',    th: 'Cycle Count : นับสต๊อกสินค้าประจำวัน' },
-    { k: 'staff_coaching', th: 'Staff Coaching : อบรมพนักงาน จุดที่ต้องพัฒนา' },
+    { k: 'cycle_count',    w: 20, th: 'Cycle Count : นับสต๊อกสินค้าประจำวัน' },
+    { k: 'staff_coaching', w: 5,  th: 'Staff Coaching : อบรมพนักงาน จุดที่ต้องพัฒนา' },
   ]},
 ];
-function scTotalItems() { return SC_CHECKLIST.reduce((n, g) => n + g.items.length, 0); }
+function scTotalItems() { return SC_CHECKLIST.reduce((n, g) => n + g.items.reduce((m, it) => m + (it.w || 0), 0), 0); }
 
 function renderScDailyPage() {
   const isLao = lang === 'lo';
@@ -23533,7 +23533,8 @@ function renderScDailyPage() {
     const rows = g.items.map(it =>
       '<label style="display:flex;align-items:flex-start;gap:9px;padding:9px 0;font-size:12px;cursor:pointer;border-bottom:1px solid var(--slate-100);">'
       + '<input type="checkbox" id="scc_' + it.k + '" onchange="scUpdateProgress()" style="width:18px;height:18px;accent-color:var(--teal-500);flex-shrink:0;margin-top:1px;"> '
-      + '<span style="flex:1;">' + it.th + '</span></label>'
+      + '<span style="flex:1;">' + it.th + '</span>'
+      + '<span style="flex-shrink:0;font-size:10px;font-weight:800;color:var(--teal-600);background:var(--teal-50);border-radius:7px;padding:2px 7px;align-self:center;">' + it.w + '</span></label>'
       + (it.reason ? '<input class="form-input" id="scReason" style="margin:6px 0 4px;font-size:12px;" placeholder="' + (isLao ? 'ສາເຫດถ้ายอดไม่ถึงเป้า...' : 'สาเหตุถ้ายอดไม่ถึงเป้า...') + '">' : '')
     ).join('');
     return '<div class="db-sec"><div class="db-sec-t">' + (isLao ? g.groupLo : g.group) + '</div>' + rows + '</div>';
@@ -23554,7 +23555,7 @@ function renderScDailyPage() {
 
         <!-- progress -->
         <div style="background:white;border:1px solid var(--slate-200);border-radius:11px;padding:12px;margin-bottom:11px;">
-          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:6px;"><span>${isLao ? 'ຄວາມຄืบหน้า' : 'ความคืบหน้า'}</span><span id="scProgTxt">0 / ${scTotalItems()}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:6px;"><span>${isLao ? 'ຄະແນນ' : 'คะแนน'}</span><span id="scProgTxt">0 / ${scTotalItems()}</span></div>
           <div style="height:8px;border-radius:5px;background:var(--slate-100);overflow:hidden;"><div id="scProgBar" style="height:100%;width:0%;background:var(--teal-500);transition:width 0.2s;"></div></div>
         </div>
 
@@ -23573,13 +23574,13 @@ function renderScDailyPage() {
 }
 
 function scUpdateProgress() {
-  let done = 0;
-  SC_CHECKLIST.forEach(g => g.items.forEach(it => { const el = document.getElementById('scc_' + it.k); if (el && el.checked) done++; }));
+  let score = 0;
+  SC_CHECKLIST.forEach(g => g.items.forEach(it => { const el = document.getElementById('scc_' + it.k); if (el && el.checked) score += (it.w || 0); }));
   const total = scTotalItems();
   const txt = document.getElementById('scProgTxt');
   const bar = document.getElementById('scProgBar');
-  if (txt) txt.textContent = done + ' / ' + total;
-  if (bar) bar.style.width = (done / total * 100) + '%';
+  if (txt) txt.textContent = score + ' / ' + total;
+  if (bar) bar.style.width = (total ? score / total * 100 : 0) + '%';
 }
 
 function scReset() {
@@ -23594,7 +23595,7 @@ async function scSubmit() {
   if (!date) { showToast(isLao ? 'ໃສ่วันที่' : 'ใส่วันที่', 'error'); return; }
   const checklist = {};
   let done = 0;
-  SC_CHECKLIST.forEach(g => g.items.forEach(it => { const el = document.getElementById('scc_' + it.k); const v = !!(el && el.checked); checklist[it.k] = v; if (v) done++; }));
+  SC_CHECKLIST.forEach(g => g.items.forEach(it => { const el = document.getElementById('scc_' + it.k); const v = !!(el && el.checked); checklist[it.k] = v; if (v) done += (it.w || 0); }));
   let seq = 1;
   try {
     const { count } = await sb.from('sc_daily_logs').select('id', { count: 'exact', head: true });
@@ -23665,7 +23666,9 @@ function scOpen(id) {
     html += '<div style="font-size:12px;font-weight:800;color:var(--teal-700);margin:10px 0 4px;">' + (isLao ? g.groupLo : g.group) + '</div>';
     g.items.forEach(it => {
       const ok = cl[it.k];
-      html += '<div style="font-size:11px;padding:3px 0;color:' + (ok ? 'var(--emerald-700)' : 'var(--slate-400)') + ';">' + (ok ? '☑' : '☐') + ' ' + it.th + '</div>';
+      html += '<div style="display:flex;gap:6px;align-items:flex-start;font-size:11px;padding:3px 0;color:' + (ok ? 'var(--emerald-700)' : 'var(--slate-400)') + ';">'
+        + '<span style="flex-shrink:0;">' + (ok ? '☑' : '☐') + '</span><span style="flex:1;">' + it.th + '</span>'
+        + '<span style="flex-shrink:0;font-weight:800;color:' + (ok ? 'var(--emerald-600)' : 'var(--slate-300)') + ';">' + (ok ? '+' + it.w : it.w) + '</span></div>';
     });
   });
   if (r.sales_reason) html += '<div style="margin-top:10px;font-size:11px;"><b>' + (isLao ? 'ສາເຫด:' : 'สาเหตุ:') + '</b> <span style="color:var(--slate-600);">' + scEsc(r.sales_reason) + '</span></div>';
