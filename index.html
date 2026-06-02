@@ -23393,21 +23393,44 @@ async function dbSubmit() {
 
 // ---------- filter แยกรายไอดี (Daily Brief) ----------
 let _dbFilterReporter = 'all';
+let _dbFilterMonth = 'all';
 function renderDbFilter() {
   const isLao = lang === 'lo';
   const el = document.getElementById('dbFilter'); if (!el) return;
+
+  // dropdown เดือน (เผื่ออนาคตข้อมูลเยอะ) — เรียงใหม่สุดก่อน
+  const months = [...new Set((_dbData || []).map(b => (b.brief_date || '').slice(0, 7)).filter(Boolean))].sort().reverse();
+  let monthSel = '';
+  if (months.length) {
+    const monthOpts = '<option value="all">' + (isLao ? 'ທຸກເດືອນ' : 'ทุกเดือน') + '</option>'
+      + months.map(m => {
+        const [y, mo] = m.split('-');
+        const label = new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString(isLao ? 'lo-LA' : 'th-TH', { month: 'long', year: 'numeric' });
+        return '<option value="' + m + '"' + (m === _dbFilterMonth ? ' selected' : '') + '>' + label + '</option>';
+      }).join('');
+    monthSel = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;">'
+      + '<span style="font-size:12px;font-weight:700;color:var(--slate-600);flex-shrink:0;">🗓️ ' + (isLao ? 'ເດືອນ' : 'เดือน') + ':</span>'
+      + '<select onchange="dbSetFilterMonth(this.value)" style="flex:1;font-size:12px;padding:7px 9px;border:1px solid var(--slate-200);border-radius:8px;background:white;font-weight:700;color:var(--slate-700);">' + monthOpts + '</select>'
+      + '</div>';
+  }
+
+  // dropdown ผู้บันทึก (โชว์เมื่อมี >1 คน)
   const repMap = {};
   (_dbData || []).forEach(b => { if (b.reporter_id) repMap[b.reporter_id] = b.reporter_name || b.reporter_id; });
   const reps = Object.keys(repMap);
-  if (reps.length <= 1) { el.innerHTML = ''; return; }
-  const opts = '<option value="all">' + (isLao ? 'ທຸกคน' : 'ทุกคน') + ' (' + reps.length + ')</option>'
-    + reps.map(id => '<option value="' + id + '"' + (id === _dbFilterReporter ? ' selected' : '') + '>' + dbEsc(repMap[id]) + '</option>').join('');
-  el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">'
-    + '<span style="font-size:12px;font-weight:700;color:var(--slate-600);flex-shrink:0;">👤 ' + (isLao ? 'ຜູ້ບັນທຶກ' : 'ผู้บันทึก') + ':</span>'
-    + '<select onchange="dbSetFilterReporter(this.value)" style="flex:1;font-size:12px;padding:7px 9px;border:1px solid var(--slate-200);border-radius:8px;background:white;font-weight:700;color:var(--slate-700);">' + opts + '</select>'
-    + '</div>';
+  let repSel = '';
+  if (reps.length > 1) {
+    const opts = '<option value="all">' + (isLao ? 'ທຸกคน' : 'ทุกคน') + ' (' + reps.length + ')</option>'
+      + reps.map(id => '<option value="' + id + '"' + (id === _dbFilterReporter ? ' selected' : '') + '>' + dbEsc(repMap[id]) + '</option>').join('');
+    repSel = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">'
+      + '<span style="font-size:12px;font-weight:700;color:var(--slate-600);flex-shrink:0;">👤 ' + (isLao ? 'ຜູ້ບັນທຶກ' : 'ผู้บันทึก') + ':</span>'
+      + '<select onchange="dbSetFilterReporter(this.value)" style="flex:1;font-size:12px;padding:7px 9px;border:1px solid var(--slate-200);border-radius:8px;background:white;font-weight:700;color:var(--slate-700);">' + opts + '</select>'
+      + '</div>';
+  }
+  el.innerHTML = monthSel + repSel;
 }
 function dbSetFilterReporter(v) { _dbFilterReporter = v; renderDbList(); }
+function dbSetFilterMonth(v) { _dbFilterMonth = v; renderDbList(); }
 
 // ---------- แก้ไข (CTL+Admin) ----------
 function dbEditOpen(id) {
@@ -23508,7 +23531,9 @@ function dbEsc(s) { return (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<
 function renderDbList() {
   const isLao = lang === 'lo';
   const el = document.getElementById('dbList'); if (!el) return;
-  const _rows = (_dbFilterReporter && _dbFilterReporter !== 'all') ? _dbData.filter(b => String(b.reporter_id) === String(_dbFilterReporter)) : _dbData;
+  let _rows = _dbData;
+  if (_dbFilterMonth && _dbFilterMonth !== 'all') _rows = _rows.filter(b => (b.brief_date || '').slice(0, 7) === _dbFilterMonth);
+  if (_dbFilterReporter && _dbFilterReporter !== 'all') _rows = _rows.filter(b => String(b.reporter_id) === String(_dbFilterReporter));
   if (!_dbData.length) {
     el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--slate-400);"><div style="font-size:34px;">📭</div>' + (isLao ? 'ຍັງບໍ່ມี Brief' : 'ยังไม่มีบันทึก Brief') + '</div>';
     return;
@@ -24813,6 +24838,7 @@ window.dbOpen = dbOpen;
 window.dbMarkDone = dbMarkDone;
 window.renderDbFilter = renderDbFilter;
 window.dbSetFilterReporter = dbSetFilterReporter;
+window.dbSetFilterMonth = dbSetFilterMonth;
 window.dbEditOpen = dbEditOpen;
 window.dbEditSave = dbEditSave;
 window.dbDelete = dbDelete;
