@@ -23390,6 +23390,93 @@ async function dbSubmit() {
   g('dbAck').style.display = 'block';
 }
 
+
+// ---------- filter แยกรายไอดี (Daily Brief) ----------
+let _dbFilterReporter = 'all';
+function renderDbFilter() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('dbFilter'); if (!el) return;
+  const repMap = {};
+  (_dbData || []).forEach(b => { if (b.reporter_id) repMap[b.reporter_id] = b.reporter_name || b.reporter_id; });
+  const reps = Object.keys(repMap);
+  if (reps.length <= 1) { el.innerHTML = ''; return; }
+  const opts = '<option value="all">' + (isLao ? 'ທຸกคน' : 'ทุกคน') + ' (' + reps.length + ')</option>'
+    + reps.map(id => '<option value="' + id + '"' + (id === _dbFilterReporter ? ' selected' : '') + '>' + dbEsc(repMap[id]) + '</option>').join('');
+  el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">'
+    + '<span style="font-size:12px;font-weight:700;color:var(--slate-600);flex-shrink:0;">👤 ' + (isLao ? 'ຜູ້ບັນທຶກ' : 'ผู้บันทึก') + ':</span>'
+    + '<select onchange="dbSetFilterReporter(this.value)" style="flex:1;font-size:12px;padding:7px 9px;border:1px solid var(--slate-200);border-radius:8px;background:white;font-weight:700;color:var(--slate-700);">' + opts + '</select>'
+    + '</div>';
+}
+function dbSetFilterReporter(v) { _dbFilterReporter = v; renderDbList(); }
+
+// ---------- แก้ไข (CTL+Admin) ----------
+function dbEditOpen(id) {
+  const isLao = lang === 'lo';
+  const role = (user && user.role) || '';
+  if (!(role === 'ctl' || role === 'admin')) { showToast(isLao ? 'ບໍ່ມีสิทธิ์' : 'ไม่มีสิทธิ์', 'error'); return; }
+  const b = _dbData.find(x => x.id === id);
+  if (!b) return;
+  _dbPromos = Array.isArray(b.promotions) ? JSON.parse(JSON.stringify(b.promotions)) : [];
+  _dbPraises = Array.isArray(b.praises) ? JSON.parse(JSON.stringify(b.praises)) : [];
+  const sc = b.store_check || {};
+  let html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;"><h3 style="font-size:15px;margin:0;">✏️ ' + (isLao ? 'ແກ້ໄຂ' : 'แก้ไข') + ' ' + b.brief_no + '</h3>'
+    + '<button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;color:var(--slate-600);">✕</button></div>';
+  // 1 ยอดขาย
+  html += '<div class="form-group"><label class="form-label">' + (isLao ? 'ຍอดขายเมื่อวาน' : 'ยอดขายเมื่อวาน') + '</label><input class="form-input" id="dbeSalesY" type="number" value="' + (b.sales_yesterday != null ? b.sales_yesterday : '') + '"></div>';
+  html += '<div style="display:flex;gap:8px;"><div class="form-group" style="flex:1;"><label class="form-label">' + (isLao ? 'ເປົ້าวันนี้' : 'เป้าวันนี้') + '</label><input class="form-input" id="dbeTarget" type="number" value="' + (b.sales_today_target != null ? b.sales_today_target : '') + '"></div>'
+    + '<div class="form-group" style="flex:1;"><label class="form-label">Diff %</label><input class="form-input" id="dbeDiff" type="number" value="' + (b.sales_diff_pct != null ? b.sales_diff_pct : '') + '"></div></div>';
+  // มาตรฐานร้าน
+  html += '<label class="form-label">' + (isLao ? 'ມາດຕະฐานร้าน' : 'มาตรฐานร้าน') + '</label>';
+  [['staff', isLao ? 'พนักงาน' : 'ความเรียบร้อยพนักงาน'], ['clean', isLao ? 'ຄວາມສະອາດ' : 'ความสะอาด'], ['stock', 'สต๊อก'], ['price', isLao ? 'ປ້າຍລາຄາ' : 'ป้ายราคา']].forEach(([k, t]) => {
+    html += '<label style="display:flex;align-items:center;gap:9px;padding:6px 0;font-size:12px;cursor:pointer;"><input type="checkbox" id="dbeChk_' + k + '"' + (sc[k] ? ' checked' : '') + ' style="width:17px;height:17px;accent-color:var(--teal-500);"> ' + t + '</label>';
+  });
+  // ข้อความ
+  html += '<div class="form-group" style="margin-top:9px;"><label class="form-label">' + (isLao ? 'ຫົວข้ออบรม' : 'หัวข้ออบรม') + '</label><textarea class="form-input" id="dbeTraining" rows="2">' + dbEsc(b.training_topic || '') + '</textarea></div>';
+  html += '<div class="form-group"><label class="form-label">' + (isLao ? 'ປันຫາ/ຂໍ້ສະເໜี' : 'ปัญหา/ข้อเสนอแนะ') + '</label><textarea class="form-input" id="dbeIssues" rows="2">' + dbEsc(b.staff_issues || '') + '</textarea></div>';
+  html += '<div class="form-group"><label class="form-label">' + (isLao ? 'ສະຫຼຸບ' : 'สรุปบรรยากาศ') + '</label><textarea class="form-input" id="dbeSummary" rows="2">' + dbEsc(b.brief_summary || '') + '</textarea></div>';
+  html += '<div class="action-row"><button class="btn btn-secondary" onclick="dbOpen(' + id + ')">' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
+    + '<button class="btn btn-primary" onclick="dbEditSave(' + id + ')">' + (isLao ? 'ບันทึก' : 'บันทึก') + '</button></div>';
+  showModal(html);
+}
+
+async function dbEditSave(id) {
+  const isLao = lang === 'lo';
+  const role = (user && user.role) || '';
+  if (!(role === 'ctl' || role === 'admin')) { showToast(isLao ? 'ບໍ່ມีสิทธิ์' : 'ไม่มีสิทธิ์', 'error'); return; }
+  const g = i => document.getElementById(i);
+  const upd = {
+    sales_yesterday: g('dbeSalesY').value ? Number(g('dbeSalesY').value) : null,
+    sales_today_target: g('dbeTarget').value ? Number(g('dbeTarget').value) : null,
+    sales_diff_pct: g('dbeDiff').value ? Number(g('dbeDiff').value) : null,
+    store_check: { staff: g('dbeChk_staff').checked, clean: g('dbeChk_clean').checked, stock: g('dbeChk_stock').checked, price: g('dbeChk_price').checked },
+    training_topic: g('dbeTraining').value.trim() || null,
+    staff_issues: g('dbeIssues').value.trim() || null,
+    brief_summary: g('dbeSummary').value.trim() || null,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await sb.from('daily_briefs').update(upd).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  logActivity('daily_brief_edit', id);
+  showToast(isLao ? 'ບันทึกแล้ว ✓' : 'บันทึกแล้ว ✓', 'success');
+  closeModal();
+  loadDailyBriefs();
+}
+
+// ---------- ลบ (Admin) ----------
+async function dbDelete(id) {
+  const isLao = lang === 'lo';
+  if ((user && user.role) !== 'admin') { showToast(isLao ? 'ສະເພาะ admin' : 'เฉพาะ admin', 'error'); return; }
+  const b = _dbData.find(x => x.id === id);
+  if (!b) return;
+  if (!confirm((isLao ? 'ລຶບ ' : 'ลบ ') + b.brief_no + ' (' + dbFmtDate(b.brief_date) + ') ?\n' + (isLao ? 'ລຶບແລ້วกู้คืนไม่ได้' : 'ลบแล้วกู้คืนไม่ได้'))) return;
+  const { error } = await sb.from('daily_briefs').delete().eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  logActivity('daily_brief_delete', b.brief_no);
+  showToast(isLao ? 'ລຶບແລ້ວ ✓' : 'ลบแล้ว ✓', 'success');
+  closeModal();
+  loadDailyBriefs();
+}
+
 // ---------- ประวัติ Daily Brief ----------
 let _dbData = [];
 function renderBriefLogPage() {
@@ -23397,6 +23484,7 @@ function renderBriefLogPage() {
   return `
     <div style="padding:14px 13px 90px;max-width:680px;margin:0 auto;">
       <h2 style="font-size:18px;font-weight:800;margin:0 0 11px;">📋 ${isLao ? 'ປະຫວັດ Daily Brief' : 'ประวัติ Daily Brief'}</h2>
+      <div id="dbFilter"></div>
       <div id="dbList"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
     </div>`;
 }
@@ -23407,6 +23495,7 @@ async function loadDailyBriefs() {
     if (error) { showToast('Error: ' + error.message, 'error'); return; }
     _dbData = data || [];
   } catch (e) { _dbData = []; }
+  renderDbFilter();
   renderDbList();
 }
 
@@ -23419,6 +23508,7 @@ function dbEsc(s) { return (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<
 function renderDbList() {
   const isLao = lang === 'lo';
   const el = document.getElementById('dbList'); if (!el) return;
+  const _rows = (_dbFilterReporter && _dbFilterReporter !== 'all') ? _dbData.filter(b => String(b.reporter_id) === String(_dbFilterReporter)) : _dbData;
   if (!_dbData.length) {
     el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--slate-400);"><div style="font-size:34px;">📭</div>' + (isLao ? 'ຍັງບໍ່ມี Brief' : 'ยังไม่มีบันทึก Brief') + '</div>';
     return;
@@ -23429,7 +23519,7 @@ function renderDbList() {
     const c = m[e];
     return '<span style="font-size:10px;font-weight:700;color:' + c[0] + ';background:' + c[1] + ';border-radius:20px;padding:2px 9px;">' + c[2] + '</span>';
   };
-  el.innerHTML = _dbData.map(b => {
+  el.innerHTML = _rows.map(b => {
     const shiftTh = b.shift === 'afternoon' ? (isLao ? 'ບ່າຍ' : 'บ่าย') : (isLao ? 'ເຊົ້າ' : 'เช้า');
     const done = b.status === 'done';
     return '<div onclick="dbOpen(' + b.id + ')" style="background:white;border:1px solid var(--slate-200);border-radius:12px;padding:12px;margin-bottom:9px;cursor:pointer;">'
@@ -23484,6 +23574,15 @@ function dbOpen(id) {
     html += '<div style="background:var(--emerald-50);border-radius:9px;padding:10px;text-align:center;font-size:12px;color:var(--emerald-700);font-weight:700;margin-top:6px;">✓ ' + (isLao ? 'ຕິດຕາມແລ້ວ' : 'ติดตามแล้ว') + '</div>';
   } else {
     html += '<button onclick="dbMarkDone(' + id + ')" style="width:100%;background:var(--emerald-600);color:white;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;margin-top:6px;">✓ ' + (isLao ? 'ໝາຍວ່າຕິດຕາມແລ້ວ' : 'ทำเครื่องหมายติดตามแล้ว') + '</button>';
+  }
+  const _r = (user && user.role) || '';
+  const _cEdit = _r === 'ctl' || _r === 'admin';
+  const _cDel = _r === 'admin';
+  if (_cEdit || _cDel) {
+    html += '<div style="display:flex;gap:8px;margin-top:9px;border-top:1px solid var(--slate-100);padding-top:11px;">';
+    if (_cEdit) html += '<button onclick="dbEditOpen(' + id + ')" style="flex:1;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;">✏️ ' + (isLao ? 'ແກ້ໄຂ' : 'แก้ไข') + '</button>';
+    if (_cDel) html += '<button onclick="dbDelete(' + id + ')" style="flex:1;background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:10px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;">🗑️ ' + (isLao ? 'ລຶບ' : 'ลบ') + '</button>';
+    html += '</div>';
   }
   showModal(html);
 }
@@ -24712,6 +24811,11 @@ window.dbAddPraise = dbAddPraise;
 window.dbRemovePraise = dbRemovePraise;
 window.dbOpen = dbOpen;
 window.dbMarkDone = dbMarkDone;
+window.renderDbFilter = renderDbFilter;
+window.dbSetFilterReporter = dbSetFilterReporter;
+window.dbEditOpen = dbEditOpen;
+window.dbEditSave = dbEditSave;
+window.dbDelete = dbDelete;
 window.renderScDailyPage = renderScDailyPage;
 window.renderScDailyLogPage = renderScDailyLogPage;
 window.loadScDailyLogs = loadScDailyLogs;
