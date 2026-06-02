@@ -4297,6 +4297,7 @@ const MENU_CONFIG = {
     bottomTabs: ['stockcheck', 'floormap', 'tiebreaker', 'workflow'],
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'workreport', 'worktrack'] },
+      { titleTh: '📝 งานรายวัน SC', titleLo: '📝 งานรายวัน SC', items: ['scdaily', 'scdailylog'] },
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport', 'issuereport', 'invmovement'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -4362,6 +4363,8 @@ const PAGE_META = {
   worktrack:{ iconSvg: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', labelTh: 'ติดตามงาน', labelLo: 'ຕິດຕາມงาน', page: 'worktrack' },
   dailybrief:{ iconSvg: '<path d="M9 11H15M9 15H13M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>', labelTh: 'Daily Brief', labelLo: 'Daily Brief', page: 'dailybrief' },
   brieflog:{ iconSvg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', labelTh: 'ประวัติ Brief', labelLo: 'ປະຫວັດ Brief', page: 'brieflog' },
+  scdaily:{ iconSvg: '<path d="M9 11l3 3 8-8M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0z"/>', labelTh: 'งานรายวัน SC', labelLo: 'งานรายวัน SC', page: 'scdaily' },
+  scdailylog:{ iconSvg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', labelTh: 'ประวัติงาน SC', labelLo: 'ປະຫວັດงาน SC', page: 'scdailylog' },
   masterproduct: { iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/><path d="M7.5 4.5l9 5.2"/>', labelTh: 'Master Product', labelLo: 'Master Product', page: 'masterproduct' }
 };
 
@@ -4684,6 +4687,11 @@ function goPage(page) {
   } else if (page === 'brieflog') {
     c.innerHTML = renderBriefLogPage();
     setTimeout(() => loadDailyBriefs(), 50);
+  } else if (page === 'scdaily') {
+    c.innerHTML = renderScDailyPage();
+  } else if (page === 'scdailylog') {
+    c.innerHTML = renderScDailyLogPage();
+    setTimeout(() => loadScDailyLogs(), 50);
   }
   
   updateTbBadge();
@@ -23487,6 +23495,182 @@ async function dbMarkDone(id) {
   loadDailyBriefs();
 }
 
+// ==================== บันทึกการทำงานรายวัน SC/หัวหน้าสาขา (CTL) ====================
+const SC_CHECKLIST = [
+  { group: '1. เริ่มกะ', groupLo: '1. ເລີ່ມກະ', items: [
+    { k: 'lb_read',          th: 'Logbook : อ่านบันทึกจากกะก่อนหน้า ปัญหาคงค้าง/ต้องแก้ไข' },
+    { k: 'morning_brief',    th: 'Morning brief : ประชุมพนักงาน แจ้งเป้าหมายวันนี้' },
+    { k: 'staff_check',      th: 'Staff check : จำนวนพนักงานในกะ มอบหมายงานประจำวัน' },
+    { k: 'zone_check_start', th: 'ตรวจสอบโซน : เดินตรวจความเรียบร้อย / Gap scan' },
+  ]},
+  { group: '2. ระหว่างวัน', groupLo: '2. ລະຫວ່າງມື້', items: [
+    { k: 'fefo',      th: 'FEFO check : สุ่มตรวจอายุสินค้า' },
+    { k: 'markdown',  th: 'Markdown : ติดตามสินค้า MD / จัดทำเอกสาร MD' },
+    { k: 'promotion', th: 'Promotion : ติดตามยอดขาย 10.00/14.00/16.00 ขอจัดราคาพิเศษ' },
+    { k: 'nonmove',   th: 'Nonmove : ติดตามสินค้า Nonmove จัดทำรายการขาย/จุดวาง' },
+    { k: 'equipment', th: 'Check อุปกรณ์ : ตู้แช่ ชั้นวาง อุปกรณ์สำนักงาน' },
+  ]},
+  { group: '3. สรุปผลงาน', groupLo: '3. ສະຫຼຸບຜົນງານ', items: [
+    { k: 'daily_sales',   th: 'Daily sales : รายงานยอดขายเทียบเป้า (ถ้าไม่ถึงระบุสาเหตุ)', reason: true },
+    { k: 'waste',         th: 'Waste/shrinkage : สรุปยอดสูญเสีย/หมดอายุ' },
+    { k: 'lb_record',     th: 'Logbook record : บันทึกในสมุดส่งมอบงาน' },
+    { k: 'zone_check_end', th: 'Zone check : เดินตรวจโซนก่อนเลิกงาน แจ้งงานต่อกะ' },
+  ]},
+  { group: 'งานประจำบางวัน', groupLo: 'ງານบางวัน', items: [
+    { k: 'cycle_count',    th: 'Cycle Count : นับสต๊อกสินค้าประจำวัน' },
+    { k: 'staff_coaching', th: 'Staff Coaching : อบรมพนักงาน จุดที่ต้องพัฒนา' },
+  ]},
+];
+function scTotalItems() { return SC_CHECKLIST.reduce((n, g) => n + g.items.length, 0); }
+
+function renderScDailyPage() {
+  const isLao = lang === 'lo';
+  const today = new Date().toISOString().slice(0, 10);
+  const groups = SC_CHECKLIST.map(g => {
+    const rows = g.items.map(it =>
+      '<label style="display:flex;align-items:flex-start;gap:9px;padding:9px 0;font-size:12px;cursor:pointer;border-bottom:1px solid var(--slate-100);">'
+      + '<input type="checkbox" id="scc_' + it.k + '" onchange="scUpdateProgress()" style="width:18px;height:18px;accent-color:var(--teal-500);flex-shrink:0;margin-top:1px;"> '
+      + '<span style="flex:1;">' + it.th + '</span></label>'
+      + (it.reason ? '<input class="form-input" id="scReason" style="margin:6px 0 4px;font-size:12px;" placeholder="' + (isLao ? 'ສາເຫດถ้ายอดไม่ถึงเป้า...' : 'สาเหตุถ้ายอดไม่ถึงเป้า...') + '">' : '')
+    ).join('');
+    return '<div class="db-sec"><div class="db-sec-t">' + (isLao ? g.groupLo : g.group) + '</div>' + rows + '</div>';
+  }).join('');
+  return `
+    <div style="padding:14px 13px 90px;max-width:620px;margin:0 auto;">
+      <h2 style="font-size:18px;font-weight:800;margin:0 0 3px;">📝 ${isLao ? 'งานรายวัน SC/หัวหน้าสาขา' : 'บันทึกการทำงานรายวัน SC/หัวหน้าสาขา'}</h2>
+      <p style="font-size:12px;color:var(--slate-500);margin:0 0 14px;">${isLao ? 'Checklist งานประจำวัน' : 'เช็คลิสต์งานประจำวัน'}</p>
+
+      <div id="scAck" style="display:none;background:linear-gradient(135deg,var(--emerald-50),var(--teal-50));border:1px solid var(--emerald-200);border-radius:14px;padding:18px;text-align:center;margin-bottom:14px;">
+        <div style="font-size:26px;font-weight:800;color:var(--emerald-700);font-family:'Space Grotesk',monospace;" id="scAckNo">SC-0000</div>
+        <div style="font-size:12px;color:var(--slate-600);margin-top:6px;">${isLao ? 'ບันทึกสำเร็จ' : 'บันทึกสำเร็จ'} ✓</div>
+        <button onclick="scReset()" style="margin-top:12px;background:var(--emerald-600);color:white;border:none;border-radius:9px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;">${isLao ? 'ບันทึกใหม่' : 'บันทึกใหม่'}</button>
+      </div>
+
+      <div id="scForm">
+        <div class="form-group"><label class="form-label">${isLao ? 'ວັນທີ່' : 'วันที่'}</label><input class="form-input" id="scDate" type="date" value="${today}"></div>
+
+        <!-- progress -->
+        <div style="background:white;border:1px solid var(--slate-200);border-radius:11px;padding:12px;margin-bottom:11px;">
+          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:6px;"><span>${isLao ? 'ຄວາມຄืบหน้า' : 'ความคืบหน้า'}</span><span id="scProgTxt">0 / ${scTotalItems()}</span></div>
+          <div style="height:8px;border-radius:5px;background:var(--slate-100);overflow:hidden;"><div id="scProgBar" style="height:100%;width:0%;background:var(--teal-500);transition:width 0.2s;"></div></div>
+        </div>
+
+        ${groups}
+
+        <div class="db-sec"><div class="db-sec-t">${isLao ? 'ໝາຍເຫດເพิ่มเติม' : 'หมายเหตุเพิ่มเติม'}</div>
+          <textarea class="form-input" id="scNote" rows="2" placeholder="${isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ'}"></textarea></div>
+
+        <button onclick="scSubmit()" style="width:100%;background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;margin-top:6px;">${isLao ? 'ບันทึก' : 'บันทึก'} →</button>
+      </div>
+    </div>
+    <style>
+      .db-sec { background:white;border:1px solid var(--slate-200);border-radius:12px;padding:13px;margin-bottom:11px; }
+      .db-sec-t { font-size:13px;font-weight:800;color:var(--teal-700);margin-bottom:6px; }
+    </style>`;
+}
+
+function scUpdateProgress() {
+  let done = 0;
+  SC_CHECKLIST.forEach(g => g.items.forEach(it => { const el = document.getElementById('scc_' + it.k); if (el && el.checked) done++; }));
+  const total = scTotalItems();
+  const txt = document.getElementById('scProgTxt');
+  const bar = document.getElementById('scProgBar');
+  if (txt) txt.textContent = done + ' / ' + total;
+  if (bar) bar.style.width = (done / total * 100) + '%';
+}
+
+function scReset() {
+  document.getElementById('scAck').style.display = 'none';
+  const f = document.getElementById('scForm'); if (f) f.style.display = 'block';
+  goPage('scdaily');
+}
+
+async function scSubmit() {
+  const isLao = lang === 'lo';
+  const date = document.getElementById('scDate').value;
+  if (!date) { showToast(isLao ? 'ໃສ่วันที่' : 'ใส่วันที่', 'error'); return; }
+  const checklist = {};
+  let done = 0;
+  SC_CHECKLIST.forEach(g => g.items.forEach(it => { const el = document.getElementById('scc_' + it.k); const v = !!(el && el.checked); checklist[it.k] = v; if (v) done++; }));
+  let seq = 1;
+  try {
+    const { count } = await sb.from('sc_daily_logs').select('id', { count: 'exact', head: true });
+    seq = (count || 0) + 1;
+  } catch (e) {}
+  const logNo = 'SC-' + String(seq).padStart(4, '0');
+  const reasonEl = document.getElementById('scReason');
+  const payload = {
+    log_no: logNo, branch_id: branch.id,
+    reporter_id: user.id, reporter_name: user.full_name || user.username || '', reporter_role: user.role || '',
+    log_date: date, checklist: checklist,
+    sales_reason: reasonEl ? (reasonEl.value.trim() || null) : null,
+    note: document.getElementById('scNote').value.trim() || null,
+    done_count: done, total_count: scTotalItems(),
+    status: 'open',
+  };
+  const { error } = await sb.from('sc_daily_logs').insert(payload).select().single();
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  logActivity('sc_daily_create', logNo + ' | ' + date + ' | ' + done + '/' + scTotalItems());
+  document.getElementById('scAckNo').textContent = logNo;
+  document.getElementById('scForm').style.display = 'none';
+  document.getElementById('scAck').style.display = 'block';
+}
+
+// ---------- ประวัติงานรายวัน SC ----------
+let _scData = [];
+function renderScDailyLogPage() {
+  const isLao = lang === 'lo';
+  return `
+    <div style="padding:14px 13px 90px;max-width:680px;margin:0 auto;">
+      <h2 style="font-size:18px;font-weight:800;margin:0 0 11px;">📝 ${isLao ? 'ປະຫວັดงานรายวัน SC' : 'ประวัติงานรายวัน SC'}</h2>
+      <div id="scList"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
+    </div>`;
+}
+async function loadScDailyLogs() {
+  try {
+    const { data, error } = await sb.from('sc_daily_logs').select('*').eq('branch_id', branch.id).order('log_date', { ascending: false }).order('created_at', { ascending: false });
+    if (error) { showToast('Error: ' + error.message, 'error'); return; }
+    _scData = data || [];
+  } catch (e) { _scData = []; }
+  renderScList();
+}
+function scFmtDate(d) { return d ? new Date(d).toLocaleDateString(lang === 'lo' ? 'lo-LA' : 'th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'; }
+function scEsc(s) { return (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function renderScList() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('scList'); if (!el) return;
+  if (!_scData.length) { el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--slate-400);"><div style="font-size:34px;">📭</div>' + (isLao ? 'ຍັງບໍ່ມีบันทึก' : 'ยังไม่มีบันทึก') + '</div>'; return; }
+  el.innerHTML = _scData.map(r => {
+    const pct = r.total_count ? Math.round(r.done_count / r.total_count * 100) : 0;
+    const col = pct >= 80 ? 'var(--emerald-600)' : pct >= 50 ? 'var(--amber-600)' : 'var(--rose-500)';
+    return '<div onclick="scOpen(' + r.id + ')" style="background:white;border:1px solid var(--slate-200);border-radius:12px;padding:12px;margin-bottom:9px;cursor:pointer;">'
+      + '<div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;"><span style="font-weight:800;font-size:14px;flex:1;">' + scFmtDate(r.log_date) + '</span>'
+      + '<span style="font-size:12px;font-weight:800;color:' + col + ';">' + r.done_count + '/' + r.total_count + ' (' + pct + '%)</span></div>'
+      + '<div style="height:6px;border-radius:4px;background:var(--slate-100);overflow:hidden;margin-bottom:6px;"><div style="height:100%;width:' + pct + '%;background:' + col + ';"></div></div>'
+      + '<div style="font-size:10px;color:var(--slate-500);font-family:monospace;font-weight:700;">' + r.log_no + ' · ' + scEsc(r.reporter_name || '') + '</div></div>';
+  }).join('');
+}
+function scOpen(id) {
+  const isLao = lang === 'lo';
+  const r = _scData.find(x => x.id === id);
+  if (!r) return;
+  const cl = r.checklist || {};
+  let html = '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px;"><h3 style="font-size:15px;margin:0;flex:1;">' + scFmtDate(r.log_date) + '</h3>'
+    + '<button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;color:var(--slate-600);flex-shrink:0;">✕</button></div>'
+    + '<div style="font-size:11px;color:var(--slate-400);font-family:monospace;margin-bottom:11px;">' + r.log_no + ' · ' + scEsc(r.reporter_name || '') + ' · ' + r.done_count + '/' + r.total_count + '</div>';
+  SC_CHECKLIST.forEach(g => {
+    html += '<div style="font-size:12px;font-weight:800;color:var(--teal-700);margin:10px 0 4px;">' + (isLao ? g.groupLo : g.group) + '</div>';
+    g.items.forEach(it => {
+      const ok = cl[it.k];
+      html += '<div style="font-size:11px;padding:3px 0;color:' + (ok ? 'var(--emerald-700)' : 'var(--slate-400)') + ';">' + (ok ? '☑' : '☐') + ' ' + it.th + '</div>';
+    });
+  });
+  if (r.sales_reason) html += '<div style="margin-top:10px;font-size:11px;"><b>' + (isLao ? 'ສາເຫด:' : 'สาเหตุ:') + '</b> <span style="color:var(--slate-600);">' + scEsc(r.sales_reason) + '</span></div>';
+  if (r.note) html += '<div style="margin-top:8px;font-size:11px;"><b>' + (isLao ? 'ໝາຍເຫด:' : 'หมายเหตุ:') + '</b> <span style="color:var(--slate-600);white-space:pre-wrap;">' + scEsc(r.note) + '</span></div>';
+  showModal(html);
+}
+
+
 
 
 // ---------- หน้าแจ้งงาน ----------
@@ -24331,6 +24515,13 @@ window.dbAddPraise = dbAddPraise;
 window.dbRemovePraise = dbRemovePraise;
 window.dbOpen = dbOpen;
 window.dbMarkDone = dbMarkDone;
+window.renderScDailyPage = renderScDailyPage;
+window.renderScDailyLogPage = renderScDailyLogPage;
+window.loadScDailyLogs = loadScDailyLogs;
+window.scSubmit = scSubmit;
+window.scReset = scReset;
+window.scUpdateProgress = scUpdateProgress;
+window.scOpen = scOpen;
 window.toggleCountMenu = toggleCountMenu;
 window.loadAppSettings = loadAppSettings;
 window.wrOnPhotoSelected = wrOnPhotoSelected;
