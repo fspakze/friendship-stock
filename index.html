@@ -23627,6 +23627,7 @@ function renderScDailyLogPage() {
   return `
     <div style="padding:14px 13px 90px;max-width:680px;margin:0 auto;">
       <h2 style="font-size:18px;font-weight:800;margin:0 0 11px;">📝 ${isLao ? 'ປະຫວັดงานรายวัน SC' : 'ประวัติงานรายวัน SC'}</h2>
+      <div id="scChart"></div>
       <div id="scList"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
     </div>`;
 }
@@ -23636,10 +23637,101 @@ async function loadScDailyLogs() {
     if (error) { showToast('Error: ' + error.message, 'error'); return; }
     _scData = data || [];
   } catch (e) { _scData = []; }
+  if (!_scChartMonth) _scChartMonth = new Date().toISOString().slice(0, 7);
+  renderScChart();
   renderScList();
 }
 function scFmtDate(d) { return d ? new Date(d).toLocaleDateString(lang === 'lo' ? 'lo-LA' : 'th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'; }
 function scEsc(s) { return (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+// ---------- กราฟแท่งสรุปรายเดือน ----------
+let _scChartMonth = ''; // 'YYYY-MM'
+function scSetChartMonth(m) { _scChartMonth = m; renderScChart(); }
+function renderScChart() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('scChart');
+  if (!el) return;
+  const total = scTotalItems(); // 200
+
+  // เดือนที่มีข้อมูล (สำหรับ dropdown) — เรียงใหม่สุดก่อน
+  const months = [...new Set((_scData || []).map(r => (r.log_date || '').slice(0, 7)).filter(Boolean))].sort().reverse();
+  if (_scChartMonth && !months.includes(_scChartMonth)) months.unshift(_scChartMonth);
+  const monthOpts = months.map(m => {
+    const [y, mo] = m.split('-');
+    const label = new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString(isLao ? 'lo-LA' : 'th-TH', { month: 'long', year: 'numeric' });
+    return '<option value="' + m + '"' + (m === _scChartMonth ? ' selected' : '') + '>' + label + '</option>';
+  }).join('');
+
+  // รวมคะแนนต่อวันในเดือนที่เลือก (ถ้ามีหลายใบต่อวัน เอาคะแนนสูงสุด)
+  const [yy, mm] = _scChartMonth.split('-').map(Number);
+  const daysInMonth = new Date(yy, mm, 0).getDate();
+  const byDay = {};
+  (_scData || []).forEach(r => {
+    if ((r.log_date || '').slice(0, 7) !== _scChartMonth) return;
+    const d = Number((r.log_date || '').slice(8, 10));
+    const sc = r.done_count || 0;
+    if (!byDay[d] || sc > byDay[d]) byDay[d] = sc;
+  });
+
+  // สรุปเดือน
+  const filledDays = Object.keys(byDay).length;
+  const avg = filledDays ? Math.round(Object.values(byDay).reduce((a, b) => a + b, 0) / filledDays) : 0;
+  const fullDays = Object.values(byDay).filter(v => v >= total).length;
+
+  // สร้างกราฟแท่ง SVG
+  const W = 680, H = 200, padL = 30, padR = 10, padT = 14, padB = 22;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const barGap = 2;
+  const barW = Math.max(4, (plotW / daysInMonth) - barGap);
+  const yMax = total; // เป้า 200
+  const targetY = padT + plotH - (total / yMax * plotH);
+
+  let bars = '';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const x = padL + (d - 1) * (plotW / daysInMonth) + barGap / 2;
+    const sc = byDay[d];
+    if (sc == null) {
+      // ไม่มีข้อมูล — แท่งจางบาง
+      bars += '<rect x="' + x.toFixed(1) + '" y="' + (padT + plotH - 2) + '" width="' + barW.toFixed(1) + '" height="2" fill="var(--slate-200)" rx="1"/>';
+    } else {
+      const h = Math.max(2, sc / yMax * plotH);
+      const y = padT + plotH - h;
+      const col = sc >= total ? '#16a34a' : sc >= total * 0.7 ? '#0d9488' : sc >= total * 0.5 ? '#d97706' : '#e11d48';
+      bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + col + '" rx="1"><title>' + (isLao ? 'ມื້ที่ ' : 'วันที่ ') + d + ': ' + sc + '/' + total + '</title></rect>';
+    }
+    // เลขวันที่ (โชว์เฉพาะวันที่ 1,5,10,15,20,25,30 กันแน่น)
+    if (d === 1 || d % 5 === 0) {
+      bars += '<text x="' + (x + barW / 2).toFixed(1) + '" y="' + (H - 7) + '" font-size="8" fill="var(--slate-400)" text-anchor="middle">' + d + '</text>';
+    }
+  }
+  // เส้นเป้า 200
+  const targetLine = '<line x1="' + padL + '" y1="' + targetY.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + targetY.toFixed(1) + '" stroke="#16a34a" stroke-width="1.2" stroke-dasharray="4 3"/>'
+    + '<text x="' + padL + '" y="' + (targetY - 4).toFixed(1) + '" font-size="8" fill="#16a34a" font-weight="700">' + (isLao ? 'ເປົ້າ ' : 'เป้า ') + total + '</text>';
+  // เส้นแกน Y (0, ครึ่ง, เต็ม)
+  let yAxis = '';
+  [0, 0.5, 1].forEach(f => {
+    const yv = padT + plotH - (f * plotH);
+    yAxis += '<text x="' + (padL - 4) + '" y="' + (yv + 3).toFixed(1) + '" font-size="7" fill="var(--slate-300)" text-anchor="end">' + Math.round(f * yMax) + '</text>';
+  });
+
+  const svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;">' + yAxis + bars + targetLine + '</svg>';
+
+  el.innerHTML = ''
+    + '<div style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:13px;margin-bottom:12px;">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;flex-wrap:wrap;">'
+    + '<div style="font-size:13px;font-weight:800;color:var(--slate-700);">📊 ' + (isLao ? 'ສະຫຼຸບລາຍເດືອน' : 'สรุปรายเดือน') + '</div>'
+    + (months.length ? '<select onchange="scSetChartMonth(this.value)" style="font-size:12px;padding:5px 9px;border:1px solid var(--slate-200);border-radius:8px;background:white;font-weight:700;color:var(--slate-700);">' + monthOpts + '</select>' : '')
+    + '</div>'
+    + (filledDays
+        ? svg + '<div style="display:flex;gap:7px;margin-top:9px;flex-wrap:wrap;">'
+            + '<span style="font-size:10px;background:var(--slate-50);border-radius:7px;padding:4px 9px;">' + (isLao ? 'ມື້ที่บันทึก' : 'วันที่บันทึก') + ': <b>' + filledDays + '</b></span>'
+            + '<span style="font-size:10px;background:var(--emerald-50);color:var(--emerald-700);border-radius:7px;padding:4px 9px;">' + (isLao ? 'ຄົບ 200' : 'ครบ 200') + ': <b>' + fullDays + '</b> ' + (isLao ? 'ມື้' : 'วัน') + '</span>'
+            + '<span style="font-size:10px;background:var(--teal-50);color:var(--teal-700);border-radius:7px;padding:4px 9px;">' + (isLao ? 'ສະເລ່ย' : 'เฉลี่ย') + ': <b>' + avg + '</b>/' + total + '</span>'
+            + '</div>'
+        : '<div style="text-align:center;padding:24px;color:var(--slate-400);font-size:12px;">' + (isLao ? 'ບໍ່ມีข้อมูลในเดือนนี้' : 'ไม่มีข้อมูลในเดือนนี้') + '</div>')
+    + '</div>';
+}
+
 function renderScList() {
   const isLao = lang === 'lo';
   const el = document.getElementById('scList'); if (!el) return;
@@ -24528,6 +24620,8 @@ window.scSubmit = scSubmit;
 window.scReset = scReset;
 window.scUpdateProgress = scUpdateProgress;
 window.scOpen = scOpen;
+window.renderScChart = renderScChart;
+window.scSetChartMonth = scSetChartMonth;
 window.toggleCountMenu = toggleCountMenu;
 window.loadAppSettings = loadAppSettings;
 window.wrOnPhotoSelected = wrOnPhotoSelected;
