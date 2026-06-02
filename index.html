@@ -5938,6 +5938,71 @@ function mpEsc(s) {
 }
 
 
+
+// ---------- คำนวณ Status สด (Universal Status Logic) ----------
+// DOH = Stock × 30 / AVG ; เรียงเงื่อนไข เจอ match แรกใช้เลย
+function psCalcStatus(stock, avg) {
+  stock = Number(stock) || 0;
+  avg = Number(avg) || 0;
+  if (stock < 0) return { key: 'stock_minus', th: 'Stock -', color: '#374151', bg: '#f3f4f6' };
+  if (stock === 0 && avg === 0) return { key: 'no_stock', th: 'No Stock', color: '#9ca3af', bg: '#f9fafb' };
+  if (stock === 0 && avg > 0) return { key: 'out', th: 'Out of Stock', color: '#9333ea', bg: '#faf5ff' };
+  if (stock > 0 && avg === 0) return { key: 'nonmove', th: 'Nonmove', color: '#111827', bg: '#f3f4f6' };
+  const doh = stock * 30 / avg;
+  if (doh > 90) return { key: 'over', th: 'Over Stock', color: '#dc2626', bg: '#fef2f2', doh: doh };
+  if (doh < 30) return { key: 'sale_nobal', th: 'Sale No Balance Stock', color: '#ca8a04', bg: '#fefce8', doh: doh };
+  return { key: 'onhand', th: 'Onhand', color: '#16a34a', bg: '#f0fdf4', doh: doh };
+}
+
+function psStatusBadge(st, sub) {
+  return '<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:' + st.color + ';background:' + st.bg + ';border:1px solid ' + st.color + '40;border-radius:20px;padding:4px 12px;">'
+    + '<span style="width:8px;height:8px;border-radius:50%;background:' + st.color + ';"></span>' + st.th
+    + (sub ? '<span style="font-weight:500;color:var(--slate-400);font-size:10px;"> · ' + sub + '</span>' : '') + '</span>';
+}
+
+// สร้างการ์ด Status สินค้า (ใช้ใน renderStockCheckResult)
+function psBuildStatusCard(ps, posQty) {
+  const isLao = lang === 'lo';
+  if (!ps) {
+    return '<div style="background:var(--slate-50);border:1px dashed var(--slate-300);border-radius:9px;padding:10px;margin-bottom:11px;text-align:center;font-size:11px;color:var(--slate-400);">'
+      + (isLao ? 'ບໍ່ມีข้อมูล Status สินค้า (ยังไม่ได้อัปโหลด หรือไม่พบ barcode นี้)' : 'ไม่มีข้อมูล Status สินค้า (ยังไม่อัปโหลด หรือไม่พบ barcode นี้)') + '</div>';
+  }
+  // AVG สาขานี้
+  const bkey = psBranchKey();
+  const bAvg = (ps.branch_avg && bkey != null) ? ps.branch_avg[bkey] : null;
+  const stBranch = psCalcStatus(posQty, bAvg || 0);
+  const dohBranch = stBranch.doh != null ? Math.round(stBranch.doh) + ' ' + (isLao ? 'ມื้' : 'วัน') : null;
+  // ALLStore
+  const stAll = psCalcStatus(ps.stock_allstore || 0, ps.avg_allstore || 0);
+  const dohAll = stAll.doh != null ? Math.round(stAll.doh) + ' ' + (isLao ? 'ມື้' : 'วัน') : null;
+
+  // TOP + จัดซื้อ chips
+  let chips = '';
+  if (ps.top_2026) {
+    const isTop = String(ps.top_2026).toUpperCase().includes('TOP');
+    chips += '<span style="font-size:11px;font-weight:800;color:' + (isTop ? '#b45309' : 'var(--slate-500)') + ';background:' + (isTop ? '#fffbeb' : 'var(--slate-100)') + ';border-radius:7px;padding:3px 9px;">⭐ ' + ps.top_2026 + '</span>';
+  }
+  if (ps.buyer) {
+    chips += '<span style="font-size:11px;font-weight:700;color:var(--sky-700);background:var(--sky-50);border-radius:7px;padding:3px 9px;">🛒 ' + (isLao ? 'จัดซื้อ' : 'จัดซื้อ') + ': ' + ps.buyer + '</span>';
+  }
+
+  const fmtAvg = v => v != null ? Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—';
+
+  return '<div style="background:linear-gradient(135deg,#f8fafc,#f1f5f9);border:1px solid var(--slate-200);border-radius:11px;padding:13px;margin-bottom:11px;">'
+    + (chips ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px;">' + chips + '</div>' : '')
+    // สาขานี้
+    + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;flex-wrap:wrap;">'
+    + '<div><div style="font-size:9px;color:var(--slate-400);">' + (isLao ? 'ສาขานี้' : 'สาขานี้') + ' (' + (bkey || '?') + ')</div>'
+    + '<div style="font-size:11px;color:var(--slate-600);">AVG: <b>' + fmtAvg(bAvg) + '</b>/' + (isLao ? 'ມื้' : 'วัน') + (dohBranch ? ' · DOH ' + dohBranch : '') + '</div></div>'
+    + psStatusBadge(stBranch) + '</div>'
+    // ALLStore
+    + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid var(--slate-200);padding-top:7px;flex-wrap:wrap;">'
+    + '<div><div style="font-size:9px;color:var(--slate-400);">' + (isLao ? 'ລວมทุกสาขา' : 'รวมทุกสาขา') + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-600);">AVG: <b>' + fmtAvg(ps.avg_allstore) + '</b>/' + (isLao ? 'ມื้' : 'วัน') + ' · Stock <b>' + (ps.stock_allstore != null ? Number(ps.stock_allstore).toLocaleString() : '—') + '</b>' + (dohAll ? ' · DOH ' + dohAll : '') + '</div></div>'
+    + psStatusBadge(stAll) + '</div>'
+    + '</div>';
+}
+
 // ==================== PRODUCT STATUS (ข้อมูล Status สินค้า) ====================
 const PS_UPSERT_BATCH = 500;
 // map branch.code ในแอป → ชื่อสาขาในไฟล์ (column suffix)
@@ -8081,15 +8146,16 @@ async function scLookup() {
   _scCurrentProduct = prod;
   
   // Parallel: get location from PoG + last stock count
-  const [pogRes, countRes] = await Promise.all([
+  const [pogRes, countRes, statusRes] = await Promise.all([
     sb.from('pan_o_grams').select('location_code').eq('product_id', prod.id).eq('branch_id', branch.id).limit(1).maybeSingle(),
-    sb.from('stock_counts').select('counted_qty, created_at, users!user_id(full_name)').eq('product_id', prod.id).eq('branch_id', branch.id).order('created_at', { ascending: false }).limit(1).maybeSingle()
+    sb.from('stock_counts').select('counted_qty, created_at, users!user_id(full_name)').eq('product_id', prod.id).eq('branch_id', branch.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    sb.from('product_status').select('*').eq('barcode', barcode).maybeSingle()
   ]);
   
-  renderStockCheckResult(prod, pogRes?.data, countRes?.data);
+  renderStockCheckResult(prod, pogRes?.data, countRes?.data, statusRes?.data);
 }
 
-function renderStockCheckResult(prod, pog, lastCount) {
+function renderStockCheckResult(prod, pog, lastCount, ps) {
   const isLao = lang === 'lo';
   const card = document.getElementById('scResultCard');
   if (!card) return;
@@ -8142,6 +8208,7 @@ function renderStockCheckResult(prod, pog, lastCount) {
         <div style="font-size:15px;font-weight:800;color:var(--slate-800);font-family:'Space Grotesk',monospace;">${Number(sellPrice).toLocaleString()} ₭</div>
       </div>
       
+      ${psBuildStatusCard(ps, posQty)}
       ${locHtml}
       ${lastCountHtml}
       
@@ -25150,6 +25217,8 @@ window.logActivity = logActivity;
 window.renderProductStatusPage = renderProductStatusPage;
 window.psHandleFile = psHandleFile;
 window.psLoadCount = psLoadCount;
+window.psCalcStatus = psCalcStatus;
+window.psBuildStatusCard = psBuildStatusCard;
 window.renderMasterProductPage = renderMasterProductPage;
 window.loadMasterProducts = loadMasterProducts;
 window.mpOnSearchInput = mpOnSearchInput;
