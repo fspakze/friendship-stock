@@ -2624,6 +2624,21 @@ async function loadUpdateReminder() {
     const { data } = await sb.from('app_settings').select('key, value').in('key', DATA_UPDATE_TASKS.map(t => t.key));
     (data || []).forEach(r => { settings[r.key] = r.value; });
   } catch (e) {}
+  // Fallback POS: เช็คจาก snapshot จริงล่าสุด (เผื่อ import ด้วยโค้ดเก่าที่ไม่ได้ mark flag)
+  try {
+    const { data: snap } = await sb.from('v_pos_snapshots').select('snapshot_date').eq('branch_id', branch.id).order('snapshot_date', { ascending: false }).limit(1).maybeSingle();
+    if (snap && snap.snapshot_date && isSameDay(snap.snapshot_date)) settings['last_update_pos'] = snap.snapshot_date;
+  } catch (e) {}
+  // Fallback Master: imported_at ล่าสุดใน master_products
+  try {
+    const { data: mp } = await sb.from('master_products').select('imported_at').order('imported_at', { ascending: false }).limit(1).maybeSingle();
+    if (mp && mp.imported_at && isSameDay(mp.imported_at)) settings['last_update_master'] = mp.imported_at;
+  } catch (e) {}
+  // Fallback Status: updated_at ล่าสุดใน product_status
+  try {
+    const { data: ps } = await sb.from('product_status').select('updated_at').order('updated_at', { ascending: false }).limit(1).maybeSingle();
+    if (ps && ps.updated_at && isSameDay(ps.updated_at)) settings['last_update_status'] = ps.updated_at;
+  } catch (e) {}
   const isLao = lang === 'lo';
   const pending = DATA_UPDATE_TASKS.filter(t => !isSameDay(settings[t.key]));
   if (!pending.length) {
