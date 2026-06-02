@@ -2615,32 +2615,33 @@ function isSameDay(iso) {
   return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
 }
 async function loadUpdateReminder() {
-  // เฉพาะ admin
   if (!user || user.role !== 'admin') return;
   const host = document.getElementById('updateReminder');
   if (!host) return;
-  let settings = {};
+  const isLao = lang === 'lo';
+
+  // lastSeen = วันอัพล่าสุดจริง (ไม่ว่าวันไหน) — เอาค่าใหม่สุดระหว่าง flag กับแหล่งจริง
+  const lastSeen = {};
+  const setLatest = (k, v) => { if (v && (!lastSeen[k] || new Date(v) > new Date(lastSeen[k]))) lastSeen[k] = v; };
+
   try {
     const { data } = await sb.from('app_settings').select('key, value').in('key', DATA_UPDATE_TASKS.map(t => t.key));
-    (data || []).forEach(r => { settings[r.key] = r.value; });
+    (data || []).forEach(r => setLatest(r.key, r.value));
   } catch (e) {}
-  // Fallback POS: เช็คจาก snapshot จริงล่าสุด (เผื่อ import ด้วยโค้ดเก่าที่ไม่ได้ mark flag)
   try {
     const { data: snap } = await sb.from('v_pos_snapshots').select('snapshot_date').eq('branch_id', branch.id).order('snapshot_date', { ascending: false }).limit(1).maybeSingle();
-    if (snap && snap.snapshot_date && isSameDay(snap.snapshot_date)) settings['last_update_pos'] = snap.snapshot_date;
+    if (snap) setLatest('last_update_pos', snap.snapshot_date);
   } catch (e) {}
-  // Fallback Master: imported_at ล่าสุดใน master_products
   try {
     const { data: mp } = await sb.from('master_products').select('imported_at').order('imported_at', { ascending: false }).limit(1).maybeSingle();
-    if (mp && mp.imported_at && isSameDay(mp.imported_at)) settings['last_update_master'] = mp.imported_at;
+    if (mp) setLatest('last_update_master', mp.imported_at);
   } catch (e) {}
-  // Fallback Status: updated_at ล่าสุดใน product_status
   try {
     const { data: ps } = await sb.from('product_status').select('updated_at').order('updated_at', { ascending: false }).limit(1).maybeSingle();
-    if (ps && ps.updated_at && isSameDay(ps.updated_at)) settings['last_update_status'] = ps.updated_at;
+    if (ps) setLatest('last_update_status', ps.updated_at);
   } catch (e) {}
-  const isLao = lang === 'lo';
-  const pending = DATA_UPDATE_TASKS.filter(t => !isSameDay(settings[t.key]));
+
+  const pending = DATA_UPDATE_TASKS.filter(t => !isSameDay(lastSeen[t.key]));
   if (!pending.length) {
     host.innerHTML = '<div class="banner" style="background:var(--emerald-50);border:1px solid var(--emerald-300);">'
       + '<div class="banner-icon" style="background:var(--emerald-500);">✓</div>'
@@ -2652,16 +2653,17 @@ async function loadUpdateReminder() {
     '<button onclick="goPage(\'' + t.page + '\')" style="display:flex;align-items:center;gap:7px;width:100%;text-align:left;background:white;border:1px solid var(--amber-300);border-radius:9px;padding:9px 11px;margin-top:6px;cursor:pointer;">'
     + '<span style="font-size:15px;">⬆️</span>'
     + '<span style="flex:1;font-size:12px;font-weight:700;color:var(--slate-700);">' + (isLao ? t.lo : t.th) + '</span>'
-    + '<span style="font-size:10px;color:var(--amber-600);font-weight:700;">' + (settings[t.key] ? (isLao ? 'ອัปเดตล่าสุด ' : 'ล่าสุด ') + reminderAgo(settings[t.key], isLao) : (isLao ? 'ຍັງບໍ່ເຄີຍ' : 'ยังไม่เคย')) + '</span>'
+    + '<span style="font-size:10px;color:var(--amber-600);font-weight:700;">' + (lastSeen[t.key] ? (isLao ? 'ອัปล่าสุด ' : 'ล่าสุด ') + reminderAgo(lastSeen[t.key], isLao) : (isLao ? 'ຍັງບໍ່ເຄີຍ' : 'ยังไม่เคย')) + '</span>'
     + '<span style="font-size:13px;color:var(--amber-500);">›</span></button>'
   ).join('');
   host.innerHTML = '<div class="banner amber" style="flex-direction:column;align-items:stretch;">'
     + '<div style="display:flex;gap:10px;align-items:center;">'
     + '<div class="banner-icon">🔔</div>'
-    + '<div class="banner-text"><h4>' + (isLao ? 'ເຕືອນ: อัปเดตข้อมูลประจำวัน' : 'เตือน: อัปเดตข้อมูลประจำวัน') + '</h4>'
+    + '<div class="banner-text"><h4>' + (isLao ? 'ເຕືອน: อัปเดตข้อมูลประจำวัน' : 'เตือน: อัปเดตข้อมูลประจำวัน') + '</h4>'
     + '<p>' + (isLao ? 'ມี ' : 'มี ') + pending.length + (isLao ? ' รายการที่ยังไม่อัปเดตวันนี้' : ' รายการที่ยังไม่อัปเดตวันนี้') + '</p></div></div>'
     + items + '</div>';
 }
+
 function reminderAgo(iso, isLao) {
   const diff = Date.now() - new Date(iso).getTime();
   const days = Math.floor(diff / 86400000);
