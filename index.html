@@ -6071,12 +6071,12 @@ function psBuildStatusCard(ps, posQty) {
     // สาขานี้
     + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;flex-wrap:wrap;">'
     + '<div><div style="font-size:9px;color:var(--slate-400);">' + (isLao ? 'ສาขานี้' : 'สาขานี้') + ' (' + (bkey || '?') + ')</div>'
-    + '<div style="font-size:11px;color:var(--slate-600);">AVG: <b>' + fmtAvg(bAvg) + '</b>/' + (isLao ? 'ມื้' : 'วัน') + (dohBranch ? ' · DOH ' + dohBranch : '') + '</div></div>'
+    + '<div style="font-size:11px;color:var(--slate-600);">AVG: <b>' + fmtAvg(bAvg != null ? bAvg / 30 : null) + '</b>/' + (isLao ? 'ມື້' : 'วัน') + ' <span style="color:var(--slate-400);">(' + fmtAvg(bAvg) + '/' + (isLao ? 'ເດືອນ' : 'เดือน') + ')</span>' + (dohBranch ? ' · DOH ' + dohBranch : '') + '</div></div>'
     + psStatusBadge(stBranch) + '</div>'
     // ALLStore
     + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid var(--slate-200);padding-top:7px;flex-wrap:wrap;">'
     + '<div><div style="font-size:9px;color:var(--slate-400);">' + (isLao ? 'ລວมทุกสาขา' : 'รวมทุกสาขา') + '</div>'
-    + '<div style="font-size:11px;color:var(--slate-600);">AVG: <b>' + fmtAvg(ps.avg_allstore) + '</b>/' + (isLao ? 'ມื้' : 'วัน') + ' · Stock <b>' + (ps.stock_allstore != null ? Number(ps.stock_allstore).toLocaleString() : '—') + '</b>' + (dohAll ? ' · DOH ' + dohAll : '') + '</div></div>'
+    + '<div style="font-size:11px;color:var(--slate-600);">AVG: <b>' + fmtAvg(ps.avg_allstore != null ? ps.avg_allstore / 30 : null) + '</b>/' + (isLao ? 'ມື້' : 'วัน') + ' <span style="color:var(--slate-400);">(' + fmtAvg(ps.avg_allstore) + '/' + (isLao ? 'ເດືອน' : 'เดือน') + ')</span> · Stock <b>' + (ps.stock_allstore != null ? Number(ps.stock_allstore).toLocaleString() : '—') + '</b>' + (dohAll ? ' · DOH ' + dohAll : '') + '</div></div>'
     + psStatusBadge(stAll) + '</div>'
     + '</div>';
 }
