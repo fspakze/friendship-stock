@@ -5968,7 +5968,7 @@ function psBuildStatusCard(ps, posQty) {
       + (isLao ? 'ບໍ່ມีข้อมูล Status สินค้า (ยังไม่ได้อัปโหลด หรือไม่พบ barcode นี้)' : 'ไม่มีข้อมูล Status สินค้า (ยังไม่อัปโหลด หรือไม่พบ barcode นี้)') + '</div>';
   }
   // AVG สาขานี้
-  const bkey = psBranchKey();
+  const bkey = psBranchKey(ps.branch_avg);
   const bAvg = (ps.branch_avg && bkey != null) ? ps.branch_avg[bkey] : null;
   const stBranch = psCalcStatus(posQty, bAvg || 0);
   const dohBranch = stBranch.doh != null ? Math.round(stBranch.doh) + ' ' + (isLao ? 'ມื้' : 'วัน') : null;
@@ -6008,10 +6008,17 @@ const PS_UPSERT_BATCH = 500;
 // map branch.code ในแอป → ชื่อสาขาในไฟล์ (column suffix)
 const PS_BRANCH_MAP = { 'FS-SUPERMART': 'Super' };
 // คืนชื่อสาขาในไฟล์ที่ match กับ branch ปัจจุบัน
-function psBranchKey() {
+function psBranchKey(branchAvg) {
   if (!branch) return null;
   if (PS_BRANCH_MAP[branch.code]) return PS_BRANCH_MAP[branch.code];
-  // fallback: ลอง match code/name ตรงกับ key ใน branch_avg
+  const keys = branchAvg ? Object.keys(branchAvg) : [];
+  const cand = [branch.code, branch.name_th, branch.name_lo].filter(Boolean).map(x => String(x).toUpperCase());
+  // ตรงเป๊ะ
+  for (const k of keys) { if (cand.includes(String(k).toUpperCase())) return k; }
+  // มีคำว่า SUPER → Super
+  if (cand.some(c => c.includes('SUPER'))) { const sk = keys.find(k => String(k).toUpperCase().includes('SUPER')); if (sk) return sk; }
+  // substring match
+  for (const k of keys) { const ku = String(k).toUpperCase(); if (cand.some(c => c.includes(ku) || ku.includes(c))) return k; }
   return branch.code || null;
 }
 
@@ -6048,7 +6055,7 @@ async function psLoadCount() {
 }
 
 function psCleanStr(v) { if (v == null) return null; const s = String(v).trim(); return (s === '' || s.toLowerCase() === 'nan') ? null : s; }
-function psCleanNum(v) { if (v == null) return null; const s = String(v).trim(); if (s === '' || s.toLowerCase() === 'nan') return null; const n = Number(s); return isFinite(n) ? n : null; }
+function psCleanNum(v) { if (v == null) return null; const s = String(v).trim().replace(/,/g, ''); if (s === '' || s.toLowerCase() === 'nan') return null; const n = Number(s); return isFinite(n) ? n : null; }
 
 async function psHandleFile(ev) {
   const file = ev.target.files?.[0];
