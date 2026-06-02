@@ -23628,6 +23628,7 @@ function renderScDailyLogPage() {
     <div style="padding:14px 13px 90px;max-width:680px;margin:0 auto;">
       <h2 style="font-size:18px;font-weight:800;margin:0 0 11px;">📝 ${isLao ? 'ປະຫວັดงานรายวัน SC' : 'ประวัติงานรายวัน SC'}</h2>
       <div id="scChart"></div>
+      <div id="scFilter"></div>
       <div id="scList"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
     </div>`;
 }
@@ -23638,11 +23639,98 @@ async function loadScDailyLogs() {
     _scData = data || [];
   } catch (e) { _scData = []; }
   if (!_scChartMonth) _scChartMonth = new Date().toISOString().slice(0, 7);
+  renderScFilter();
   renderScChart();
   renderScList();
 }
 function scFmtDate(d) { return d ? new Date(d).toLocaleDateString(lang === 'lo' ? 'lo-LA' : 'th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'; }
 function scEsc(s) { return (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+
+// ---------- filter แยกรายไอดี ----------
+let _scFilterReporter = 'all';
+function renderScFilter() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('scFilter'); if (!el) return;
+  // รายชื่อผู้บันทึก (unique reporter_id + name)
+  const repMap = {};
+  (_scData || []).forEach(r => { if (r.reporter_id) repMap[r.reporter_id] = r.reporter_name || r.reporter_id; });
+  const reps = Object.keys(repMap);
+  if (reps.length <= 1) { el.innerHTML = ''; return; } // มีคนเดียวไม่ต้องโชว์ filter
+  const opts = '<option value="all">' + (isLao ? 'ທຸกคน' : 'ทุกคน') + ' (' + reps.length + ')</option>'
+    + reps.map(id => '<option value="' + id + '"' + (id === _scFilterReporter ? ' selected' : '') + '>' + scEsc(repMap[id]) + '</option>').join('');
+  el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">'
+    + '<span style="font-size:12px;font-weight:700;color:var(--slate-600);flex-shrink:0;">👤 ' + (isLao ? 'ຜູ້ບັນທຶກ' : 'ผู้บันทึก') + ':</span>'
+    + '<select onchange="scSetFilterReporter(this.value)" style="flex:1;font-size:12px;padding:7px 9px;border:1px solid var(--slate-200);border-radius:8px;background:white;font-weight:700;color:var(--slate-700);">' + opts + '</select>'
+    + '</div>';
+}
+function scSetFilterReporter(v) { _scFilterReporter = v; renderScChart(); renderScList(); }
+
+// ---------- แก้ไข (CTL+Admin) ----------
+function scEditOpen(id) {
+  const isLao = lang === 'lo';
+  const role = (user && user.role) || '';
+  if (!(role === 'ctl' || role === 'admin')) { showToast(isLao ? 'ບໍ່ມีสิทธิ์' : 'ไม่มีสิทธิ์', 'error'); return; }
+  const r = _scData.find(x => x.id === id);
+  if (!r) return;
+  const cl = r.checklist || {};
+  let html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;"><h3 style="font-size:15px;margin:0;">✏️ ' + (isLao ? 'ແກ້ໄຂ' : 'แก้ไข') + ' ' + r.log_no + '</h3>'
+    + '<button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;color:var(--slate-600);">✕</button></div>'
+    + '<div style="font-size:11px;color:var(--slate-400);margin-bottom:11px;">' + scFmtDate(r.log_date) + '</div>';
+  SC_CHECKLIST.forEach(g => {
+    html += '<div style="font-size:12px;font-weight:800;color:var(--teal-700);margin:10px 0 4px;">' + (isLao ? g.groupLo : g.group) + '</div>';
+    g.items.forEach(it => {
+      const ok = !!cl[it.k];
+      html += '<label style="display:flex;align-items:flex-start;gap:9px;padding:7px 0;font-size:11px;cursor:pointer;border-bottom:1px solid var(--slate-100);">'
+        + '<input type="checkbox" id="sce_' + it.k + '"' + (ok ? ' checked' : '') + ' style="width:17px;height:17px;accent-color:var(--teal-500);flex-shrink:0;margin-top:1px;"> '
+        + '<span style="flex:1;">' + it.th + '</span>'
+        + '<span style="flex-shrink:0;font-size:10px;font-weight:800;color:var(--teal-600);">' + it.w + '</span></label>';
+    });
+  });
+  html += '<div class="form-group" style="margin-top:11px;"><label class="form-label">' + (isLao ? 'ສາເຫด' : 'สาเหตุ (ยอดไม่ถึงเป้า)') + '</label><input class="form-input" id="sceReason" value="' + scEsc(r.sales_reason || '') + '"></div>';
+  html += '<div class="form-group"><label class="form-label">' + (isLao ? 'ໝາຍເຫด' : 'หมายเหตุ') + '</label><textarea class="form-input" id="sceNote" rows="2">' + scEsc(r.note || '') + '</textarea></div>';
+  html += '<div class="action-row"><button class="btn btn-secondary" onclick="scOpen(' + id + ')">' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
+    + '<button class="btn btn-primary" onclick="scEditSave(' + id + ')">' + (isLao ? 'ບันทึก' : 'บันทึก') + '</button></div>';
+  showModal(html);
+}
+
+async function scEditSave(id) {
+  const isLao = lang === 'lo';
+  const role = (user && user.role) || '';
+  if (!(role === 'ctl' || role === 'admin')) { showToast(isLao ? 'ບໍ່ມีสิทธิ์' : 'ไม่มีสิทธิ์', 'error'); return; }
+  const checklist = {};
+  let done = 0;
+  SC_CHECKLIST.forEach(g => g.items.forEach(it => { const el = document.getElementById('sce_' + it.k); const v = !!(el && el.checked); checklist[it.k] = v; if (v) done += (it.w || 0); }));
+  const reasonEl = document.getElementById('sceReason');
+  const noteEl = document.getElementById('sceNote');
+  const upd = {
+    checklist: checklist, done_count: done, total_count: scTotalItems(),
+    sales_reason: reasonEl ? (reasonEl.value.trim() || null) : null,
+    note: noteEl ? (noteEl.value.trim() || null) : null,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await sb.from('sc_daily_logs').update(upd).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  logActivity('sc_daily_edit', id + ' | ' + done + '/' + scTotalItems());
+  showToast(isLao ? 'ບันทึกแล้ว ✓' : 'บันทึกแล้ว ✓', 'success');
+  closeModal();
+  loadScDailyLogs();
+}
+
+// ---------- ลบ (Admin) ----------
+async function scDelete(id) {
+  const isLao = lang === 'lo';
+  if ((user && user.role) !== 'admin') { showToast(isLao ? 'ສະເພาะ admin' : 'เฉพาะ admin', 'error'); return; }
+  const r = _scData.find(x => x.id === id);
+  if (!r) return;
+  if (!confirm((isLao ? 'ລຶບ ' : 'ลบ ') + r.log_no + ' (' + scFmtDate(r.log_date) + ') ?\n' + (isLao ? 'ລຶບແລ້วกู้คืนไม่ได้' : 'ลบแล้วกู้คืนไม่ได้'))) return;
+  const { error } = await sb.from('sc_daily_logs').delete().eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  logActivity('sc_daily_delete', r.log_no);
+  showToast(isLao ? 'ລຶບແລ້ວ ✓' : 'ลบแล้ว ✓', 'success');
+  closeModal();
+  loadScDailyLogs();
+}
 
 // ---------- กราฟแท่งสรุปรายเดือน ----------
 let _scChartMonth = ''; // 'YYYY-MM'
@@ -23666,7 +23754,8 @@ function renderScChart() {
   const [yy, mm] = _scChartMonth.split('-').map(Number);
   const daysInMonth = new Date(yy, mm, 0).getDate();
   const byDay = {};
-  (_scData || []).forEach(r => {
+  const _crows = (_scFilterReporter && _scFilterReporter !== 'all') ? (_scData || []).filter(r => String(r.reporter_id) === String(_scFilterReporter)) : (_scData || []);
+  _crows.forEach(r => {
     if ((r.log_date || '').slice(0, 7) !== _scChartMonth) return;
     const d = Number((r.log_date || '').slice(8, 10));
     const sc = r.done_count || 0;
@@ -23735,8 +23824,9 @@ function renderScChart() {
 function renderScList() {
   const isLao = lang === 'lo';
   const el = document.getElementById('scList'); if (!el) return;
-  if (!_scData.length) { el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--slate-400);"><div style="font-size:34px;">📭</div>' + (isLao ? 'ຍັງບໍ່ມีบันทึก' : 'ยังไม่มีบันทึก') + '</div>'; return; }
-  el.innerHTML = _scData.map(r => {
+  const _rows = (_scFilterReporter && _scFilterReporter !== 'all') ? _scData.filter(r => String(r.reporter_id) === String(_scFilterReporter)) : _scData;
+  if (!_rows.length) { el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--slate-400);"><div style="font-size:34px;">📭</div>' + (isLao ? 'ຍັງບໍ່ມีบันทึก' : 'ยังไม่มีบันทึก') + '</div>'; return; }
+  el.innerHTML = _rows.map(r => {
     const pct = r.total_count ? Math.round(r.done_count / r.total_count * 100) : 0;
     const col = pct >= 80 ? 'var(--emerald-600)' : pct >= 50 ? 'var(--amber-600)' : 'var(--rose-500)';
     return '<div onclick="scOpen(' + r.id + ')" style="background:white;border:1px solid var(--slate-200);border-radius:12px;padding:12px;margin-bottom:9px;cursor:pointer;">'
@@ -23765,6 +23855,15 @@ function scOpen(id) {
   });
   if (r.sales_reason) html += '<div style="margin-top:10px;font-size:11px;"><b>' + (isLao ? 'ສາເຫด:' : 'สาเหตุ:') + '</b> <span style="color:var(--slate-600);">' + scEsc(r.sales_reason) + '</span></div>';
   if (r.note) html += '<div style="margin-top:8px;font-size:11px;"><b>' + (isLao ? 'ໝາຍເຫด:' : 'หมายเหตุ:') + '</b> <span style="color:var(--slate-600);white-space:pre-wrap;">' + scEsc(r.note) + '</span></div>';
+  const role = (user && user.role) || '';
+  const canEdit = role === 'ctl' || role === 'admin';
+  const canDelete = role === 'admin';
+  if (canEdit || canDelete) {
+    html += '<div style="display:flex;gap:8px;margin-top:14px;border-top:1px solid var(--slate-100);padding-top:11px;">';
+    if (canEdit) html += '<button onclick="scEditOpen(' + id + ')" style="flex:1;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;">✏️ ' + (isLao ? 'ແກ້ໄຂ' : 'แก้ไข') + '</button>';
+    if (canDelete) html += '<button onclick="scDelete(' + id + ')" style="flex:1;background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:10px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;">🗑️ ' + (isLao ? 'ລຶບ' : 'ลบ') + '</button>';
+    html += '</div>';
+  }
   showModal(html);
 }
 
@@ -24622,6 +24721,11 @@ window.scUpdateProgress = scUpdateProgress;
 window.scOpen = scOpen;
 window.renderScChart = renderScChart;
 window.scSetChartMonth = scSetChartMonth;
+window.renderScFilter = renderScFilter;
+window.scSetFilterReporter = scSetFilterReporter;
+window.scEditOpen = scEditOpen;
+window.scEditSave = scEditSave;
+window.scDelete = scDelete;
 window.toggleCountMenu = toggleCountMenu;
 window.loadAppSettings = loadAppSettings;
 window.wrOnPhotoSelected = wrOnPhotoSelected;
