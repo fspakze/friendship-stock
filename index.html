@@ -9208,19 +9208,21 @@ function getScannerConfig() {
   };
   
   // 🍎 iOS Optimized: resolution 960×720 (เบากว่า, decode เร็ว, focus ดีขึ้น)
-  // 🤖 Android: 1280×720 (เดิม)
+  // 🤖 Android: 1920×1080 @30fps (แรง decode ไว อ่านบาร์โค้ดเล็กชัด)
   const videoConstraints = isIOS ? {
     facingMode: "environment",
     width: { ideal: 960 },
     height: { ideal: 720 }
   } : {
+    // 🤖 Android: resolution สูง + frameRate สูง → อ่านบาร์โค้ดเล็กชัด + decode ไว
     facingMode: "environment",
-    width: { ideal: 1280 },
-    height: { ideal: 720 }
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+    frameRate: { ideal: 30 }
   };
   
   const config = {
-    fps: 10,                                       // 🍎 iOS Balanced: 10 (เท่า Android)
+    fps: isIOS ? 10 : 24,                          // 🍎 iOS: 10 (เสถียร) / 🤖 Android: 24 (decode ไวขึ้น)
     qrbox: qrboxFunc,
     // ❌ ไม่ใส่ aspectRatio บน iOS (ปล่อย browser ตัดสินใจ ป้องกัน crop ผิด)
     disableFlip: isIOS ? true : false,             // 🍎 iOS: ไม่ flip (1D barcode ไม่ต้อง flip)
