@@ -4297,6 +4297,7 @@ const MENU_CONFIG = {
     bottomTabs: ['stockcheck', 'floormap', 'tiebreaker', 'workflow'],
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'workreport', 'worktrack'] },
+      { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport', 'issuereport', 'invmovement'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -4305,6 +4306,7 @@ const MENU_CONFIG = {
     bottomTabs: ['stockcheck', 'floormap', 'gapreport'],
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'workreport', 'worktrack', 'tiebreaker'] },
+      { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -4315,6 +4317,7 @@ const MENU_CONFIG = {
     drawerGroups: [
       { titleTh: '🛒 งานสต๊อก', titleLo: '🛒 ງານສະຕ໋ອກ', items: ['scan', 'gapscan', 'expirytrack', 'tiebreaker', 'workflow'] },
       { titleTh: '📢 ระบบแจ้งงาน', titleLo: '📢 ລະບົບແຈ້ງงาน', items: ['workreport', 'worktrack'] },
+      { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: '🕘 ประวัติ', titleLo: '🕘 ປະຫວັດ', items: ['history'] },
       { titleTh: 'วิเคราะห์', titleLo: 'ວິເຄາະ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['issuereport', 'invmovement'] },
@@ -4326,6 +4329,7 @@ const MENU_CONFIG = {
     bottomTabs: ['stockcheck', 'floormap', 'gapreport'],
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'workreport', 'worktrack', 'tiebreaker'] },
+      { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct', 'settings'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -4356,6 +4360,8 @@ const PAGE_META = {
   expirytrack:{ iconSvg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', labelTh: 'ติดตามอายุ', labelLo: 'ຕິດຕາມອາຍຸ', page: 'expirytrack' },
   workreport:{ iconSvg: '<path d="M12 5v14M5 12h14"/>', labelTh: 'แจ้งงาน', labelLo: 'ແຈ້ງงาน', page: 'workreport' },
   worktrack:{ iconSvg: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', labelTh: 'ติดตามงาน', labelLo: 'ຕິດຕາມงาน', page: 'worktrack' },
+  dailybrief:{ iconSvg: '<path d="M9 11H15M9 15H13M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>', labelTh: 'Daily Brief', labelLo: 'Daily Brief', page: 'dailybrief' },
+  brieflog:{ iconSvg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', labelTh: 'ประวัติ Brief', labelLo: 'ປະຫວັດ Brief', page: 'brieflog' },
   masterproduct: { iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/><path d="M7.5 4.5l9 5.2"/>', labelTh: 'Master Product', labelLo: 'Master Product', page: 'masterproduct' }
 };
 
@@ -4673,6 +4679,11 @@ function goPage(page) {
   } else if (page === 'worktrack') {
     c.innerHTML = renderWorkTrackPage();
     setTimeout(() => loadWorkTickets(), 50);
+  } else if (page === 'dailybrief') {
+    c.innerHTML = renderDailyBriefPage();
+  } else if (page === 'brieflog') {
+    c.innerHTML = renderBriefLogPage();
+    setTimeout(() => loadDailyBriefs(), 50);
   }
   
   updateTbBadge();
@@ -23187,6 +23198,297 @@ function wtCatDept(v) {
 // role ที่จัดการงานได้ (เปลี่ยนสถานะ/ปิดงาน)
 function wtCanManage() { return ['admin', 'scc', 'bcs', 'ctl'].includes((user && user.role) || ''); }
 
+// ==================== DAILY BRIEF (บันทึกประชุมเช้า) ====================
+function dbCanUse() { return ['admin', 'scc', 'bcs', 'ctl'].includes((user && user.role) || ''); }
+let _dbPromos = [];   // [{name, promo, target}]
+let _dbPraises = [];  // [{name, dept}]
+
+function renderDailyBriefPage() {
+  const isLao = lang === 'lo';
+  const today = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const hhmm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  return `
+    <div style="padding:14px 13px 90px;max-width:620px;margin:0 auto;">
+      <h2 style="font-size:18px;font-weight:800;margin:0 0 3px;">📋 Daily Brief</h2>
+      <p style="font-size:12px;color:var(--slate-500);margin:0 0 15px;">${isLao ? 'ບັນທຶກການປະຊຸມເຊົ້າ ກັບพนักงาน' : 'บันทึกการประชุมเช้ากับพนักงาน'}</p>
+
+      <div id="dbAck" style="display:none;background:linear-gradient(135deg,var(--emerald-50),var(--teal-50));border:1px solid var(--emerald-200);border-radius:14px;padding:18px;text-align:center;margin-bottom:14px;">
+        <div style="font-size:26px;font-weight:800;color:var(--emerald-700);font-family:'Space Grotesk',monospace;" id="dbAckNo">DB-0000</div>
+        <div style="font-size:12px;color:var(--slate-600);margin-top:6px;">${isLao ? 'ບันทึกสำเร็จ' : 'บันทึกสำเร็จ'} ✓</div>
+        <button onclick="dbReset()" style="margin-top:12px;background:var(--emerald-600);color:white;border:none;border-radius:9px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;">${isLao ? 'ບันทึกใหม่' : 'บันทึกใหม่'}</button>
+      </div>
+
+      <div id="dbForm">
+        <!-- ส่วนหัว -->
+        <div style="display:flex;gap:8px;">
+          <div class="form-group" style="flex:1;"><label class="form-label">${isLao ? 'ວັນທີ່' : 'วันที่'}</label><input class="form-input" id="dbDate" type="date" value="${today}"></div>
+          <div class="form-group" style="flex:1;"><label class="form-label">${isLao ? 'ເວລາ' : 'เวลา'}</label><input class="form-input" id="dbTime" type="time" value="${hhmm}"></div>
+        </div>
+        <div class="form-group"><label class="form-label">${isLao ? 'ກະ' : 'กะ'}</label>
+          <div style="display:flex;gap:8px;" id="dbShiftRow">
+            <button type="button" class="db-shift" data-v="morning" onclick="dbSetShift('morning')" style="flex:1;border:2px solid var(--teal-500);background:var(--teal-50);color:var(--teal-700);border-radius:10px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;">${isLao ? 'ເຊົ້າ' : 'เช้า'}</button>
+            <button type="button" class="db-shift" data-v="afternoon" onclick="dbSetShift('afternoon')" style="flex:1;border:2px solid var(--slate-200);background:white;color:var(--slate-600);border-radius:10px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;">${isLao ? 'ບ່າຍ' : 'บ่าย'}</button>
+          </div>
+        </div>
+
+        <!-- 1. ยอดขาย -->
+        <div class="db-sec"><div class="db-sec-t">1. ${isLao ? 'ລາຍงานยอดขาย' : 'รายงานยอดขาย'}</div>
+          <div class="form-group"><label class="form-label">${isLao ? 'ຍอดขายเมื่อวาน (ກີບ)' : 'ยอดขายเมื่อวาน (กีบ)'}</label><input class="form-input" id="dbSalesY" type="number" inputmode="numeric" placeholder="0"></div>
+          <div style="display:flex;gap:8px;margin-bottom:9px;" id="dbMetRow">
+            <button type="button" class="db-met" data-v="met" onclick="dbSetMet('met')" style="flex:1;border:2px solid var(--slate-200);background:white;color:var(--slate-600);border-radius:10px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;">✓ ${isLao ? 'ຕາມເປົ້າ' : 'ตามเป้า'}</button>
+            <button type="button" class="db-met" data-v="below" onclick="dbSetMet('below')" style="flex:1;border:2px solid var(--slate-200);background:white;color:var(--slate-600);border-radius:10px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;">✕ ${isLao ? 'ຫຼຸດເປົ້າ' : 'หลุดเป้า'}</button>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <div class="form-group" style="flex:1;"><label class="form-label">${isLao ? 'ເປົ້າວันนี้' : 'เป้าวันนี้'}</label><input class="form-input" id="dbTargetToday" type="number" inputmode="numeric" placeholder="0"></div>
+            <div class="form-group" style="flex:1;"><label class="form-label">Diff %</label><input class="form-input" id="dbDiff" type="number" inputmode="numeric" placeholder="0"></div>
+          </div>
+        </div>
+
+        <!-- 2. โปรโมชั่น -->
+        <div class="db-sec"><div class="db-sec-t">2. ${isLao ? 'ສິນຄ້າໂປໂມຊັ່ນ' : 'สินค้าโปรโมชั่น'}</div>
+          <div id="dbPromoList"></div>
+          <button type="button" onclick="dbAddPromo()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:9px;padding:9px;font-size:12px;font-weight:700;color:var(--slate-600);cursor:pointer;">+ ${isLao ? 'ເພີ່ມສິນຄ້າ' : 'เพิ่มสินค้า'}</button>
+        </div>
+
+        <!-- 3. ตรวจมาตรฐานร้าน -->
+        <div class="db-sec"><div class="db-sec-t">3. ${isLao ? 'ກວດສອບມາດຕະຖານຮ້ານ' : 'ตรวจมาตรฐานร้าน'}</div>
+          ${[['staff', isLao ? 'ຄວາມຮຽບຮ້ອຍพนักงาน (ຍູນິฟอร์ม/ປ້າຍຊື່)' : 'ความเรียบร้อยพนักงาน (ยูนิฟอร์ม/ป้ายชื่อ)'],
+             ['clean', isLao ? 'ຄວາມສະອາດ (ພື້ນ/ຊັ້ນວາງ/ລົດເຂັນ)' : 'ความสะอาด (พื้น/ชั้นวาง/รถเข็น)'],
+             ['stock', isLao ? 'ສະຕ໋ອກ (TOP 20, FEFO)' : 'สต๊อก (TOP 20, FEFO)'],
+             ['price', isLao ? 'ປ້າຍລາຄາ (ຄວາມຖືກຕ້ອງ/ສະພາບ)' : 'ป้ายราคา (ความถูกต้อง/สภาพ)']]
+            .map(([k, t]) => '<label style="display:flex;align-items:center;gap:9px;padding:8px 0;font-size:12px;cursor:pointer;border-bottom:1px solid var(--slate-100);"><input type="checkbox" id="dbChk_' + k + '" style="width:18px;height:18px;accent-color:var(--teal-500);"> ' + t + '</label>').join('')}
+        </div>
+
+        <!-- 4-6 ข้อความ -->
+        <div class="db-sec"><div class="db-sec-t">4. ${isLao ? 'ການຂາຍ/ການບໍລິການ (ຫົວข้ออบรม)' : 'การขาย/บริการ (หัวข้ออบรม)'}</div>
+          <textarea class="form-input" id="dbTraining" rows="2" placeholder="${isLao ? 'ຫົວข้อที่อบรมวันนี้' : 'หัวข้อที่อบรมวันนี้'}"></textarea></div>
+        <div class="db-sec"><div class="db-sec-t">5. ${isLao ? 'ປันຫາ/ຂໍ້ສະເໜີແນະ' : 'ปัญหา/ข้อเสนอแนะจากพนักงาน'}</div>
+          <textarea class="form-input" id="dbIssues" rows="2" placeholder="${isLao ? 'ປันຫາ ຫຼື ຂໍ້ສະເໜີ' : 'ปัญหา หรือ ข้อเสนอแนะ'}"></textarea></div>
+        <div class="db-sec"><div class="db-sec-t">6. ${isLao ? 'ສະຫຼຸບບັນຍາກາດ Brief' : 'สรุปบรรยากาศ Brief'}</div>
+          <textarea class="form-input" id="dbSummary" rows="2" placeholder="${isLao ? 'ສະຫຼຸບ' : 'สรุปบรรยากาศการประชุม'}"></textarea>
+          <label class="form-label" style="margin-top:9px;">${isLao ? 'ລະດັບพลังทีม' : 'ระดับพลังทีม'}</label>
+          <div style="display:flex;gap:7px;" id="dbEnergyRow">
+            ${[['high', isLao ? 'ດີຫຼາຍ' : 'ดีมาก', '#16a34a'], ['mid', isLao ? 'ປານກາງ' : 'ปานกลาง', '#d97706'], ['low', isLao ? 'ຕ້ອງປັບປຸງ' : 'ต้องปรับปรุง', '#e11d48']]
+              .map(([v, t, c]) => '<button type="button" class="db-energy" data-v="' + v + '" onclick="dbSetEnergy(\'' + v + '\')" style="flex:1;border:2px solid var(--slate-200);background:white;color:var(--slate-600);border-radius:10px;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;">' + t + '</button>').join('')}
+          </div>
+        </div>
+
+        <!-- 7. ชมเชย -->
+        <div class="db-sec"><div class="db-sec-t">7. ${isLao ? 'ຊົມເຊີຍพนักงาน' : 'ชมเชยพนักงาน'}</div>
+          <div id="dbPraiseList"></div>
+          <button type="button" onclick="dbAddPraise()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:9px;padding:9px;font-size:12px;font-weight:700;color:var(--slate-600);cursor:pointer;">+ ${isLao ? 'ເພີ່ມพนักงาน' : 'เพิ่มพนักงาน'}</button>
+        </div>
+
+        <button onclick="dbSubmit()" style="width:100%;background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;margin-top:12px;">${isLao ? 'ບันทึก Brief' : 'บันทึก Brief'} →</button>
+      </div>
+    </div>
+    <style>
+      .db-sec { background:white;border:1px solid var(--slate-200);border-radius:12px;padding:13px;margin-bottom:11px; }
+      .db-sec-t { font-size:13px;font-weight:800;color:var(--teal-700);margin-bottom:10px; }
+    </style>`;
+}
+
+let _dbShift = 'morning', _dbMet = '', _dbEnergy = '';
+function dbSetShift(v) { _dbShift = v; dbToggleBtns('db-shift', v, 'var(--teal-500)', 'var(--teal-50)', 'var(--teal-700)'); }
+function dbSetMet(v) { _dbMet = v; dbToggleBtns('db-met', v, v === 'met' ? 'var(--emerald-500)' : 'var(--rose-500)', v === 'met' ? 'var(--emerald-50)' : 'var(--rose-50)', v === 'met' ? 'var(--emerald-700)' : 'var(--rose-600)'); }
+function dbSetEnergy(v) { _dbEnergy = v; const cm = { high: ['#16a34a', '#f0fdf4'], mid: ['#d97706', '#fffbeb'], low: ['#e11d48', '#fff1f2'] }; dbToggleBtns('db-energy', v, cm[v][0], cm[v][1], cm[v][0]); }
+function dbToggleBtns(cls, v, bd, bg, col) {
+  document.querySelectorAll('.' + cls).forEach(b => {
+    const on = b.dataset.v === v;
+    b.style.border = on ? '2px solid ' + bd : '2px solid var(--slate-200)';
+    b.style.background = on ? bg : 'white';
+    b.style.color = on ? col : 'var(--slate-600)';
+  });
+}
+
+function dbAddPromo() { _dbPromos.push({ name: '', promo: '', target: '' }); dbRenderPromos(); }
+function dbRemovePromo(i) { _dbPromos.splice(i, 1); dbRenderPromos(); }
+function dbRenderPromos() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('dbPromoList'); if (!el) return;
+  el.innerHTML = _dbPromos.map((p, i) =>
+    '<div style="display:flex;gap:5px;margin-bottom:6px;align-items:center;">'
+    + '<input class="form-input" style="flex:2;margin:0;" placeholder="' + (isLao ? 'ຊื่อ' : 'ชื่อสินค้า') + '" value="' + (p.name || '').replace(/"/g, '&quot;') + '" oninput="_dbPromos[' + i + '].name=this.value">'
+    + '<input class="form-input" style="flex:2;margin:0;" placeholder="' + (isLao ? 'ໂປโม' : 'โปรโมชั่น') + '" value="' + (p.promo || '').replace(/"/g, '&quot;') + '" oninput="_dbPromos[' + i + '].promo=this.value">'
+    + '<input class="form-input" style="flex:1;margin:0;" placeholder="Unit" value="' + (p.target || '').replace(/"/g, '&quot;') + '" oninput="_dbPromos[' + i + '].target=this.value">'
+    + '<button type="button" onclick="dbRemovePromo(' + i + ')" style="background:var(--rose-50);color:var(--rose-600);border:none;width:30px;height:30px;border-radius:7px;cursor:pointer;flex-shrink:0;">✕</button>'
+    + '</div>'
+  ).join('');
+}
+function dbAddPraise() { _dbPraises.push({ name: '', dept: '' }); dbRenderPraises(); }
+function dbRemovePraise(i) { _dbPraises.splice(i, 1); dbRenderPraises(); }
+function dbRenderPraises() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('dbPraiseList'); if (!el) return;
+  const depts = WT_DEPTS.map(d => '<option value="' + d + '">' + d + '</option>').join('');
+  el.innerHTML = _dbPraises.map((p, i) =>
+    '<div style="display:flex;gap:5px;margin-bottom:6px;align-items:center;">'
+    + '<input class="form-input" style="flex:2;margin:0;" placeholder="' + (isLao ? 'ຊื่อพนักงาน' : 'ชื่อพนักงาน') + '" value="' + (p.name || '').replace(/"/g, '&quot;') + '" oninput="_dbPraises[' + i + '].name=this.value">'
+    + '<select class="form-input" style="flex:1;margin:0;" onchange="_dbPraises[' + i + '].dept=this.value"><option value="">' + (isLao ? 'ແผนก' : 'แผนก') + '</option>' + depts + '</select>'
+    + '<button type="button" onclick="dbRemovePraise(' + i + ')" style="background:var(--rose-50);color:var(--rose-600);border:none;width:30px;height:30px;border-radius:7px;cursor:pointer;flex-shrink:0;">✕</button>'
+    + '</div>'
+  ).join('');
+}
+
+function dbReset() {
+  _dbPromos = []; _dbPraises = []; _dbShift = 'morning'; _dbMet = ''; _dbEnergy = '';
+  document.getElementById('dbAck').style.display = 'none';
+  const f = document.getElementById('dbForm'); if (f) f.style.display = 'block';
+  goPage('dailybrief');
+}
+
+async function dbSubmit() {
+  const isLao = lang === 'lo';
+  const g = id => document.getElementById(id);
+  const date = g('dbDate').value;
+  if (!date) { showToast(isLao ? 'ໃສ่วันที่' : 'ใส่วันที่', 'error'); return; }
+  let seq = 1;
+  try {
+    const { count } = await sb.from('daily_briefs').select('id', { count: 'exact', head: true });
+    seq = (count || 0) + 1;
+  } catch (e) {}
+  const briefNo = 'DB-' + String(seq).padStart(4, '0');
+  const payload = {
+    brief_no: briefNo,
+    branch_id: branch.id,
+    reporter_id: user.id,
+    reporter_name: user.full_name || user.username || '',
+    reporter_role: user.role || '',
+    brief_date: date,
+    brief_time: g('dbTime').value || null,
+    shift: _dbShift,
+    sales_yesterday: g('dbSalesY').value ? Number(g('dbSalesY').value) : null,
+    sales_target_met: _dbMet || null,
+    sales_today_target: g('dbTargetToday').value ? Number(g('dbTargetToday').value) : null,
+    sales_diff_pct: g('dbDiff').value ? Number(g('dbDiff').value) : null,
+    promotions: _dbPromos.filter(x => x.name),
+    store_check: { staff: g('dbChk_staff').checked, clean: g('dbChk_clean').checked, stock: g('dbChk_stock').checked, price: g('dbChk_price').checked },
+    training_topic: g('dbTraining').value.trim() || null,
+    staff_issues: g('dbIssues').value.trim() || null,
+    brief_summary: g('dbSummary').value.trim() || null,
+    team_energy: _dbEnergy || null,
+    praises: _dbPraises.filter(x => x.name),
+    status: 'open',
+  };
+  const { error } = await sb.from('daily_briefs').insert(payload).select().single();
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  logActivity('daily_brief_create', briefNo + ' | ' + date);
+  g('dbAckNo').textContent = briefNo;
+  g('dbForm').style.display = 'none';
+  g('dbAck').style.display = 'block';
+}
+
+// ---------- ประวัติ Daily Brief ----------
+let _dbData = [];
+function renderBriefLogPage() {
+  const isLao = lang === 'lo';
+  return `
+    <div style="padding:14px 13px 90px;max-width:680px;margin:0 auto;">
+      <h2 style="font-size:18px;font-weight:800;margin:0 0 11px;">📋 ${isLao ? 'ປະຫວັດ Daily Brief' : 'ประวัติ Daily Brief'}</h2>
+      <div id="dbList"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
+    </div>`;
+}
+
+async function loadDailyBriefs() {
+  try {
+    const { data, error } = await sb.from('daily_briefs').select('*').eq('branch_id', branch.id).order('brief_date', { ascending: false }).order('created_at', { ascending: false });
+    if (error) { showToast('Error: ' + error.message, 'error'); return; }
+    _dbData = data || [];
+  } catch (e) { _dbData = []; }
+  renderDbList();
+}
+
+function dbFmtDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString(lang === 'lo' ? 'lo-LA' : 'th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function dbEsc(s) { return (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+function renderDbList() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('dbList'); if (!el) return;
+  if (!_dbData.length) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--slate-400);"><div style="font-size:34px;">📭</div>' + (isLao ? 'ຍັງບໍ່ມี Brief' : 'ยังไม่มีบันทึก Brief') + '</div>';
+    return;
+  }
+  const energyBadge = e => {
+    const m = { high: ['#16a34a', '#f0fdf4', isLao ? 'ດີຫຼາຍ' : 'ดีมาก'], mid: ['#d97706', '#fffbeb', isLao ? 'ປານກາງ' : 'ปานกลาง'], low: ['#e11d48', '#fff1f2', isLao ? 'ຕ້ອງປັບປຸງ' : 'ต้องปรับปรุง'] };
+    if (!e || !m[e]) return '';
+    const c = m[e];
+    return '<span style="font-size:10px;font-weight:700;color:' + c[0] + ';background:' + c[1] + ';border-radius:20px;padding:2px 9px;">' + c[2] + '</span>';
+  };
+  el.innerHTML = _dbData.map(b => {
+    const shiftTh = b.shift === 'afternoon' ? (isLao ? 'ບ່າຍ' : 'บ่าย') : (isLao ? 'ເຊົ້າ' : 'เช้า');
+    const done = b.status === 'done';
+    return '<div onclick="dbOpen(' + b.id + ')" style="background:white;border:1px solid var(--slate-200);border-radius:12px;padding:12px;margin-bottom:9px;cursor:pointer;">'
+      + '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:5px;">'
+      + '<span style="font-weight:800;font-size:14px;flex:1;min-width:120px;">' + dbFmtDate(b.brief_date) + ' · ' + shiftTh + '</span>'
+      + (done ? '<span style="font-size:10px;font-weight:700;color:var(--emerald-600);background:var(--emerald-50);border-radius:20px;padding:2px 9px;">✓ ' + (isLao ? 'ຕິດຕາມແລ້ວ' : 'ติดตามแล้ว') + '</span>' : '')
+      + energyBadge(b.team_energy) + '</div>'
+      + '<div style="display:flex;gap:9px;flex-wrap:wrap;font-size:10px;color:var(--slate-500);">'
+      + '<span style="font-family:monospace;font-weight:700;">' + b.brief_no + '</span>'
+      + '<span>👤 ' + dbEsc(b.reporter_name || '') + '</span>'
+      + ((b.praises && b.praises.length) ? '<span>⭐ ' + b.praises.length + '</span>' : '')
+      + ((b.promotions && b.promotions.length) ? '<span>🏷️ ' + b.promotions.length + '</span>' : '')
+      + '</div></div>';
+  }).join('');
+}
+
+function dbOpen(id) {
+  const isLao = lang === 'lo';
+  const b = _dbData.find(x => x.id === id);
+  if (!b) return;
+  const shiftTh = b.shift === 'afternoon' ? (isLao ? 'ບ່າຍ' : 'บ่าย') : (isLao ? 'ເຊົ້າ' : 'เช้า');
+  const sc = b.store_check || {};
+  const chk = (ok, t) => '<div style="font-size:11px;padding:3px 0;color:' + (ok ? 'var(--emerald-700)' : 'var(--slate-400)') + ';">' + (ok ? '☑' : '☐') + ' ' + t + '</div>';
+  const sec = (n, body) => '<div style="margin-bottom:11px;"><div style="font-size:12px;font-weight:800;color:var(--teal-700);margin-bottom:5px;">' + n + '</div>' + body + '</div>';
+  const fmtNum = v => v != null ? Number(v).toLocaleString() : '—';
+  let html = ''
+    + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px;"><h3 style="font-size:15px;margin:0;flex:1;">' + dbFmtDate(b.brief_date) + ' · ' + shiftTh + '</h3>'
+    + '<button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;color:var(--slate-600);flex-shrink:0;">✕</button></div>'
+    + '<div style="font-size:11px;color:var(--slate-400);font-family:monospace;margin-bottom:11px;">' + b.brief_no + ' · ' + dbEsc(b.reporter_name || '') + '</div>';
+  // 1 ยอดขาย
+  html += sec('1. ' + (isLao ? 'ຍอดขาย' : 'ยอดขาย'),
+    '<div style="font-size:12px;color:var(--slate-700);">' + (isLao ? 'ມื້ວาน' : 'เมื่อวาน') + ': <b>' + fmtNum(b.sales_yesterday) + '</b> ' + (b.sales_target_met === 'met' ? '✓ ' + (isLao ? 'ຕາມເປົ້າ' : 'ตามเป้า') : b.sales_target_met === 'below' ? '✕ ' + (isLao ? 'ຫຼຸດເປົ້າ' : 'หลุดเป้า') : '') + '<br>' + (isLao ? 'ເປົ້າวันนี้' : 'เป้าวันนี้') + ': <b>' + fmtNum(b.sales_today_target) + '</b>' + (b.sales_diff_pct != null ? ' · Diff ' + b.sales_diff_pct + '%' : '') + '</div>');
+  // 2 โปรโมชั่น
+  if (b.promotions && b.promotions.length) {
+    html += sec('2. ' + (isLao ? 'ໂປໂມຊັ່ນ' : 'โปรโมชั่น'),
+      b.promotions.map(p => '<div style="font-size:11px;color:var(--slate-600);padding:2px 0;">• ' + dbEsc(p.name) + (p.promo ? ' — ' + dbEsc(p.promo) : '') + (p.target ? ' (' + dbEsc(p.target) + ')' : '') + '</div>').join(''));
+  }
+  // 3 มาตรฐานร้าน
+  html += sec('3. ' + (isLao ? 'ມາດຕະฐานร้าน' : 'มาตรฐานร้าน'),
+    chk(sc.staff, isLao ? 'พนักงาน' : 'ความเรียบร้อยพนักงาน') + chk(sc.clean, isLao ? 'ຄວາມສະອາດ' : 'ความสะอาด') + chk(sc.stock, isLao ? 'ສະຕ໋ອກ' : 'สต๊อก (TOP20/FEFO)') + chk(sc.price, isLao ? 'ປ້າຍລາຄາ' : 'ป้ายราคา'));
+  // 4-6
+  if (b.training_topic) html += sec('4. ' + (isLao ? 'ຫົວข้ออบรม' : 'หัวข้ออบรม'), '<div style="font-size:12px;color:var(--slate-700);white-space:pre-wrap;">' + dbEsc(b.training_topic) + '</div>');
+  if (b.staff_issues) html += sec('5. ' + (isLao ? 'ປันຫາ/ຂໍ້ສະເໜີ' : 'ปัญหา/ข้อเสนอแนะ'), '<div style="font-size:12px;color:var(--slate-700);white-space:pre-wrap;">' + dbEsc(b.staff_issues) + '</div>');
+  if (b.brief_summary) html += sec('6. ' + (isLao ? 'ສະຫຼຸບ' : 'สรุปบรรยากาศ'), '<div style="font-size:12px;color:var(--slate-700);white-space:pre-wrap;">' + dbEsc(b.brief_summary) + '</div>');
+  // 7 ชมเชย
+  if (b.praises && b.praises.length) {
+    html += sec('7. ⭐ ' + (isLao ? 'ຊົມເຊີຍ' : 'ชมเชยพนักงาน'),
+      b.praises.map(p => '<div style="font-size:11px;color:var(--slate-600);padding:2px 0;">• ' + dbEsc(p.name) + (p.dept ? ' (' + dbEsc(p.dept) + ')' : '') + '</div>').join(''));
+  }
+  // ติดตาม
+  if (b.status === 'done') {
+    html += '<div style="background:var(--emerald-50);border-radius:9px;padding:10px;text-align:center;font-size:12px;color:var(--emerald-700);font-weight:700;margin-top:6px;">✓ ' + (isLao ? 'ຕິດຕາມແລ້ວ' : 'ติดตามแล้ว') + '</div>';
+  } else {
+    html += '<button onclick="dbMarkDone(' + id + ')" style="width:100%;background:var(--emerald-600);color:white;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;margin-top:6px;">✓ ' + (isLao ? 'ໝາຍວ່າຕິດຕາມແລ້ວ' : 'ทำเครื่องหมายติดตามแล้ว') + '</button>';
+  }
+  showModal(html);
+}
+
+async function dbMarkDone(id) {
+  const isLao = lang === 'lo';
+  const { error } = await sb.from('daily_briefs').update({ status: 'done', updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  logActivity('daily_brief_done', id);
+  showToast(isLao ? 'ຕິດຕາມແລ້ວ ✓' : 'ติดตามแล้ว ✓', 'success');
+  closeModal();
+  loadDailyBriefs();
+}
+
+
+
 // ---------- หน้าแจ้งงาน ----------
 function renderWorkReportPage() {
   const isLao = lang === 'lo';
@@ -24015,6 +24317,20 @@ window.loadHistoryWork = loadHistoryWork;
 window.wtEditOpen = wtEditOpen;
 window.wtEditSave = wtEditSave;
 window.wtDelete = wtDelete;
+window.renderDailyBriefPage = renderDailyBriefPage;
+window.renderBriefLogPage = renderBriefLogPage;
+window.loadDailyBriefs = loadDailyBriefs;
+window.dbSubmit = dbSubmit;
+window.dbReset = dbReset;
+window.dbSetShift = dbSetShift;
+window.dbSetMet = dbSetMet;
+window.dbSetEnergy = dbSetEnergy;
+window.dbAddPromo = dbAddPromo;
+window.dbRemovePromo = dbRemovePromo;
+window.dbAddPraise = dbAddPraise;
+window.dbRemovePraise = dbRemovePraise;
+window.dbOpen = dbOpen;
+window.dbMarkDone = dbMarkDone;
 window.toggleCountMenu = toggleCountMenu;
 window.loadAppSettings = loadAppSettings;
 window.wrOnPhotoSelected = wrOnPhotoSelected;
