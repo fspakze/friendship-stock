@@ -17034,8 +17034,13 @@ function bmForm(b) {
   const isLao = lang === 'lo';
   const v = b || {};
   const zonesOn = v.use_zones !== false;
+  const bt = v.branch_type || 'minimart';
+  const typeOpts = [['super', isLao ? 'ຊูเปอร์มาร์เก็ต' : 'ซูเปอร์มาร์เก็ต'], ['hq', isLao ? 'ສຳนักงานใหญ่' : 'สำนักงานใหญ่'], ['minimart', 'Minimart'], ['mall', 'Mall'], ['warehouse', isLao ? 'ຄลังสินค้า' : 'คลังสินค้า']]
+    .map(([val, lbl]) => '<option value="' + val + '"' + (bt === val ? ' selected' : '') + '>' + lbl + '</option>').join('');
   return '<div class="form-group"><label class="form-label">' + (isLao ? 'ລະຫัสสาขา (Code)' : 'รหัสสาขา (Code)') + ' *</label>'
     + '<input class="form-input" id="bmCode" value="' + bmEsc(v.code || '') + '" placeholder="เช่น SALAKHAM, EXP-TRADING"></div>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ປະເພດສาขา' : 'ประเภทสาขา') + ' *</label>'
+    + '<select class="form-input" id="bmType">' + typeOpts + '</select></div>'
     + '<div class="form-group"><label class="form-label">' + (isLao ? 'ຊื่อสาขา (ไทย)' : 'ชื่อสาขา (ไทย)') + ' *</label>'
     + '<input class="form-input" id="bmNameTh" value="' + bmEsc(v.name_th || '') + '"></div>'
     + '<div class="form-group"><label class="form-label">' + (isLao ? 'ຊื่อสาขา (ลาว)' : 'ชื่อสาขา (ลาว)') + '</label>'
@@ -17071,7 +17076,8 @@ async function bmSave(id) {
   const nameLo = document.getElementById('bmNameLo').value.trim();
   const useZones = document.getElementById('bmZones').checked;
   if (!code || !nameTh) { showToast(isLao ? 'ໃສ່รหัส + ชื่อสาขา' : 'ใส่รหัส + ชื่อสาขา', 'error'); return; }
-  const payload = { code: code, name_th: nameTh, name_lo: nameLo || nameTh, use_zones: useZones };
+  const branchType = document.getElementById('bmType').value || 'minimart';
+  const payload = { code: code, name_th: nameTh, name_lo: nameLo || nameTh, use_zones: useZones, branch_type: branchType };
   if (id) {
     const { error } = await sb.from('branches').update(payload).eq('id', id);
     if (error) { showToast('Error: ' + error.message, 'error'); return; }
