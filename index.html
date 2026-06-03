@@ -9642,10 +9642,11 @@ async function startScan() {
     // Log config keys สำคัญ
     scanLog(`Cfg: fps=${cfg1.fps} flip=${cfg1.disableFlip} iOSmode=${cfg1.disableFlip}`);
     scanLog(`Formats: ${cfg1.formatsToSupport ? cfg1.formatsToSupport.length : 'undef'}`);
-    // ใช้ facingMode แทน device id
-    delete cfg1.videoConstraints;
+    // ใช้ facingMode แทน device id (ยกเว้น Lite mode — คง videoConstraints บังคับ 640x480)
+    const _liteOn = localStorage.getItem('fs_lite_scan') === '1';
+    if (!_liteOn) delete cfg1.videoConstraints;
     await html5QrCode.start(
-      { facingMode: "environment" },
+      _liteOn ? cfg1.videoConstraints : { facingMode: "environment" },
       cfg1,
       onScanSuccess,
       () => {}
@@ -9680,7 +9681,7 @@ async function startScan() {
       scanLog('Using camera: ' + (cam.label || cam.id.substring(0, 20)));
       
       const cfg2 = getScannerConfig();
-      delete cfg2.videoConstraints; // ใช้ device id ตรงๆ
+      if (localStorage.getItem('fs_lite_scan') !== '1') delete cfg2.videoConstraints; // ปกติใช้ device id, Lite คง 640x480
       await html5QrCode.start(
         cam.id,
         cfg2,
@@ -9708,9 +9709,10 @@ async function startScan() {
         await new Promise(r => setTimeout(r, 500));
         
         const cfg3 = getScannerConfig();
-        delete cfg3.videoConstraints;
+        const _lite3 = localStorage.getItem('fs_lite_scan') === '1';
+        if (!_lite3) delete cfg3.videoConstraints;
         await html5QrCode.start(
-          { facingMode: "environment" },
+          _lite3 ? cfg3.videoConstraints : { facingMode: "environment" },
           cfg3,
           onScanSuccess,
           () => {}
