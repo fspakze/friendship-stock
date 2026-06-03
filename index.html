@@ -4401,7 +4401,7 @@ const MENU_CONFIG = {
       { titleTh: '🕘 ประวัติ', titleLo: '🕘 ປະຫວັດ', items: ['history'] },
       { titleTh: 'วิเคราะห์', titleLo: 'ວິເຄາະ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['issuereport', 'invmovement'] },
-      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct', 'productstatus', 'settings', 'activitylog'] },
+      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'branchmanage', 'masterproduct', 'productstatus', 'settings', 'activitylog'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
@@ -4433,6 +4433,7 @@ const PAGE_META = {
   variance:   { iconSvg: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',                                                                                  labelTh: 'คลาดเคลื่อน',  labelLo: 'ຂາດເຄື່ອນ',    page: 'variance' },
   gapreport:  { iconSvg: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',                                                                                                                             labelTh: 'Gap Scan',     labelLo: 'Gap Scan',     page: 'gapreport',      badge: 'tabGapBadge' },
   users:      { iconSvg: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',                                                                                                        labelTh: 'พนักงาน',      labelLo: 'ພະນັກງານ',     page: 'users' },
+  branchmanage: { iconSvg: '<path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-3"/><path d="M9 9v0M9 12v0M9 15v0"/>', labelTh: 'จัดการสาขา', labelLo: 'ຈັດການສาขา', page: 'branchmanage' },
   settings:   { iconSvg: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>', labelTh: 'ตั้งค่า',      labelLo: 'ຕັ້ງຄ່າ',      page: 'settings' },
   stockcheck: { iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',                                       labelTh: 'เช็คสต๊อก',    labelLo: 'ກວດສະຕ໋ອກ',     page: 'stockcheck' },
   issuereport:{ iconSvg: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',                                                                                  labelTh: 'รายงานปัญหา',  labelLo: 'ລາຍງານປັນຫາ',   page: 'issuereport',    badge: 'tabIssueBadge' },
@@ -4745,6 +4746,9 @@ function goPage(page) {
   } else if (page === 'users') {
     c.innerHTML = renderUsersPage();
     loadUsers();
+  } else if (page === 'branchmanage') {
+    c.innerHTML = renderBranchManagePage();
+    setTimeout(() => loadBranchList(), 50);
   } else if (page === 'settings') {
     c.innerHTML = renderSettingsPage();
     loadSettingsStats();
@@ -16977,6 +16981,112 @@ function onHealthGondolaClick(gondolaCode) {
 // ==================== END GONDOLA HEALTH ====================
 
 // ==================== USERS ====================
+
+// ==================== จัดการสาขา (Admin) ====================
+let _bmBranches = [];
+function renderBranchManagePage() {
+  const isLao = lang === 'lo';
+  return `
+    <div style="padding:14px 13px 90px;max-width:640px;margin:0 auto;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;">
+        <h2 style="font-size:18px;font-weight:800;margin:0;">🏪 ${isLao ? 'ຈັດການສາขา' : 'จัดการสาขา'}</h2>
+        <button onclick="bmOpenAdd()" style="background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;border-radius:10px;padding:9px 15px;font-size:13px;font-weight:700;cursor:pointer;">+ ${isLao ? 'ເพิ่มสาขา' : 'เพิ่มสาขา'}</button>
+      </div>
+      <p style="font-size:12px;color:var(--slate-500);margin:0 0 14px;">${isLao ? 'ເພີ່ม/ແກ້ໄຂ ສาขาในระบบ' : 'เพิ่ม/แก้ไข สาขาในระบบ'}</p>
+      <div id="bmList"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
+    </div>`;
+}
+
+async function loadBranchList() {
+  try {
+    const { data, error } = await sb.from('branches').select('*').order('id', { ascending: true });
+    if (error) { showToast('Error: ' + error.message, 'error'); return; }
+    _bmBranches = data || [];
+  } catch (e) { _bmBranches = []; }
+  renderBmList();
+}
+
+function bmEsc(s) { return (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+function renderBmList() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('bmList'); if (!el) return;
+  if (!_bmBranches.length) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--slate-400);">' + (isLao ? 'ຍັງບໍ່ມีสาขา' : 'ยังไม่มีสาขา') + '</div>';
+    return;
+  }
+  el.innerHTML = _bmBranches.map(b => {
+    const zonesOn = b.use_zones !== false;
+    const isCur = branch && String(b.id) === String(branch.id);
+    return '<div style="background:white;border:1px solid ' + (isCur ? 'var(--teal-400)' : 'var(--slate-200)') + ';border-radius:12px;padding:13px;margin-bottom:9px;">'
+      + '<div style="display:flex;align-items:center;gap:9px;">'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-weight:800;font-size:14px;">' + bmEsc(isLao ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo)) + (isCur ? ' <span style="font-size:9px;color:var(--teal-600);background:var(--teal-50);border-radius:20px;padding:1px 8px;">' + (isLao ? 'ປັจจุบัน' : 'ปัจจุบัน') + '</span>' : '') + '</div>'
+      + '<div style="font-size:10px;color:var(--slate-500);font-family:monospace;margin-top:2px;">' + bmEsc(b.code || '') + ' · ID ' + b.id + '</div>'
+      + '</div>'
+      + '<span style="font-size:10px;font-weight:700;border-radius:20px;padding:3px 9px;color:' + (zonesOn ? 'var(--emerald-700)' : 'var(--slate-400)') + ';background:' + (zonesOn ? 'var(--emerald-50)' : 'var(--slate-100)') + ';">' + (isLao ? 'ໂซน' : 'โซน') + ': ' + (zonesOn ? (isLao ? 'ເປີດ' : 'เปิด') : (isLao ? 'ປິດ' : 'ปิด')) + '</span>'
+      + '<button onclick="bmOpenEdit(' + b.id + ')" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">✏️</button>'
+      + '</div></div>';
+  }).join('');
+}
+
+function bmForm(b) {
+  const isLao = lang === 'lo';
+  const v = b || {};
+  const zonesOn = v.use_zones !== false;
+  return '<div class="form-group"><label class="form-label">' + (isLao ? 'ລະຫัสสาขา (Code)' : 'รหัสสาขา (Code)') + ' *</label>'
+    + '<input class="form-input" id="bmCode" value="' + bmEsc(v.code || '') + '" placeholder="เช่น SALAKHAM, EXP-TRADING"></div>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ຊื่อสาขา (ไทย)' : 'ชื่อสาขา (ไทย)') + ' *</label>'
+    + '<input class="form-input" id="bmNameTh" value="' + bmEsc(v.name_th || '') + '"></div>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ຊื่อสาขา (ลาว)' : 'ชื่อสาขา (ลาว)') + '</label>'
+    + '<input class="form-input" id="bmNameLo" value="' + bmEsc(v.name_lo || '') + '"></div>'
+    + '<label style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--slate-50);border-radius:9px;cursor:pointer;margin-top:4px;">'
+    + '<input type="checkbox" id="bmZones"' + (zonesOn ? ' checked' : '') + ' style="width:18px;height:18px;accent-color:var(--teal-500);">'
+    + '<span style="font-size:12px;"><b>' + (isLao ? 'ໃຊ້ระบบโซน' : 'ใช้ระบบโซน') + '</b><br><span style="color:var(--slate-500);font-size:11px;">' + (isLao ? 'ປິดถ้าไม่ต้องการให้ counter เลือกโซนก่อนนับ' : 'ปิดถ้าไม่ต้องการให้ counter เลือกโซนก่อนนับ') + '</span></span></label>';
+}
+
+function bmOpenAdd() {
+  const isLao = lang === 'lo';
+  showModal('<h3 style="font-size:16px;margin:0 0 13px;">🏪 ' + (isLao ? 'ເພີ່ມສาขาใหม่' : 'เพิ่มสาขาใหม่') + '</h3>'
+    + bmForm(null)
+    + '<div class="action-row"><button class="btn btn-secondary" onclick="closeModal()">' + (isLao ? 'ຍกเลิก' : 'ยกเลิก') + '</button>'
+    + '<button class="btn btn-primary" onclick="bmSave(null)">' + (isLao ? 'ບันทึก' : 'บันทึก') + '</button></div>');
+}
+
+function bmOpenEdit(id) {
+  const isLao = lang === 'lo';
+  const b = _bmBranches.find(x => String(x.id) === String(id));
+  if (!b) return;
+  showModal('<h3 style="font-size:16px;margin:0 0 13px;">✏️ ' + (isLao ? 'ແກ້ໄຂສาขา' : 'แก้ไขสาขา') + '</h3>'
+    + bmForm(b)
+    + '<div class="action-row"><button class="btn btn-secondary" onclick="closeModal()">' + (isLao ? 'ຍกเลิก' : 'ยกเลิก') + '</button>'
+    + '<button class="btn btn-primary" onclick="bmSave(' + id + ')">' + (isLao ? 'ບันทึก' : 'บันทึก') + '</button></div>');
+}
+
+async function bmSave(id) {
+  const isLao = lang === 'lo';
+  if (!user || user.role !== 'admin') { showToast(isLao ? 'ສະเพาะ admin' : 'เฉพาะ admin', 'error'); return; }
+  const code = document.getElementById('bmCode').value.trim();
+  const nameTh = document.getElementById('bmNameTh').value.trim();
+  const nameLo = document.getElementById('bmNameLo').value.trim();
+  const useZones = document.getElementById('bmZones').checked;
+  if (!code || !nameTh) { showToast(isLao ? 'ໃສ່รหัส + ชื่อสาขา' : 'ใส่รหัส + ชื่อสาขา', 'error'); return; }
+  const payload = { code: code, name_th: nameTh, name_lo: nameLo || nameTh, use_zones: useZones };
+  if (id) {
+    const { error } = await sb.from('branches').update(payload).eq('id', id);
+    if (error) { showToast('Error: ' + error.message, 'error'); return; }
+    logActivity('branch_edit', code);
+    showToast(isLao ? 'ບันทึกแล้ว ✓' : 'บันทึกแล้ว ✓', 'success');
+  } else {
+    const { error } = await sb.from('branches').insert(payload).select().single();
+    if (error) { showToast('Error: ' + error.message, 'error'); return; }
+    logActivity('branch_create', code);
+    showToast(isLao ? 'ເพิ่มสาขาแล้ว ✓' : 'เพิ่มสาขาแล้ว ✓', 'success');
+  }
+  closeModal();
+  loadBranchList();
+}
+
 function renderUsersPage() {
   return `
     <button class="btn btn-violet" onclick="openUserModal()" style="margin-bottom:12px;">
@@ -25357,6 +25467,11 @@ window.startTiebreaker = startTiebreaker;
 window.openUserModal = openUserModal;
 window.editUser = editUser;
 window.saveUser = saveUser;
+window.renderBranchManagePage = renderBranchManagePage;
+window.loadBranchList = loadBranchList;
+window.bmOpenAdd = bmOpenAdd;
+window.bmOpenEdit = bmOpenEdit;
+window.bmSave = bmSave;
 window.closeModal = closeModal;
 window.openExpiryModal = openExpiryModal;
 window.saveExpiry = saveExpiry;
