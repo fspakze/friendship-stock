@@ -6086,18 +6086,23 @@ const PS_UPSERT_BATCH = 500;
 // map branch.code ในแอป → ชื่อสาขาในไฟล์ (column suffix)
 const PS_BRANCH_MAP = { 'FS-SUPERMART': 'Super' };
 // คืนชื่อสาขาในไฟล์ที่ match กับ branch ปัจจุบัน
+function psNormBranch(x) {
+  // normalize ชื่อสาขา: lower, express->exp, ตัดอักขระคั่น (เทียบข้ามการสะกด)
+  return String(x || '').toLowerCase().replace(/express/g, 'exp').replace(/[^a-z0-9\u0e00-\u0e7f]/g, '');
+}
 function psBranchKey(branchAvg) {
   if (!branch) return null;
-  if (PS_BRANCH_MAP[branch.code]) return PS_BRANCH_MAP[branch.code];
   const keys = branchAvg ? Object.keys(branchAvg) : [];
-  const cand = [branch.code, branch.name_th, branch.name_lo].filter(Boolean).map(x => String(x).toUpperCase());
-  // ตรงเป๊ะ
-  for (const k of keys) { if (cand.includes(String(k).toUpperCase())) return k; }
-  // มีคำว่า SUPER → Super
-  if (cand.some(c => c.includes('SUPER'))) { const sk = keys.find(k => String(k).toUpperCase().includes('SUPER')); if (sk) return sk; }
-  // substring match
-  for (const k of keys) { const ku = String(k).toUpperCase(); if (cand.some(c => c.includes(ku) || ku.includes(c))) return k; }
-  return branch.code || null;
+  // 1) explicit map ก่อน (ถ้ามี key อยู่จริงใน branchAvg)
+  if (PS_BRANCH_MAP[branch.code] && keys.includes(PS_BRANCH_MAP[branch.code])) return PS_BRANCH_MAP[branch.code];
+  const cand = [branch.code, branch.name_th, branch.name_lo].filter(Boolean).map(psNormBranch);
+  // 2) ตรงเป๊ะหลัง normalize (จับ EXP-TRADING <-> Express-TRADING, FS-SUPERMART <-> Super ฯลฯ)
+  for (const k of keys) { if (cand.includes(psNormBranch(k))) return k; }
+  // 3) SUPER fallback
+  if (cand.some(c => c.includes('super'))) { const sk = keys.find(k => psNormBranch(k).includes('super')); if (sk) return sk; }
+  // 4) substring match หลัง normalize
+  for (const k of keys) { const nk = psNormBranch(k); if (nk && cand.some(c => c.includes(nk) || nk.includes(c))) return k; }
+  return PS_BRANCH_MAP[branch.code] || branch.code || null;
 }
 
 let _psStats = null;
