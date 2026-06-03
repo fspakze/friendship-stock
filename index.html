@@ -17025,7 +17025,8 @@ function renderBmList() {
       + '<div style="font-size:10px;color:var(--slate-500);font-family:monospace;margin-top:2px;">' + bmEsc(b.code || '') + ' · ID ' + b.id + '</div>'
       + '</div>'
       + '<span style="font-size:10px;font-weight:700;border-radius:20px;padding:3px 9px;color:' + (zonesOn ? 'var(--emerald-700)' : 'var(--slate-400)') + ';background:' + (zonesOn ? 'var(--emerald-50)' : 'var(--slate-100)') + ';">' + (isLao ? 'ໂซน' : 'โซน') + ': ' + (zonesOn ? (isLao ? 'ເປີດ' : 'เปิด') : (isLao ? 'ປິດ' : 'ปิด')) + '</span>'
-      + '<button onclick="bmOpenEdit(' + b.id + ')" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">✏️</button>'
+      + '<button onclick="bmOpenEdit(' + b.id + ')" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer;">✏️</button>'
+      + (isCur ? '' : '<button onclick="bmDelete(' + b.id + ')" style="background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer;">🗑️</button>')
       + '</div></div>';
   }).join('');
 }
@@ -17090,6 +17091,40 @@ async function bmSave(id) {
     showToast(isLao ? 'ເพิ่มสาขาแล้ว ✓' : 'เพิ่มสาขาแล้ว ✓', 'success');
   }
   closeModal();
+  loadBranchList();
+}
+
+async function bmDelete(id) {
+  const isLao = lang === 'lo';
+  if (!user || user.role !== 'admin') { showToast(isLao ? 'ສະเพาะ admin' : 'เฉพาะ admin', 'error'); return; }
+  const b = _bmBranches.find(x => String(x.id) === String(id));
+  if (!b) return;
+  if (branch && String(b.id) === String(branch.id)) { showToast(isLao ? 'ລบสาขาที่ใช้งานอยู่ไม่ได้' : 'ลบสาขาที่กำลังใช้งานไม่ได้', 'error'); return; }
+  // เช็ค dependency: users + products ที่ผูกกับสาขา
+  showToast(isLao ? 'ກຳລັງກວดสอบข้อมูล...' : 'กำลังตรวจสอบข้อมูล...', 'info');
+  let uCount = 0, pCount = 0;
+  try {
+    const { count: uc } = await sb.from('users').select('id', { count: 'exact', head: true }).eq('branch_id', id);
+    uCount = uc || 0;
+    const { count: pc } = await sb.from('products').select('id', { count: 'exact', head: true }).eq('branch_id', id);
+    pCount = pc || 0;
+  } catch (e) {}
+  if (uCount > 0 || pCount > 0) {
+    showModal('<h3 style="font-size:16px;margin:0 0 11px;color:var(--rose-600);">⚠️ ' + (isLao ? 'ລบไม่ได้' : 'ลบไม่ได้') + '</h3>'
+      + '<div style="font-size:13px;color:var(--slate-700);line-height:1.7;">'
+      + (isLao ? 'ສาขา ' : 'สาขา ') + '<b>' + bmEsc(b.name_th || b.code) + '</b> ' + (isLao ? 'ຍังมีข้อมูลผูกอยู่:' : 'ยังมีข้อมูลผูกอยู่:') + '<br><br>'
+      + (uCount > 0 ? '• ' + (isLao ? 'ພนักงาน ' : 'พนักงาน ') + '<b>' + uCount + '</b> ' + (isLao ? 'ຄน' : 'คน') + '<br>' : '')
+      + (pCount > 0 ? '• ' + (isLao ? 'ສินค้า/สต๊อก ' : 'สินค้า/สต๊อก ') + '<b>' + pCount.toLocaleString() + '</b> ' + (isLao ? 'ລາຍการ' : 'รายการ') + '<br>' : '')
+      + '<br>' + (isLao ? 'ກะรุณาย้าย/ลบข้อมูลเหล่านี้ก่อน จึงจะลบสาขาได้' : 'กรุณาย้าย/ลบข้อมูลเหล่านี้ก่อน จึงจะลบสาขาได้') + '</div>'
+      + '<div class="action-row"><button class="btn btn-primary" onclick="closeModal()">' + (isLao ? 'ເข้าใจแล้ว' : 'เข้าใจแล้ว') + '</button></div>');
+    return;
+  }
+  // ไม่มี data → ลบได้ (confirm)
+  if (!confirm((isLao ? 'ລบสาขา ' : 'ลบสาขา ') + (b.name_th || b.code) + ' ?\n' + (isLao ? 'ລบแล้วกู้คืนไม่ได้' : 'ลบแล้วกู้คืนไม่ได้'))) return;
+  const { error } = await sb.from('branches').delete().eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  logActivity('branch_delete', b.code || id);
+  showToast(isLao ? 'ລบแล้ว ✓' : 'ลบแล้ว ✓', 'success');
   loadBranchList();
 }
 
@@ -25478,6 +25513,7 @@ window.loadBranchList = loadBranchList;
 window.bmOpenAdd = bmOpenAdd;
 window.bmOpenEdit = bmOpenEdit;
 window.bmSave = bmSave;
+window.bmDelete = bmDelete;
 window.closeModal = closeModal;
 window.openExpiryModal = openExpiryModal;
 window.saveExpiry = saveExpiry;
