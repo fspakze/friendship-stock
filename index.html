@@ -4388,7 +4388,7 @@ const MENU_CONFIG = {
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: '📝 ติดตามงาน SC', titleLo: '📝 ຕິດຕາມงาน SC', items: ['scdailylog'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
-      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct', 'productstatus'] },
+      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct', 'productstatus', 'purchasehistory'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
@@ -4402,7 +4402,7 @@ const MENU_CONFIG = {
       { titleTh: '🕘 ประวัติ', titleLo: '🕘 ປະຫວັດ', items: ['history'] },
       { titleTh: 'วิเคราะห์', titleLo: 'ວິເຄາະ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['issuereport', 'invmovement'] },
-      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'branchmanage', 'masterproduct', 'productstatus', 'settings', 'activitylog'] },
+      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'branchmanage', 'masterproduct', 'productstatus', 'purchasehistory', 'settings', 'activitylog'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
@@ -4413,7 +4413,7 @@ const MENU_CONFIG = {
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: '📝 ติดตามงาน SC', titleLo: '📝 ຕິດຕາມงาน SC', items: ['scdailylog'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
-      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct', 'productstatus', 'settings'] },
+      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct', 'productstatus', 'purchasehistory', 'settings'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   }
@@ -4448,7 +4448,8 @@ const PAGE_META = {
   scdaily:{ iconSvg: '<path d="M9 11l3 3 8-8M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0z"/>', labelTh: 'งานรายวัน SC', labelLo: 'งานรายวัน SC', page: 'scdaily' },
   scdailylog:{ iconSvg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', labelTh: 'ประวัติงาน SC', labelLo: 'ປະຫວັດงาน SC', page: 'scdailylog' },
   masterproduct: { iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/><path d="M7.5 4.5l9 5.2"/>', labelTh: 'Master Product', labelLo: 'Master Product', page: 'masterproduct' },
-  productstatus: { iconSvg: '<path d="M3 3v18h18"/><path d="M7 16l4-6 4 3 5-7"/>', labelTh: 'Status สินค้า', labelLo: 'Status สินค้า', page: 'productstatus' }
+  productstatus: { iconSvg: '<path d="M3 3v18h18"/><path d="M7 16l4-6 4 3 5-7"/>', labelTh: 'Status สินค้า', labelLo: 'Status สินค้า', page: 'productstatus' },
+  purchasehistory: { iconSvg: '<path d="M9 2v2M15 2v2M3 8h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>', labelTh: 'ข้อมูลการซื้อ', labelLo: 'ຂໍ້มูลการซื้อ', page: 'purchasehistory' }
 };
 
 /**
@@ -4745,6 +4746,9 @@ function goPage(page) {
   } else if (page === 'productstatus') {
     c.innerHTML = renderProductStatusPage();
     setTimeout(() => psLoadCount(), 30);
+  } else if (page === 'purchasehistory') {
+    c.innerHTML = renderPurchaseUploadPage();
+    setTimeout(() => phLoadCount(), 50);
   } else if (page === 'users') {
     c.innerHTML = renderUsersPage();
     loadUsers();
@@ -6043,6 +6047,172 @@ function psStatusBadge(st, sub) {
   return '<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:' + st.color + ';background:' + st.bg + ';border:1px solid ' + st.color + '40;border-radius:20px;padding:4px 12px;">'
     + '<span style="width:8px;height:8px;border-radius:50%;background:' + st.color + ';"></span>' + st.th
     + (sub ? '<span style="font-weight:500;color:var(--slate-400);font-size:10px;"> · ' + sub + '</span>' : '') + '</span>';
+}
+
+
+// ==================== ประวัติการซื้อสินค้า (Purchase History) ====================
+const PH_UPSERT_BATCH = 500;
+function phNorm(h) { return String(h || '').replace(/\s+/g, '').replace(/\n/g, ''); }
+function phCleanStr(v) { if (v == null) return null; const s = String(v).trim(); return (s === '' || s.toLowerCase() === 'nan') ? null : s; }
+function phCleanNum(v) { if (v == null) return null; const s = String(v).trim().replace(/,/g, ''); if (s === '' || s.toLowerCase() === 'nan') return null; const n = Number(s); return isFinite(n) ? n : null; }
+function phCleanDate(v) {
+  if (v == null || v === '') return null;
+  const s = String(v).trim(); if (s === '' || s.toLowerCase() === 'nan') return null;
+  const m1 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m1) return m1[3] + '-' + m1[2].padStart(2, '0') + '-' + m1[1].padStart(2, '0');
+  let d = null;
+  if (typeof v === 'number' && isFinite(v)) d = new Date(Math.round((v - 25569) * 86400 * 1000));
+  else { const t = Date.parse(s); if (!isNaN(t)) d = new Date(t); }
+  if (!d || isNaN(d.getTime())) return null;
+  return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+}
+
+function renderPurchaseUploadPage() {
+  if (!['admin', 'scc', 'bcs'].includes(user.role)) {
+    return `<div style="text-align:center;padding:40px;color:var(--rose-500);">${lang === 'lo' ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์เข้าถึง'}</div>`;
+  }
+  const isLao = lang === 'lo';
+  return `
+    <div style="padding:14px 13px 90px;max-width:640px;margin:0 auto;">
+      <h2 style="font-size:17px;margin:0 0 5px;">🧾 ${isLao ? 'ຂໍ້ມูลการซื้อสินค้า' : 'ข้อมูลการซื้อสินค้า'}</h2>
+      <p style="font-size:11px;color:var(--slate-500);margin:0 0 14px;">${isLao ? 'ອัปโหลดไฟล์ Buy (ปี 2019-2026)' : 'อัปโหลดไฟล์ Buy (ปี 2019-2026)'}</p>
+      <div id="phCount" style="font-size:12px;color:var(--slate-600);margin-bottom:12px;"></div>
+      <label style="display:block;background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border-radius:12px;padding:16px;text-align:center;font-weight:800;cursor:pointer;font-size:14px;">
+        📁 ${isLao ? 'ເລือกไฟล์ Buy (.xlsx)' : 'เลือกไฟล์ Buy (.xlsx)'}
+        <input type="file" accept=".xlsx,.xls" style="display:none;" onchange="phHandleFile(event)">
+      </label>
+      <div id="phResult" style="margin-top:14px;"></div>
+      <div style="margin-top:18px;font-size:11px;color:var(--slate-500);line-height:1.7;">
+        💡 ${isLao ? 'ປี 2019-2025: อัปโหลดครั้งเดียว · ปี 2026: อัปโหลดซ้ำได้ (กันซ้ำด้วย Buy ID)' : 'ปี 2019-2025: อัปโหลดครั้งเดียว · ปี 2026: อัปโหลดซ้ำได้ (กันซ้ำด้วย Buy ID)'}
+      </div>
+    </div>`;
+}
+
+async function phLoadCount() {
+  try {
+    const { count } = await sb.from('purchase_history').select('id', { count: 'exact', head: true });
+    const el = document.getElementById('phCount');
+    if (el) el.innerHTML = (lang === 'lo' ? 'ໃนระบบ: ' : 'ในระบบ: ') + '<b>' + (count || 0).toLocaleString() + '</b> ' + (lang === 'lo' ? 'ລາຍการ' : 'รายการ');
+  } catch (e) {}
+}
+
+async function phHandleFile(ev) {
+  const isLao = lang === 'lo';
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  const set = h => { const el = document.getElementById('phResult'); if (el) el.innerHTML = h; };
+  set('<div style="text-align:center;padding:14px;"><div class="loader" style="margin:0 auto;"></div>' + (isLao ? 'ກຳລັງอ่านไฟล์...' : 'กำลังอ่านไฟล์...') + '</div>');
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: null });
+    if (rows.length < 2) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ໄຟລ໌ว่าง' : 'ไฟล์ว่าง') + '</div>'); return; }
+    const header = rows[0].map(h => String(h || '').trim());
+    const findCol = (...names) => { const ns = names.map(phNorm); return header.findIndex(h => ns.includes(phNorm(h))); };
+    const COL = {
+      branch: findCol('Branch (สาขา)', 'Branch', 'สาขา'),
+      vendor: findCol('ชื่อผู้ขาย'),
+      buyId: findCol('Buy ID'),
+      docNo: findCol('Doc No.', 'Doc No'),
+      docDate: findCol('Doc Date'),
+      barcode: findCol('Barcode หลัก', 'Barcode'),
+      name: findCol('ชื่อสินค้า'),
+      qty: findCol('จำนวน'),
+      unitPrice: findCol('ซื้อต่อหน่วย รวมภาษีแล้ว'),
+      total: findCol('รวมซื้อ รวมภาษีแล้ว'),
+    };
+    if (COL.barcode < 0) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ພบคอลัมน์ Barcode' : 'ไม่พบคอลัมน์ Barcode') + '</div>'); return; }
+    const data = [];
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const barcode = phCleanStr(r[COL.barcode]);
+      if (!barcode) continue;
+      const bdate = COL.docDate >= 0 ? phCleanDate(r[COL.docDate]) : null;
+      data.push({
+        buy_id: COL.buyId >= 0 ? phCleanStr(r[COL.buyId]) : null,
+        barcode: barcode,
+        name: COL.name >= 0 ? phCleanStr(r[COL.name]) : null,
+        vendor: COL.vendor >= 0 ? phCleanStr(r[COL.vendor]) : null,
+        buy_date: bdate,
+        qty: COL.qty >= 0 ? phCleanNum(r[COL.qty]) : null,
+        unit_price: COL.unitPrice >= 0 ? phCleanNum(r[COL.unitPrice]) : null,
+        total_incl: COL.total >= 0 ? phCleanNum(r[COL.total]) : null,
+        branch: COL.branch >= 0 ? phCleanStr(r[COL.branch]) : null,
+        doc_no: COL.docNo >= 0 ? phCleanStr(r[COL.docNo]) : null,
+        buy_year: bdate ? Number(bdate.slice(0, 4)) : null,
+      });
+    }
+    if (!data.length) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ມีข้อมูล' : 'ไม่มีข้อมูล') + '</div>'); return; }
+    // upsert กันซ้ำด้วย (buy_id, barcode, doc_no)
+    let done = 0, failed = 0;
+    for (let i = 0; i < data.length; i += PH_UPSERT_BATCH) {
+      const chunk = data.slice(i, i + PH_UPSERT_BATCH);
+      const { error } = await sb.from('purchase_history').upsert(chunk, { onConflict: 'buy_id,barcode,doc_no', ignoreDuplicates: false });
+      if (error) { console.warn('[FS] ph upsert:', error.message); failed += chunk.length; }
+      else done += chunk.length;
+      set('<div style="text-align:center;"><div class="loader" style="margin:5px auto;"></div>' + (isLao ? 'ກຳລັງບันทึก...' : 'กำลังบันทึก...') + ' ' + done.toLocaleString() + '/' + data.length.toLocaleString() + '</div>');
+    }
+    const years = [...new Set(data.map(d => d.buy_year).filter(Boolean))].sort();
+    set('<div style="background:var(--emerald-50);border:1px solid var(--emerald-200);border-radius:10px;padding:12px;color:var(--emerald-700);font-size:12px;font-weight:700;text-align:center;">✓ '
+      + (isLao ? 'ສຳเร็จ' : 'สำเร็จ') + ' ' + done.toLocaleString() + ' ' + (isLao ? 'ລາຍการ' : 'รายการ')
+      + (failed ? ' · ' + (isLao ? 'ລົ້มเหลว' : 'ล้มเหลว') + ' ' + failed : '')
+      + '<br><span style="font-weight:400;color:var(--slate-500);">' + (isLao ? 'ປี' : 'ปี') + ': ' + years.join(', ') + '</span></div>');
+    ev.target.value = '';
+    phLoadCount();
+  } catch (e) {
+    set('<div style="color:var(--rose-500);">Error: ' + ((e && e.message) ? e.message : e) + '</div>');
+  }
+}
+
+// แสดงประวัติการซื้อ (เรียกจากปุ่มในเช็คสต๊อก)
+async function scShowPurchase(barcode, name) {
+  const isLao = lang === 'lo';
+  const bc = barcode || (window._scLastBarcode || '');
+  if (!bc) return;
+  showModal('<h3 style="font-size:15px;margin:0 0 4px;">🧾 ' + (isLao ? 'ຂໍ້ມูลการซื้อ' : 'ข้อมูลการซื้อ') + '</h3>'
+    + '<div style="font-size:11px;color:var(--slate-500);margin-bottom:10px;">' + (name || bc) + '</div>'
+    + '<div id="phModalBody" style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>');
+  try {
+    // สรุปทั้งหมด + 10 ครั้งล่าสุด
+    const { data, error } = await sb.from('purchase_history')
+      .select('buy_date, vendor, qty, unit_price, total_incl')
+      .eq('barcode', bc).order('buy_date', { ascending: false, nullsFirst: false }).limit(500);
+    if (error) throw error;
+    const rows = data || [];
+    const body = document.getElementById('phModalBody');
+    if (!body) return;
+    if (!rows.length) {
+      body.innerHTML = '<div style="color:var(--slate-400);padding:20px;">' + (isLao ? 'ບໍ່ມีข้อมูลการซื้อ' : 'ไม่มีข้อมูลการซื้อ') + '</div>';
+      return;
+    }
+    const totalQty = rows.reduce((s, r) => s + (Number(r.qty) || 0), 0);
+    const vendors = [...new Set(rows.map(r => r.vendor).filter(Boolean))];
+    const last10 = rows.slice(0, 10);
+    const fmtD = iso => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d.getTime()) ? '—' : String(d.getUTCDate()).padStart(2, '0') + '/' + String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + d.getUTCFullYear(); };
+    const num = v => v != null ? Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
+    let html = '<div style="display:flex;gap:8px;margin-bottom:12px;">'
+      + '<div style="flex:1;background:var(--sky-50);border-radius:9px;padding:9px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ຊื้อรวม' : 'ซื้อรวม') + '</div><div style="font-size:15px;font-weight:800;color:var(--sky-700);">' + num(totalQty) + '</div></div>'
+      + '<div style="flex:1;background:var(--violet-50);border-radius:9px;padding:9px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ຜู้ขาย' : 'ผู้ขาย') + '</div><div style="font-size:15px;font-weight:800;color:var(--violet-700);">' + vendors.length + '</div></div>'
+      + '<div style="flex:1;background:var(--teal-50);border-radius:9px;padding:9px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ຄรั้ง' : 'ครั้ง') + '</div><div style="font-size:15px;font-weight:800;color:var(--teal-700);">' + rows.length + '</div></div>'
+      + '</div>';
+    html += '<div style="font-size:11px;font-weight:700;color:var(--slate-600);margin-bottom:6px;">' + (isLao ? '10 ຄรั้งล่าสุด' : '10 ครั้งล่าสุด') + '</div>';
+    html += '<div style="max-height:46vh;overflow-y:auto;">';
+    last10.forEach(r => {
+      html += '<div style="border:1px solid var(--slate-200);border-radius:9px;padding:9px 11px;margin-bottom:7px;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
+        + '<span style="font-size:11px;font-weight:700;color:var(--slate-700);">📅 ' + fmtD(r.buy_date) + '</span>'
+        + '<span style="font-size:12px;font-weight:800;color:var(--teal-700);">' + num(r.qty) + ' × ' + num(r.unit_price) + ' ₭</span>'
+        + '</div>'
+        + '<div style="font-size:10px;color:var(--slate-500);margin-top:3px;">🏭 ' + (r.vendor || '—') + '</div>'
+        + '</div>';
+    });
+    html += '</div>';
+    body.innerHTML = html;
+  } catch (e) {
+    const body = document.getElementById('phModalBody');
+    if (body) body.innerHTML = '<div style="color:var(--rose-500);padding:14px;">Error: ' + ((e && e.message) || e) + '</div>';
+  }
 }
 
 // สร้างการ์ด Status สินค้า (ใช้ใน renderStockCheckResult)
@@ -8370,6 +8540,9 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
         </button>
         <button onclick="scOpenIssueModal()" style="background:linear-gradient(135deg,var(--rose-500),var(--amber-500));color:white;border:none;padding:12px 8px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;line-height:1.2;">
           <span style="font-size:19px;">🚨</span>${T('sc_report_issue')}
+        </button>
+        <button onclick="scShowPurchase('${prod.barcode}', ${JSON.stringify(name)})" style="background:linear-gradient(135deg,var(--slate-600),var(--slate-700));color:white;border:none;padding:12px 8px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;line-height:1.2;grid-column:span 2;">
+          <span style="font-size:19px;">🧾</span>${isLao ? 'ຂໍ້มูลการซื้อ' : 'ข้อมูลการซื้อ'}
         </button>
       </div>
     </div>
@@ -25635,6 +25808,10 @@ window.logActivity = logActivity;
 // Session 6: Master Product (Phase 3A)
 window.renderProductStatusPage = renderProductStatusPage;
 window.psHandleFile = psHandleFile;
+window.renderPurchaseUploadPage = renderPurchaseUploadPage;
+window.phHandleFile = phHandleFile;
+window.phLoadCount = phLoadCount;
+window.scShowPurchase = scShowPurchase;
 window.psLoadCount = psLoadCount;
 window.psCalcStatus = psCalcStatus;
 window.psBuildStatusCard = psBuildStatusCard;
