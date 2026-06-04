@@ -6168,6 +6168,7 @@ async function phHandleFile(ev) {
 // แสดงประวัติการซื้อ (เรียกจากปุ่มในเช็คสต๊อก)
 async function scShowPurchase(barcode, name) {
   const isLao = lang === 'lo';
+  if (!user || !['admin', 'bcs'].includes(user.role)) { showToast(isLao ? 'ສະเพาะ BCS/Admin' : 'เฉพาะ BCS/Admin', 'error'); return; }
   const bc = barcode || (window._scLastBarcode || '');
   name = name || window._scLastName || bc;
   if (!bc) return;
@@ -8543,9 +8544,9 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
         <button onclick="scOpenIssueModal()" style="background:linear-gradient(135deg,var(--rose-500),var(--amber-500));color:white;border:none;padding:12px 8px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;line-height:1.2;">
           <span style="font-size:19px;">🚨</span>${T('sc_report_issue')}
         </button>
-        <button onclick="scShowPurchase('${(prod.barcode||'').replace(/'/g,'')}')" style="background:linear-gradient(135deg,var(--slate-600),var(--slate-700));color:white;border:none;padding:12px 8px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;line-height:1.2;grid-column:span 2;">
+        ${['admin', 'bcs'].includes(user.role) ? `<button onclick="scShowPurchase('${(prod.barcode||'').replace(/'/g,'')}')" style="background:linear-gradient(135deg,var(--indigo-500,#6366f1),var(--violet-600,#7c3aed));color:white;border:none;padding:12px 8px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;line-height:1.2;grid-column:span 2;">
           <span style="font-size:19px;">🧾</span>${isLao ? 'ຂໍ້มูลการซื้อ' : 'ข้อมูลการซื้อ'}
-        </button>
+        </button>` : ''}
       </div>
     </div>
   `;
