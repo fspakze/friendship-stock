@@ -8171,7 +8171,7 @@ function renderStockCheckPage() {
         </button>
         <button class="btn btn-danger" id="stopScanBtn" onclick="stopScan()" style="flex:1;display:none;">${T('stop')}</button>
       </div>
-      <button id="liteScanBtn" onclick="toggleLiteScan()" style="width:100%;border:1px solid var(--slate-200);background:var(--slate-50);color:var(--slate-500);border-radius:9px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;margin-bottom:9px;">📱 โหมดเครื่องเก่า</button>
+      <div style="display:flex;gap:8px;margin-bottom:9px;"><button id="liteScanBtn" onclick="toggleLiteScan()" style="flex:1;border:1px solid var(--slate-200);background:var(--slate-50);color:var(--slate-500);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📱 โหมดเครื่องเก่า</button><button onclick="triggerPhotoScan('stockcheck')" style="flex:1;border:1px solid var(--violet-300);background:var(--violet-50);color:var(--violet-700);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📷 ถ่ายรูป</button></div>
       <div style="flex-direction:column;display:flex;gap:9px;">
         <input id="scBarcode" type="text" inputmode="numeric"
                onkeypress="if(event.key==='Enter')scLookup()"
@@ -8970,7 +8970,7 @@ function renderScanPage() {
         </button>
         <button class="btn btn-danger" id="stopScanBtn" onclick="stopScan()" style="flex:1;display:none;">${T('stop')}</button>
       </div>
-      <button id="liteScanBtn" onclick="toggleLiteScan()" style="width:100%;border:1px solid var(--slate-200);background:var(--slate-50);color:var(--slate-500);border-radius:9px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;margin-bottom:9px;">📱 โหมดเครื่องเก่า</button>
+      <div style="display:flex;gap:8px;margin-bottom:9px;"><button id="liteScanBtn" onclick="toggleLiteScan()" style="flex:1;border:1px solid var(--slate-200);background:var(--slate-50);color:var(--slate-500);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📱 โหมดเครื่องเก่า</button><button onclick="triggerPhotoScan('count')" style="flex:1;border:1px solid var(--violet-300);background:var(--violet-50);color:var(--violet-700);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📷 ถ่ายรูป</button></div>
       <div class="manual-search" style="flex-direction:column;gap:9px;">
         <input id="manualBarcode" type="text" inputmode="numeric" 
                onkeypress="if(event.key==='Enter')manualLookup()"
@@ -9304,6 +9304,67 @@ function getScannerConfig() {
   }
 
   return config;
+}
+
+
+// ==================== ถ่ายรูปบาร์โค้ด → decode จากรูป ====================
+// สำหรับ iPhone เก่าที่สแกนสดไม่ติด — ถ่ายรูปนิ่งๆ แล้วอ่าน แม่นกว่า
+// mode: 'stockcheck' → ป้อน scBarcode + scLookup | 'count' → onScanSuccess flow
+function triggerPhotoScan(mode) {
+  let inp = document.getElementById('photoScanInput');
+  if (!inp) {
+    inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'image/*';
+    inp.capture = 'environment';
+    inp.id = 'photoScanInput';
+    inp.style.display = 'none';
+    document.body.appendChild(inp);
+  }
+  inp.onchange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ''; // reset เผื่อถ่ายซ้ำ
+    if (file) decodeBarcodePhoto(file, mode);
+  };
+  inp.click();
+}
+
+async function decodeBarcodePhoto(file, mode) {
+  const isLao = lang === 'lo';
+  showToast(isLao ? 'ກຳລັງอ่านรูป...' : 'กำลังอ่านรูป...', 'info');
+  // ใช้ instance ชั่วคราวสำหรับ scanFile (ต้องมี element ว่าง)
+  let holder = document.getElementById('photoScanHolder');
+  if (!holder) {
+    holder = document.createElement('div');
+    holder.id = 'photoScanHolder';
+    holder.style.display = 'none';
+    document.body.appendChild(holder);
+  }
+  try {
+    const tmp = new Html5Qrcode('photoScanHolder', { verbose: false });
+    let decoded = null;
+    try {
+      decoded = await tmp.scanFile(file, false);
+    } finally {
+      try { await tmp.clear(); } catch (_) {}
+    }
+    if (!decoded) throw new Error('no result');
+    const code = String(decoded).trim();
+    if (typeof beep === 'function') beep();
+    showToast((isLao ? 'ອ່ານได้: ' : 'อ่านได้: ') + code, 'success');
+    // ป้อนผลเข้า flow เดิม
+    if (mode === 'stockcheck') {
+      const input = document.getElementById('scBarcode');
+      if (input) { input.value = code; scLookup(); }
+    } else {
+      if (typeof window._scanCallback === 'function') {
+        const cb = window._scanCallback; window._scanCallback = null; cb(code);
+      } else { lookupProduct(code); }
+    }
+  } catch (err) {
+    console.warn('[FS] photo decode:', err);
+    showToast(isLao ? '❌ อ่านบาร์โค้ดจากรูปไม่ได้ ลองถ่ายใหม่ให้ชัด/ตรง' : '❌ อ่านบาร์โค้ดจากรูปไม่ได้ · ลองถ่ายใหม่ให้ชัดและตรง', 'error');
+  }
 }
 
 function toggleLiteScan() {
@@ -23555,6 +23616,7 @@ window.goPage = goPage;
 window.startScan = startScan;
 window.stopScan = stopScan;
 window.toggleLiteScan = toggleLiteScan;
+window.triggerPhotoScan = triggerPhotoScan;
 window.updateLiteBtn = updateLiteBtn;
 window.manualLookup = manualLookup;
 window.openBranchSwitcher = openBranchSwitcher;
