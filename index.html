@@ -6174,7 +6174,8 @@ async function scShowPurchase(barcode, name) {
   if (!bc) return;
   showModal('<h3 style="font-size:15px;margin:0 0 4px;">🧾 ' + (isLao ? 'ຂໍ້ມูลการซื้อ' : 'ข้อมูลการซื้อ') + '</h3>'
     + '<div style="font-size:11px;color:var(--slate-500);margin-bottom:10px;">' + (name || bc) + '</div>'
-    + '<div id="phModalBody" style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>');
+    + '<div id="phModalBody" style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>'
+    + '<button onclick="closeModal()" style="width:100%;margin-top:12px;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? '✕ ປິด' : '✕ ปิด') + '</button>');
   try {
     // สรุปทั้งหมด + 10 ครั้งล่าสุด
     const { data, error } = await sb.from('purchase_history')
