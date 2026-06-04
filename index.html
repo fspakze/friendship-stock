@@ -17186,13 +17186,14 @@ async function bmDelete(id) {
     'stock_counts', 'stock_sessions', 'gap_scans', 'gondola_status',
     'pan_o_grams', 'location_master', 'zones', 'expiry_batches',
     'expiry_damage_log', 'inventory_movements', 'product_issues',
-    'new_sku_log', 'daily_briefs', 'sc_daily_logs', 'work_tickets'
+    'new_sku_log', 'daily_briefs', 'sc_daily_logs', 'work_tickets',
+    'activity_logs', 'categories', 'variance_settings'
   ];
   for (const t of childTables) {
     try { await sb.from(t).delete().eq('branch_id', id); } catch (e) { console.warn('[FS] del ' + t + ':', (e && e.message) || e); }
   }
   const { error } = await sb.from('branches').delete().eq('id', id);
-  if (error) { showToast(isLao ? 'ລบไม่สำเร็จ: ' : 'ลบไม่สำเร็จ: ' + error.message + ' (ยังมีข้อมูลผูกอยู่)', 'error'); return; }
+  if (error) { showToast((isLao ? 'ລบไม่สำเร็จ: ' : 'ลบไม่สำเร็จ: ') + error.message, 'error'); console.warn('[FS] branch delete:', error.message); return; }
   logActivity('branch_delete', b.code || id);
   showToast(isLao ? 'ລບแล้ว ✓' : 'ลบแล้ว ✓', 'success');
   loadBranchList();
