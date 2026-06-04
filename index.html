@@ -9000,10 +9000,16 @@ async function loadIssueReports() {
 
   // ดึงชื่อผู้แจ้ง/ผู้แก้ แยก (กัน FK join ค้าง)
   const rows = data || [];
+  _irData = rows;
+  renderIssueReportList();           // ⭐ แสดงรายการทันที (ไม่รอ query เสริม → loader ไม่ค้าง)
+  if (!rows.length) return;
+  // เติมชื่อ (สินค้า/สาขา/ผู้แจ้ง) แบบ background — เสร็จแล้วค่อย re-render
+  // ใส่ timeout 6 วิ กัน query เสริมค้าง
+  const withTimeout = (p) => Promise.race([p, new Promise(res => setTimeout(() => res({ data: null }), 6000))]);
   try {
     const ids = [...new Set(rows.flatMap(r => [r.reported_by, r.resolved_by]).filter(Boolean))];
     if (ids.length) {
-      const { data: us } = await sb.from('users').select('id, full_name').in('id', ids);
+      const { data: us } = await withTimeout(sb.from('users').select('id, full_name').in('id', ids));
       const uMap = {};
       (us || []).forEach(u => { uMap[u.id] = u.full_name; });
       rows.forEach(r => {
@@ -9016,7 +9022,7 @@ async function loadIssueReports() {
   try {
     const pids = [...new Set(rows.map(r => r.product_id).filter(Boolean))];
     if (pids.length) {
-      const { data: ps } = await sb.from('products').select('id, name_th, name_lo, unit_th, unit_lo').in('id', pids);
+      const { data: ps } = await withTimeout(sb.from('products').select('id, name_th, name_lo, unit_th, unit_lo').in('id', pids));
       const pMap = {};
       (ps || []).forEach(p => { pMap[p.id] = p; });
       rows.forEach(r => { if (r.product_id && pMap[r.product_id]) r.products = pMap[r.product_id]; });
@@ -9026,7 +9032,7 @@ async function loadIssueReports() {
   try {
     const bids = [...new Set(rows.map(r => r.branch_id).filter(Boolean))];
     if (bids.length) {
-      const { data: bs } = await sb.from('branches').select('id, code, name_th, name_lo').in('id', bids);
+      const { data: bs } = await withTimeout(sb.from('branches').select('id, code, name_th, name_lo').in('id', bids));
       const bMap = {};
       (bs || []).forEach(b => { bMap[b.id] = b; });
       rows.forEach(r => { if (r.branch_id && bMap[r.branch_id]) r.branches = bMap[r.branch_id]; });
@@ -9034,7 +9040,7 @@ async function loadIssueReports() {
   } catch (e) { console.warn('[FS] ir branches:', (e && e.message) || e); }
   
   _irData = rows;
-  renderIssueReportList();
+  renderIssueReportList();           // re-render พร้อมชื่อ
 }
 
 function renderIssueReportList() {
