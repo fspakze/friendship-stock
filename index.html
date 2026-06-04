@@ -8981,7 +8981,7 @@ async function loadIssueReports() {
   list.innerHTML = `<div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>`;
   
   let q = sb.from('product_issues')
-    .select('*, products(name_th, name_lo, unit_th, unit_lo), branches(code, name_th, name_lo)')
+    .select('*')
     .order('created_at', { ascending: false })
     .limit(100);
   
@@ -8992,6 +8992,7 @@ async function loadIssueReports() {
   if (_irFilter !== 'all') q = q.eq('status', _irFilter);
   
   const { data, error } = await q;
+  console.log('[FS] issue reports: rows=' + (data ? data.length : 0) + ' filter=' + _irFilter + (error ? ' ERROR=' + error.message : ''));
   if (error) {
     list.innerHTML = `<div style="color:var(--rose-600);padding:15px;text-align:center;font-size:12px;">Error: ${error.message}</div>`;
     return;
@@ -9011,6 +9012,26 @@ async function loadIssueReports() {
       });
     }
   } catch (e) { console.warn('[FS] ir users:', (e && e.message) || e); }
+  // ดึงชื่อสินค้า แยก (ตาม product_id)
+  try {
+    const pids = [...new Set(rows.map(r => r.product_id).filter(Boolean))];
+    if (pids.length) {
+      const { data: ps } = await sb.from('products').select('id, name_th, name_lo, unit_th, unit_lo').in('id', pids);
+      const pMap = {};
+      (ps || []).forEach(p => { pMap[p.id] = p; });
+      rows.forEach(r => { if (r.product_id && pMap[r.product_id]) r.products = pMap[r.product_id]; });
+    }
+  } catch (e) { console.warn('[FS] ir products:', (e && e.message) || e); }
+  // ดึงชื่อสาขา แยก (ตาม branch_id)
+  try {
+    const bids = [...new Set(rows.map(r => r.branch_id).filter(Boolean))];
+    if (bids.length) {
+      const { data: bs } = await sb.from('branches').select('id, code, name_th, name_lo').in('id', bids);
+      const bMap = {};
+      (bs || []).forEach(b => { bMap[b.id] = b; });
+      rows.forEach(r => { if (r.branch_id && bMap[r.branch_id]) r.branches = bMap[r.branch_id]; });
+    }
+  } catch (e) { console.warn('[FS] ir branches:', (e && e.message) || e); }
   
   _irData = rows;
   renderIssueReportList();
