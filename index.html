@@ -5375,6 +5375,8 @@ function getTimeAgo(timestamp, isLao) {
   const days = Math.floor(hours / 24);
   return isLao ? `${days} ມື້` : `${days} วัน`;
 }
+// alias — โค้ดบางจุดเรียก timeAgo (กัน ReferenceError)
+function timeAgo(timestamp, isLao) { return getTimeAgo(timestamp, isLao); }
 
 // ==================== ON-SHELF QTY ADJUSTMENT ====================
 function adjustOnShelf(delta) {
@@ -8995,7 +8997,6 @@ async function loadIssueReports() {
   const _race = (p) => Promise.race([p, new Promise(res => setTimeout(() => res({ data: null, error: { message: 'timeout', _timeout: true } }), 8000))]);
   const { data, error } = await _race(q);
   console.log('[FS] issue reports: rows=' + (data ? data.length : 0) + ' filter=' + _irFilter + (error ? ' ERROR=' + error.message : ''));
-  showToast('🔍 ได้ ' + (data ? data.length : 0) + ' รายการ (filter: ' + _irFilter + ')' + (error ? ' · ' + error.message : ''), error ? 'error' : 'info');
   if (error) {
     if (error._timeout) {
       list.innerHTML = `<div style="text-align:center;padding:18px;"><div style="color:var(--amber-600);font-size:12px;margin-bottom:10px;">${lang === 'lo' ? 'ໂหลดนานเกินไป' : 'โหลดนานเกินไป'}</div><button onclick="loadIssueReports()" style="background:var(--violet-500);color:white;border:none;border-radius:9px;padding:9px 18px;font-size:12px;font-weight:700;cursor:pointer;">${lang === 'lo' ? 'ລอງใหม่' : 'ลองใหม่'}</button></div>`;
