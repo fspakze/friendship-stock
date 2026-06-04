@@ -6169,6 +6169,7 @@ async function phHandleFile(ev) {
 async function scShowPurchase(barcode, name) {
   const isLao = lang === 'lo';
   const bc = barcode || (window._scLastBarcode || '');
+  name = name || window._scLastName || bc;
   if (!bc) return;
   showModal('<h3 style="font-size:15px;margin:0 0 4px;">🧾 ' + (isLao ? 'ຂໍ້ມูลการซื้อ' : 'ข้อมูลการซื้อ') + '</h3>'
     + '<div style="font-size:11px;color:var(--slate-500);margin-bottom:10px;">' + (name || bc) + '</div>'
@@ -8477,6 +8478,7 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
   if (!card) return;
   
   const name = isLao ? (prod.name_lo || prod.name_th || '?') : (prod.name_th || prod.name_lo || '?');
+  window._scLastBarcode = prod.barcode || ''; window._scLastName = name;
   const unit = isLao ? (prod.unit_lo || 'pcs') : (prod.unit_th || 'ชิ้น');
   const posQty = prod.pos_qty || 0;
   const sellPrice = prod.sell_price || 0;
@@ -8541,7 +8543,7 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
         <button onclick="scOpenIssueModal()" style="background:linear-gradient(135deg,var(--rose-500),var(--amber-500));color:white;border:none;padding:12px 8px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;line-height:1.2;">
           <span style="font-size:19px;">🚨</span>${T('sc_report_issue')}
         </button>
-        <button onclick="scShowPurchase('${prod.barcode}', ${JSON.stringify(name)})" style="background:linear-gradient(135deg,var(--slate-600),var(--slate-700));color:white;border:none;padding:12px 8px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;line-height:1.2;grid-column:span 2;">
+        <button onclick="scShowPurchase('${(prod.barcode||'').replace(/'/g,'')}')" style="background:linear-gradient(135deg,var(--slate-600),var(--slate-700));color:white;border:none;padding:12px 8px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;line-height:1.2;grid-column:span 2;">
           <span style="font-size:19px;">🧾</span>${isLao ? 'ຂໍ້มูลการซื้อ' : 'ข้อมูลการซื้อ'}
         </button>
       </div>
