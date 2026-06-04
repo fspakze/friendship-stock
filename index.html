@@ -8981,7 +8981,7 @@ async function loadIssueReports() {
   list.innerHTML = `<div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>`;
   
   let q = sb.from('product_issues')
-    .select('*, products(name_th, name_lo, unit_th, unit_lo), branches(code, name_th, name_lo), reporter:users!reported_by(full_name), resolver:users!resolved_by(full_name)')
+    .select('*, products(name_th, name_lo, unit_th, unit_lo), branches(code, name_th, name_lo)')
     .order('created_at', { ascending: false })
     .limit(100);
   
@@ -8996,8 +8996,23 @@ async function loadIssueReports() {
     list.innerHTML = `<div style="color:var(--rose-600);padding:15px;text-align:center;font-size:12px;">Error: ${error.message}</div>`;
     return;
   }
+
+  // ดึงชื่อผู้แจ้ง/ผู้แก้ แยก (กัน FK join ค้าง)
+  const rows = data || [];
+  try {
+    const ids = [...new Set(rows.flatMap(r => [r.reported_by, r.resolved_by]).filter(Boolean))];
+    if (ids.length) {
+      const { data: us } = await sb.from('users').select('id, full_name').in('id', ids);
+      const uMap = {};
+      (us || []).forEach(u => { uMap[u.id] = u.full_name; });
+      rows.forEach(r => {
+        if (r.reported_by && uMap[r.reported_by]) r.reporter = { full_name: uMap[r.reported_by] };
+        if (r.resolved_by && uMap[r.resolved_by]) r.resolver = { full_name: uMap[r.resolved_by] };
+      });
+    }
+  } catch (e) { console.warn('[FS] ir users:', (e && e.message) || e); }
   
-  _irData = data || [];
+  _irData = rows;
   renderIssueReportList();
 }
 
