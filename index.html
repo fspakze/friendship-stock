@@ -6246,6 +6246,14 @@ async function psHandleFile(ev) {
     const data = Object.values(seen);
     if (!data.length) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ມีข้อมูล' : 'ไม่มีข้อมูล') + '</div>'); return; }
 
+    // debug: นับว่า parse วันที่ได้กี่รายการ + เจอ column ไหม
+    const nBuy = data.filter(x => x.last_buy).length;
+    const nSale = data.filter(x => x.last_sale).length;
+    const dateInfo = (isLao ? 'ຄอลัมน์วันที่: ' : 'คอลัมน์วันที่: ')
+      + (COL.lastBuy >= 0 ? '✓ ' + (isLao ? 'ຊื้อ' : 'ซื้อ') : '✗ ' + (isLao ? 'ບໍ່ພบ ซื้อล่าสุด' : 'ไม่พบ ซื้อล่าสุด'))
+      + ' · ' + (COL.lastSale >= 0 ? '✓ ' + (isLao ? 'ຂาย' : 'ขาย') : '✗ ' + (isLao ? 'ບໍ່ພบ ขายล่าสุด' : 'ไม่พบ ขายล่าสุด'))
+      + ' · ' + (isLao ? 'ມีค่า ' : 'มีค่า ') + nBuy + '/' + nSale;
+
     // batch upsert
     let done = 0, failed = 0;
     for (let i = 0; i < data.length; i += PS_UPSERT_BATCH) {
@@ -6260,7 +6268,8 @@ async function psHandleFile(ev) {
     set('<div style="background:var(--emerald-50);border:1px solid var(--emerald-200);border-radius:10px;padding:12px;color:var(--emerald-700);font-size:12px;font-weight:700;text-align:center;">✓ '
       + (isLao ? 'ສຳเร็จ' : 'สำเร็จ') + ' ' + done.toLocaleString() + ' ' + (isLao ? 'ລາຍการ' : 'รายการ')
       + (failed ? ' · ' + (isLao ? 'ລົ້มเหลว' : 'ล้มเหลว') + ' ' + failed : '')
-      + '<br><span style="font-weight:400;color:var(--slate-500);">' + (isLao ? 'ສาขาที่พบ' : 'สาขาที่พบ') + ': ' + branchCols.map(b => b.name).join(', ') + '</span></div>');
+      + '<br><span style="font-weight:400;color:var(--slate-500);">' + (isLao ? 'ສาขาที่พบ' : 'สาขาที่พบ') + ': ' + branchCols.map(b => b.name).join(', ') + '</span>'
+      + '<br><span style="font-weight:400;color:var(--slate-500);">' + dateInfo + '</span></div>');
     ev.target.value = '';
     psLoadCount();
   } catch (e) {
