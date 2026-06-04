@@ -6072,9 +6072,20 @@ function psBuildStatusCard(ps, posQty) {
   }
 
   const fmtAvg = v => v != null ? Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—';
+  // วันที่ซื้อ/ขายล่าสุด (แสดง dd/mm/yyyy)
+  const fmtDate = iso => { if (!iso) return null; const d = new Date(iso); if (isNaN(d.getTime())) return null; return String(d.getUTCDate()).padStart(2,'0') + '/' + String(d.getUTCMonth()+1).padStart(2,'0') + '/' + d.getUTCFullYear(); };
+  const lastBuyStr = fmtDate(ps.last_buy), lastSaleStr = fmtDate(ps.last_sale);
+  let dateRow = '';
+  if (lastBuyStr || lastSaleStr) {
+    dateRow = '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:11px;font-size:11px;color:var(--slate-600);">'
+      + (lastBuyStr ? '<span>📥 ' + (isLao ? 'ຊื้อล่าสุด' : 'ซื้อล่าสุด') + ': <b>' + lastBuyStr + '</b></span>' : '')
+      + (lastSaleStr ? '<span>📤 ' + (isLao ? 'ຂายล่าสุด' : 'ขายล่าสุด') + ': <b>' + lastSaleStr + '</b></span>' : '')
+      + '</div>';
+  }
 
   return '<div style="background:linear-gradient(135deg,#f8fafc,#f1f5f9);border:1px solid var(--slate-200);border-radius:11px;padding:13px;margin-bottom:11px;">'
     + (chips ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px;">' + chips + '</div>' : '')
+    + dateRow
     // สาขานี้
     + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;flex-wrap:wrap;">'
     + '<div><div style="font-size:9px;color:var(--slate-400);">' + (isLao ? 'ສาขานี้' : 'สาขานี้') + ' (' + (bkey || '?') + ')</div>'
@@ -6145,6 +6156,28 @@ async function psLoadCount() {
 }
 
 function psCleanStr(v) { if (v == null) return null; const s = String(v).trim(); return (s === '' || s.toLowerCase() === 'nan') ? null : s; }
+// แปลงวันที่จากไฟล์ (Excel serial / "dd/mm/yyyy" / string / Date) → ISO 'YYYY-MM-DD'
+function psCleanDate(v) {
+  if (v == null || v === '') return null;
+  const s = String(v).trim();
+  if (s === '' || s.toLowerCase() === 'nan') return null;
+  // รูปแบบ dd/mm/yyyy หรือ dd-mm-yyyy (ไฟล์ใช้แบบนี้)
+  const m1 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m1) {
+    const day = m1[1].padStart(2, '0'), mo = m1[2].padStart(2, '0'), y = m1[3];
+    return y + '-' + mo + '-' + day;
+  }
+  let d = null;
+  if (typeof v === 'number' && isFinite(v)) {
+    d = new Date(Math.round((v - 25569) * 86400 * 1000));
+  } else {
+    const t = Date.parse(s);
+    if (!isNaN(t)) d = new Date(t);
+  }
+  if (!d || isNaN(d.getTime())) return null;
+  const y = d.getUTCFullYear(), m = String(d.getUTCMonth() + 1).padStart(2, '0'), day = String(d.getUTCDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
 function psCleanNum(v) { if (v == null) return null; const s = String(v).trim().replace(/,/g, ''); if (s === '' || s.toLowerCase() === 'nan') return null; const n = Number(s); return isFinite(n) ? n : null; }
 
 async function psHandleFile(ev) {
@@ -6173,6 +6206,8 @@ async function psHandleFile(ev) {
       top2026: findCol('TOP\n2026', 'TOP2026'),
       avgAll: findCol('AVG\nSale_ALLStore', 'AVGSale_ALLStore'),
       stockAll: findCol('Stock_ALL'),
+      lastBuy: findCol('ซื้อล่าสุด'),
+      lastSale: findCol('ขายล่าสุด'),
     };
     if (COL.barcode < 0) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ພบคอลัมน์ Barcode' : 'ไม่พบคอลัมน์ Barcode') + '</div>'); return; }
 
@@ -6203,6 +6238,8 @@ async function psHandleFile(ev) {
         top_2026: COL.top2026 >= 0 ? psCleanStr(r[COL.top2026]) : null,
         avg_allstore: COL.avgAll >= 0 ? psCleanNum(r[COL.avgAll]) : null,
         stock_allstore: COL.stockAll >= 0 ? psCleanNum(r[COL.stockAll]) : null,
+        last_buy: COL.lastBuy >= 0 ? psCleanDate(r[COL.lastBuy]) : null,
+        last_sale: COL.lastSale >= 0 ? psCleanDate(r[COL.lastSale]) : null,
         branch_avg: bAvg,
       };
     }
