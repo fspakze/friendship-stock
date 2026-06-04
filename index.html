@@ -8991,10 +8991,16 @@ async function loadIssueReports() {
   }
   if (_irFilter !== 'all') q = q.eq('status', _irFilter);
   
-  const { data, error } = await q;
+  // ครอบ timeout 8 วิ กัน query ค้างตลอดไป
+  const _race = (p) => Promise.race([p, new Promise(res => setTimeout(() => res({ data: null, error: { message: 'timeout', _timeout: true } }), 8000))]);
+  const { data, error } = await _race(q);
   console.log('[FS] issue reports: rows=' + (data ? data.length : 0) + ' filter=' + _irFilter + (error ? ' ERROR=' + error.message : ''));
   if (error) {
-    list.innerHTML = `<div style="color:var(--rose-600);padding:15px;text-align:center;font-size:12px;">Error: ${error.message}</div>`;
+    if (error._timeout) {
+      list.innerHTML = `<div style="text-align:center;padding:18px;"><div style="color:var(--amber-600);font-size:12px;margin-bottom:10px;">${lang === 'lo' ? 'ໂหลดนานเกินไป' : 'โหลดนานเกินไป'}</div><button onclick="loadIssueReports()" style="background:var(--violet-500);color:white;border:none;border-radius:9px;padding:9px 18px;font-size:12px;font-weight:700;cursor:pointer;">${lang === 'lo' ? 'ລอງใหม่' : 'ลองใหม่'}</button></div>`;
+    } else {
+      list.innerHTML = `<div style="color:var(--rose-600);padding:15px;text-align:center;font-size:12px;">Error: ${error.message}</div>`;
+    }
     return;
   }
 
