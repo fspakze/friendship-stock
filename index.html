@@ -4304,6 +4304,7 @@ async function ensureSession() {
 async function enterApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').classList.add('active');
+  try { if (window.FSDebug) FSDebug.ensureButton(); } catch (e) {}
   
   await ensureSession();
   renderApp();
@@ -4703,6 +4704,7 @@ function goPage(page) {
   if (page === 'scan') {
     c.innerHTML = renderScanPage();
     loadSessionStats();
+    setTimeout(() => { if (typeof updateLiteBtn === 'function') updateLiteBtn(); }, 30);
   } else if (page === 'history') {
     c.innerHTML = renderHistoryPage();
     loadHistory();
@@ -4760,6 +4762,7 @@ function goPage(page) {
     loadFloorMap();
   } else if (page === 'stockcheck') {
     c.innerHTML = renderStockCheckPage();
+    setTimeout(() => { if (typeof updateLiteBtn === 'function') updateLiteBtn(); }, 30);
   } else if (page === 'issuereport') {
     c.innerHTML = renderIssueReportPage();
     loadIssueReports();
@@ -8168,6 +8171,7 @@ function renderStockCheckPage() {
         </button>
         <button class="btn btn-danger" id="stopScanBtn" onclick="stopScan()" style="flex:1;display:none;">${T('stop')}</button>
       </div>
+      <button id="liteScanBtn" onclick="toggleLiteScan()" style="width:100%;border:1px solid var(--slate-200);background:var(--slate-50);color:var(--slate-500);border-radius:9px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;margin-bottom:9px;">📱 โหมดเครื่องเก่า</button>
       <div style="flex-direction:column;display:flex;gap:9px;">
         <input id="scBarcode" type="text" inputmode="numeric"
                onkeypress="if(event.key==='Enter')scLookup()"
@@ -8966,6 +8970,7 @@ function renderScanPage() {
         </button>
         <button class="btn btn-danger" id="stopScanBtn" onclick="stopScan()" style="flex:1;display:none;">${T('stop')}</button>
       </div>
+      <button id="liteScanBtn" onclick="toggleLiteScan()" style="width:100%;border:1px solid var(--slate-200);background:var(--slate-50);color:var(--slate-500);border-radius:9px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;margin-bottom:9px;">📱 โหมดเครื่องเก่า</button>
       <div class="manual-search" style="flex-direction:column;gap:9px;">
         <input id="manualBarcode" type="text" inputmode="numeric" 
                onkeypress="if(event.key==='Enter')manualLookup()"
@@ -9018,6 +9023,7 @@ const FSDebug = {
       if (urlDebug) {
         this.allowed = true;
         localStorage.setItem('fs_debug_allowed', '1');
+        localStorage.setItem('fs_debug', '1');  // เปิด overlay เองทันทีเมื่อมี ?debug=1
       } else if (lsAllowed) {
         this.allowed = true;
       }
@@ -9030,7 +9036,16 @@ const FSDebug = {
       // อ่านสถานะ overlay (เปิด/ปิด overlay) — เฉพาะเมื่อ allowed
       if (this.allowed) {
         this.enabled = localStorage.getItem('fs_debug') === '1';
-        if (this.enabled) this.show();
+        const self = this;
+        const tryShow = function () {
+          if (!document.body) { setTimeout(tryShow, 200); return; }
+          self.ensureButton && self.ensureButton();
+          if (self.enabled) self.show();
+        };
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tryShow);
+        else tryShow();
+        // retry อีกครั้งหลังแอปโหลด (กัน render ทับ)
+        setTimeout(tryShow, 1500);
       }
     } catch (e) {}
   },
@@ -9094,8 +9109,21 @@ const FSDebug = {
   }
 };
 
+// สร้างปุ่ม 🐛 แบบ global (ทุกหน้า ทุก role) เมื่อ allowed
+FSDebug.ensureButton = function () {
+  if (!this.allowed) return;
+  if (document.getElementById('fsDebugFab')) return;
+  const b = document.createElement('button');
+  b.id = 'fsDebugFab';
+  b.textContent = '🐛';
+  b.title = 'Toggle Debug Overlay';
+  b.onclick = function () { FSDebug.toggle(); };
+  b.style.cssText = 'position:fixed;bottom:90px;right:10px;width:42px;height:42px;border-radius:50%;background:rgba(15,23,42,0.85);color:#0ff;border:1px solid #0ff;font-size:19px;cursor:pointer;z-index:99999;display:flex;align-items:center;justify-content:center;';
+  document.body.appendChild(b);
+};
+
 // Init on script load
-try { FSDebug.init(); } catch (e) {}
+try { FSDebug.init(); FSDebug.ensureButton(); } catch (e) {}
 window.FSDebug = FSDebug;
 
 // Detect ว่ารันใน PWA mode (Add to Home Screen / Installed) หรือเปล่า
@@ -9265,8 +9293,37 @@ function getScannerConfig() {
   if (!isIOS) {
     config.aspectRatio = 1.333;
   }
-  
+
+  // 📱 โหมดเครื่องเก่า (Lite) — iPhone X/11 หรือเครื่องสเปคต่ำ
+  if (localStorage.getItem('fs_lite_scan') === '1') {
+    config.fps = 8;
+    config.videoConstraints = { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } };
+    config.experimentalFeatures = { useBarCodeDetectorIfSupported: false };
+    config.qrbox = (vw, vh) => { const m = Math.min(vw, vh); const w = Math.floor(m * 0.95); return { width: w, height: Math.floor(w * 0.7) }; };
+    delete config.aspectRatio;
+  }
+
   return config;
+}
+
+function toggleLiteScan() {
+  const on = localStorage.getItem('fs_lite_scan') === '1';
+  if (on) localStorage.removeItem('fs_lite_scan');
+  else localStorage.setItem('fs_lite_scan', '1');
+  const isLao = lang === 'lo';
+  showToast(!on ? (isLao ? 'ເປີດโหมดเครื่องเก่า ✓' : 'เปิดโหมดเครื่องเก่า ✓') : (isLao ? 'ປິດโหมดเครื่องเก่า' : 'ปิดโหมดเครื่องเก่า'), 'success');
+  updateLiteBtn();
+  try { const sb2 = document.getElementById('stopScanBtn'); if (typeof stopScan === 'function' && sb2 && sb2.style.display !== 'none') stopScan(); } catch (e) {}
+}
+function updateLiteBtn() {
+  const btn = document.getElementById('liteScanBtn');
+  if (!btn) return;
+  const isLao = lang === 'lo';
+  const on = localStorage.getItem('fs_lite_scan') === '1';
+  btn.style.background = on ? 'var(--amber-100)' : 'var(--slate-50)';
+  btn.style.color = on ? 'var(--amber-700)' : 'var(--slate-500)';
+  btn.style.borderColor = on ? 'var(--amber-300)' : 'var(--slate-200)';
+  btn.innerHTML = '📱 ' + (isLao ? 'ໂหมดเครื่องเก่า' : 'โหมดเครื่องเก่า') + ': <b>' + (on ? (isLao ? 'ເปิด' : 'เปิด') : (isLao ? 'ປິด' : 'ปิด')) + '</b>';
 }
 
 // แก้ video element ให้ทำงานได้ทุก device (iOS + Android)
@@ -9609,10 +9666,11 @@ async function startScan() {
     // Log config keys สำคัญ
     scanLog(`Cfg: fps=${cfg1.fps} flip=${cfg1.disableFlip} iOSmode=${cfg1.disableFlip}`);
     scanLog(`Formats: ${cfg1.formatsToSupport ? cfg1.formatsToSupport.length : 'undef'}`);
-    // ใช้ facingMode แทน device id
-    delete cfg1.videoConstraints;
+    // ใช้ facingMode แทน device id (ยกเว้น Lite mode — คง videoConstraints บังคับ 640x480)
+    const _liteOn = localStorage.getItem('fs_lite_scan') === '1';
+    if (!_liteOn) delete cfg1.videoConstraints;
     await html5QrCode.start(
-      { facingMode: "environment" },
+      _liteOn ? cfg1.videoConstraints : { facingMode: "environment" },
       cfg1,
       onScanSuccess,
       () => {}
@@ -9647,7 +9705,7 @@ async function startScan() {
       scanLog('Using camera: ' + (cam.label || cam.id.substring(0, 20)));
       
       const cfg2 = getScannerConfig();
-      delete cfg2.videoConstraints; // ใช้ device id ตรงๆ
+      if (localStorage.getItem('fs_lite_scan') !== '1') delete cfg2.videoConstraints; // ปกติใช้ device id, Lite คง 640x480
       await html5QrCode.start(
         cam.id,
         cfg2,
@@ -9675,9 +9733,10 @@ async function startScan() {
         await new Promise(r => setTimeout(r, 500));
         
         const cfg3 = getScannerConfig();
-        delete cfg3.videoConstraints;
+        const _lite3 = localStorage.getItem('fs_lite_scan') === '1';
+        if (!_lite3) delete cfg3.videoConstraints;
         await html5QrCode.start(
-          { facingMode: "environment" },
+          _lite3 ? cfg3.videoConstraints : { facingMode: "environment" },
           cfg3,
           onScanSuccess,
           () => {}
@@ -17119,12 +17178,23 @@ async function bmDelete(id) {
       + '<div class="action-row"><button class="btn btn-primary" onclick="closeModal()">' + (isLao ? 'ເข้าใจแล้ว' : 'เข้าใจแล้ว') + '</button></div>');
     return;
   }
-  // ไม่มี data → ลบได้ (confirm)
-  if (!confirm((isLao ? 'ລบสาขา ' : 'ลบสาขา ') + (b.name_th || b.code) + ' ?\n' + (isLao ? 'ລบแล้วกู้คืนไม่ได้' : 'ลบแล้วกู้คืนไม่ได้'))) return;
+  // ไม่มี users/products → สาขาเปล่า/ทดสอบ → ลบได้ (cascade ลบข้อมูลที่ผูกอยู่ก่อน)
+  if (!confirm((isLao ? 'ລบสาขา ' : 'ลบสาขา ') + (b.name_th || b.code) + ' ?\n' + (isLao ? 'ລบข้อมูลการนับ/เซสชันที่ผูกอยู่ด้วย กู้คืนไม่ได้' : 'จะลบข้อมูลการนับ/เซสชันที่ผูกอยู่ด้วย · กู้คืนไม่ได้'))) return;
+  showToast(isLao ? 'ກຳລັງລบ...' : 'กำลังลบ...', 'info');
+  // ลบ child records ตามลำดับ (ลูกก่อน-แม่ทีหลัง) กัน FK constraint
+  const childTables = [
+    'stock_counts', 'stock_sessions', 'gap_scans', 'gondola_status',
+    'pan_o_grams', 'location_master', 'zones', 'expiry_batches',
+    'expiry_damage_log', 'inventory_movements', 'product_issues',
+    'new_sku_log', 'daily_briefs', 'sc_daily_logs', 'work_tickets'
+  ];
+  for (const t of childTables) {
+    try { await sb.from(t).delete().eq('branch_id', id); } catch (e) { console.warn('[FS] del ' + t + ':', (e && e.message) || e); }
+  }
   const { error } = await sb.from('branches').delete().eq('id', id);
-  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  if (error) { showToast(isLao ? 'ລบไม่สำเร็จ: ' : 'ลบไม่สำเร็จ: ' + error.message + ' (ยังมีข้อมูลผูกอยู่)', 'error'); return; }
   logActivity('branch_delete', b.code || id);
-  showToast(isLao ? 'ລบแล้ว ✓' : 'ลบแล้ว ✓', 'success');
+  showToast(isLao ? 'ລບแล้ว ✓' : 'ลบแล้ว ✓', 'success');
   loadBranchList();
 }
 
@@ -20968,8 +21038,8 @@ async function showGondolaActions(locationCode, status) {
       </button>
     </div>
     
-    ${(user.role === 'admin' || user.role === 'scc') ? `
-    <!-- Admin Only: Edit + Delete -->
+    ${(user.role === 'admin' || user.role === 'scc' || user.role === 'bcs') ? `
+    <!-- Admin/SCC/BCS: Edit + Delete -->
     <div style="border-top:1px dashed var(--slate-200);margin-top:11px;padding-top:9px;">
       <div style="font-size:9px;color:var(--slate-400);text-transform:uppercase;font-weight:700;margin-bottom:6px;text-align:center;">
         🔒 ${lang === 'lo' ? 'ສຳລັບ Admin' : 'สำหรับ Admin'}
@@ -20993,7 +21063,7 @@ async function showGondolaActions(locationCode, status) {
 async function openEditGondolaModal(locationCode) {
   const isLao = lang === 'lo';
   
-  if (!['admin', 'scc'].includes(user.role)) {
+  if (!['admin', 'scc', 'bcs'].includes(user.role)) {
     showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error');
     return;
   }
@@ -21199,7 +21269,7 @@ async function saveEditGondola() {
 async function confirmDeleteGondola(locationCode) {
   const isLao = lang === 'lo';
   
-  if (!['admin', 'scc'].includes(user.role)) {
+  if (!['admin', 'scc', 'bcs'].includes(user.role)) {
     showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error');
     return;
   }
@@ -23493,6 +23563,8 @@ window.changeZone = changeZone;
 window.goPage = goPage;
 window.startScan = startScan;
 window.stopScan = stopScan;
+window.toggleLiteScan = toggleLiteScan;
+window.updateLiteBtn = updateLiteBtn;
 window.manualLookup = manualLookup;
 window.openBranchSwitcher = openBranchSwitcher;
 window.switchBranch = switchBranch;
