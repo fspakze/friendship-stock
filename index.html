@@ -4703,7 +4703,6 @@ function goPage(page) {
   if (page === 'scan') {
     c.innerHTML = renderScanPage();
     loadSessionStats();
-    setTimeout(() => { if (typeof updateLiteBtn === 'function') updateLiteBtn(); }, 30);
   } else if (page === 'history') {
     c.innerHTML = renderHistoryPage();
     loadHistory();
@@ -4761,7 +4760,6 @@ function goPage(page) {
     loadFloorMap();
   } else if (page === 'stockcheck') {
     c.innerHTML = renderStockCheckPage();
-    setTimeout(() => { if (typeof updateLiteBtn === 'function') updateLiteBtn(); }, 30);
   } else if (page === 'issuereport') {
     c.innerHTML = renderIssueReportPage();
     loadIssueReports();
@@ -8170,7 +8168,6 @@ function renderStockCheckPage() {
         </button>
         <button class="btn btn-danger" id="stopScanBtn" onclick="stopScan()" style="flex:1;display:none;">${T('stop')}</button>
       </div>
-      <button id="liteScanBtn" onclick="toggleLiteScan()" style="width:100%;border:1px solid var(--slate-200);background:var(--slate-50);color:var(--slate-500);border-radius:9px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;margin-bottom:9px;">📱 โหมดเครื่องเก่า</button>
       <div style="flex-direction:column;display:flex;gap:9px;">
         <input id="scBarcode" type="text" inputmode="numeric"
                onkeypress="if(event.key==='Enter')scLookup()"
@@ -8969,7 +8966,6 @@ function renderScanPage() {
         </button>
         <button class="btn btn-danger" id="stopScanBtn" onclick="stopScan()" style="flex:1;display:none;">${T('stop')}</button>
       </div>
-      <button id="liteScanBtn" onclick="toggleLiteScan()" style="width:100%;border:1px solid var(--slate-200);background:var(--slate-50);color:var(--slate-500);border-radius:9px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;margin-bottom:9px;">📱 โหมดเครื่องเก่า</button>
       <div class="manual-search" style="flex-direction:column;gap:9px;">
         <input id="manualBarcode" type="text" inputmode="numeric" 
                onkeypress="if(event.key==='Enter')manualLookup()"
@@ -9269,37 +9265,8 @@ function getScannerConfig() {
   if (!isIOS) {
     config.aspectRatio = 1.333;
   }
-
-  // 📱 โหมดเครื่องเก่า (Lite) — iPhone X/11 หรือเครื่องสเปคต่ำ
-  if (localStorage.getItem('fs_lite_scan') === '1') {
-    config.fps = 8;
-    config.videoConstraints = { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } };
-    config.experimentalFeatures = { useBarCodeDetectorIfSupported: false };
-    config.qrbox = (vw, vh) => { const m = Math.min(vw, vh); const w = Math.floor(m * 0.95); return { width: w, height: Math.floor(w * 0.7) }; };
-    delete config.aspectRatio;
-  }
-
+  
   return config;
-}
-
-function toggleLiteScan() {
-  const on = localStorage.getItem('fs_lite_scan') === '1';
-  if (on) localStorage.removeItem('fs_lite_scan');
-  else localStorage.setItem('fs_lite_scan', '1');
-  const isLao = lang === 'lo';
-  showToast(!on ? (isLao ? 'ເປີດโหมดเครื่องเก่า ✓' : 'เปิดโหมดเครื่องเก่า ✓') : (isLao ? 'ປິດโหมดเครื่องเก่า' : 'ปิดโหมดเครื่องเก่า'), 'success');
-  updateLiteBtn();
-  try { const sb2 = document.getElementById('stopScanBtn'); if (typeof stopScan === 'function' && sb2 && sb2.style.display !== 'none') stopScan(); } catch (e) {}
-}
-function updateLiteBtn() {
-  const btn = document.getElementById('liteScanBtn');
-  if (!btn) return;
-  const isLao = lang === 'lo';
-  const on = localStorage.getItem('fs_lite_scan') === '1';
-  btn.style.background = on ? 'var(--amber-100)' : 'var(--slate-50)';
-  btn.style.color = on ? 'var(--amber-700)' : 'var(--slate-500)';
-  btn.style.borderColor = on ? 'var(--amber-300)' : 'var(--slate-200)';
-  btn.innerHTML = '📱 ' + (isLao ? 'ໂหมดเครื่องเก่า' : 'โหมดเครื่องเก่า') + ': <b>' + (on ? (isLao ? 'ເปิด' : 'เปิด') : (isLao ? 'ປິด' : 'ปิด')) + '</b>';
 }
 
 // แก้ video element ให้ทำงานได้ทุก device (iOS + Android)
@@ -9642,11 +9609,10 @@ async function startScan() {
     // Log config keys สำคัญ
     scanLog(`Cfg: fps=${cfg1.fps} flip=${cfg1.disableFlip} iOSmode=${cfg1.disableFlip}`);
     scanLog(`Formats: ${cfg1.formatsToSupport ? cfg1.formatsToSupport.length : 'undef'}`);
-    // ใช้ facingMode แทน device id (ยกเว้น Lite mode — คง videoConstraints บังคับ 640x480)
-    const _liteOn = localStorage.getItem('fs_lite_scan') === '1';
-    if (!_liteOn) delete cfg1.videoConstraints;
+    // ใช้ facingMode แทน device id
+    delete cfg1.videoConstraints;
     await html5QrCode.start(
-      _liteOn ? cfg1.videoConstraints : { facingMode: "environment" },
+      { facingMode: "environment" },
       cfg1,
       onScanSuccess,
       () => {}
@@ -9681,7 +9647,7 @@ async function startScan() {
       scanLog('Using camera: ' + (cam.label || cam.id.substring(0, 20)));
       
       const cfg2 = getScannerConfig();
-      if (localStorage.getItem('fs_lite_scan') !== '1') delete cfg2.videoConstraints; // ปกติใช้ device id, Lite คง 640x480
+      delete cfg2.videoConstraints; // ใช้ device id ตรงๆ
       await html5QrCode.start(
         cam.id,
         cfg2,
@@ -9709,10 +9675,9 @@ async function startScan() {
         await new Promise(r => setTimeout(r, 500));
         
         const cfg3 = getScannerConfig();
-        const _lite3 = localStorage.getItem('fs_lite_scan') === '1';
-        if (!_lite3) delete cfg3.videoConstraints;
+        delete cfg3.videoConstraints;
         await html5QrCode.start(
-          _lite3 ? cfg3.videoConstraints : { facingMode: "environment" },
+          { facingMode: "environment" },
           cfg3,
           onScanSuccess,
           () => {}
@@ -23528,8 +23493,6 @@ window.changeZone = changeZone;
 window.goPage = goPage;
 window.startScan = startScan;
 window.stopScan = stopScan;
-window.toggleLiteScan = toggleLiteScan;
-window.updateLiteBtn = updateLiteBtn;
 window.manualLookup = manualLookup;
 window.openBranchSwitcher = openBranchSwitcher;
 window.switchBranch = switchBranch;
