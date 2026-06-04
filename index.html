@@ -20865,8 +20865,8 @@ function cleanupQuickNav() {
 async function onFloorMapCellClick(locationCode, status) {
   log('Floor map cell click:', locationCode, status);
   
-  // CTL → action panel | Admin/SCC → action panel | BCS → ดูข้อมูลเฉยๆ
-  if (user.role === 'ctl' || user.role === 'admin' || user.role === 'scc') {
+  // CTL/Admin/SCC/BCS → action panel (แก้/ลบได้) | อื่นๆ → ดูข้อมูลเฉยๆ
+  if (user.role === 'ctl' || user.role === 'admin' || user.role === 'scc' || user.role === 'bcs') {
     showGondolaActions(locationCode, status);
   } else {
     showLocationDetail(locationCode);
