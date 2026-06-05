@@ -9631,27 +9631,12 @@ function triggerPhotoScan(mode) {
 async function decodeBarcodePhoto(file, mode) {
   const isLao = lang === 'lo';
   showToast(isLao ? 'ກຳລັງอ่านรูป...' : 'กำลังอ่านรูป...', 'info');
-  // ใช้ instance ชั่วคราวสำหรับ scanFile (ต้องมี element ว่าง)
-  let holder = document.getElementById('photoScanHolder');
-  if (!holder) {
-    holder = document.createElement('div');
-    holder.id = 'photoScanHolder';
-    holder.style.display = 'none';
-    document.body.appendChild(holder);
-  }
-  try {
-    const tmp = new Html5Qrcode('photoScanHolder', { verbose: false });
-    let decoded = null;
-    try {
-      decoded = await tmp.scanFile(file, false);
-    } finally {
-      try { await tmp.clear(); } catch (_) {}
-    }
-    if (!decoded) throw new Error('no result');
-    const code = String(decoded).trim();
+
+  // ป้อนผลเข้า flow เดิม
+  const feedResult = (code) => {
+    code = String(code).trim();
     if (typeof beep === 'function') beep();
     showToast((isLao ? 'ອ່ານได้: ' : 'อ่านได้: ') + code, 'success');
-    // ป้อนผลเข้า flow เดิม
     if (mode === 'stockcheck') {
       const input = document.getElementById('scBarcode');
       if (input) { input.value = code; scLookup(); }
@@ -9660,9 +9645,73 @@ async function decodeBarcodePhoto(file, mode) {
         const cb = window._scanCallback; window._scanCallback = null; cb(code);
       } else { lookupProduct(code); }
     }
+  };
+
+  // โหลดรูปเป็น Image
+  const loadImg = (f) => new Promise((res, rej) => {
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); res(img); };
+    img.onerror = (e) => { URL.revokeObjectURL(url); rej(e); };
+    img.src = url;
+  });
+
+  // วาดรูปลง canvas (ย่อถ้าใหญ่ + เลือก crop)
+  const toCanvas = (img, maxW, crop) => {
+    let sx = 0, sy = 0, sw = img.naturalWidth, sh = img.naturalHeight;
+    if (crop === 'center') { sw = img.naturalWidth * 0.7; sh = img.naturalHeight * 0.7; sx = (img.naturalWidth - sw) / 2; sy = (img.naturalHeight - sh) / 2; }
+    const scale = Math.min(1, maxW / sw);
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(sw * scale); cv.height = Math.round(sh * scale);
+    cv.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+    return cv;
+  };
+
+  const canvasToFile = (cv) => new Promise((res) => cv.toBlob(b => res(new File([b], 'scan.jpg', { type: 'image/jpeg' })), 'image/jpeg', 0.95));
+
+  let holder = document.getElementById('photoScanHolder');
+  if (!holder) { holder = document.createElement('div'); holder.id = 'photoScanHolder'; holder.style.display = 'none'; document.body.appendChild(holder); }
+
+  try {
+    const img = await loadImg(file);
+    const BD_FORMATS = ['ean_13', 'ean_8', 'code_128', 'upc_a', 'upc_e', 'code_39', 'codabar', 'itf'];
+
+    // attempt: ลองอ่าน 1 canvas ด้วย BarcodeDetector (ถ้ามี) แล้ว fallback scanFile
+    const tryCanvas = async (cv) => {
+      // 1) BarcodeDetector (Android Chrome — แม่นกับรูป)
+      if ('BarcodeDetector' in window) {
+        try {
+          const det = new window.BarcodeDetector({ formats: BD_FORMATS });
+          const codes = await det.detect(cv);
+          if (codes && codes.length && codes[0].rawValue) return codes[0].rawValue;
+        } catch (e) {}
+      }
+      // 2) Html5Qrcode.scanFile (ZXing — iPhone)
+      try {
+        const f = await canvasToFile(cv);
+        const tmp = new Html5Qrcode('photoScanHolder', { verbose: false });
+        try { const r = await tmp.scanFile(f, false); if (r) return r; }
+        finally { try { await tmp.clear(); } catch (_) {} }
+      } catch (e) {}
+      return null;
+    };
+
+    // ลองหลายขนาด/crop: เต็มย่อ 1600 → เต็มย่อ 1024 → crop กลาง 1280
+    const variants = [
+      toCanvas(img, 1600, 'full'),
+      toCanvas(img, 1024, 'full'),
+      toCanvas(img, 1280, 'center'),
+    ];
+    let code = null;
+    for (const cv of variants) {
+      code = await tryCanvas(cv);
+      if (code) break;
+    }
+    if (!code) throw new Error('no result');
+    feedResult(code);
   } catch (err) {
     console.warn('[FS] photo decode:', err);
-    showToast(isLao ? '❌ อ่านบาร์โค้ดจากรูปไม่ได้ ลองถ่ายใหม่ให้ชัด/ตรง' : '❌ อ่านบาร์โค้ดจากรูปไม่ได้ · ลองถ่ายใหม่ให้ชัดและตรง', 'error');
+    showToast(isLao ? '❌ อ่านบาร์โค้ดจากรูปไม่ได้ · ถ่ายให้บาร์โค้ดใหญ่ เต็ม ชัด ตรง' : '❌ อ่านบาร์โค้ดจากรูปไม่ได้ · ถ่ายให้บาร์โค้ดใหญ่ เต็มเฟรม ชัด ตรง', 'error');
   }
 }
 
