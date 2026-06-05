@@ -8739,6 +8739,12 @@ function scOpenIssueModal() {
         <div style="font-size:11px;font-weight:700;color:var(--slate-700);margin-bottom:6px;">${T('sc_issue_note')}:</div>
         <textarea id="scIssueNote" rows="3" placeholder="${isLao ? 'ລາຍລະອຽດເພີ່ມເຕີມ...' : 'รายละเอียดเพิ่มเติม...'}" style="width:100%;padding:10px;border:1.5px solid var(--slate-200);border-radius:9px;font-size:12px;font-family:inherit;resize:vertical;"></textarea>
       </div>
+      <div style="margin-top:11px;">
+        <div style="font-size:11px;font-weight:700;color:var(--slate-700);margin-bottom:6px;">📷 ${isLao ? 'ຮูปประกอบ (ไม่บังคับ · สูงสุด 3)' : 'รูปประกอบ (ไม่บังคับ · สูงสุด 3)'}:</div>
+        <input type="file" id="scIssuePhotoInput" accept="image/*" capture="environment" multiple style="display:none;" onchange="scIssueOnPhoto(event)">
+        <button type="button" onclick="document.getElementById('scIssuePhotoInput').click()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:11px;font-size:12px;font-weight:700;color:var(--slate-600);cursor:pointer;">📷 ${isLao ? 'ຖ່າຍຮูป / ເລືອกรูป' : 'ถ่ายรูป / เลือกรูป'}</button>
+        <div id="scIssuePhotoPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;"></div>
+      </div>
       <div style="display:flex;gap:7px;margin-top:15px;">
         <button onclick="scCloseIssueModal()" style="flex:1;background:var(--slate-100);color:var(--slate-700);border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;">
           ${isLao ? 'ຍົກເລີກ' : 'ยกเลิก'}
@@ -8750,11 +8756,51 @@ function scOpenIssueModal() {
     </div>
   `;
   document.body.appendChild(modal);
+  _scIssuePhotos = [];
 }
 
 function scCloseIssueModal() {
   const m = document.getElementById('scIssueModal');
   if (m) m.remove();
+  _scIssuePhotos = [];
+}
+
+// ====== รูปแนบการแจ้งปัญหา (ใช้ pattern เดียวกับงานที่แจ้ง) ======
+let _scIssuePhotos = []; // {blob, dataUrl}
+function scIssueOnPhoto(e) {
+  const files = Array.from(e.target.files || []);
+  e.target.value = '';
+  files.forEach(f => {
+    if (_scIssuePhotos.length >= 3) { showToast(lang === 'lo' ? 'ສูงสุด 3 รูป' : 'สูงสุด 3 รูป', 'warning'); return; }
+    wrCompressImage(f, (blob, dataUrl) => {
+      _scIssuePhotos.push({ blob, dataUrl });
+      scIssueRenderPhotos();
+    });
+  });
+}
+function scIssueRenderPhotos() {
+  const pv = document.getElementById('scIssuePhotoPreview');
+  if (!pv) return;
+  pv.innerHTML = _scIssuePhotos.map((p, i) =>
+    '<div style="position:relative;width:68px;height:68px;border-radius:9px;overflow:hidden;border:1px solid var(--slate-200);">'
+    + '<img src="' + p.dataUrl + '" style="width:100%;height:100%;object-fit:cover;">'
+    + '<button type="button" onclick="scIssueRemovePhoto(' + i + ')" style="position:absolute;top:2px;right:2px;background:rgba(225,29,72,0.9);color:white;border:none;width:18px;height:18px;border-radius:50%;font-size:11px;line-height:1;cursor:pointer;">✕</button>'
+    + '</div>'
+  ).join('');
+}
+function scIssueRemovePhoto(i) { _scIssuePhotos.splice(i, 1); scIssueRenderPhotos(); }
+async function scIssueUploadPhotos(barcode) {
+  const urls = [];
+  for (let i = 0; i < _scIssuePhotos.length; i++) {
+    const path = 'issue_' + (barcode || 'x') + '_' + Date.now() + '_' + i + '.jpg';
+    try {
+      const { error } = await sb.storage.from('ticket-photos').upload(path, _scIssuePhotos[i].blob, { contentType: 'image/jpeg', upsert: false });
+      if (error) { console.warn('[FS] issue photo upload:', error.message); continue; }
+      const { data } = sb.storage.from('ticket-photos').getPublicUrl(path);
+      if (data && data.publicUrl) urls.push(data.publicUrl);
+    } catch (e) { console.warn('[FS] issue photo ex:', (e && e.message) || e); }
+  }
+  return urls;
 }
 
 async function scSubmitIssue() {
@@ -8792,6 +8838,11 @@ async function scSubmitIssue() {
     status: 'open',
     reported_by: user.id
   };
+  // อัปโหลดรูป (ถ้ามี)
+  if (_scIssuePhotos.length) {
+    showToast(lang === 'lo' ? 'ກຳລັງอัปโหลดรูป...' : 'กำลังอัปโหลดรูป...', 'info');
+    payload.photo_urls = await scIssueUploadPhotos(_scCurrentProduct.barcode);
+  }
   
   const { data: newIssue, error } = await sb.from('product_issues').insert(payload).select('id').single();
   if (error) {
@@ -9125,6 +9176,7 @@ function renderIssueReportList() {
         <div style="background:${sc.bg};padding:8px 10px;border-radius:7px;margin-bottom:7px;">
           <div style="font-size:11px;font-weight:700;color:${sc.text};">⚠️ ${issueLabel}</div>
           ${it.note ? `<div style="font-size:11px;color:var(--slate-600);margin-top:3px;font-style:italic;">"${it.note}"</div>` : ''}
+          ${(it.photo_urls && it.photo_urls.length) ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;">${it.photo_urls.map(u => `<a href="${u}" target="_blank" rel="noopener" style="display:block;width:60px;height:60px;border-radius:8px;overflow:hidden;border:1px solid var(--slate-200);"><img src="${u}" style="width:100%;height:100%;object-fit:cover;"></a>`).join('')}</div>` : ''}
         </div>
         <div style="font-size:10px;color:var(--slate-500);margin-bottom:${actions?'9px':'0'};">
           ${T('ir_reported_by')}: <strong>${it.reporter?.full_name || '?'}</strong> • ${ago}
