@@ -6060,13 +6060,29 @@ function phCleanNum(v) { if (v == null) return null; const s = String(v).trim().
 function phCleanDate(v) {
   if (v == null || v === '') return null;
   const s = String(v).trim(); if (s === '' || s.toLowerCase() === 'nan') return null;
+  // dd/mm/yyyy หรือ dd-mm-yyyy → ตรงตัว (ไม่ผ่าน Date.parse กัน timezone)
   const m1 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
   if (m1) return m1[3] + '-' + m1[2].padStart(2, '0') + '-' + m1[1].padStart(2, '0');
-  let d = null;
-  if (typeof v === 'number' && isFinite(v)) d = new Date(Math.round((v - 25569) * 86400 * 1000));
-  else { const t = Date.parse(s); if (!isNaN(t)) d = new Date(t); }
-  if (!d || isNaN(d.getTime())) return null;
-  return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+  // d-Mmm-yy หรือ d-Mmm-yyyy (เช่น 19-May-26 / 1-Jan-2024) — ไฟล์ Buy ใช้แบบนี้
+  const MON = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+  const m2 = s.match(/^(\d{1,2})[\-\/\s]([A-Za-z]{3,})[\-\/\s](\d{2,4})$/);
+  if (m2) {
+    const day = m2[1], mo = MON[m2[2].slice(0, 3).toLowerCase()];
+    let yr = m2[3]; if (yr.length === 2) yr = (Number(yr) >= 70 ? '19' : '20') + yr;
+    if (mo) return yr + '-' + String(mo).padStart(2, '0') + '-' + day.padStart(2, '0');
+  }
+  // Excel serial → ใช้ UTC (serial เป็น UTC-based)
+  if (typeof v === 'number' && isFinite(v)) {
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    if (!isNaN(d.getTime())) return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+  }
+  // fallback Date.parse → ใช้ LOCAL getters (กัน -1 วันในเขตเวลา +7)
+  const t = Date.parse(s);
+  if (!isNaN(t)) {
+    const d = new Date(t);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  return null;
 }
 
 function renderPurchaseUploadPage() {
@@ -6342,16 +6358,26 @@ function psCleanDate(v) {
     const day = m1[1].padStart(2, '0'), mo = m1[2].padStart(2, '0'), y = m1[3];
     return y + '-' + mo + '-' + day;
   }
-  let d = null;
-  if (typeof v === 'number' && isFinite(v)) {
-    d = new Date(Math.round((v - 25569) * 86400 * 1000));
-  } else {
-    const t = Date.parse(s);
-    if (!isNaN(t)) d = new Date(t);
+  // d-Mmm-yy / d-Mmm-yyyy (เช่น 19-May-26)
+  const MON = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+  const m2 = s.match(/^(\d{1,2})[\-\/\s]([A-Za-z]{3,})[\-\/\s](\d{2,4})$/);
+  if (m2) {
+    const mo = MON[m2[2].slice(0, 3).toLowerCase()];
+    let yr = m2[3]; if (yr.length === 2) yr = (Number(yr) >= 70 ? '19' : '20') + yr;
+    if (mo) return yr + '-' + String(mo).padStart(2, '0') + '-' + m2[1].padStart(2, '0');
   }
-  if (!d || isNaN(d.getTime())) return null;
-  const y = d.getUTCFullYear(), m = String(d.getUTCMonth() + 1).padStart(2, '0'), day = String(d.getUTCDate()).padStart(2, '0');
-  return y + '-' + m + '-' + day;
+  // Excel serial → UTC-based
+  if (typeof v === 'number' && isFinite(v)) {
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    if (!isNaN(d.getTime())) return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+  }
+  // fallback → LOCAL getters (กัน -1 วันในเขตเวลา +7)
+  const t = Date.parse(s);
+  if (!isNaN(t)) {
+    const d = new Date(t);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  return null;
 }
 function psCleanNum(v) { if (v == null) return null; const s = String(v).trim().replace(/,/g, ''); if (s === '' || s.toLowerCase() === 'nan') return null; const n = Number(s); return isFinite(n) ? n : null; }
 
