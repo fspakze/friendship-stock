@@ -4327,11 +4327,8 @@ function renderApp() {
   document.getElementById('app').innerHTML = renderShell();
   
   const r = user.role;
-  if (['counter', 'staff'].includes(r)) goPage('scan');
-  else if (['verifier', 'audit'].includes(r)) goPage('tiebreaker');
-  else if (r === 'ctl') goPage('floormap');
-  else if (['bcs', 'admin', 'scc'].includes(r)) goPage('dashboard');
-  else goPage('scan');
+  // หน้าหลักหลัง login = เช็คสต๊อก (ກວດສະຕ໋ອກ) สำหรับทุก role
+  goPage('stockcheck');
 }
 
 // ==================== MENU CONFIG (Single Source of Truth) ====================
@@ -8796,11 +8793,12 @@ async function scSubmitIssue() {
     reported_by: user.id
   };
   
-  const { error } = await sb.from('product_issues').insert(payload);
+  const { data: newIssue, error } = await sb.from('product_issues').insert(payload).select('id').single();
   if (error) {
     showToast('Error: ' + error.message, 'error');
     return;
   }
+  if (newIssue && newIssue.id) await irLog(newIssue.id, 'open', note || null);
   
   scCloseIssueModal();
   showToast('✅ ' + T('sc_issue_submitted'), 'success');
@@ -9131,11 +9129,71 @@ function renderIssueReportList() {
         <div style="font-size:10px;color:var(--slate-500);margin-bottom:${actions?'9px':'0'};">
           ${T('ir_reported_by')}: <strong>${it.reporter?.full_name || '?'}</strong> • ${ago}
           ${it.resolver ? `<br>${T('ir_resolved_by')}: <strong>${it.resolver.full_name}</strong>${it.resolution_note ? ' — "'+it.resolution_note+'"' : ''}` : ''}
+          <button onclick="irShowTimeline(${it.id})" style="margin-top:6px;background:var(--violet-50);color:var(--violet-700);border:1px solid var(--violet-200);border-radius:7px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;">📋 ${isLao ? 'ປະຫວັດการติดตาม' : 'ประวัติการติดตาม'}</button>
         </div>
         ${actions ? `<div style="display:flex;gap:5px;">${actions}</div>` : ''}
       </div>
     `;
   }).join('');
+}
+
+// แสดง timeline ติดตามปัญหา (ประวัติการเปลี่ยนสถานะ)
+async function irShowTimeline(issueId) {
+  const isLao = lang === 'lo';
+  showModal('<h3 style="font-size:15px;margin:0 0 10px;">📋 ' + (isLao ? 'ປະຫວັດการติดตาม' : 'ประวัติการติดตาม') + '</h3>'
+    + '<div id="irTlBody" style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>'
+    + '<button onclick="closeModal()" style="width:100%;margin-top:12px;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? '✕ ປິด' : '✕ ปิด') + '</button>');
+  try {
+    const { data, error } = await sb.from('product_issue_logs')
+      .select('status, note, changed_by_name, changed_at')
+      .eq('issue_id', issueId).order('changed_at', { ascending: true });
+    if (error) throw error;
+    const logs = data || [];
+    const body = document.getElementById('irTlBody');
+    if (!body) return;
+    if (!logs.length) {
+      body.innerHTML = '<div style="color:var(--slate-400);padding:18px;font-size:12px;">' + (isLao ? 'ຍັງບໍ່ມีประวัติ (รายการเก่าก่อนเปิดฟีเจอร์นี้)' : 'ยังไม่มีประวัติ (รายการเก่าก่อนเปิดฟีเจอร์นี้)') + '</div>';
+      return;
+    }
+    const stCfg = {
+      open: { icon: '📥', label: isLao ? 'ແຈ້ງปัญหา' : 'แจ้งปัญหา', color: 'var(--rose-500)' },
+      in_progress: { icon: '⚙️', label: isLao ? 'ກຳລັງดำเนินการ' : 'กำลังดำเนินการ', color: 'var(--amber-500)' },
+      resolved: { icon: '✅', label: isLao ? 'ແກ້ໄຂແລ້ວ' : 'แก้ไขแล้ว', color: 'var(--emerald-500)' },
+      cancelled: { icon: '✕', label: isLao ? 'ຍົກເລີກ' : 'ยกเลิก', color: 'var(--slate-400)' }
+    };
+    const fmtDT = iso => { const d = new Date(iso); if (isNaN(d.getTime())) return '—'; return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); };
+    let html = '<div style="text-align:left;">';
+    logs.forEach((lg, i) => {
+      const c = stCfg[lg.status] || stCfg.open;
+      const isLast = i === logs.length - 1;
+      html += '<div style="display:flex;gap:10px;">'
+        + '<div style="display:flex;flex-direction:column;align-items:center;">'
+        + '<div style="width:30px;height:30px;border-radius:50%;background:' + c.color + ';color:white;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">' + c.icon + '</div>'
+        + (isLast ? '' : '<div style="width:2px;flex:1;background:var(--slate-200);min-height:14px;"></div>')
+        + '</div>'
+        + '<div style="flex:1;padding-bottom:' + (isLast ? '0' : '14px') + ';">'
+        + '<div style="font-size:13px;font-weight:800;color:' + c.color + ';">' + c.label + '</div>'
+        + '<div style="font-size:10px;color:var(--slate-500);margin-top:1px;">🕐 ' + fmtDT(lg.changed_at) + (lg.changed_by_name ? ' · 👤 ' + lg.changed_by_name : '') + '</div>'
+        + (lg.note ? '<div style="font-size:11px;color:var(--slate-600);margin-top:3px;font-style:italic;background:var(--slate-50);padding:5px 8px;border-radius:6px;">"' + lg.note + '"</div>' : '')
+        + '</div></div>';
+    });
+    html += '</div>';
+    body.innerHTML = html;
+  } catch (e) {
+    const body = document.getElementById('irTlBody');
+    if (body) body.innerHTML = '<div style="color:var(--rose-500);padding:14px;">Error: ' + ((e && e.message) || e) + '</div>';
+  }
+}
+
+// บันทึก log ติดตามปัญหา (timeline)
+async function irLog(issueId, status, note) {
+  try {
+    await sb.from('product_issue_logs').insert({
+      issue_id: issueId, status: status, note: note || null,
+      changed_by: (user && user.id) || null,
+      changed_by_name: (user && user.full_name) || null
+    });
+  } catch (e) { console.warn('[FS] irLog:', (e && e.message) || e); }
 }
 
 async function irUpdateStatus(id, newStatus) {
@@ -9146,6 +9204,7 @@ async function irUpdateStatus(id, newStatus) {
   }
   const { error } = await sb.from('product_issues').update(payload).eq('id', id);
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  await irLog(id, newStatus, null);
   showToast('✅ ' + (lang === 'lo' ? 'ອັບເດດແລ້ວ' : 'อัปเดตแล้ว'), 'success');
   loadIssueReports();
   updateIssueBadge();
@@ -9163,6 +9222,7 @@ async function irPromptResolve(id) {
   };
   const { error } = await sb.from('product_issues').update(payload).eq('id', id);
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  await irLog(id, 'resolved', payload.resolution_note);
   showToast('✅ ' + (isLao ? 'ແກ້ໄຂແລ້ວ' : 'แก้ไขแล้ว'), 'success');
   loadIssueReports();
   updateIssueBadge();
@@ -25941,6 +26001,7 @@ window.renderPurchaseUploadPage = renderPurchaseUploadPage;
 window.phHandleFile = phHandleFile;
 window.phLoadCount = phLoadCount;
 window.scShowPurchase = scShowPurchase;
+window.irShowTimeline = irShowTimeline;
 window.psLoadCount = psLoadCount;
 window.psCalcStatus = psCalcStatus;
 window.psBuildStatusCard = psBuildStatusCard;
