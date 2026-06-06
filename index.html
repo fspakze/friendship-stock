@@ -1575,6 +1575,47 @@ const SUPABASE_KEY = 'sb_publishable_pX8syowjeewFtaF3cpxAEA_JZ7UPB5h';
 const SALT = 'friendship_pakse_2026';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// ==================== SECURITY / UTIL HELPERS ====================
+// เปิด debug log เฉพาะ localhost หรือเมื่อมี ?debug=1 (กัน leak ข้อมูลใน production)
+const FS_DEBUG = (function(){
+  try {
+    return /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
+        || new URLSearchParams(location.search).has('debug');
+  } catch(_) { return false; }
+})();
+
+// escapeHtml — กัน Stored XSS เวลาเอาข้อความจากผู้ใช้/DB ใส่ใน innerHTML
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+  });
+}
+
+// fetchAllQuery — ดึงข้อมูลทุกแถวแบบ paginate (กัน Supabase ตัดที่ 1,000 แถวเงียบ ๆ)
+// ใช้: await fetchAllQuery(() => sb.from('t').select('*').eq('x', y).order('z'))
+async function fetchAllQuery(buildQuery) {
+  const PAGE = 1000;
+  let offset = 0, all = [];
+  while (true) {
+    const { data, error } = await buildQuery().range(offset, offset + PAGE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all = all.concat(data);
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+  return all;
+}
+
+// Global error handlers — ไม่ให้ error เงียบหายจนผู้ใช้งง / debug ยาก
+window.addEventListener('error', function(e) {
+  if (FS_DEBUG) console.error('[FS] Uncaught error:', e.error || e.message);
+});
+window.addEventListener('unhandledrejection', function(e) {
+  if (FS_DEBUG) console.error('[FS] Unhandled promise rejection:', e.reason);
+});
+
 // ==================== STATE ====================
 let lang = localStorage.getItem('lang') || 'lo';
 let user = null;
@@ -2366,7 +2407,7 @@ function toggleLang() { setLang(lang === 'lo' ? 'th' : 'lo'); }
 
 // ==================== UTILS ====================
 function log(msg, data) {
-  console.log('[FS]', msg, data || '');
+  if (FS_DEBUG) console.log('[FS]', msg, data || '');
 }
 
 function showToast(msg, type = '') {
@@ -3373,7 +3414,7 @@ function showZoneStep() {
   document.getElementById('step-login').classList.remove('active');
   document.getElementById('step-zone').classList.add('active');
   document.getElementById('zoneStepGreeting').textContent = 
-    `ສະບາຍດີ ${user.full_name} (${user.role.toUpperCase()})`;
+    `ສະບາຍດີ ${escapeHtml(user.full_name)} (${user.role.toUpperCase()})`;
   
   const isLao = lang === 'lo';
   const isAdmin = ['admin', 'scc', 'bcs'].includes(user.role);
@@ -3581,7 +3622,7 @@ function renderSelectedLocation() {
       <div class="loc-selected-icon">📍</div>
       <div class="loc-selected-info">
         <div class="loc-selected-code">${loc.location_code}</div>
-        <div class="loc-selected-desc">${loc.description || ''}</div>
+        <div class="loc-selected-desc">${escapeHtml(loc.description || '')}</div>
       </div>
       <button class="loc-selected-clear" onclick="clearLocation()" title="${T('clear')}">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -3747,7 +3788,7 @@ function renderLocationGrid() {
   grid.innerHTML = items.map(l => {
     const displayText = l.location_code;
     return `
-      <div class="loc-chip" data-loc="${l.location_code}" onclick="selectLocation('${l.location_code}')" title="${l.description || ''}">
+      <div class="loc-chip" data-loc="${l.location_code}" onclick="selectLocation('${l.location_code}')" title="${escapeHtml(l.description || '')}">
         ${displayText}
       </div>
     `;
@@ -4651,7 +4692,7 @@ function renderShell() {
       <div class="topbar-left">
         <div class="brand-logo" style="width:92px;height:26px;flex-shrink:0;"></div>
         <div class="topbar-info">
-          <div class="name">${user.full_name}</div>
+          <div class="name">${escapeHtml(user.full_name)}</div>
           <div class="meta">
             ${r.toUpperCase()} • 
             ${isAdminRole ? `
@@ -5247,8 +5288,8 @@ function renderGapProductCard(product, shelfCapacity) {
       </div>
       <div style="font-size:10px;color:#9f1239;line-height:1.5;">
         ${isLao 
-          ? `ສິນຄ້ານີ້ໄດ້ຖືກແຈ້ງແລ້ວ <strong>${duplicateInfo.gap_qty} ${unit}</strong> ໂດຍ <strong>${duplicateInfo.users?.full_name || '?'}</strong> ເມື່ອ ${getTimeAgo(duplicateInfo.created_at, isLao)}` 
-          : `สินค้านี้ถูกแจ้งแล้ว <strong>${duplicateInfo.gap_qty} ${unit}</strong> โดย <strong>${duplicateInfo.users?.full_name || '?'}</strong> เมื่อ ${getTimeAgo(duplicateInfo.created_at, isLao)}`}
+          ? `ສິນຄ້ານີ້ໄດ້ຖືກແຈ້ງແລ້ວ <strong>${duplicateInfo.gap_qty} ${unit}</strong> ໂດຍ <strong>${escapeHtml(duplicateInfo.users?.full_name || '?')}</strong> ເມື່ອ ${getTimeAgo(duplicateInfo.created_at, isLao)}` 
+          : `สินค้านี้ถูกแจ้งแล้ว <strong>${duplicateInfo.gap_qty} ${unit}</strong> โดย <strong>${escapeHtml(duplicateInfo.users?.full_name || '?')}</strong> เมื่อ ${getTimeAgo(duplicateInfo.created_at, isLao)}`}
       </div>
       <div style="font-size:9px;color:var(--slate-700);margin-top:5px;line-height:1.5;background:rgba(255,255,255,0.5);padding:5px 7px;border-radius:5px;">
         💡 ${isLao 
@@ -5972,7 +6013,7 @@ function renderActivityLogRow(r) {
           ${r.branch_code ? `<div style="font-size:10px;color:var(--slate-500);">🏪 ${r.branch_code}</div>` : ''}
         </div>
       </div>
-      ${r.detail ? `<div style="font-size:11px;color:var(--slate-600);margin-top:5px;padding-left:23px;">${r.detail}</div>` : ''}
+      ${r.detail ? `<div style="font-size:11px;color:var(--slate-600);margin-top:5px;padding-left:23px;">${escapeHtml(r.detail)}</div>` : ''}
     </div>
   `;
 }
@@ -7479,7 +7520,7 @@ function renderInvMovementRow(m) {
             ${meta.emoji} ${typeLabel}
           </span>
           <span style="font-size:10px;color:var(--slate-400);">⏱ ${timeStr}</span>
-          ${m.note ? `<span style="font-size:10px;color:var(--slate-500);">📝 ${m.note}</span>` : ''}
+          ${m.note ? `<span style="font-size:10px;color:var(--slate-500);">📝 ${escapeHtml(m.note)}</span>` : ''}
         </div>
       </div>
       <div style="text-align:right;flex-shrink:0;">
@@ -8220,9 +8261,9 @@ function renderGapReportList() {
           <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:3px;font-size:9px;">
             ${g.gondola_code ? `<span style="background:var(--violet-100);color:var(--violet-600);padding:1px 5px;border-radius:3px;font-weight:700;font-family:monospace;">📍 ${g.gondola_code}</span>` : ''}
             <span style="color:var(--slate-500);">⏱ ${time}</span>
-            ${g.users?.full_name ? `<span style="color:var(--slate-500);">👤 ${g.users.full_name}</span>` : ''}
+            ${g.users?.full_name ? `<span style="color:var(--slate-500);">👤 ${escapeHtml(g.users.full_name)}</span>` : ''}
           </div>
-          ${g.note ? `<div style="font-size:9px;color:var(--slate-600);background:white;padding:3px 6px;border-radius:4px;margin-top:3px;font-style:italic;">💬 ${g.note}</div>` : ''}
+          ${g.note ? `<div style="font-size:9px;color:var(--slate-600);background:white;padding:3px 6px;border-radius:4px;margin-top:3px;font-style:italic;">💬 ${escapeHtml(g.note)}</div>` : ''}
         </div>
         <div style="text-align:right;flex-shrink:0;">
           <div style="font-size:18px;font-weight:800;color:${actionColor};font-family:'Space Grotesk',monospace;line-height:1;">
@@ -9175,12 +9216,12 @@ function renderIssueReportList() {
         </div>
         <div style="background:${sc.bg};padding:8px 10px;border-radius:7px;margin-bottom:7px;">
           <div style="font-size:11px;font-weight:700;color:${sc.text};">⚠️ ${issueLabel}</div>
-          ${it.note ? `<div style="font-size:11px;color:var(--slate-600);margin-top:3px;font-style:italic;">"${it.note}"</div>` : ''}
+          ${it.note ? `<div style="font-size:11px;color:var(--slate-600);margin-top:3px;font-style:italic;">"${escapeHtml(it.note)}"</div>` : ''}
           ${(it.photo_urls && it.photo_urls.length) ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;">${it.photo_urls.map(u => `<a href="${u}" target="_blank" rel="noopener" style="display:block;width:60px;height:60px;border-radius:8px;overflow:hidden;border:1px solid var(--slate-200);"><img src="${u}" style="width:100%;height:100%;object-fit:cover;"></a>`).join('')}</div>` : ''}
         </div>
         <div style="font-size:10px;color:var(--slate-500);margin-bottom:${actions?'9px':'0'};">
-          ${T('ir_reported_by')}: <strong>${it.reporter?.full_name || '?'}</strong> • ${ago}
-          ${it.resolver ? `<br>${T('ir_resolved_by')}: <strong>${it.resolver.full_name}</strong>${it.resolution_note ? ' — "'+it.resolution_note+'"' : ''}` : ''}
+          ${T('ir_reported_by')}: <strong>${escapeHtml(it.reporter?.full_name || '?')}</strong> • ${ago}
+          ${it.resolver ? `<br>${T('ir_resolved_by')}: <strong>${escapeHtml(it.resolver.full_name)}</strong>${it.resolution_note ? ' — "'+escapeHtml(it.resolution_note)+'"' : ''}` : ''}
           <button onclick="irShowTimeline(${it.id})" style="margin-top:6px;background:var(--violet-50);color:var(--violet-700);border:1px solid var(--violet-200);border-radius:7px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;">📋 ${isLao ? 'ປະຫວັດการติดตาม' : 'ประวัติการติดตาม'}</button>
         </div>
         ${actions ? `<div style="display:flex;gap:5px;">${actions}</div>` : ''}
@@ -10907,7 +10948,7 @@ async function openPanOGramModal(barcode, locationCode, editId = null) {
     <!-- Notes -->
     <div class="form-group">
       <label class="form-label" style="font-size:10px;">${isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ'}</label>
-      <textarea id="pogNotes" rows="2" class="form-input" style="font-size:11px;resize:vertical;">${existing?.notes || ''}</textarea>
+      <textarea id="pogNotes" rows="2" class="form-input" style="font-size:11px;resize:vertical;">${escapeHtml(existing?.notes || '')}</textarea>
     </div>
     
     <div class="action-row">
@@ -14817,7 +14858,7 @@ async function openEditCount(countId) {
     </div>
     
     <!-- Note -->
-    <textarea class="note-input" id="editNoteInput" rows="2" placeholder="${T('note_placeholder')}">${item.note || ''}</textarea>
+    <textarea class="note-input" id="editNoteInput" rows="2" placeholder="${T('note_placeholder')}">${escapeHtml(item.note || '')}</textarea>
     
     <!-- Action buttons -->
     <input type="hidden" id="editCountId" value="${item.id}">
@@ -15695,7 +15736,7 @@ async function loadDashboard() {
       <div class="history-item clickable ${cls}" onclick="openEditCount('${item.id}')">
         <div class="history-content">
           <div class="history-name">${name}${mdBadge}${locBadge}</div>
-          <div class="history-meta">${u.full_name || '?'} ${roleBadge} ${varLevel}</div>
+          <div class="history-meta">${escapeHtml(u.full_name || '?')} ${roleBadge} ${varLevel}</div>
         </div>
         <div class="history-qty mono">${item.counted_qty}</div>
         <div style="color:var(--slate-400);font-size:14px;margin-left:4px;">✏️</div>
@@ -16832,9 +16873,9 @@ async function openVarianceDetail(productId) {
           <div style="background:white;border:1px solid var(--slate-200);border-radius:7px;padding:7px 9px;margin-bottom:4px;display:flex;align-items:center;gap:8px;">
             <div style="font-size:16px;flex-shrink:0;">${roleEmoji[h.count_role] || '📝'}</div>
             <div style="flex:1;min-width:0;">
-              <div style="font-size:11px;font-weight:700;color:var(--slate-900);">${h.users?.full_name || h.user_id}</div>
+              <div style="font-size:11px;font-weight:700;color:var(--slate-900);">${escapeHtml(h.users?.full_name || h.user_id)}</div>
               <div style="font-size:9px;color:var(--slate-500);">${h.count_role} • ${time}</div>
-              ${h.note ? `<div style="font-size:9px;color:var(--slate-600);font-style:italic;margin-top:2px;">"${h.note}"</div>` : ''}
+              ${h.note ? `<div style="font-size:9px;color:var(--slate-600);font-style:italic;margin-top:2px;">"${escapeHtml(h.note)}"</div>` : ''}
             </div>
             <div style="font-size:14px;font-weight:800;color:var(--slate-900);font-family:'Space Grotesk',monospace;">
               ${h.counted_qty}
@@ -17917,7 +17958,7 @@ function renderUserCard(u) {
     <div class="user-card ${inactive}" onclick="editUser('${u.id}')">
       <div class="user-avatar r-${u.role}">${initial}</div>
       <div class="user-info">
-        <div class="user-name">${u.full_name} ${isMe ? '<span style="color:var(--indigo-500);font-size:9px;">(YOU)</span>' : ''}</div>
+        <div class="user-name">${escapeHtml(u.full_name)} ${isMe ? '<span style="color:var(--indigo-500);font-size:9px;">(YOU)</span>' : ''}</div>
         <div class="user-username">@${u.username}</div>
       </div>
       <div class="user-badge-r ${u.role}">${u.role}</div>
@@ -19841,12 +19882,14 @@ async function exportToExcel(mode = 'full') {
   try {
     // Load all data
     const [countsRes, gondolaRes, expiryRes, newSkuRes] = await Promise.all([
-      sb.from('stock_counts').select(`
+      // ⭐ paginate กัน Supabase ตัดที่ 1,000 แถว (รอบนับทั้งร้านเกิน 1,000 ได้ง่าย)
+      fetchAllQuery(() => sb.from('stock_counts').select(`
         id, counted_at, count_role, location_code, gondola_code, zone_id,
         counted_qty, pos_qty_snapshot, diff, variance_level, workflow_status, note,
         products(barcode, name_th, name_lo, unit_th, unit_lo, sell_price),
         users(full_name, username)
-      `).eq('session_id', session.id).order('counted_at', { ascending: false }),
+      `).eq('session_id', session.id).order('counted_at', { ascending: false }))
+        .then(data => ({ data })),
       
       sb.from('v_gondola_progress').select('*').eq('session_id', session.id).order('location_code'),
       
@@ -21664,7 +21707,7 @@ async function openEditGondolaModal(locationCode) {
     <div class="form-group">
       <label class="form-label">${T('description')}</label>
       <input type="text" class="form-input" id="editGonDesc" 
-             value="${loc.description || ''}"
+             value="${escapeHtml(loc.description || '')}"
              placeholder="(optional)" autocomplete="off">
     </div>
     
@@ -22312,7 +22355,7 @@ function renderPivotRow(prod) {
       </div>
       `}
       
-      ${prod.note ? `<div class="loc-piv-note">📝 ${prod.note}</div>` : ''}
+      ${prod.note ? `<div class="loc-piv-note">📝 ${escapeHtml(prod.note)}</div>` : ''}
     </div>
   `;
 }
@@ -22856,7 +22899,7 @@ function renderWorkflowPage() {
       </div>
       <div class="banner-text">
         <h4>${T('workflow_control')}</h4>
-        <p>CTL: ${user.full_name}</p>
+        <p>CTL: ${escapeHtml(user.full_name)}</p>
       </div>
     </div>
     
@@ -23525,7 +23568,7 @@ function renderSettingsPage() {
       <div style="font-size:12px;color:var(--slate-700);line-height:1.7;">
         <div>Version: <strong>v3.1 SOP</strong></div>
         <div>Branch: <strong>${branch?.name_lo || branch?.name_th || 'PAKSE'}</strong></div>
-        <div>User: <strong>${user.full_name}</strong> (${user.role.toUpperCase()})</div>
+        <div>User: <strong>${escapeHtml(user.full_name)}</strong> (${user.role.toUpperCase()})</div>
         <div>Session: <strong>${session?.session_name || 'None'}</strong></div>
         <div>Made with 💗 by Anya</div>
       </div>
