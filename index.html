@@ -2565,13 +2565,9 @@ async function login() {
     log('Login attempt:', username, 'branch:', selectedBranchId);
     
     // Step 1: Find user
+    // ⭐ ตรวจ login ฝั่ง server ผ่าน RPC — client ไม่ต้องอ่าน password_hash อีก
     const { data: userData, error: userErr } = await sb
-      .from('users')
-      .select('*')
-      .eq('username', username)
-      .eq('password_hash', hash)
-      .eq('is_active', true)
-      .maybeSingle();
+      .rpc('verify_login', { p_username: username, p_hash: hash });
     
     if (userErr) throw userErr;
     if (!userData) {
@@ -12723,8 +12719,14 @@ async function exportFullBackupJSON() {
     let totalRecords = 0;
     
     for (const t of BACKUP_TABLES) {
-      let query = sb.from(t.key).select('*');
-      if (t.branchField) query = query.eq(t.branchField, branch.id);
+      // ⭐ users: ดึงผ่าน RPC (ครบทุกคอลัมน์ยกเว้น password_hash) เพื่อให้ backup ทำงานหลังล็อกตาราง
+      let query;
+      if (t.key === 'users') {
+        query = sb.rpc('list_users_safe');
+      } else {
+        query = sb.from(t.key).select('*');
+        if (t.branchField) query = query.eq(t.branchField, branch.id);
+      }
       
       const { data, error } = await query;
       if (error) {
@@ -12802,8 +12804,14 @@ async function exportFullBackupExcel() {
     ];
     
     for (const t of BACKUP_TABLES) {
-      let query = sb.from(t.key).select('*');
-      if (t.branchField) query = query.eq(t.branchField, branch.id);
+      // ⭐ users: ดึงผ่าน RPC (ครบทุกคอลัมน์ยกเว้น password_hash) เพื่อให้ backup ทำงานหลังล็อกตาราง
+      let query;
+      if (t.key === 'users') {
+        query = sb.rpc('list_users_safe');
+      } else {
+        query = sb.from(t.key).select('*');
+        if (t.branchField) query = query.eq(t.branchField, branch.id);
+      }
       
       const { data, error } = await query;
       if (error || !data) {
@@ -13116,12 +13124,8 @@ async function executeRestore() {
   // Verify admin password
   try {
     const hash = await hashPassword(pwd);
-    const { data: adminCheck } = await sb.from('users')
-      .select('id, role, username')
-      .eq('username', user.username)
-      .eq('password_hash', hash)
-      .eq('is_active', true)
-      .maybeSingle();
+    const { data: adminCheck } = await sb
+      .rpc('verify_login', { p_username: user.username, p_hash: hash });
     
     if (!adminCheck || adminCheck.role !== 'admin') {
       errEl.textContent = isLao ? 'Password ບໍ່ຖືກຕ້ອງ ຫຼື ບໍ່ມີສິດ' : 'Password ไม่ถูกต้อง หรือไม่มีสิทธิ์';
@@ -13248,8 +13252,14 @@ async function exportTableJSON(tableName) {
   showToast(isLao ? '⏳ ກຳລັງສ້າງ...' : '⏳ กำลังสร้าง...', 'success');
   
   try {
-    let query = sb.from(tableName).select('*');
-    if (tableInfo.branchField) query = query.eq(tableInfo.branchField, branch.id);
+    // ⭐ users: ดึงผ่าน RPC (ไม่มี password_hash) เพื่อให้ทำงานหลังล็อกตาราง
+    let query;
+    if (tableName === 'users') {
+      query = sb.rpc('list_users_safe');
+    } else {
+      query = sb.from(tableName).select('*');
+      if (tableInfo.branchField) query = query.eq(tableInfo.branchField, branch.id);
+    }
     
     const { data, error } = await query;
     if (error) throw error;
@@ -13299,8 +13309,14 @@ async function exportTableExcel(tableName) {
   showToast(isLao ? '⏳ ກຳລັງສ້າງ Excel...' : '⏳ กำลังสร้าง Excel...', 'success');
   
   try {
-    let query = sb.from(tableName).select('*');
-    if (tableInfo.branchField) query = query.eq(tableInfo.branchField, branch.id);
+    // ⭐ users: ดึงผ่าน RPC (ไม่มี password_hash) เพื่อให้ทำงานหลังล็อกตาราง
+    let query;
+    if (tableName === 'users') {
+      query = sb.rpc('list_users_safe');
+    } else {
+      query = sb.from(tableName).select('*');
+      if (tableInfo.branchField) query = query.eq(tableInfo.branchField, branch.id);
+    }
     
     const { data, error } = await query;
     if (error) throw error;
@@ -17781,7 +17797,7 @@ let _userViewMode = 'branch'; // 'branch' | 'flat'
 async function loadUsers() {
   // Load both users and branches in parallel
   const [usersRes, branchesRes] = await Promise.all([
-    sb.from('users').select('*').order('role').order('username'),
+    sb.rpc('list_users_safe'),
     sb.from('branches').select('*').eq('is_active', true).order('id')
   ]);
   
@@ -18206,7 +18222,7 @@ function openUserModal(userId = null) {
   
   if (isEdit) {
     (async () => {
-      const { data } = await sb.from('users').select('*').eq('id', userId).single();
+      const { data } = await sb.from('users').select('id, username, full_name, role, branch_id, is_active').eq('id', userId).single();
       if (data) {
         document.getElementById('mUsername').value = data.username;
         document.getElementById('mFullName').value = data.full_name;
@@ -24023,12 +24039,8 @@ async function executeReset() {
   try {
     // Verify admin password
     const hash = await hashPassword(pwd);
-    const { data: adminCheck } = await sb.from('users')
-      .select('id, role')
-      .eq('username', user.username)
-      .eq('password_hash', hash)
-      .eq('is_active', true)
-      .maybeSingle();
+    const { data: adminCheck } = await sb
+      .rpc('verify_login', { p_username: user.username, p_hash: hash });
     
     if (!adminCheck) {
       throw new Error(T('wrong_pwd'));
