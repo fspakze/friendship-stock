@@ -4786,6 +4786,7 @@ function goPage(page) {
     loadVarianceReport();
   } else if (page === 'gapscan') {
     c.innerHTML = renderGapScanPage();
+    setTimeout(() => { if (typeof updateLiteBtn === 'function') updateLiteBtn(); }, 30);
     setTimeout(() => loadGapScanRecent(), 100);
   } else if (page === 'gapreport') {
     c.innerHTML = renderGapReportPage();
@@ -5035,6 +5036,37 @@ function renderGapScanPage() {
                 onclick="toggleGapScan()">
           📷 ${isLao ? 'ສະແກນດ້ວຍກ້ອງ' : 'สแกนด้วยกล้อง'}
         </button>
+        <!-- ⭐ โหมดเครื่องเก่า + ถ่ายรูป (เหมือนหน้าสแกนหลัก) -->
+        <div style="display:flex;gap:8px;">
+          <button id="liteScanBtn" onclick="toggleLiteScan()" style="flex:1;border:1px solid var(--slate-200);background:var(--slate-50);color:var(--slate-500);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📱 ${isLao ? 'ໂหมดเครื่องเก่า' : 'โหมดเครื่องเก่า'}</button>
+          <button onclick="triggerPhotoScan('gap')" style="flex:1;border:1px solid var(--violet-300);background:var(--violet-50);color:var(--violet-700);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📷 ${isLao ? 'ຖ່າຍຮູບ' : 'ถ่ายรูป'}</button>
+        </div>
+        <!-- ⭐ วิธีใช้งานอย่างย่อ -->
+        <button onclick="const h=document.getElementById('gapHelpBox'); if(h) h.style.display = h.style.display==='none' ? 'block' : 'none';"
+                style="border:none;background:none;color:var(--sky-600);font-size:11px;font-weight:700;cursor:pointer;padding:2px;text-align:center;width:100%;">
+          ❓ ${isLao ? 'ວິທີໃຊ້ງານ' : 'วิธีใช้งาน'}
+        </button>
+        <div id="gapHelpBox" style="display:none;background:var(--sky-50);border:1px solid var(--sky-200);border-radius:11px;padding:11px 13px;font-size:12px;color:var(--slate-700);line-height:1.7;">
+          ${isLao ? `
+            <b>📖 ວິທີໃຊ້ Gap Scan (ແຈ້ງສິນຄ້າຂາດ Shelf)</b><br>
+            1️⃣ ສະແກນບາໂຄ້ດ — ເລືອກໄດ້ 3 ວິທີ:<br>
+            &nbsp;&nbsp;• <b>📷 ສະແກນດ້ວຍກ້ອງ</b> — ຈໍ່ກ້ອງໃສ່ບາໂຄ້ດ<br>
+            &nbsp;&nbsp;• <b>📱 ໂหมดเครื่องเก่า</b> — ກົດເປີດກ່ອນ ຖ້າເຄື່ອງເກົ່າ/ສະແກນຄ້າງ<br>
+            &nbsp;&nbsp;• <b>📷 ຖ່າຍຮູບ</b> — ຖ່າຍຮູບບາໂຄ້ດນິ້ງໆ ແລ້ວລະບົບອ່ານເອງ (ແມ່ນກວ່າ ສຳລັບ iPhone ເກົ່າ)<br>
+            &nbsp;&nbsp;• ຫຼື ພິມເລກບາໂຄ້ດໃນຊ່ອງ ແລ້ວກົດ 🔍<br>
+            2️⃣ ໃສ່ຈຳນວນທີ່ຂາດ + ເລືອກສາເຫດ<br>
+            3️⃣ ກົດບັນທຶກ — ລາຍການຈະຂຶ້ນໃນ Gap Report ໃຫ້ຝ່າຍຈັດຊື້ເຫັນທັນທີ
+          ` : `
+            <b>📖 วิธีใช้ Gap Scan (แจ้งสินค้าขาด Shelf)</b><br>
+            1️⃣ สแกนบาร์โค้ด — เลือกได้ 3 วิธี:<br>
+            &nbsp;&nbsp;• <b>📷 สแกนด้วยกล้อง</b> — จ่อกล้องที่บาร์โค้ด<br>
+            &nbsp;&nbsp;• <b>📱 โหมดเครื่องเก่า</b> — กดเปิดก่อน ถ้าเครื่องเก่า/สแกนแล้วค้าง<br>
+            &nbsp;&nbsp;• <b>📷 ถ่ายรูป</b> — ถ่ายรูปบาร์โค้ดนิ่ง ๆ แล้วระบบอ่านให้ (แม่นกว่า เหมาะกับ iPhone เก่า)<br>
+            &nbsp;&nbsp;• หรือพิมพ์เลขบาร์โค้ดในช่อง แล้วกด 🔍<br>
+            2️⃣ กรอกจำนวนที่ขาด + เลือกสาเหตุ<br>
+            3️⃣ กดบันทึก — รายการจะขึ้นใน Gap Report ให้ฝ่ายจัดซื้อเห็นทันที
+          `}
+        </div>
       </div>
     </div>
     
@@ -5692,9 +5724,13 @@ async function toggleGapScan() {
   
   try {
     window._gapScanner = new Html5Qrcode('gapScannerInner');
+    // ⭐ โหมดเครื่องเก่า: ลดความละเอียด + fps ให้เครื่องสเปคต่ำสแกนลื่น
+    const _gapLite = localStorage.getItem('fs_lite_scan') === '1';
     await window._gapScanner.start(
-      { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 250, height: 100 } },
+      _gapLite
+        ? { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
+        : { facingMode: 'environment' },
+      { fps: _gapLite ? 5 : 10, qrbox: { width: 250, height: 100 } },
       async (decoded) => {
         await window._gapScanner.stop();
         window._gapScanner = null;
@@ -9811,6 +9847,9 @@ async function decodeBarcodePhoto(file, mode) {
     if (mode === 'stockcheck') {
       const input = document.getElementById('scBarcode');
       if (input) { input.value = code; scLookup(); }
+    } else if (mode === 'gap') {
+      // ⭐ Gap Scan: ป้อนผลเข้า lookup ของหน้า gap
+      lookupGapProduct(code);
     } else {
       if (typeof window._scanCallback === 'function') {
         const cb = window._scanCallback; window._scanCallback = null; cb(code);
