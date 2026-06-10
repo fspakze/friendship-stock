@@ -1616,6 +1616,17 @@ window.addEventListener('unhandledrejection', function(e) {
   if (FS_DEBUG) console.error('[FS] Unhandled promise rejection:', e.reason);
 });
 
+// localDayKey — แปลง timestamp เป็นวันที่ "ตามเวลาท้องถิ่นเครื่อง" (YYYY-MM-DD)
+// กันบั๊กงานช่วงเที่ยงคืน-7โมงเช้า ถูกนับเป็นของเมื่อวาน (เพราะ UTC ช้ากว่าลาว 7 ชม.)
+function localDayKey(ts) {
+  const d = ts ? new Date(ts) : new Date();
+  if (isNaN(d)) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 // ==================== STATE ====================
 let lang = localStorage.getItem('lang') || 'lo';
 let user = null;
@@ -4726,6 +4737,17 @@ function goPage(page) {
   if (!c) return;
   
   log('Going to page:', page);
+  
+  // ⭐ B5: ปิดกล้องสแกนถ้ายังเปิดค้างอยู่ ก่อนเปลี่ยนหน้า (กันไฟกล้องติดค้าง/กินแบต)
+  if (page !== 'scan' && typeof stopScan === 'function') {
+    try {
+      const ssb = document.getElementById('stopScanBtn');
+      if (html5QrCode || (ssb && ssb.style.display !== 'none')) stopScan();
+    } catch (e) { /* ignore */ }
+  }
+  if (page !== 'gapscan' && window._gapScanner && window._gapScanner.isScanning) {
+    try { window._gapScanner.stop().catch(() => {}); window._gapScanner = null; } catch (e) { /* ignore */ }
+  }
   
   // Cleanup Quick Nav when leaving floormap or users
   if (page !== 'floormap' && page !== 'users' && typeof cleanupQuickNav === 'function') {
@@ -14188,6 +14210,24 @@ async function saveCount() {
     return;
   }
   
+  // ⭐ B6: ห้ามช่องว่าง — ถ้านับได้ 0 ต้องพิมพ์ 0 จริง ๆ (กันบันทึก 0 โดยไม่ตั้งใจ)
+  const countRaw = document.getElementById('countInput').value.trim();
+  if (countRaw === '' || isNaN(Number(countRaw))) {
+    showToast(lang === 'lo' ? '⚠️ ກະລຸນາໃສ່ຈຳນວນ (ຖ້ານັບໄດ້ 0 ໃຫ້ພິມ 0)' : '⚠️ กรุณากรอกจำนวน (ถ้านับได้ 0 ให้พิมพ์ 0)', 'warning');
+    return;
+  }
+  
+  // ⭐ B1+B2: ประกาศ + ปิดปุ่มทันทีก่อน await ใด ๆ (กัน ReferenceError และกันกดซ้ำระหว่างรอเน็ต)
+  const saveBtn = document.getElementById('saveBtn');
+  if (saveBtn && saveBtn.disabled) return; // กันกดรัว
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = `<span class="loader"></span> ${T('saving')}`;
+  }
+  const releaseBtn = () => {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = T('save'); }
+  };
+  
   // Workflow check - Counter/Verifier ต้องให้ CTL เปิดก่อน
   const r = user.role;
   if (['counter', 'staff', 'verifier', 'audit'].includes(r) && loc?.location_code) {
@@ -14202,48 +14242,75 @@ async function saveCount() {
     
     if (!gs) {
       showToast(T('gondola_locked'), 'warning');
-      saveBtn.disabled = false;
-      saveBtn.innerHTML = T('save');
+      releaseBtn();
       return;
     }
     
     if (isCounter && !['open_for_counting', 'counting'].includes(gs.status)) {
       showToast(T('gondola_locked') + ' (Status: ' + gs.status + ')', 'warning');
-      const saveBtn = document.getElementById('saveBtn');
-      if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = T('save'); }
+      releaseBtn();
       return;
     }
     
     if (isVerifier && !['open_for_verify', 'verifying'].includes(gs.status)) {
       showToast(T('gondola_locked') + ' (Status: ' + gs.status + ')', 'warning');
-      const saveBtn = document.getElementById('saveBtn');
-      if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = T('save'); }
+      releaseBtn();
       return;
     }
     
-    // Update status to counting/verifying ถ้ายังไม่ใช่
+    // ⭐ B7: 1 คน ต่อ 1 Gondola — ถ้ามีคนอื่นทำอยู่แล้ว แจ้งเตือนและห้ามบันทึก
+    if (isCounter && gs.status === 'counting' && gs.active_counter_id && gs.active_counter_id !== user.id) {
+      showToast(lang === 'lo' ? '🔒 Gondola ນີ້ມີຄົນອື່ນກຳລັງນັບຢູ່' : '🔒 Gondola นี้มีคนอื่นกำลังนับอยู่', 'warning');
+      releaseBtn();
+      return;
+    }
+    if (isVerifier && gs.status === 'verifying' && gs.active_verifier_id && gs.active_verifier_id !== user.id) {
+      showToast(lang === 'lo' ? '🔒 Gondola ນີ້ມີຄົນອື່ນກຳລັງກວດຢູ່' : '🔒 Gondola นี้มีคนอื่นกำลังตรวจอยู่', 'warning');
+      releaseBtn();
+      return;
+    }
+    
+    // ⭐ B7: จับจอง gondola แบบ atomic — update เฉพาะถ้าสถานะยังเป็น open อยู่
+    //    ถ้าอีกเครื่องชิงไปก่อน (update ไม่ติด) ให้เช็คซ้ำแล้วแจ้งเตือน
     if (isCounter && gs.status === 'open_for_counting') {
-      await sb.from('gondola_status').update({
+      const { data: claimed } = await sb.from('gondola_status').update({
         status: 'counting',
         active_counter_id: user.id,
         counting_started_at: new Date().toISOString()
-      }).eq('session_id', session.id).eq('location_code', loc.location_code);
+      }).eq('session_id', session.id).eq('location_code', loc.location_code)
+        .eq('status', 'open_for_counting').select('location_code');
+      if (!claimed || !claimed.length) {
+        const { data: gs2 } = await sb.from('gondola_status').select('active_counter_id')
+          .eq('session_id', session.id).eq('location_code', loc.location_code).maybeSingle();
+        if (gs2 && gs2.active_counter_id && gs2.active_counter_id !== user.id) {
+          showToast(lang === 'lo' ? '🔒 Gondola ນີ້ມີຄົນອື່ນກຳລັງນັບຢູ່' : '🔒 Gondola นี้มีคนอื่นกำลังนับอยู่', 'warning');
+          releaseBtn();
+          return;
+        }
+      }
     }
     if (isVerifier && gs.status === 'open_for_verify') {
-      await sb.from('gondola_status').update({
+      const { data: claimed } = await sb.from('gondola_status').update({
         status: 'verifying',
         active_verifier_id: user.id,
         verifying_started_at: new Date().toISOString()
-      }).eq('session_id', session.id).eq('location_code', loc.location_code);
+      }).eq('session_id', session.id).eq('location_code', loc.location_code)
+        .eq('status', 'open_for_verify').select('location_code');
+      if (!claimed || !claimed.length) {
+        const { data: gs2 } = await sb.from('gondola_status').select('active_verifier_id')
+          .eq('session_id', session.id).eq('location_code', loc.location_code).maybeSingle();
+        if (gs2 && gs2.active_verifier_id && gs2.active_verifier_id !== user.id) {
+          showToast(lang === 'lo' ? '🔒 Gondola ນີ້ມີຄົນອື່ນກຳລັງກວດຢູ່' : '🔒 Gondola นี้มีคนอื่นกำลังตรวจอยู่', 'warning');
+          releaseBtn();
+          return;
+        }
+      }
     }
   }
   
-  const count = parseInt(document.getElementById('countInput').value) || 0;
+  // ⭐ B6: ใช้ค่าที่ validate แล้วจากด้านบน (ช่องว่างถูกบล็อกไปแล้ว)
+  const count = parseInt(countRaw, 10);
   const note = document.getElementById('noteInput').value.trim();
-  const saveBtn = document.getElementById('saveBtn');
-  
-  saveBtn.disabled = true;
-  saveBtn.innerHTML = `<span class="loader"></span> ${T('saving')}`;
   
   // Determine count_role
   let countRole = 'counter';
@@ -15685,9 +15752,13 @@ async function loadDashboard() {
   }
   
   // Get all counts for stats (no join needed for counts)
-  const { data: counts, error: cErr } = await sb.from('stock_counts')
-    .select('count_role, variance_level, workflow_status, diff')
-    .eq('session_id', session.id);
+  // ⭐ B3: paginate กันตัดที่ 1,000 แถว (รอบนับใหญ่ตัวเลขจะผิด)
+  let counts = [], cErr = null;
+  try {
+    counts = await fetchAllQuery(() => sb.from('stock_counts')
+      .select('count_role, variance_level, workflow_status, diff')
+      .eq('session_id', session.id));
+  } catch (e) { cErr = e; }
   
   if (cErr) log('Dashboard counts error:', cErr);
   
@@ -17019,10 +17090,14 @@ async function loadKPI() {
   log('Loading KPI');
   
   // Get all counts + products for calculation
-  const { data: counts } = await sb.from('stock_counts')
-    .select(`counted_qty, pos_qty_snapshot, diff, variance_level, is_markdown,
-             products(sell_price)`)
-    .eq('session_id', session.id);
+  // ⭐ B3: paginate กันตัดที่ 1,000 แถว
+  let counts = [];
+  try {
+    counts = await fetchAllQuery(() => sb.from('stock_counts')
+      .select(`counted_qty, pos_qty_snapshot, diff, variance_level, is_markdown,
+               products(sell_price)`)
+      .eq('session_id', session.id));
+  } catch (e) { log('KPI error:', e); }
   
   const items = counts || [];
   const list = document.getElementById('kpiList');
@@ -17205,7 +17280,7 @@ async function loadPerformance() {
       }
       perUser[uid].counts.push(c);
       // Daily aggregation for speed calc
-      const day = (c.counted_at || '').slice(0, 10);
+      const day = localDayKey(c.counted_at);  // ⭐ B4: ใช้วันที่ท้องถิ่น ไม่ใช่ UTC
       if (day) perUser[uid].dailyTotals[day] = (perUser[uid].dailyTotals[day] || 0) + 1;
     });
     
@@ -17389,7 +17464,7 @@ function renderTrend(me) {
   const days = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-    const key = d.toISOString().slice(0, 10);
+    const key = localDayKey(d);  // ⭐ B4: ใช้วันที่ท้องถิ่น ไม่ใช่ UTC
     const label = d.toLocaleDateString(isLao ? 'lo-LA' : 'th-TH', { weekday: 'short', day: 'numeric' });
     days.push({ key, label, count: me.dailyTotals[key] || 0 });
   }
