@@ -1627,6 +1627,18 @@ function localDayKey(ts) {
   return `${y}-${m}-${day}`;
 }
 
+// 🍎 iPhone: เปิด "โหมดไอโฟน" ให้อัตโนมัติครั้งแรก (โหมดปกติเลือกเลนส์ผิดตัว สแกนไม่ติด)
+// ถ้าผู้ใช้เคยกดเปิด/ปิดเอง (fs_lite_user_set) จะเคารพการเลือกของเขา ไม่ทับ
+(function autoIPhoneMode() {
+  try {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (isIOS && !localStorage.getItem('fs_lite_user_set') && localStorage.getItem('fs_lite_scan') !== '1') {
+      localStorage.setItem('fs_lite_scan', '1');
+    }
+  } catch (e) {}
+})();
+
 // ==================== STATE ====================
 let lang = localStorage.getItem('lang') || 'lo';
 let user = null;
@@ -5039,7 +5051,7 @@ function renderGapScanPage() {
         </button>
         <!-- ⭐ โหมดเครื่องเก่า + ถ่ายรูป (เหมือนหน้าสแกนหลัก) -->
         <div style="display:flex;gap:8px;">
-          <button id="liteScanBtn" onclick="toggleLiteScan()" style="flex:1;border:1px solid var(--slate-200);background:var(--slate-50);color:var(--slate-500);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📱 ${isLao ? 'ໂหมดเครื่องเก่า' : 'โหมดเครื่องเก่า'}</button>
+          <button id="liteScanBtn" onclick="toggleLiteScan()" style="flex:1;border:1px solid var(--slate-200);background:var(--slate-50);color:var(--slate-500);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📱 ${isLao ? 'ໂໝດໄອໂຟນ' : 'โหมดไอโฟน'}</button>
           <button onclick="triggerPhotoScan('gap')" style="flex:1;border:1px solid var(--violet-300);background:var(--violet-50);color:var(--violet-700);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📷 ${isLao ? 'ຖ່າຍຮູບ' : 'ถ่ายรูป'}</button>
         </div>
         <!-- ⭐ วิธีใช้งานอย่างย่อ -->
@@ -5052,7 +5064,7 @@ function renderGapScanPage() {
             <b>📖 ວິທີໃຊ້ Gap Scan (ແຈ້ງສິນຄ້າຂາດ Shelf)</b><br>
             1️⃣ ສະແກນບາໂຄ້ດ — ເລືອກໄດ້ 3 ວິທີ:<br>
             &nbsp;&nbsp;• <b>📷 ສະແກນດ້ວຍກ້ອງ</b> — ຈໍ່ກ້ອງໃສ່ບາໂຄ້ດ<br>
-            &nbsp;&nbsp;• <b>📱 ໂหมดเครื่องเก่า</b> — ກົດເປີດກ່ອນ ຖ້າເຄື່ອງເກົ່າ/ສະແກນຄ້າງ<br>
+            &nbsp;&nbsp;• <b>🍎 ໂໝດໄອໂຟນ</b> — iPhone ກົດເປີດກ່ອນ (ສະແກນຕິດງ່າຍກວ່າ)<br>
             &nbsp;&nbsp;• <b>📷 ຖ່າຍຮູບ</b> — ຖ່າຍຮູບບາໂຄ້ດນິ້ງໆ ແລ້ວລະບົບອ່ານເອງ (ແມ່ນກວ່າ ສຳລັບ iPhone ເກົ່າ)<br>
             &nbsp;&nbsp;• ຫຼື ພິມເລກບາໂຄ້ດໃນຊ່ອງ ແລ້ວກົດ 🔍<br>
             2️⃣ ໃສ່ຈຳນວນທີ່ຂາດ + ເລືອກສາເຫດ<br>
@@ -5061,7 +5073,7 @@ function renderGapScanPage() {
             <b>📖 วิธีใช้ Gap Scan (แจ้งสินค้าขาด Shelf)</b><br>
             1️⃣ สแกนบาร์โค้ด — เลือกได้ 3 วิธี:<br>
             &nbsp;&nbsp;• <b>📷 สแกนด้วยกล้อง</b> — จ่อกล้องที่บาร์โค้ด<br>
-            &nbsp;&nbsp;• <b>📱 โหมดเครื่องเก่า</b> — กดเปิดก่อน ถ้าเครื่องเก่า/สแกนแล้วค้าง<br>
+            &nbsp;&nbsp;• <b>🍎 โหมดไอโฟน</b> — iPhone กดเปิดก่อน (สแกนติดง่ายกว่า)<br>
             &nbsp;&nbsp;• <b>📷 ถ่ายรูป</b> — ถ่ายรูปบาร์โค้ดนิ่ง ๆ แล้วระบบอ่านให้ (แม่นกว่า เหมาะกับ iPhone เก่า)<br>
             &nbsp;&nbsp;• หรือพิมพ์เลขบาร์โค้ดในช่อง แล้วกด 🔍<br>
             2️⃣ กรอกจำนวนที่ขาด + เลือกสาเหตุ<br>
@@ -5728,11 +5740,14 @@ async function toggleGapScan() {
     window._gapScanner = new Html5Qrcode('gapScannerInner');
     // ⭐ โหมดเครื่องเก่า: ลดความละเอียด + fps ให้เครื่องสเปคต่ำสแกนลื่น
     const _gapLite = localStorage.getItem('fs_lite_scan') === '1';
+    const _gapIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     await window._gapScanner.start(
       _gapLite
-        ? { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
+        ? (_gapIOS
+            ? { facingMode: 'environment', width: { ideal: 1024 }, height: { ideal: 768 } } // ⭐ iPhone: เลนส์หลัก
+            : { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } })
         : { facingMode: 'environment' },
-      { fps: _gapLite ? 5 : 10, qrbox: { width: 250, height: 100 } },
+      { fps: _gapLite ? (_gapIOS ? 10 : 5) : 10, qrbox: { width: 250, height: 100 } },
       async (decoded) => {
         stopNativeDetectorLoop(); // ⭐ ตัวใดตัวหนึ่งอ่านได้ก่อน อีกตัวหยุด
         await window._gapScanner.stop();
@@ -8521,7 +8536,7 @@ function renderStockCheckPage() {
         </button>
         <button class="btn btn-danger" id="stopScanBtn" onclick="stopScan()" style="flex:1;display:none;">${T('stop')}</button>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:9px;"><button id="liteScanBtn" onclick="toggleLiteScan()" style="flex:1;border:1px solid var(--slate-200);background:var(--slate-50);color:var(--slate-500);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📱 โหมดเครื่องเก่า</button><button onclick="triggerPhotoScan('stockcheck')" style="flex:1;border:1px solid var(--violet-300);background:var(--violet-50);color:var(--violet-700);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📷 ถ่ายรูป</button></div>
+      <div style="display:flex;gap:8px;margin-bottom:9px;"><button id="liteScanBtn" onclick="toggleLiteScan()" style="flex:1;border:1px solid var(--slate-200);background:var(--slate-50);color:var(--slate-500);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📱 โหมดไอโฟน</button><button onclick="triggerPhotoScan('stockcheck')" style="flex:1;border:1px solid var(--violet-300);background:var(--violet-50);color:var(--violet-700);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📷 ถ่ายรูป</button></div>
       <!-- ⭐ วิธีใช้งานอย่างย่อ -->
       <button onclick="const h=document.getElementById('scHelpBox'); if(h) h.style.display = h.style.display==='none' ? 'block' : 'none';"
               style="border:none;background:none;color:var(--sky-600);font-size:11px;font-weight:700;cursor:pointer;padding:2px;text-align:center;width:100%;margin-bottom:7px;">
@@ -8531,7 +8546,7 @@ function renderStockCheckPage() {
         ${lang === 'lo' ? `
           <b>📖 ວິທີໃຊ້ ກວດສະຕ໋ອກ (ເບິ່ງຂໍ້ມູນຢ່າງດຽວ — ບໍ່ບັນທຶກ)</b><br>
           1️⃣ ສະແກນບາໂຄ້ດ — ເລືອກໄດ້:<br>
-          &nbsp;&nbsp;• <b>📷 ກ້ອງ</b> ຈໍ່ໃສ່ບາໂຄ້ດ &nbsp;• <b>📱 ໂหมดเครื่องเก่า</b> ຖ້າເຄື່ອງຊ້າ/ຄ້າງ<br>
+          &nbsp;&nbsp;• <b>📷 ກ້ອງ</b> ຈໍ່ໃສ່ບາໂຄ້ດ &nbsp;• <b>🍎 ໂໝດໄອໂຟນ</b> — iPhone ກົດເປີດອັນນີ້ (ສະແກນຕິດງ່າຍກວ່າ)<br>
           &nbsp;&nbsp;• <b>📷 ຖ່າຍຮູບ</b> ຖ່າຍບາໂຄ້ດນິ້ງໆ ໃຫ້ລະບົບອ່ານ &nbsp;• ຫຼືພິມເລກເອງ<br>
           2️⃣ ລະບົບສະແດງ: ຈຳນວນໃນ POS • ຕຳແໜ່ງ Shelf • ປະຫວັດການນັບຫຼ້າສຸດ • ລາຄາ<br>
           💡 ໜ້ານີ້ໃຊ້ເບິ່ງຂໍ້ມູນເທົ່ານັ້ນ — ບໍ່ມີຜົນກັບການນັບສະຕ໋ອກ ສະແກນໄດ້ເລື້ອຍໆ ບໍ່ຕ້ອງຢ້ານຜິດ<br>
@@ -8539,7 +8554,7 @@ function renderStockCheckPage() {
         ` : `
           <b>📖 วิธีใช้ เช็คสต๊อก (ดูข้อมูลอย่างเดียว — ไม่บันทึก)</b><br>
           1️⃣ สแกนบาร์โค้ด — เลือกได้:<br>
-          &nbsp;&nbsp;• <b>📷 กล้อง</b> จ่อที่บาร์โค้ด &nbsp;• <b>📱 โหมดเครื่องเก่า</b> ถ้าเครื่องช้า/ค้าง<br>
+          &nbsp;&nbsp;• <b>📷 กล้อง</b> จ่อที่บาร์โค้ด &nbsp;• <b>🍎 โหมดไอโฟน</b> — iPhone กดเปิดอันนี้ (สแกนติดง่ายกว่า)<br>
           &nbsp;&nbsp;• <b>📷 ถ่ายรูป</b> ถ่ายบาร์โค้ดนิ่ง ๆ ให้ระบบอ่าน &nbsp;• หรือพิมพ์เลขเอง<br>
           2️⃣ ระบบแสดง: จำนวนใน POS • ตำแหน่ง Shelf • ประวัติการนับล่าสุด • ราคา<br>
           💡 หน้านี้ใช้ดูข้อมูลเท่านั้น — ไม่มีผลกับการนับสต๊อก สแกนกี่ครั้งก็ได้ ไม่ต้องกลัวพลาด<br>
@@ -9559,7 +9574,7 @@ function renderScanPage() {
         </button>
         <button class="btn btn-danger" id="stopScanBtn" onclick="stopScan()" style="flex:1;display:none;">${T('stop')}</button>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:9px;"><button id="liteScanBtn" onclick="toggleLiteScan()" style="flex:1;border:1px solid var(--slate-200);background:var(--slate-50);color:var(--slate-500);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📱 โหมดเครื่องเก่า</button><button onclick="triggerPhotoScan('count')" style="flex:1;border:1px solid var(--violet-300);background:var(--violet-50);color:var(--violet-700);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📷 ถ่ายรูป</button></div>
+      <div style="display:flex;gap:8px;margin-bottom:9px;"><button id="liteScanBtn" onclick="toggleLiteScan()" style="flex:1;border:1px solid var(--slate-200);background:var(--slate-50);color:var(--slate-500);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📱 โหมดไอโฟน</button><button onclick="triggerPhotoScan('count')" style="flex:1;border:1px solid var(--violet-300);background:var(--violet-50);color:var(--violet-700);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📷 ถ่ายรูป</button></div>
       <!-- ⭐ วิธีใช้งานอย่างย่อ -->
       <button onclick="const h=document.getElementById('countHelpBox'); if(h) h.style.display = h.style.display==='none' ? 'block' : 'none';"
               style="border:none;background:none;color:var(--sky-600);font-size:11px;font-weight:700;cursor:pointer;padding:2px;text-align:center;width:100%;margin-bottom:7px;">
@@ -9570,7 +9585,7 @@ function renderScanPage() {
           <b>📖 ວິທີນັບສະຕ໋ອກ</b><br>
           1️⃣ ໃຫ້ CTL ເປີດ Gondola ທີ່ຈະນັບກ່ອນ (ຖ້າຍັງບໍ່ເປີດ ຈະບັນທຶກບໍ່ໄດ້)<br>
           2️⃣ ສະແກນບາໂຄ້ດ — ເລືອກໄດ້:<br>
-          &nbsp;&nbsp;• <b>📷 ກ້ອງ</b> ຈໍ່ໃສ່ບາໂຄ້ດ &nbsp;• <b>📱 ໂหมดเครื่องเก่า</b> ຖ້າເຄື່ອງຊ້າ/ຄ້າງ<br>
+          &nbsp;&nbsp;• <b>📷 ກ້ອງ</b> ຈໍ່ໃສ່ບາໂຄ້ດ &nbsp;• <b>🍎 ໂໝດໄອໂຟນ</b> — iPhone ກົດເປີດອັນນີ້ (ສະແກນຕິດງ່າຍກວ່າ)<br>
           &nbsp;&nbsp;• <b>📷 ຖ່າຍຮູບ</b> ຖ່າຍບາໂຄ້ດນິ້ງໆ ໃຫ້ລະບົບອ່ານ &nbsp;• ຫຼືພິມເລກເອງ<br>
           3️⃣ ນັບສິນຄ້າຕົວຈິງເທິງ Shelf ແລ້ວໃສ່ຈຳນວນ — <b>ຖ້ານັບໄດ້ 0 ໃຫ້ພິມ 0</b> (ປະຫວ່າງບໍ່ໄດ້)<br>
           4️⃣ ກົດບັນທຶກ — ລະບົບທຽບກັບ POS ໃຫ້ອັດຕະໂນມັດ ຖ້າຕ່າງກັນຫຼາຍ Verifier ຈະມາກວດຊ້ຳ<br>
@@ -9580,7 +9595,7 @@ function renderScanPage() {
           <b>📖 วิธีนับสต๊อค</b><br>
           1️⃣ ให้ CTL เปิด Gondola ที่จะนับก่อน (ถ้ายังไม่เปิด จะบันทึกไม่ได้)<br>
           2️⃣ สแกนบาร์โค้ด — เลือกได้:<br>
-          &nbsp;&nbsp;• <b>📷 กล้อง</b> จ่อที่บาร์โค้ด &nbsp;• <b>📱 โหมดเครื่องเก่า</b> ถ้าเครื่องช้า/ค้าง<br>
+          &nbsp;&nbsp;• <b>📷 กล้อง</b> จ่อที่บาร์โค้ด &nbsp;• <b>🍎 โหมดไอโฟน</b> — iPhone กดเปิดอันนี้ (สแกนติดง่ายกว่า)<br>
           &nbsp;&nbsp;• <b>📷 ถ่ายรูป</b> ถ่ายบาร์โค้ดนิ่ง ๆ ให้ระบบอ่าน &nbsp;• หรือพิมพ์เลขเอง<br>
           3️⃣ นับของจริงบนชั้น แล้วกรอกจำนวน — <b>ถ้านับได้ 0 ให้พิมพ์ 0</b> (เว้นว่างไม่ได้)<br>
           4️⃣ กดบันทึก — ระบบเทียบกับ POS ให้อัตโนมัติ ถ้าต่างกันมาก Verifier จะมาตรวจซ้ำ<br>
@@ -9911,9 +9926,9 @@ function getScannerConfig() {
     config.aspectRatio = 1.333;
   }
 
-  // 📱 โหมดเครื่องเก่า (Lite) — iPhone X/11 หรือเครื่องสเปคต่ำ
+  // 🍎 โหมดไอโฟน (Lite) — iPhone ทุกรุ่น + เครื่องสเปคต่ำ (1024×768 เลือกเลนส์หลักถูกตัว)
   if (localStorage.getItem('fs_lite_scan') === '1') {
-    config.fps = 8;
+    config.fps = isIOS ? 10 : 8; // ⭐ iPhone รับ 10fps ได้ — ติดไวขึ้น
     // ⭐ iOS: 640×480 อ่าน EAN ไม่ออก → ใช้ 1024×768 (ยังเบา แต่เส้นบาร์โค้ดพอชัด) | Android คงเดิม
     config.videoConstraints = isIOS
       ? { facingMode: 'environment', width: { ideal: 1024 }, height: { ideal: 768 } }
@@ -10132,8 +10147,8 @@ function startNativeDetectorLoop(containerId, onCode) {
           const scale = Math.min(1, 1500 / sw);
           cv.width = Math.floor(sw * scale); cv.height = Math.floor(sh * scale);
           ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
-          code = decodeEAN13Scanlines(cv);
-          if (!code) { enhance(cv); code = decodeEAN13Scanlines(cv); } // รอบสอง: คอนทราสต์
+          code = decodeEAN13Scanlines(cv, 96); // ⭐ 96 แถว — จับบาร์โค้ดเอียง/โค้งดีขึ้น
+          if (!code) { enhance(cv); code = decodeEAN13Scanlines(cv, 96); } // รอบสอง: คอนทราสต์
           _tickN++;
           // diag: ให้รู้ว่าวงทำงานอยู่ (ดูได้ใน ?debug=1)
           if (typeof FSDebug !== 'undefined' && _tickN % 12 === 0) FSDebug.log('EAN live loop: ' + _tickN + ' ticks, no read yet', 'warn');
@@ -10151,7 +10166,7 @@ function startNativeDetectorLoop(containerId, onCode) {
         }
       }
     } catch (e) { /* เฟรมยังไม่พร้อม — ลองรอบหน้า */ }
-    if (!fired) _nativeLoopTimer = setTimeout(tick, det ? 150 : 140); // ⭐ เร่งรอบอ่าน iPhone
+    if (!fired) _nativeLoopTimer = setTimeout(tick, det ? 150 : 110); // ⭐ เร่งรอบอ่าน iPhone
   };
   _nativeLoopTimer = setTimeout(tick, 350); // รอกล้องวอร์มก่อนรอบแรก
 }
@@ -10159,7 +10174,7 @@ function startNativeDetectorLoop(containerId, onCode) {
 // ==================== ⭐ ตัวอ่าน EAN-13 เฉพาะทาง (สำหรับรูปนิ่ง) ====================
 // iPhone ไม่มีตัวอ่าน native และ ZXing อ่อนกับรูปนิ่ง 1D — ตัวนี้อ่านเส้นสแกน 64 แถว
 // ตรวจ guard ครบ (หน้า/กลาง/ท้าย) + checksum EAN-13 → อ่านผิดยากมาก
-function decodeEAN13Scanlines(cv) {
+function decodeEAN13Scanlines(cv, rowsOpt) {
   const W = cv.width, H = cv.height;
   if (W < 220 || H < 40) return null;
   let data;
@@ -10225,7 +10240,7 @@ function decodeEAN13Scanlines(cv) {
     return null;
   };
   const votes = {};
-  const ROWS = 64;
+  const ROWS = rowsOpt || 64;
   for (let r = 0; r < ROWS; r++) {
     const y = Math.floor(H * (r + 0.5) / ROWS);
     let mn = 255, mx = 0;
@@ -10259,10 +10274,11 @@ function decodeEAN13Scanlines(cv) {
 
 function toggleLiteScan() {
   const on = localStorage.getItem('fs_lite_scan') === '1';
+  localStorage.setItem('fs_lite_user_set', '1'); // ⭐ ผู้ใช้เลือกเอง — ไม่ auto ทับอีก
   if (on) localStorage.removeItem('fs_lite_scan');
   else localStorage.setItem('fs_lite_scan', '1');
   const isLao = lang === 'lo';
-  showToast(!on ? (isLao ? 'ເປີດโหมดเครื่องเก่า ✓' : 'เปิดโหมดเครื่องเก่า ✓') : (isLao ? 'ປິດโหมดเครื่องเก่า' : 'ปิดโหมดเครื่องเก่า'), 'success');
+  showToast(!on ? (isLao ? 'ເປີດໂໝດໄອໂຟນ ✓' : 'เปิดโหมดไอโฟน ✓') : (isLao ? 'ປິດໂໝດໄອໂຟນ' : 'ปิดโหมดไอโฟน'), 'success');
   updateLiteBtn();
   try { const sb2 = document.getElementById('stopScanBtn'); if (typeof stopScan === 'function' && sb2 && sb2.style.display !== 'none') stopScan(); } catch (e) {}
 }
@@ -10274,7 +10290,7 @@ function updateLiteBtn() {
   btn.style.background = on ? 'var(--amber-100)' : 'var(--slate-50)';
   btn.style.color = on ? 'var(--amber-700)' : 'var(--slate-500)';
   btn.style.borderColor = on ? 'var(--amber-300)' : 'var(--slate-200)';
-  btn.innerHTML = '📱 ' + (isLao ? 'ໂหมดเครื่องเก่า' : 'โหมดเครื่องเก่า') + ': <b>' + (on ? (isLao ? 'ເปิด' : 'เปิด') : (isLao ? 'ປິด' : 'ปิด')) + '</b>';
+  btn.innerHTML = '🍎 ' + (isLao ? 'ໂໝດໄອໂຟນ' : 'โหมดไอโฟน') + ': <b>' + (on ? (isLao ? 'ເปิด' : 'เปิด') : (isLao ? 'ປິด' : 'ปิด')) + '</b>';
 }
 
 // แก้ video element ให้ทำงานได้ทุก device (iOS + Android)
