@@ -9910,7 +9910,10 @@ function getScannerConfig() {
   // 📱 โหมดเครื่องเก่า (Lite) — iPhone X/11 หรือเครื่องสเปคต่ำ
   if (localStorage.getItem('fs_lite_scan') === '1') {
     config.fps = 8;
-    config.videoConstraints = { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } };
+    // ⭐ iOS: 640×480 อ่าน EAN ไม่ออก → ใช้ 1024×768 (ยังเบา แต่เส้นบาร์โค้ดพอชัด) | Android คงเดิม
+    config.videoConstraints = isIOS
+      ? { facingMode: 'environment', width: { ideal: 1024 }, height: { ideal: 768 } }
+      : { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } };
     config.experimentalFeatures = { useBarCodeDetectorIfSupported: false };
     config.qrbox = (vw, vh) => { const m = Math.min(vw, vh); const w = Math.floor(m * 0.95); return { width: w, height: Math.floor(w * 0.7) }; };
     delete config.aspectRatio;
@@ -10023,7 +10026,12 @@ async function decodeBarcodePhoto(file, mode) {
           if (codes && codes.length && codes[0].rawValue) return codes[0].rawValue;
         } catch (e) {}
       }
-      // 2) Html5Qrcode.scanFile (ZXing — iPhone)
+      // 2) ⭐ ตัวอ่าน EAN-13 เฉพาะทาง (scanline) — เร็ว แม่นกับรูปนิ่งบน iPhone
+      try {
+        const r2 = decodeEAN13Scanlines(cv);
+        if (r2) return r2;
+      } catch (e) {}
+      // 3) Html5Qrcode.scanFile (ZXing — เผื่อ format อื่นเช่น Code-128)
       try {
         const f = await canvasToFile(cv);
         const tmp = new Html5Qrcode('photoScanHolder', { verbose: false });
@@ -10099,6 +10107,107 @@ function startNativeDetectorLoop(containerId, onCode) {
     if (!fired) _nativeLoopTimer = setTimeout(tick, 150);
   };
   _nativeLoopTimer = setTimeout(tick, 350); // รอกล้องวอร์มก่อนรอบแรก
+}
+
+// ==================== ⭐ ตัวอ่าน EAN-13 เฉพาะทาง (สำหรับรูปนิ่ง) ====================
+// iPhone ไม่มีตัวอ่าน native และ ZXing อ่อนกับรูปนิ่ง 1D — ตัวนี้อ่านเส้นสแกน 64 แถว
+// ตรวจ guard ครบ (หน้า/กลาง/ท้าย) + checksum EAN-13 → อ่านผิดยากมาก
+function decodeEAN13Scanlines(cv) {
+  const W = cv.width, H = cv.height;
+  if (W < 220 || H < 40) return null;
+  let data;
+  try { data = cv.getContext('2d').getImageData(0, 0, W, H).data; } catch (e) { return null; }
+  // ตารางความกว้าง run ของเลข 0-9 (L-pattern; G = กลับด้าน; R = ลำดับเดียวกับ L)
+  const LW = [[3,2,1,1],[2,2,2,1],[2,1,2,2],[1,4,1,1],[1,1,3,2],[1,2,3,1],[1,1,1,4],[1,3,1,2],[1,2,1,3],[3,1,1,2]];
+  const FIRST = {'LLLLLL':0,'LLGLGG':1,'LLGGLG':2,'LLGGGL':3,'LGLLGG':4,'LGGLLG':5,'LGGGLL':6,'LGLGLG':7,'LGLGGL':8,'LGGLGL':9};
+  const matchDigit = (r4) => {
+    const tot = r4[0]+r4[1]+r4[2]+r4[3];
+    if (tot <= 0) return null;
+    const u = tot / 7, w = [r4[0]/u, r4[1]/u, r4[2]/u, r4[3]/u];
+    let best = -1, bs = 1e9, rev = false;
+    for (let d = 0; d < 10; d++) {
+      let s1 = 0, s2 = 0;
+      for (let k = 0; k < 4; k++) { s1 += Math.abs(w[k]-LW[d][k]); s2 += Math.abs(w[k]-LW[d][3-k]); }
+      if (s1 < bs) { bs = s1; best = d; rev = false; }
+      if (s2 < bs) { bs = s2; best = d; rev = true; }
+    }
+    return bs > 1.6 ? null : { d: best, rev };
+  };
+  const decodeFrom = (rs, cs, i, m0) => {
+    let idx = i + 3;
+    if (idx + 24 + 5 + 24 + 3 > rs.length) return null;
+    const left = []; let parity = '';
+    for (let k = 0; k < 6; k++) {
+      if (cs[idx] !== 0) return null;
+      const dd = matchDigit([rs[idx], rs[idx+1], rs[idx+2], rs[idx+3]]);
+      if (!dd) return null;
+      left.push(dd.d); parity += dd.rev ? 'G' : 'L'; idx += 4;
+    }
+    const mm = (rs[idx]+rs[idx+1]+rs[idx+2]+rs[idx+3]+rs[idx+4]) / 5;
+    if (cs[idx] !== 0 || mm <= 0) return null;
+    for (let k = 0; k < 5; k++) if (Math.abs(rs[idx+k]-mm) > 0.6*mm) return null;
+    idx += 5;
+    const right = [];
+    for (let k = 0; k < 6; k++) {
+      if (cs[idx] !== 1) return null;
+      const dd = matchDigit([rs[idx], rs[idx+1], rs[idx+2], rs[idx+3]]);
+      if (!dd || dd.rev) return null; // R-pattern = ลำดับเดียวกับ L (ไม่กลับด้าน)
+      right.push(dd.d); idx += 4;
+    }
+    if (idx + 2 >= rs.length || cs[idx] !== 1) return null;
+    const eg = (rs[idx]+rs[idx+1]+rs[idx+2]) / 3;
+    for (let k = 0; k < 3; k++) if (Math.abs(rs[idx+k]-eg) > 0.5*eg) return null;
+    const first = FIRST[parity];
+    if (first === undefined) return null;
+    const digits = [first, ...left, ...right];
+    let sum = 0;
+    for (let k = 0; k < 12; k++) sum += digits[k] * (k % 2 === 0 ? 1 : 3);
+    if ((10 - (sum % 10)) % 10 !== digits[12]) return null;
+    return digits.join('');
+  };
+  const scanRuns = (rs, cs) => {
+    for (let i = 1; i + 59 < rs.length; i++) {
+      if (cs[i] !== 1) continue;
+      const m = (rs[i] + rs[i+1] + rs[i+2]) / 3;
+      if (m <= 0) continue;
+      if (Math.abs(rs[i]-m) > 0.45*m || Math.abs(rs[i+1]-m) > 0.45*m || Math.abs(rs[i+2]-m) > 0.45*m) continue;
+      if (rs[i-1] < m * 2.5) continue; // quiet zone หน้าบาร์โค้ด
+      const code = decodeFrom(rs, cs, i, m);
+      if (code) return code;
+    }
+    return null;
+  };
+  const votes = {};
+  const ROWS = 64;
+  for (let r = 0; r < ROWS; r++) {
+    const y = Math.floor(H * (r + 0.5) / ROWS);
+    let mn = 255, mx = 0;
+    const line = new Float32Array(W);
+    for (let x = 0; x < W; x++) {
+      const p = (y * W + x) * 4;
+      const g = data[p]*0.299 + data[p+1]*0.587 + data[p+2]*0.114;
+      line[x] = g;
+      if (g < mn) mn = g; if (g > mx) mx = g;
+    }
+    if (mx - mn < 40) continue; // แถวแบน ไม่มีบาร์โค้ด
+    const th = (mn + mx) / 2;
+    const runs = [], cols = [];
+    let cur = line[0] < th ? 1 : 0, len = 1;
+    for (let x = 1; x < W; x++) {
+      const d = line[x] < th ? 1 : 0;
+      if (d === cur) len++; else { runs.push(len); cols.push(cur); cur = d; len = 1; }
+    }
+    runs.push(len); cols.push(cur);
+    let code = scanRuns(runs, cols);
+    if (!code) code = scanRuns(runs.slice().reverse(), cols.slice().reverse()); // กลับหัว
+    if (code) {
+      votes[code] = (votes[code] || 0) + 1;
+      if (votes[code] >= 2) return code; // 2 แถวยืนยันตรงกัน = ชัวร์
+    }
+  }
+  let bc = null, bv = 0;
+  for (const c in votes) if (votes[c] > bv) { bv = votes[c]; bc = c; }
+  return bc; // 1 แถว (ผ่าน guard+checksum แล้ว) ก็ยอมรับได้
 }
 
 function toggleLiteScan() {
@@ -10463,10 +10572,12 @@ async function startScan() {
     scanLog(`Cfg: fps=${cfg1.fps} flip=${cfg1.disableFlip} iOSmode=${cfg1.disableFlip}`);
     scanLog(`Formats: ${cfg1.formatsToSupport ? cfg1.formatsToSupport.length : 'undef'}`);
     // ใช้ facingMode แทน device id (ยกเว้น Lite mode — คง videoConstraints บังคับ 640x480)
+    // ⭐ iOS: คง videoConstraints (960×720) เสมอ — ถ้าลบทิ้ง iPhone จะได้ default 640×480 ซึ่งอ่าน EAN ไม่ออก
     const _liteOn = localStorage.getItem('fs_lite_scan') === '1';
-    if (!_liteOn) delete cfg1.videoConstraints;
+    const _iosLive = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (!_liteOn && !_iosLive) delete cfg1.videoConstraints;
     await html5QrCode.start(
-      _liteOn ? cfg1.videoConstraints : { facingMode: "environment" },
+      (_liteOn || _iosLive) ? cfg1.videoConstraints : { facingMode: "environment" },
       cfg1,
       onScanSuccess,
       () => {}
