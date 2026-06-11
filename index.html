@@ -2023,7 +2023,7 @@ const I18N = {
     ir_no_data: 'ບໍ່ມີລາຍງານ',
     ir_status_open: 'ເປີດ', ir_status_in_progress: 'ກຳລັງດຳເນີນ',
     ir_status_resolved: 'ແກ້ໄຂແລ້ວ', ir_status_cancelled: 'ຍົກເລີກ',
-    ir_resolve: 'ແກ້ໄຂ', ir_cancel: 'ຍົກເລີກ', ir_start: 'ເລີ່ມ',
+    ir_resolve: 'ສຳເລັດ (ຈົບງານ)', ir_cancel: 'ຍົກເລີກ', ir_start: 'ຮັບງານ/ເລີ່ມເຮັດ',
     ir_resolution_note: 'ໝາຍເຫດການແກ້ໄຂ',
     ir_reported_by: 'ລາຍງານໂດຍ', ir_resolved_by: 'ແກ້ໂດຍ',
     ir_filter_all: 'ທັງໝົດ',
@@ -2396,7 +2396,7 @@ const I18N = {
     ir_no_data: 'ไม่มีรายงาน',
     ir_status_open: 'เปิด', ir_status_in_progress: 'กำลังดำเนินการ',
     ir_status_resolved: 'แก้ไขแล้ว', ir_status_cancelled: 'ยกเลิก',
-    ir_resolve: 'แก้ไข', ir_cancel: 'ยกเลิก', ir_start: 'เริ่ม',
+    ir_resolve: 'สำเร็จ (จบงาน)', ir_cancel: 'ยกเลิก', ir_start: 'รับงาน/เริ่มทำ',
     ir_resolution_note: 'หมายเหตุการแก้ไข',
     ir_reported_by: 'แจ้งโดย', ir_resolved_by: 'แก้โดย',
     ir_filter_all: 'ทั้งหมด',
@@ -9283,7 +9283,7 @@ async function loadIssueReports() {
   // ใส่ timeout 6 วิ กัน query เสริมค้าง
   const withTimeout = (p) => Promise.race([p, new Promise(res => setTimeout(() => res({ data: null }), 6000))]);
   try {
-    const ids = [...new Set(rows.flatMap(r => [r.reported_by, r.resolved_by]).filter(Boolean))];
+    const ids = [...new Set(rows.flatMap(r => [r.reported_by, r.resolved_by, r.started_by]).filter(Boolean))];
     if (ids.length) {
       const { data: us } = await withTimeout(sb.from('users').select('id, full_name').in('id', ids));
       const uMap = {};
@@ -9291,6 +9291,7 @@ async function loadIssueReports() {
       rows.forEach(r => {
         if (r.reported_by && uMap[r.reported_by]) r.reporter = { full_name: uMap[r.reported_by] };
         if (r.resolved_by && uMap[r.resolved_by]) r.resolver = { full_name: uMap[r.resolved_by] };
+        if (r.started_by && uMap[r.started_by]) r.starter = { full_name: uMap[r.started_by] }; // ⭐ ผู้รับงาน
       });
     }
   } catch (e) { console.warn('[FS] ir users:', (e && e.message) || e); }
@@ -9373,6 +9374,7 @@ function renderIssueReportList() {
         </div>
         <div style="font-size:10px;color:var(--slate-500);margin-bottom:${actions?'9px':'0'};">
           ${T('ir_reported_by')}: <strong>${escapeHtml(it.reporter?.full_name || '?')}</strong> • ${ago}
+          ${it.starter ? `<br>🔧 ${lang === 'lo' ? 'ຜູ້ຮັບງານ' : 'ผู้รับงาน'}: <strong>${escapeHtml(it.starter.full_name)}</strong>` : ''}
           ${it.resolver ? `<br>${T('ir_resolved_by')}: <strong>${escapeHtml(it.resolver.full_name)}</strong>${it.resolution_note ? ' — "'+escapeHtml(it.resolution_note)+'"' : ''}` : ''}
           <button onclick="irShowTimeline(${it.id})" style="margin-top:6px;background:var(--violet-50);color:var(--violet-700);border:1px solid var(--violet-200);border-radius:7px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;">📋 ${isLao ? 'ປະຫວັດการติดตาม' : 'ประวัติการติดตาม'}</button>
         </div>
@@ -9447,7 +9449,17 @@ async function irUpdateStatus(id, newStatus) {
     payload.resolved_by = user.id;
     payload.resolved_at = new Date().toISOString();
   }
-  const { error } = await sb.from('product_issues').update(payload).eq('id', id);
+  // ⭐ กดเริ่มทำ = บันทึกผู้รับงาน
+  if (newStatus === 'in_progress') {
+    payload.started_by = user.id;
+    payload.started_at = new Date().toISOString();
+  }
+  let { error } = await sb.from('product_issues').update(payload).eq('id', id);
+  // fallback: ถ้า DB ยังไม่มีคอลัมน์ started_by (ยังไม่รัน migration) → บันทึกแบบเดิมไปก่อน
+  if (error && /started_/.test(error.message || '')) {
+    delete payload.started_by; delete payload.started_at;
+    ({ error } = await sb.from('product_issues').update(payload).eq('id', id));
+  }
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   await irLog(id, newStatus, null);
   showToast('✅ ' + (lang === 'lo' ? 'ອັບເດດແລ້ວ' : 'อัปเดตแล้ว'), 'success');
@@ -25874,6 +25886,7 @@ function wtOpen(id) {
     + (t.description ? '<div style="background:var(--slate-50);border-radius:9px;padding:10px;font-size:12px;color:var(--slate-700);margin-bottom:10px;white-space:pre-wrap;">' + wtEsc(t.description) + '</div>' : '')
     + ((t.photo_urls && t.photo_urls.length) ? '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px;">' + t.photo_urls.map(u => '<a href="' + u + '" target="_blank" rel="noopener" style="display:block;width:72px;height:72px;border-radius:9px;overflow:hidden;border:1px solid var(--slate-200);"><img src="' + u + '" style="width:100%;height:100%;object-fit:cover;"></a>').join('') + '</div>' : '')
     + kv(isLao ? 'ຜູ້ແຈ້ง' : 'ผู้แจ้ง', wtEsc(t.reporter_name || '—'))
+    + ((t.status === 'prog' || t.status === 'done') && t.handled_name ? kv('🔧 ' + (isLao ? 'ຜູ້ຮັບງານ' : 'ผู้รับงาน'), wtEsc(t.handled_name)) : '')
     + kv(isLao ? 'ປະເພດ' : 'ประเภท', wtCatLabel(t.category))
     + kv(isLao ? 'ສົ່ງຕໍ່' : 'ส่งต่อไปยัง', wtEsc(t.dept))
     + kv(isLao ? 'ເร่งด่วน' : 'ความเร่งด่วน', WT_PRI_LABEL[t.priority] || t.priority)
