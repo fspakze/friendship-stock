@@ -25761,6 +25761,48 @@ async function wrSubmit() {
 // ---------- หน้าติดตามงาน + dashboard ----------
 let _wtData = [];
 let _wtFilter = 'all';
+let _wtDeptFilter = null; // ⭐ กรองตามแผนกรับเรื่อง (null = ทุกแผนก)
+
+// ⭐ ไอคอนประจำแผนก
+const WT_DEPT_ICONS = {
+  'จัดเรียงสินค้า': '🛒', 'Nonfood': '🧴', 'Freshfood': '🥬', 'Dryfood': '🍚',
+  'สาง(คลังสินค้า)': '📦', 'ไอที': '💻', 'กวดกา(LP)': '🛡️', 'การตลาด': '📣',
+  'ประชาสัมพันธ์': '🎙️', 'ขายส่ง': '🏬', 'ช่าง': '🔧', 'ผู้จัดการ': '👔',
+  'บัญชี': '🧾', 'จัดซื้อ': '🛍️', 'ขนส่ง': '🚚',
+};
+
+// ⭐ แถบไอคอนแผนก: นับงานค้าง (รอรับ+กำลังทำ+เกินกำหนด) ต่อแผนก
+function renderWtDeptBar() {
+  const el = document.getElementById('wtDeptBar');
+  if (!el) return;
+  const isLao = lang === 'lo';
+  const pending = {};
+  _wtData.forEach(t => {
+    if (t.status === 'done') return;
+    pending[t.dept] = (pending[t.dept] || 0) + 1;
+  });
+  const chip = (dept, icon, label, count) => {
+    const on = _wtDeptFilter === dept;
+    return '<button onclick="wtSetDeptFilter(' + (dept === null ? 'null' : "'" + dept.replace(/'/g, "\\'") + "'") + ')"'
+      + ' style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px;border:1.5px solid ' + (on ? 'var(--teal-500)' : 'var(--slate-200)') + ';background:' + (on ? 'var(--teal-50)' : 'white') + ';border-radius:12px;padding:7px 9px;min-width:58px;cursor:pointer;position:relative;">'
+      + '<span style="font-size:19px;line-height:1;">' + icon + '</span>'
+      + '<span style="font-size:8.5px;font-weight:700;color:' + (on ? 'var(--teal-700)' : 'var(--slate-600)') + ';max-width:62px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + label + '</span>'
+      + (count ? '<span style="position:absolute;top:-5px;right:-4px;background:var(--rose-500);color:white;font-size:9px;font-weight:800;border-radius:9px;min-width:17px;height:17px;display:flex;align-items:center;justify-content:center;padding:0 4px;">' + count + '</span>' : '')
+      + '</button>';
+  };
+  let html = chip(null, '🗂️', isLao ? 'ທັງໝົດ' : 'ทั้งหมด', 0);
+  // เรียงแผนกที่มีงานค้างขึ้นก่อน
+  const order = [...WT_DEPTS].sort((a, b) => (pending[b] || 0) - (pending[a] || 0));
+  order.forEach(d => { html += chip(d, WT_DEPT_ICONS[d] || '📋', d, pending[d] || 0); });
+  el.innerHTML = '<div style="display:flex;gap:6px;overflow-x:auto;padding:4px 1px 8px;-webkit-overflow-scrolling:touch;">' + html + '</div>';
+}
+
+function wtSetDeptFilter(d) {
+  _wtDeptFilter = (_wtDeptFilter === d) ? null : d; // กดซ้ำ = ยกเลิกกรอง
+  renderWtDeptBar();
+  renderWtList();
+}
+
 function renderWorkTrackPage() {
   const isLao = lang === 'lo';
   const chips = [
@@ -25775,6 +25817,7 @@ function renderWorkTrackPage() {
     <div style="padding:14px 13px 90px;max-width:680px;margin:0 auto;">
       <h2 style="font-size:18px;font-weight:800;margin:0 0 11px;">📋 ${isLao ? 'ຕິດຕາມงาน' : 'ติดตามงาน'}</h2>
       <div id="wtDash"></div>
+      <div id="wtDeptBar"></div>
       <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:7px;margin-bottom:10px;">${chips}</div>
       <div id="wtList"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
     </div>`;
@@ -25830,6 +25873,10 @@ function renderWtList() {
   const el = document.getElementById('wtList');
   if (!el) return;
   let rows = _wtData.slice();
+  // ⭐ กรองตามแผนกรับเรื่องก่อน
+  if (typeof _wtDeptFilter !== 'undefined' && _wtDeptFilter) {
+    rows = rows.filter(t => t.dept === _wtDeptFilter);
+  }
   if (_wtFilter !== 'all') {
     rows = rows.filter(t => {
       const s = wtStatusOf(t);
@@ -25874,6 +25921,7 @@ function renderWtDash() {
     + card(c.over, isLao ? 'ເກີນ' : 'เกินกำหนด', '#e11d48')
     + '</div>'
     + '<div style="display:flex;height:7px;border-radius:5px;overflow:hidden;background:var(--slate-100);margin-bottom:13px;">' + bar + '</div>';
+  renderWtDeptBar(); // ⭐ อัปเดตแถบแผนกพร้อมกันทุกครั้ง
 }
 
 function wtOpen(id) {
@@ -26444,6 +26492,7 @@ window.wrReset = wrReset;
 window.wtSetFilter = wtSetFilter;
 window.wtOpen = wtOpen;
 window.wtSetStatus = wtSetStatus;
+window.wtSetDeptFilter = wtSetDeptFilter;
 window.loadHistoryWork = loadHistoryWork;
 window.wtEditOpen = wtEditOpen;
 window.wtEditSave = wtEditSave;
