@@ -9962,14 +9962,34 @@ async function decodeBarcodePhoto(file, mode) {
     img.src = url;
   });
 
-  // วาดรูปลง canvas (ย่อถ้าใหญ่ + เลือก crop)
-  const toCanvas = (img, maxW, crop) => {
+  // วาดรูปลง canvas (ย่อถ้าใหญ่ + crop + หมุน + ปรับคอนทราสต์)
+  // crop: 'full' | 'center' (70%) | 'center50' (50% — บาร์โค้ดอยู่กลางเฟรม)
+  const toCanvas = (img, maxW, crop, opts = {}) => {
     let sx = 0, sy = 0, sw = img.naturalWidth, sh = img.naturalHeight;
     if (crop === 'center') { sw = img.naturalWidth * 0.7; sh = img.naturalHeight * 0.7; sx = (img.naturalWidth - sw) / 2; sy = (img.naturalHeight - sh) / 2; }
+    if (crop === 'center50') { sw = img.naturalWidth * 0.5; sh = img.naturalHeight * 0.5; sx = (img.naturalWidth - sw) / 2; sy = (img.naturalHeight - sh) / 2; }
     const scale = Math.min(1, maxW / sw);
+    const w = Math.round(sw * scale), h = Math.round(sh * scale);
     const cv = document.createElement('canvas');
-    cv.width = Math.round(sw * scale); cv.height = Math.round(sh * scale);
-    cv.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+    if (opts.rotate90) { cv.width = h; cv.height = w; }
+    else { cv.width = w; cv.height = h; }
+    const ctx = cv.getContext('2d');
+    if (opts.rotate90) { ctx.translate(h, 0); ctx.rotate(Math.PI / 2); }
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+    // ⭐ iPhone: เพิ่มคอนทราสต์แบบ manual (Safari ไม่รองรับ ctx.filter รุ่นเก่า)
+    if (opts.enhance) {
+      try {
+        const id = ctx.getImageData(0, 0, cv.width, cv.height);
+        const d = id.data;
+        for (let i = 0; i < d.length; i += 4) {
+          let g = d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114; // grayscale
+          g = (g - 128) * 1.8 + 128;                               // contrast x1.8
+          g = g < 0 ? 0 : g > 255 ? 255 : g;
+          d[i] = d[i+1] = d[i+2] = g;
+        }
+        ctx.putImageData(id, 0, 0);
+      } catch (e) { /* canvas tainted? ข้ามไป */ }
+    }
     return cv;
   };
 
@@ -10002,15 +10022,24 @@ async function decodeBarcodePhoto(file, mode) {
       return null;
     };
 
-    // ลองหลายขนาด/crop: เต็มย่อ 1600 → เต็มย่อ 1024 → crop กลาง 1280
-    const variants = [
-      toCanvas(img, 1600, 'full'),
-      toCanvas(img, 1024, 'full'),
-      toCanvas(img, 1280, 'center'),
+    // ⭐ ลองหลายแบบ เรียงเร็ว→ช้า (สร้างทีละตัวตอนใช้ ประหยัด memory บน iPhone)
+    // ครอบเคส: บาร์โค้ดเล็กในเฟรม (2200px), บาร์โค้ดกลางเฟรม (crop50),
+    //          ถ่ายแนวตั้ง (rotate90), แสงสะท้อน/ซีด (enhance)
+    const variantMakers = [
+      () => toCanvas(img, 1600, 'full'),
+      () => toCanvas(img, 2200, 'full'),
+      () => toCanvas(img, 1600, 'center50'),
+      () => toCanvas(img, 1600, 'full',     { rotate90: true }),
+      () => toCanvas(img, 1600, 'center50', { rotate90: true }),
+      () => toCanvas(img, 1600, 'center',   { enhance: true }),
+      () => toCanvas(img, 1600, 'center50', { enhance: true }),
+      () => toCanvas(img, 1024, 'full',     { enhance: true }),
     ];
     let code = null;
-    for (const cv of variants) {
+    for (const make of variantMakers) {
+      const cv = make();
       code = await tryCanvas(cv);
+      cv.width = 0; cv.height = 0; // คืน memory
       if (code) break;
     }
     if (!code) throw new Error('no result');
