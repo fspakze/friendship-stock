@@ -4748,6 +4748,7 @@ function goPage(page) {
   if (page !== 'gapscan' && window._gapScanner && window._gapScanner.isScanning) {
     try { window._gapScanner.stop().catch(() => {}); window._gapScanner = null; } catch (e) { /* ignore */ }
   }
+  if (typeof stopNativeDetectorLoop === 'function') stopNativeDetectorLoop(); // ⭐ กันวง native ค้างข้ามหน้า
   
   // Cleanup Quick Nav when leaving floormap or users
   if (page !== 'floormap' && page !== 'users' && typeof cleanupQuickNav === 'function') {
@@ -5695,6 +5696,7 @@ async function toggleGapScan() {
   
   if (window._gapScanner && window._gapScanner.isScanning) {
     // Stop
+    stopNativeDetectorLoop(); // ⭐ ปิดวง native ด้วย
     try {
       await window._gapScanner.stop();
       window._gapScanner = null;
@@ -5732,6 +5734,7 @@ async function toggleGapScan() {
         : { facingMode: 'environment' },
       { fps: _gapLite ? 5 : 10, qrbox: { width: 250, height: 100 } },
       async (decoded) => {
+        stopNativeDetectorLoop(); // ⭐ ตัวใดตัวหนึ่งอ่านได้ก่อน อีกตัวหยุด
         await window._gapScanner.stop();
         window._gapScanner = null;
         if (placeholder) placeholder.style.display = 'flex';
@@ -5740,6 +5743,14 @@ async function toggleGapScan() {
       },
       () => {}
     );
+    // ⭐ Android: วงอ่าน native คู่ขนาน — อ่านได้ทุกทิศทาง (ตั้ง/กลับหัว/เอียง)
+    startNativeDetectorLoop('gapScannerInner', async (code) => {
+      try { if (window._gapScanner) { await window._gapScanner.stop(); window._gapScanner = null; } } catch (e) {}
+      if (placeholder) placeholder.style.display = 'flex';
+      if (btn) btn.innerHTML = `📷 ${isLao ? 'ສະແກນ' : 'สแกน'}`;
+      if (typeof beep === 'function') beep();
+      await lookupGapProduct(code);
+    });
   } catch (e) {
     console.error('[FS] Gap camera error:', e);
     showToast(friendlyError(e), 'error');
@@ -10050,6 +10061,46 @@ async function decodeBarcodePhoto(file, mode) {
   }
 }
 
+// ==================== ⭐ Native Detector Loop (Android) ====================
+// Android Chrome มี BarcodeDetector (ML Kit) ในตัว — อ่านได้ทุกทิศทาง (ตั้ง/กลับหัว/เอียง) และเร็ว
+// วงนี้รันคู่ขนานกับ html5-qrcode: ดึงเฟรมจาก <video> มาอ่านด้วย native ทุก 150ms
+// ใครอ่านได้ก่อนก็ชนะ — iPhone ไม่มี BarcodeDetector จึงไม่กระทบ flow เดิมเลย
+let _nativeLoopTimer = null;
+function stopNativeDetectorLoop() {
+  if (_nativeLoopTimer) { clearTimeout(_nativeLoopTimer); _nativeLoopTimer = null; }
+}
+function startNativeDetectorLoop(containerId, onCode) {
+  stopNativeDetectorLoop();
+  if (!('BarcodeDetector' in window)) return; // iPhone/เครื่องไม่รองรับ → ใช้ flow เดิม
+  let det;
+  try {
+    det = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128', 'upc_a', 'upc_e', 'code_39', 'codabar', 'itf'] });
+  } catch (e) { return; }
+  const cv = document.createElement('canvas');
+  const ctx = cv.getContext('2d', { willReadFrequently: true });
+  let fired = false;
+  const tick = async () => {
+    if (fired) return;
+    try {
+      const container = document.getElementById(containerId);
+      const video = container && container.querySelector('video');
+      if (video && video.readyState >= 2 && video.videoWidth > 0) {
+        cv.width = video.videoWidth; cv.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+        const codes = await det.detect(cv);
+        if (codes && codes.length && codes[0].rawValue && !fired) {
+          fired = true;
+          stopNativeDetectorLoop();
+          onCode(String(codes[0].rawValue).trim());
+          return;
+        }
+      }
+    } catch (e) { /* เฟรมยังไม่พร้อม/อื่น ๆ — ลองใหม่รอบหน้า */ }
+    if (!fired) _nativeLoopTimer = setTimeout(tick, 150);
+  };
+  _nativeLoopTimer = setTimeout(tick, 350); // รอกล้องวอร์มก่อนรอบแรก
+}
+
 function toggleLiteScan() {
   const on = localStorage.getItem('fs_lite_scan') === '1';
   if (on) localStorage.removeItem('fs_lite_scan');
@@ -10284,6 +10335,7 @@ async function tryStartScannerFallback(scannerInstance, containerId, onSuccess) 
     );
     
     fixVideoElement(containerId);
+    startNativeDetectorLoop(containerId, onSuccess); // ⭐ Android: อ่านทุกทิศทาง
     return true;
   } catch (e) {
     console.error('[FS] Fallback also failed:', e);
@@ -10426,6 +10478,7 @@ async function startScan() {
       if (v) scanLog(`Video: ${v.videoWidth}x${v.videoHeight}, ready=${v.readyState}`, 'ok');
     }, 1500);
     fixVideoElement('reader');
+    startNativeDetectorLoop('reader', onScanSuccess); // ⭐ Android: อ่านทุกทิศทาง
     return;
   } catch (e1) {
     scanLog('Attempt 1 FAILED: ' + (e1?.name || '?') + ' - ' + (e1?.message || '?').substring(0, 80), 'warn');
@@ -10458,6 +10511,7 @@ async function startScan() {
       );
       scanLog('SUCCESS (Attempt 2)', 'ok');
       fixVideoElement('reader');
+      startNativeDetectorLoop('reader', onScanSuccess); // ⭐ Android: อ่านทุกทิศทาง
       return;
     } catch (e2) {
       scanLog('Attempt 2 FAILED: ' + (e2?.name || '?') + ' - ' + (e2?.message || '?').substring(0, 80), 'warn');
@@ -10487,6 +10541,7 @@ async function startScan() {
         );
         scanLog('SUCCESS (Attempt 3)', 'ok');
         fixVideoElement('reader');
+        startNativeDetectorLoop('reader', onScanSuccess); // ⭐ Android: อ่านทุกทิศทาง
         return;
       } catch (e3) {
         scanLog('All attempts failed', 'error');
@@ -10550,6 +10605,7 @@ ${debugInfo || '(no debug info)'}
 }
 
 async function stopScan() {
+  stopNativeDetectorLoop(); // ⭐ ปิดวง native (Android) ด้วย
   if (html5QrCode) {
     try { await html5QrCode.stop(); } catch(e) {}
     html5QrCode = null;
