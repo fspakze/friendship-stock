@@ -23460,8 +23460,19 @@ async function loadWorkflowList() {
     return;
   }
   
-  window._wfData = data || [];
-  log('Workflow items:', window._wfData.length);
+  // ⭐ FIX: รวมแถวซ้ำ — เปิด gondola ซ้ำ/ยกเลิกแล้วเปิดใหม่ ทำให้มีหลายแถวต่อ 1 ใบ
+  //    เก็บเฉพาะแถวล่าสุดของแต่ละ location_code (ข้อมูลเรียง opened_at ใหม่→เก่าอยู่แล้ว)
+  const _seen = new Set();
+  let rows = (data || []).filter(r => {
+    if (_seen.has(r.location_code)) return false;
+    _seen.add(r.location_code);
+    return true;
+  });
+  // ⭐ FIX: gondola ที่ "ยกเลิกเปิด" (สถานะ closed) ไม่ต้องค้างบนบอร์ด
+  rows = rows.filter(r => r.status !== 'closed');
+  
+  window._wfData = rows;
+  log('Workflow items:', window._wfData.length, '(raw:', (data || []).length + ')');
   
   renderWorkflowSummary(window._wfData);
   renderWorkflowList(window._wfData);
@@ -23472,7 +23483,7 @@ function renderWorkflowSummary(items) {
   const completed = items.filter(x => x.status === 'completed').length;
   const inProgress = items.filter(x => ['counting', 'verifying', 'tiebreaker'].includes(x.status)).length;
   const waiting = items.filter(x => ['counted', 'open_for_verify', 'verified', 'tiebreaker_needed'].includes(x.status)).length;
-  const notStarted = items.filter(x => ['closed', 'open_for_counting'].includes(x.status)).length;
+  const notStarted = items.filter(x => x.status === 'open_for_counting').length; // ⭐ closed ถูกซ่อนจากบอร์ดแล้ว
   const pct = total ? Math.round((completed / total) * 100) : 0;
   
   const el = document.getElementById('wfSummary');
