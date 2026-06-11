@@ -8600,6 +8600,43 @@ async function scLookup() {
   }
   
   if (!prod) {
+    // ⭐ ไม่มีในสต๊อคสาขา → ดึงจากดาต้ากลาง (master_products) แล้วแสดงสต๊อค = 0
+    const { data: mp } = await sb
+      .from('master_products')
+      .select('barcode, name_lo, name_th, unit_lo, sell_price, brand, category')
+      .eq('barcode', barcode)
+      .maybeSingle();
+    
+    if (mp) {
+      const isLao2 = lang === 'lo';
+      // map ให้เข้ารูปแบบเดียวกับ products (pos_qty = 0, ไม่มี id สาขา)
+      const prodFromMaster = {
+        id: null,
+        barcode: mp.barcode,
+        name_lo: mp.name_lo,
+        name_th: mp.name_th,
+        unit_lo: mp.unit_lo,
+        unit_th: mp.unit_lo, // master มีหน่วยเดียว ใช้ร่วมกัน
+        pos_qty: 0,
+        sell_price: mp.sell_price,
+        _fromMaster: true
+      };
+      _scCurrentProduct = prodFromMaster;
+      const { data: ps2 } = await sb.from('product_status').select('*').eq('barcode', barcode).maybeSingle();
+      renderStockCheckResult(prodFromMaster, null, null, ps2);
+      // แถบแจ้งว่าข้อมูลมาจากดาต้ากลาง — สาขานี้ไม่มีสต๊อค
+      const card2 = document.getElementById('scResultCard');
+      if (card2) {
+        card2.insertAdjacentHTML('afterbegin', `
+          <div style="background:var(--amber-50);border:1px solid var(--amber-300);border-radius:9px;padding:9px 12px;margin-top:11px;font-size:11.5px;color:var(--amber-800);font-weight:700;display:flex;align-items:center;gap:7px;">
+            <span style="font-size:15px;">ℹ️</span>
+            <span>${isLao2 ? 'ສາຂານີ້ບໍ່ມີສະຕ໋ອກ — ຂໍ້ມູນຈາກ Master Data (ສະຕ໋ອກ = 0)' : 'สาขานี้ไม่มีสต๊อค — ข้อมูลจาก Master Data (สต๊อค = 0)'}</span>
+          </div>`);
+      }
+      return;
+    }
+    
+    // ไม่มีทั้งในสาขาและดาต้ากลาง
     if (card) card.innerHTML = `<div style="background:var(--rose-50);border:2px solid var(--rose-300);border-radius:11px;padding:15px;text-align:center;color:var(--rose-700);font-size:13px;font-weight:700;">⚠️ ${T('sc_no_product')}: <code>${barcode}</code></div>`;
     return;
   }
@@ -8703,6 +8740,12 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
 async function scOpenPogPicker() {
   if (!_scCurrentProduct) return;
   const isLao = lang === 'lo';
+  
+  // ⭐ สินค้าจากดาต้ากลาง (สาขาไม่มีสต๊อค) — ยังกำหนด PoG ไม่ได้
+  if (_scCurrentProduct._fromMaster || !_scCurrentProduct.id) {
+    showToast(isLao ? 'ℹ️ ສິນຄ້ານີ້ຍັງບໍ່ມີໃນສະຕ໋ອກສາຂາ — ກຳນົດ Location ບໍ່ໄດ້' : 'ℹ️ สินค้านี้ยังไม่มีในสต๊อคสาขา — กำหนด Location ไม่ได้', 'warning');
+    return;
+  }
   
   // เช็คว่าสินค้านี้มี PoG อยู่แล้วหรือยัง
   const { data: existing, error: existErr } = await sb
@@ -8922,6 +8965,11 @@ async function scIssueUploadPhotos(barcode) {
 
 async function scSubmitIssue() {
   if (!_scCurrentProduct) return;
+  // ⭐ สินค้าจากดาต้ากลาง (สาขาไม่มีสต๊อค) — แจ้งปัญหาไม่ได้เพราะไม่มี product id สาขา
+  if (_scCurrentProduct._fromMaster || !_scCurrentProduct.id) {
+    showToast(lang === 'lo' ? 'ℹ️ ສິນຄ້ານີ້ຍັງບໍ່ມີໃນສະຕ໋ອກສາຂາ — ແຈ້ງບັນຫາບໍ່ໄດ້' : 'ℹ️ สินค้านี้ยังไม่มีในสต๊อคสาขา — แจ้งปัญหาไม่ได้', 'warning');
+    return;
+  }
   const selected = document.querySelector('input[name="scIssueType"]:checked');
   if (!selected) {
     showToast(lang === 'lo' ? 'ກະລຸນາເລືອກປະເພດປັນຫາ' : 'กรุณาเลือกประเภทปัญหา', 'error');
