@@ -10094,6 +10094,22 @@ function startNativeDetectorLoop(containerId, onCode) {
   const cv = document.createElement('canvas');
   const ctx = cv.getContext('2d', { willReadFrequently: true });
   let fired = false;
+  let _tickN = 0, _hinted = false;
+  // ⭐ ขับคอนทราสต์ (สำหรับเฟรมซีด/แสงสะท้อน)
+  const enhance = (c) => {
+    try {
+      const x = c.getContext('2d');
+      const id = x.getImageData(0, 0, c.width, c.height);
+      const d = id.data;
+      for (let i = 0; i < d.length; i += 4) {
+        let g = d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114;
+        g = (g - 128) * 1.8 + 128;
+        d[i] = d[i+1] = d[i+2] = g < 0 ? 0 : g > 255 ? 255 : g;
+      }
+      x.putImageData(id, 0, 0);
+    } catch (e) {}
+    return c;
+  };
   const tick = async () => {
     if (fired) return;
     try {
@@ -10108,13 +10124,24 @@ function startNativeDetectorLoop(containerId, onCode) {
           const codes = await det.detect(cv);
           if (codes && codes.length && codes[0].rawValue) code = String(codes[0].rawValue).trim();
         } else {
-          // ⭐ iPhone: crop แถบกลาง (โซน qrbox) + จำกัดกว้าง 1100px แล้วอ่านด้วย EAN engine
-          const sw = Math.floor(vw * 0.92), sh = Math.floor(vh * 0.6);
+          // ⭐ iPhone: สลับ crop กว้าง/ซูมกลาง ทีละรอบ — แต่ละรอบอ่าน 2 แบบ (ดิบ + ขับคอนทราสต์)
+          const tight = (_tickN % 2) === 1;
+          const sw = Math.floor(vw * (tight ? 0.68 : 0.92));
+          const sh = Math.floor(vh * (tight ? 0.45 : 0.60));
           const sx = (vw - sw) >> 1, sy = (vh - sh) >> 1;
-          const scale = Math.min(1, 1100 / sw);
+          const scale = Math.min(1, 1500 / sw);
           cv.width = Math.floor(sw * scale); cv.height = Math.floor(sh * scale);
           ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
           code = decodeEAN13Scanlines(cv);
+          if (!code) { enhance(cv); code = decodeEAN13Scanlines(cv); } // รอบสอง: คอนทราสต์
+          _tickN++;
+          // diag: ให้รู้ว่าวงทำงานอยู่ (ดูได้ใน ?debug=1)
+          if (typeof FSDebug !== 'undefined' && _tickN % 12 === 0) FSDebug.log('EAN live loop: ' + _tickN + ' ticks, no read yet', 'warn');
+          // ⭐ ~3 วิแล้วยังไม่ติด → เตือนเรื่องระยะโฟกัส 1 ครั้ง
+          if (!_hinted && _tickN >= 20) {
+            _hinted = true;
+            showToast(lang === 'lo' ? '📏 ລອງຖືຫ່າງ ~1 ຄືບ ໃຫ້ພາບຊັດ' : '📏 ลองถือห่าง ~1 คืบ ให้ภาพชัดก่อน', 'info');
+          }
         }
         if (code && !fired) {
           fired = true;
@@ -10124,7 +10151,7 @@ function startNativeDetectorLoop(containerId, onCode) {
         }
       }
     } catch (e) { /* เฟรมยังไม่พร้อม — ลองรอบหน้า */ }
-    if (!fired) _nativeLoopTimer = setTimeout(tick, det ? 150 : 260);
+    if (!fired) _nativeLoopTimer = setTimeout(tick, det ? 150 : 140); // ⭐ เร่งรอบอ่าน iPhone
   };
   _nativeLoopTimer = setTimeout(tick, 350); // รอกล้องวอร์มก่อนรอบแรก
 }
@@ -10209,7 +10236,7 @@ function decodeEAN13Scanlines(cv) {
       line[x] = g;
       if (g < mn) mn = g; if (g > mx) mx = g;
     }
-    if (mx - mn < 40) continue; // แถวแบน ไม่มีบาร์โค้ด
+    if (mx - mn < 28) continue; // แถวแบน ไม่มีบาร์โค้ด (28 = เผื่อแสงร้านสลัว)
     const th = (mn + mx) / 2;
     const runs = [], cols = [];
     let cur = line[0] < th ? 1 : 0, len = 1;
