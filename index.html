@@ -2784,8 +2784,8 @@ async function toggleCountMenu() {
     status.style.color = next ? 'var(--teal-600)' : 'var(--slate-400)';
     status.textContent = next ? (isLao ? '● ເປີດ' : '● เปิดอยู่') : (isLao ? '○ ປິด' : '○ ปิดอยู่');
   }
-  // re-render shell เพื่อให้เมนูที่เปิดอยู่ (ถ้าเป็น counter/verifier บนเครื่องเดียวกัน) อัปเดต
-  if (typeof renderApp === 'function' && (user.role === 'counter' || user.role === 'verifier')) renderApp();
+  // re-render shell เพื่อให้เมนูที่เปิดอยู่ (counter/verifier/ctl บนเครื่องเดียวกัน) อัปเดต
+  if (typeof renderApp === 'function' && ['counter', 'verifier', 'ctl'].includes(user.role)) renderApp();
 }
 
 
@@ -4444,9 +4444,9 @@ const MENU_CONFIG = {
     ]
   },
   ctl: {
-    bottomTabs: ['stockcheck', 'floormap', 'tiebreaker', 'workflow'],
+    bottomTabs: ['stockcheck', 'gapscan', 'floormap', 'tiebreaker', 'workflow'],
     drawerGroups: [
-      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['gapscan', 'expirytrack', 'workreport', 'worktrack'] },
+      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'workreport', 'worktrack'] },
       { titleTh: '📝 งานรายวัน SC', titleLo: '📝 งานรายวัน SC', items: ['scdaily', 'scdailylog'] },
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport', 'issuereport', 'invmovement'] },
@@ -4598,8 +4598,11 @@ function renderMenuButton(hasDrawerItems) {
 function wtFilterMenuCfg(cfg, role) {
   if (!cfg) return cfg;
   if (_countMenuEnabled) return cfg;
-  if (role !== 'counter' && role !== 'verifier') return cfg;
-  const hide = ['scan', 'tiebreaker'];
+  // ⭐ เมื่อ Admin ยังไม่เปิดรอบนับสต๊อก: ซ่อนเมนูที่เกี่ยวกับการนับ
+  let hide = null;
+  if (role === 'counter' || role === 'verifier') hide = ['scan', 'tiebreaker'];
+  else if (role === 'ctl') hide = ['tiebreaker', 'workflow'];
+  if (!hide) return cfg;
   return {
     bottomTabs: (cfg.bottomTabs || []).filter(x => !hide.includes(x)),
     drawerGroups: (cfg.drawerGroups || []).map(g => ({ ...g, items: g.items.filter(x => !hide.includes(x)) })).filter(g => g.items.length > 0),
