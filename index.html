@@ -26706,8 +26706,12 @@ function docNewOpen() {
     + '<button type="button" onclick="document.getElementById(\'docNewPhotoInput\').click()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:12px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;margin-bottom:8px;">📷 ' + (isLao ? 'ຖ່າຍ / ເລືອກຮູບ' : 'ถ่าย / เลือกรูป') + '</button>'
     + '<div id="docNewPhotoPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px;"></div>'
     + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:5px;">📎 ' + (isLao ? 'ເອกະສານປະກອບແນບ (ສຳລັບກວດກ່ອນເຊັນ)' : 'เอกสารประกอบแนบ (สำหรับตรวจก่อนเซ็น)') + '</div>'
-    + '<input type="file" id="docNewAttachInput" accept="image/*" capture="environment" multiple style="display:none;" onchange="docNewOnAttach(event)">'
-    + '<button type="button" onclick="document.getElementById(\'docNewAttachInput\').click()" style="width:100%;border:1.5px dashed var(--violet-300);background:var(--violet-50);border-radius:10px;padding:12px;font-size:13px;font-weight:700;color:var(--violet-700);cursor:pointer;margin-bottom:8px;">📎 ' + (isLao ? 'ແນບເອກະສານປະກອບ' : 'แนบเอกสารประกอบ') + '</button>'
+    + '<input type="file" id="docNewAttachFile" accept="image/*,application/pdf" multiple style="display:none;" onchange="docNewOnAttach(event)">'
+    + '<input type="file" id="docNewAttachCam" accept="image/*" capture="environment" style="display:none;" onchange="docNewOnAttach(event)">'
+    + '<div style="display:flex;gap:8px;margin-bottom:8px;">'
+    + '<button type="button" onclick="document.getElementById(\'docNewAttachFile\').click()" style="flex:1;border:1.5px dashed var(--violet-300);background:var(--violet-50);border-radius:10px;padding:12px 8px;font-size:12.5px;font-weight:700;color:var(--violet-700);cursor:pointer;">📁 ' + (isLao ? 'ເລືອກໄຟລ໌/ເອกະສານ' : 'เลือกไฟล์/เอกสาร') + '</button>'
+    + '<button type="button" onclick="document.getElementById(\'docNewAttachCam\').click()" style="flex:1;border:1.5px dashed var(--violet-300);background:var(--violet-50);border-radius:10px;padding:12px 8px;font-size:12.5px;font-weight:700;color:var(--violet-700);cursor:pointer;">📷 ' + (isLao ? 'ຖ່າຍຮູບແນບ' : 'ถ่ายรูปแนบ') + '</button>'
+    + '</div>'
     + '<div id="docNewAttachPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px;"></div>'
     + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:6px;">' + (isLao ? 'ຕຳແໜ່ງທີ່ຕ້ອງເຊັນ (ເລືອກໄດ້ຫຼາຍ)' : 'ตำแหน่งที่ต้องเซ็น (เลือกได้หลายตำแหน่ง)') + '</div>'
     + posChecks
@@ -26734,14 +26738,24 @@ function docNewRemovePhoto(i) { _docNewPhotos.splice(i, 1); docNewRenderPhotos()
 function docNewOnAttach(e) {
   const files = Array.from(e.target.files || []);
   e.target.value = '';
-  files.forEach(f => wrCompressImage(f, (blob, dataUrl) => { _docNewAttach.push({ blob, dataUrl }); docNewRenderAttach(); }));
+  files.forEach(f => {
+    if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) {
+      // เอกสาร PDF — เก็บไฟล์ดิบ (ไม่บีบ)
+      _docNewAttach.push({ blob: f, dataUrl: null, isPdf: true, name: f.name });
+      docNewRenderAttach();
+    } else {
+      wrCompressImage(f, (blob, dataUrl) => { _docNewAttach.push({ blob, dataUrl, isPdf: false }); docNewRenderAttach(); });
+    }
+  });
 }
 function docNewRenderAttach() {
   const pv = document.getElementById('docNewAttachPreview');
   if (!pv) return;
   pv.innerHTML = _docNewAttach.map((p, i) =>
-    '<div style="position:relative;width:70px;height:70px;border-radius:9px;overflow:hidden;border:1px solid var(--violet-200);">'
-    + '<img src="' + p.dataUrl + '" style="width:100%;height:100%;object-fit:cover;">'
+    '<div style="position:relative;width:70px;height:70px;border-radius:9px;overflow:hidden;border:1px solid var(--violet-200);background:var(--slate-50);">'
+    + (p.isPdf
+        ? '<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--rose-600);"><span style="font-size:22px;">📄</span><span style="font-size:7px;font-weight:700;color:var(--slate-500);max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px;">PDF</span></div>'
+        : '<img src="' + p.dataUrl + '" style="width:100%;height:100%;object-fit:cover;">')
     + '<button type="button" onclick="docNewRemoveAttach(' + i + ')" style="position:absolute;top:2px;right:2px;background:rgba(225,29,72,0.9);color:white;border:none;width:19px;height:19px;border-radius:50%;font-size:11px;line-height:1;cursor:pointer;">✕</button></div>'
   ).join('');
 }
@@ -26767,12 +26781,15 @@ async function docSubmitNew() {
       if (!error) { const { data } = sb.storage.from('ticket-photos').getPublicUrl(path); if (data?.publicUrl) urls.push(data.publicUrl); }
     } catch (e) { log('doc photo up', e); }
   }
-  // อัปโหลดเอกสารประกอบแนบ
+  // อัปโหลดเอกสารประกอบแนบ (รองรับทั้งรูปและ PDF)
   const attachUrls = [];
   for (let i = 0; i < _docNewAttach.length; i++) {
-    const path = 'docatt_' + (branch.id || 'x') + '_' + Date.now() + '_' + i + '.jpg';
+    const a = _docNewAttach[i];
+    const ext = a.isPdf ? 'pdf' : 'jpg';
+    const ct = a.isPdf ? 'application/pdf' : 'image/jpeg';
+    const path = 'docatt_' + (branch.id || 'x') + '_' + Date.now() + '_' + i + '.' + ext;
     try {
-      const { error } = await sb.storage.from('ticket-photos').upload(path, _docNewAttach[i].blob, { contentType: 'image/jpeg', upsert: false });
+      const { error } = await sb.storage.from('ticket-photos').upload(path, a.blob, { contentType: ct, upsert: false });
       if (!error) { const { data } = sb.storage.from('ticket-photos').getPublicUrl(path); if (data?.publicUrl) attachUrls.push(data.publicUrl); }
     } catch (e) { log('doc attach up', e); }
   }
@@ -26834,7 +26851,9 @@ function docOpen(id) {
     + (d.note ? '<div style="background:var(--slate-50);border-radius:9px;padding:9px 11px;font-size:12.5px;color:var(--slate-700);margin-bottom:11px;">' + escapeHtml(d.note) + '</div>' : '')
     + '<div id="docPhotos">' + photosHtml + '</div>'
     + ((d.attachments || []).length ? '<div style="font-size:12px;font-weight:800;color:var(--violet-700);margin:11px 0 7px;">📎 ' + (isLao ? 'ເອกະສານປະກອບ (ກວດກ່อนເຊັน)' : 'เอกสารประกอบ (ตรวจก่อนเซ็น)') + '</div>'
-        + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;">' + (d.attachments || []).map(u => '<a href="' + u + '" target="_blank" rel="noopener" style="display:block;width:78px;height:78px;border-radius:9px;overflow:hidden;border:1px solid var(--violet-200);"><img src="' + u + '" style="width:100%;height:100%;object-fit:cover;"></a>').join('') + '</div>' : '')
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;">' + (d.attachments || []).map(u => /\.pdf($|\?)/i.test(u)
+            ? '<a href="' + u + '" target="_blank" rel="noopener" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:78px;height:78px;border-radius:9px;border:1px solid var(--rose-200);background:var(--rose-50);text-decoration:none;color:var(--rose-600);"><span style="font-size:26px;">📄</span><span style="font-size:8px;font-weight:800;">PDF</span></a>'
+            : '<a href="' + u + '" target="_blank" rel="noopener" style="display:block;width:78px;height:78px;border-radius:9px;overflow:hidden;border:1px solid var(--violet-200);"><img src="' + u + '" style="width:100%;height:100%;object-fit:cover;"></a>').join('') + '</div>' : '')
     + '<div style="font-size:12px;font-weight:800;color:var(--slate-600);margin:9px 0 7px;">' + (isLao ? 'ການເຊັນ' : 'การเซ็น') + '</div>'
     + posRows
     + '<div style="display:flex;gap:8px;margin-top:13px;">'
