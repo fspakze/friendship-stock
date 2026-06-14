@@ -2797,6 +2797,7 @@ async function afterLogin() {
   // โหลด zones+locations เสมอ (เพื่อให้ Floor Map + Workflow Control ใช้)
   await loadZonesAndLocations();
   await loadAppSettings();
+  if (typeof updateDocBadge === 'function') setTimeout(updateDocBadge, 800);
   
   const branchUseZones = branch?.use_zones !== false;
   
@@ -4449,6 +4450,7 @@ const MENU_CONFIG = {
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'workreport', 'worktrack'] },
       { titleTh: '📝 งานรายวัน SC', titleLo: '📝 งานรายวัน SC', items: ['scdaily', 'scdailylog'] },
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
+      { titleTh: '📄 เอกสาร', titleLo: '📄 ເອກະສານ', items: ['docsign'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport', 'issuereport', 'invmovement'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -4459,6 +4461,7 @@ const MENU_CONFIG = {
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'workreport', 'worktrack', 'tiebreaker'] },
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: '📝 ติดตามงาน SC', titleLo: '📝 ຕິດຕາມงาน SC', items: ['scdailylog'] },
+      { titleTh: '📄 เอกสาร', titleLo: '📄 ເອກະສານ', items: ['docsign'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct', 'productstatus', 'purchasehistory'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -4468,7 +4471,7 @@ const MENU_CONFIG = {
     bottomTabs: ['stockcheck', 'floormap', 'gapreport'],
     drawerGroups: [
       { titleTh: '🛒 งานสต๊อก', titleLo: '🛒 ງານສະຕ໋ອກ', items: ['scan', 'gapscan', 'expirytrack', 'tiebreaker', 'workflow'] },
-      { titleTh: '📢 ระบบแจ้งงาน', titleLo: '📢 ລະບົບແຈ້ງงาน', items: ['workreport', 'worktrack'] },
+      { titleTh: '📢 ระบบแจ้งงาน', titleLo: '📢 ລະບົບແຈ້ງงาน', items: ['workreport', 'worktrack', 'docsign'] },
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: '📝 งานรายวัน SC', titleLo: '📝 งานรายวัน SC', items: ['scdaily', 'scdailylog'] },
       { titleTh: '🕘 ประวัติ', titleLo: '🕘 ປະຫວັດ', items: ['history'] },
@@ -4515,6 +4518,7 @@ const PAGE_META = {
   expirytrack:{ iconSvg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', labelTh: 'ติดตามอายุ', labelLo: 'ຕິດຕາມອາຍຸ', page: 'expirytrack' },
   workreport:{ iconSvg: '<path d="M12 5v14M5 12h14"/>', labelTh: 'แจ้งงาน', labelLo: 'ແຈ້ງงาน', page: 'workreport' },
   worktrack:{ iconSvg: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', labelTh: 'ติดตามงาน', labelLo: 'ຕິດຕາມงาน', page: 'worktrack' },
+  docsign:{ iconSvg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15c1-1.5 2.5-1.5 3 0s2 1.5 3 0"/>', labelTh: 'แจ้งเอกสาร', labelLo: 'ແຈ້ງເອกະສານ', page: 'docsign', badge: 'tabDocBadge' },
   dailybrief:{ iconSvg: '<path d="M9 11H15M9 15H13M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>', labelTh: 'Daily Brief', labelLo: 'Daily Brief', page: 'dailybrief' },
   brieflog:{ iconSvg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', labelTh: 'ประวัติ Brief', labelLo: 'ປະຫວັດ Brief', page: 'brieflog' },
   scdaily:{ iconSvg: '<path d="M9 11l3 3 8-8M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0z"/>', labelTh: 'งานรายวัน SC', labelLo: 'งานรายวัน SC', page: 'scdaily' },
@@ -4866,6 +4870,9 @@ function goPage(page) {
   } else if (page === 'worktrack') {
     c.innerHTML = renderWorkTrackPage();
     setTimeout(() => loadWorkTickets(), 50);
+  } else if (page === 'docsign') {
+    c.innerHTML = renderDocSignPage();
+    setTimeout(() => loadDocRequests(), 50);
   } else if (page === 'dailybrief') {
     c.innerHTML = renderDailyBriefPage();
   } else if (page === 'brieflog') {
@@ -26497,6 +26504,416 @@ function scOpenExpiryModal() {
 
 window.scOpenExpiryModal = scOpenExpiryModal;
 window.renderWorkReportPage = renderWorkReportPage;
+// ==================== 📄 แจ้งเอกสาร + ลายเซ็นรับรอง (Doc Sign) ====================
+// Added by Anya 💗
+const DOCSIGN_POSITIONS = [
+  { key: 'branch_head', th: 'หัวหน้าสาขา',          lo: 'ຫົວໜ້າສາຂາ' },
+  { key: 'sc',          th: 'SC',                    lo: 'SC' },
+  { key: 'mgr_mini',    th: 'ผจก.สาขา มินิมาร์ท',    lo: 'ຜຈກ.ສາຂາ ມິນິມາດ' },
+  { key: 'mgr_super',   th: 'ผจก.สาขา ซุปเปอร์',     lo: 'ຜຈກ.ສາຂາ ຊຸບເປີ' },
+  { key: 'asst_exec',   th: 'ผู้ช่วยผู้บริหาร',       lo: 'ຜູ້ຊ່ວຍຜູ້ບໍລິຫານ' },
+];
+const DOCSIGN_TYPES = [
+  { key: 'markdown',   th: 'Markdown',  lo: 'Markdown',  color: 'var(--amber-500)' },
+  { key: 'markzero',   th: 'MarkZero',  lo: 'MarkZero',  color: 'var(--rose-500)' },
+  { key: 'promotion',  th: 'Promotion', lo: 'Promotion', color: 'var(--violet-600)' },
+  { key: 'other',      th: 'อื่น ๆ',    lo: 'ອື່ນໆ',     color: 'var(--slate-500)' },
+];
+function docPosLabel(k) { const p = DOCSIGN_POSITIONS.find(x => x.key === k); return p ? (lang === 'lo' ? p.lo : p.th) : k; }
+function docTypeMeta(k) { return DOCSIGN_TYPES.find(x => x.key === k) || DOCSIGN_TYPES[3]; }
+function docCanSign() { return ['admin', 'scc', 'bcs', 'ctl'].includes((user && user.role) || ''); }
+function docCanManage() { return ['admin', 'scc', 'bcs', 'ctl'].includes((user && user.role) || ''); }
+
+let _docData = [];
+let _docNewPhotos = [];      // {blob, dataUrl}
+let _docTypeFilter = 'all';
+let _docSign = null;         // สถานะการเซ็นปัจจุบัน {id, position, page, x, y, drawing}
+
+function renderDocSignPage() {
+  const isLao = lang === 'lo';
+  const chips = ['all', ...DOCSIGN_TYPES.map(t => t.key)].map(k => {
+    const on = _docTypeFilter === k;
+    const label = k === 'all' ? (isLao ? 'ທັງໝົດ' : 'ทั้งหมด') : docTypeMeta(k)[isLao ? 'lo' : 'th'];
+    return '<button onclick="docSetTypeFilter(\'' + k + '\')" style="flex-shrink:0;border:1.5px solid ' + (on ? 'var(--teal-500)' : 'var(--slate-200)') + ';background:' + (on ? 'var(--teal-50)' : 'white') + ';color:' + (on ? 'var(--teal-700)' : 'var(--slate-600)') + ';border-radius:20px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;">' + label + '</button>';
+  }).join('');
+  return ''
+    + '<div style="padding:14px 0;">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;">'
+    + '<div><div style="font-size:18px;font-weight:800;color:var(--slate-900);">📄 ' + (isLao ? 'ແຈ້ງເອກະສານ' : 'แจ้งเอกสาร') + '</div>'
+    + '<div style="font-size:12px;color:var(--slate-500);">' + (isLao ? 'ຖ່າຍເອກະສານ → ເລືອກຕຳແໜ່ງເຊັນ → ສົ່ງໃຫ້ເຊັນຮັບຮອງ' : 'ถ่ายเอกสาร → เลือกตำแหน่งเซ็น → ส่งให้เซ็นรับรอง') + '</div></div>'
+    + '</div>'
+    + '<button onclick="docNewOpen()" style="width:100%;background:linear-gradient(135deg,var(--teal-600),var(--teal-500));color:white;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:13px;">+ ' + (isLao ? 'ແຈ້ງເອກະສານໃໝ່' : 'แจ้งเอกสารใหม่') + '</button>'
+    + '<div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:9px;margin-bottom:6px;">' + chips + '</div>'
+    + '<div id="docList"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>'
+    + '</div>';
+}
+
+function docSetTypeFilter(k) { _docTypeFilter = k; renderDocSignPage_chips(); renderDocList(); }
+function renderDocSignPage_chips() {
+  const host = document.querySelector('#app');
+  // re-render หน้าใหม่เพื่ออัปเดต chip (เบา เพราะ list โหลดแยก)
+  const c = document.getElementById('app');
+  if (c) { c.innerHTML = renderDocSignPage(); setTimeout(() => renderDocList(), 10); }
+}
+
+async function loadDocRequests() {
+  if (!branch || !branch.id) return;
+  try {
+    _docData = await fetchAllQuery(() => sb.from('doc_requests')
+      .select('*').eq('branch_id', branch.id).order('created_at', { ascending: false }));
+  } catch (e) { _docData = []; log('doc load error', e); }
+  renderDocList();
+  if (typeof updateDocBadge === 'function') updateDocBadge();
+}
+
+function docPendingPositions(d) {
+  const signed = new Set((d.signatures || []).map(s => s.position));
+  return (d.required_positions || []).filter(p => !signed.has(p));
+}
+
+function renderDocList() {
+  const el = document.getElementById('docList');
+  if (!el) return;
+  const isLao = lang === 'lo';
+  let rows = _docData.slice();
+  if (_docTypeFilter !== 'all') rows = rows.filter(d => d.doc_type === _docTypeFilter);
+  if (!rows.length) {
+    el.innerHTML = '<div style="text-align:center;padding:34px;color:var(--slate-400);font-size:13px;">' + (isLao ? 'ຍັງບໍ່ມີເອກະສານ' : 'ยังไม่มีเอกสาร') + '</div>';
+    return;
+  }
+  el.innerHTML = rows.map(d => {
+    const tm = docTypeMeta(d.doc_type);
+    const pend = docPendingPositions(d);
+    const done = (d.required_positions || []).length - pend.length;
+    const total = (d.required_positions || []).length;
+    const complete = pend.length === 0 && total > 0;
+    const photo = (d.photo_urls || [])[0];
+    return '<div onclick="docOpen(\'' + d.id + '\')" style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:12px;margin-bottom:10px;cursor:pointer;display:flex;gap:11px;align-items:center;box-shadow:var(--sh-sm);">'
+      + (photo ? '<img src="' + photo + '" style="width:52px;height:52px;border-radius:9px;object-fit:cover;flex-shrink:0;background:var(--slate-100);">' : '<div style="width:52px;height:52px;border-radius:9px;background:var(--slate-100);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">📄</div>')
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;"><span style="background:' + tm.color + ';color:white;font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:6px;">' + tm[isLao ? 'lo' : 'th'] + '</span>'
+      + (complete ? '<span style="background:var(--emerald-100);color:var(--emerald-700);font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:6px;">✓ ' + (isLao ? 'ເຊັນຄົບ' : 'เซ็นครบ') + '</span>' : '<span style="background:var(--amber-100);color:var(--amber-700);font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:6px;">' + done + '/' + total + ' ' + (isLao ? 'ເຊັນ' : 'เซ็น') + '</span>') + '</div>'
+      + '<div style="font-size:13.5px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(d.title || (isLao ? '(ບໍ່ມີຫົວຂໍ້)' : '(ไม่มีหัวข้อ)')) + '</div>'
+      + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + escapeHtml(d.created_by_name || '?') + ' • ' + (typeof getTimeAgo === 'function' ? getTimeAgo(d.created_at, isLao) : '') + '</div>'
+      + (pend.length ? '<div style="font-size:10.5px;color:var(--rose-600);margin-top:3px;font-weight:700;">⏳ ' + (isLao ? 'ລໍເຊັນ' : 'รอเซ็น') + ': ' + pend.map(docPosLabel).join(', ') + '</div>' : '')
+      + '</div><div style="color:var(--slate-300);font-size:18px;">›</div></div>';
+  }).join('');
+}
+
+// -------- สร้างเอกสารใหม่ --------
+function docNewOpen() {
+  const isLao = lang === 'lo';
+  _docNewPhotos = [];
+  const typeOpts = DOCSIGN_TYPES.map(t => '<option value="' + t.key + '">' + t[isLao ? 'lo' : 'th'] + '</option>').join('');
+  const posChecks = DOCSIGN_POSITIONS.map(p =>
+    '<label style="display:flex;align-items:center;gap:9px;padding:10px 12px;border:1px solid var(--slate-200);border-radius:10px;margin-bottom:7px;cursor:pointer;font-size:13.5px;font-weight:600;color:var(--slate-700);">'
+    + '<input type="checkbox" class="docPosChk" value="' + p.key + '" style="width:18px;height:18px;accent-color:var(--teal-600);"> ' + (isLao ? p.lo : p.th) + '</label>'
+  ).join('');
+  showModal(''
+    + '<div style="font-size:16px;font-weight:800;margin-bottom:13px;">📄 ' + (isLao ? 'ແຈ້ງເອກະສານໃໝ່' : 'แจ้งเอกสารใหม่') + '</div>'
+    + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:5px;">' + (isLao ? 'ປະເພດ' : 'ประเภท') + '</div>'
+    + '<select id="docNewType" style="width:100%;padding:11px;border:1px solid var(--slate-200);border-radius:10px;font-size:14px;margin-bottom:11px;background:white;">' + typeOpts + '</select>'
+    + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:5px;">' + (isLao ? 'ຫົວຂໍ້' : 'หัวข้อ') + '</div>'
+    + '<input id="docNewTitle" type="text" placeholder="' + (isLao ? 'ເຊັ່ນ: Markdown ນ້ຳດື່ມ ມິຖຸນາ' : 'เช่น: Markdown น้ำดื่ม มิ.ย.') + '" style="width:100%;padding:11px;border:1px solid var(--slate-200);border-radius:10px;font-size:14px;margin-bottom:11px;">'
+    + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:5px;">' + (isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ') + '</div>'
+    + '<textarea id="docNewNote" rows="2" placeholder="..." style="width:100%;padding:11px;border:1px solid var(--slate-200);border-radius:10px;font-size:14px;margin-bottom:11px;resize:vertical;"></textarea>'
+    + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:5px;">' + (isLao ? 'ຮູບເອກະສານ' : 'รูปเอกสาร') + '</div>'
+    + '<input type="file" id="docNewPhotoInput" accept="image/*" capture="environment" multiple style="display:none;" onchange="docNewOnPhoto(event)">'
+    + '<button type="button" onclick="document.getElementById(\'docNewPhotoInput\').click()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:12px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;margin-bottom:8px;">📷 ' + (isLao ? 'ຖ່າຍ / ເລືອກຮູບ' : 'ถ่าย / เลือกรูป') + '</button>'
+    + '<div id="docNewPhotoPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px;"></div>'
+    + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:6px;">' + (isLao ? 'ຕຳແໜ່ງທີ່ຕ້ອງເຊັນ (ເລືອກໄດ້ຫຼາຍ)' : 'ตำแหน่งที่ต้องเซ็น (เลือกได้หลายตำแหน่ง)') + '</div>'
+    + posChecks
+    + '<div style="display:flex;gap:9px;margin-top:14px;">'
+    + '<button onclick="closeModal()" style="flex:1;background:var(--slate-100);color:var(--slate-600);border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;">' + (isLao ? 'ຍົກເລີກ' : 'ยกเลิก') + '</button>'
+    + '<button onclick="docSubmitNew()" id="docSubmitBtn" style="flex:2;background:var(--teal-600);color:white;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;">' + (isLao ? 'ສົ່ງເອກະສານ' : 'ส่งเอกสาร') + '</button>'
+    + '</div>');
+}
+function docNewOnPhoto(e) {
+  const files = Array.from(e.target.files || []);
+  e.target.value = '';
+  files.forEach(f => wrCompressImage(f, (blob, dataUrl) => { _docNewPhotos.push({ blob, dataUrl }); docNewRenderPhotos(); }));
+}
+function docNewRenderPhotos() {
+  const pv = document.getElementById('docNewPhotoPreview');
+  if (!pv) return;
+  pv.innerHTML = _docNewPhotos.map((p, i) =>
+    '<div style="position:relative;width:70px;height:70px;border-radius:9px;overflow:hidden;border:1px solid var(--slate-200);">'
+    + '<img src="' + p.dataUrl + '" style="width:100%;height:100%;object-fit:cover;">'
+    + '<button type="button" onclick="docNewRemovePhoto(' + i + ')" style="position:absolute;top:2px;right:2px;background:rgba(225,29,72,0.9);color:white;border:none;width:19px;height:19px;border-radius:50%;font-size:11px;line-height:1;cursor:pointer;">✕</button></div>'
+  ).join('');
+}
+function docNewRemovePhoto(i) { _docNewPhotos.splice(i, 1); docNewRenderPhotos(); }
+
+async function docSubmitNew() {
+  const isLao = lang === 'lo';
+  const type = document.getElementById('docNewType').value;
+  const title = document.getElementById('docNewTitle').value.trim();
+  const note = document.getElementById('docNewNote').value.trim();
+  const positions = Array.from(document.querySelectorAll('.docPosChk:checked')).map(c => c.value);
+  if (!title) { showToast(isLao ? '⚠️ ໃສ່ຫົວຂໍ້' : '⚠️ กรุณาใส่หัวข้อ', 'warning'); return; }
+  if (!_docNewPhotos.length) { showToast(isLao ? '⚠️ ຖ່າຍຮູບເອກະສານ' : '⚠️ กรุณาถ่ายรูปเอกสาร', 'warning'); return; }
+  if (!positions.length) { showToast(isLao ? '⚠️ ເລືອກຕຳແໜ່ງທີ່ຕ້ອງເຊັນ' : '⚠️ เลือกตำแหน่งที่ต้องเซ็น', 'warning'); return; }
+  const btn = document.getElementById('docSubmitBtn');
+  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.innerHTML = '<span class="loader"></span>'; }
+  // อัปโหลดรูป
+  const urls = [];
+  for (let i = 0; i < _docNewPhotos.length; i++) {
+    const path = 'doc_' + (branch.id || 'x') + '_' + Date.now() + '_' + i + '.jpg';
+    try {
+      const { error } = await sb.storage.from('ticket-photos').upload(path, _docNewPhotos[i].blob, { contentType: 'image/jpeg', upsert: false });
+      if (!error) { const { data } = sb.storage.from('ticket-photos').getPublicUrl(path); if (data?.publicUrl) urls.push(data.publicUrl); }
+    } catch (e) { log('doc photo up', e); }
+  }
+  const { error } = await sb.from('doc_requests').insert({
+    branch_id: branch.id, doc_type: type, title, note: note || null,
+    photo_urls: urls, required_positions: positions, signatures: [],
+    status: 'pending', created_by: user.id, created_by_name: user.full_name
+  });
+  if (error) { showToast('Error: ' + error.message, 'error'); if (btn) { btn.disabled = false; btn.innerHTML = isLao ? 'ສົ່ງເອกະສານ' : 'ส่งเอกสาร'; } return; }
+  if (typeof logActivity === 'function') logActivity('doc_create', type + ' / ' + title);
+  showToast(isLao ? '✓ ສົ່ງເອກະສານແລ້ວ' : '✓ ส่งเอกสารแล้ว', 'success');
+  closeModal();
+  loadDocRequests();
+}
+
+// -------- เปิดดูเอกสาร --------
+function docOpen(id) {
+  const d = _docData.find(x => x.id === id);
+  if (!d) return;
+  const isLao = lang === 'lo';
+  const tm = docTypeMeta(d.doc_type);
+  const photos = d.photo_urls || [];
+  const sigs = d.signatures || [];
+  // รูปเอกสาร + ลายเซ็นวางทับ
+  const photosHtml = photos.map((url, pi) => {
+    const overlay = sigs.filter(s => (s.page || 0) === pi).map(s =>
+      '<img src="' + s.sig_png + '" style="position:absolute;left:' + s.x + '%;top:' + s.y + '%;width:24%;transform:translate(-50%,-50%);pointer-events:none;">'
+      + '<div style="position:absolute;left:' + s.x + '%;top:' + (s.y + 7) + '%;transform:translate(-50%,0);font-size:8px;color:var(--slate-500);background:rgba(255,255,255,0.7);padding:0 3px;border-radius:3px;white-space:nowrap;pointer-events:none;">' + docPosLabel(s.position) + '</div>'
+    ).join('');
+    return '<div style="position:relative;margin-bottom:10px;border:1px solid var(--slate-200);border-radius:10px;overflow:hidden;"><img src="' + url + '" style="width:100%;display:block;">' + overlay + '</div>';
+  }).join('');
+  // สถานะตำแหน่ง
+  const posRows = (d.required_positions || []).map(pk => {
+    const s = sigs.find(x => x.position === pk);
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 11px;border:1px solid var(--slate-200);border-radius:9px;margin-bottom:6px;">'
+      + '<span style="font-size:13px;font-weight:700;color:var(--slate-700);">' + docPosLabel(pk) + '</span>'
+      + (s ? '<span style="font-size:11px;color:var(--emerald-700);font-weight:700;">✓ ' + escapeHtml(s.signed_by_name || '') + '</span>'
+           : (docCanSign() ? '<button onclick="docStartSign(\'' + d.id + '\',\'' + pk + '\')" style="background:var(--teal-600);color:white;border:none;border-radius:8px;padding:7px 13px;font-size:12px;font-weight:800;cursor:pointer;">✍️ ' + (isLao ? 'ເຊັນ' : 'เซ็น') + '</button>'
+                          : '<span style="font-size:11px;color:var(--amber-600);font-weight:700;">⏳ ' + (isLao ? 'ລໍເຊັນ' : 'รอเซ็น') + '</span>'))
+      + '</div>';
+  }).join('');
+  const canDelete = docCanManage() || (user && d.created_by === user.id);
+  showModal(''
+    + '<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;"><span style="background:' + tm.color + ';color:white;font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;">' + tm[isLao ? 'lo' : 'th'] + '</span></div>'
+    + '<div style="font-size:16px;font-weight:800;margin-bottom:2px;">' + escapeHtml(d.title || '') + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">' + escapeHtml(d.created_by_name || '?') + ' • ' + (typeof getTimeAgo === 'function' ? getTimeAgo(d.created_at, isLao) : '') + '</div>'
+    + (d.note ? '<div style="background:var(--slate-50);border-radius:9px;padding:9px 11px;font-size:12.5px;color:var(--slate-700);margin-bottom:11px;">' + escapeHtml(d.note) + '</div>' : '')
+    + '<div id="docPhotos">' + photosHtml + '</div>'
+    + '<div style="font-size:12px;font-weight:800;color:var(--slate-600);margin:9px 0 7px;">' + (isLao ? 'ການເຊັນ' : 'การเซ็น') + '</div>'
+    + posRows
+    + '<div style="display:flex;gap:8px;margin-top:13px;">'
+    + '<button onclick="docPrint(\'' + d.id + '\')" style="flex:1;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">🖨️ ' + (isLao ? 'พิมพ์' : 'พิมพ์') + '</button>'
+    + '<button onclick="docSaveFile(\'' + d.id + '\')" style="flex:1;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">💾 ' + (isLao ? 'ບັນທຶກ' : 'บันทึกไฟล์') + '</button>'
+    + (canDelete ? '<button onclick="docDelete(\'' + d.id + '\')" style="flex:1;background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">🗑️ ' + (isLao ? 'ລຶບ' : 'ลบ') + '</button>' : '')
+    + '</div>');
+}
+
+// -------- เซ็นเอกสาร (เลือกจุด + วาดลายเซ็น) --------
+function docStartSign(id, position) {
+  const d = _docData.find(x => x.id === id);
+  if (!d) return;
+  const isLao = lang === 'lo';
+  const photos = d.photo_urls || [];
+  _docSign = { id, position, page: 0, x: 50, y: 80, strokes: false };
+  const pageSel = photos.length > 1
+    ? '<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">' + photos.map((u, i) => '<button onclick="docSignSetPage(' + i + ')" id="docPageBtn' + i + '" style="border:1.5px solid ' + (i === 0 ? 'var(--teal-500)' : 'var(--slate-200)') + ';background:' + (i === 0 ? 'var(--teal-50)' : 'white') + ';border-radius:8px;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;">' + (isLao ? 'ໜ້າ' : 'หน้า') + ' ' + (i + 1) + '</button>').join('') + '</div>'
+    : '';
+  showModal(''
+    + '<div style="font-size:16px;font-weight:800;margin-bottom:3px;">✍️ ' + (isLao ? 'ເຊັນເອกະສານ' : 'เซ็นเอกสาร') + '</div>'
+    + '<div style="font-size:12px;color:var(--teal-700);font-weight:700;margin-bottom:11px;">' + (isLao ? 'ໃນนามตำแหน่ง' : 'ในนามตำแหน่ง') + ': ' + docPosLabel(position) + '</div>'
+    + pageSel
+    + '<div style="font-size:11.5px;color:var(--slate-500);margin-bottom:5px;">1. ' + (isLao ? 'ແຕະຈุดที่ต้องการเซ็นบนเอกสาร' : 'แตะจุดที่ต้องการเซ็นบนเอกสาร') + '</div>'
+    + '<div id="docSignImgWrap" style="position:relative;border:1px solid var(--slate-200);border-radius:10px;overflow:hidden;margin-bottom:12px;cursor:crosshair;">'
+    + '<img id="docSignImg" src="' + (photos[0] || '') + '" style="width:100%;display:block;" onclick="docSignPlace(event)">'
+    + '<div id="docSignMarker" style="position:absolute;left:50%;top:80%;transform:translate(-50%,-50%);width:22px;height:22px;border:2px solid var(--rose-500);border-radius:50%;background:rgba(244,63,94,0.2);pointer-events:none;"></div>'
+    + '</div>'
+    + '<div style="font-size:11.5px;color:var(--slate-500);margin-bottom:5px;">2. ' + (isLao ? 'ວາດລາຍເຊັນ' : 'วาดลายเซ็น') + '</div>'
+    + '<canvas id="docSigPad" width="500" height="200" style="width:100%;height:160px;border:1.5px dashed var(--slate-300);border-radius:10px;background:white;touch-action:none;"></canvas>'
+    + '<div style="display:flex;gap:9px;margin-top:12px;">'
+    + '<button onclick="docSigClear()" style="flex:1;background:var(--slate-100);color:var(--slate-600);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">↺ ' + (isLao ? 'ລ້າງ' : 'ล้าง') + '</button>'
+    + '<button onclick="docSaveSignature()" id="docSigSaveBtn" style="flex:2;background:var(--teal-600);color:white;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;">✓ ' + (isLao ? 'ບັນທຶກລາຍເຊັນ' : 'บันทึกลายเซ็น') + '</button>'
+    + '</div>');
+  setTimeout(docSigPadInit, 50);
+}
+function docSignSetPage(i) {
+  _docSign.page = i; _docSign.x = 50; _docSign.y = 80;
+  const img = document.getElementById('docSignImg');
+  const d = _docData.find(x => x.id === _docSign.id);
+  if (img && d) img.src = (d.photo_urls || [])[i] || '';
+  const mk = document.getElementById('docSignMarker');
+  if (mk) { mk.style.left = '50%'; mk.style.top = '80%'; }
+  (d.photo_urls || []).forEach((u, k) => { const b = document.getElementById('docPageBtn' + k); if (b) { b.style.borderColor = k === i ? 'var(--teal-500)' : 'var(--slate-200)'; b.style.background = k === i ? 'var(--teal-50)' : 'white'; } });
+}
+function docSignPlace(e) {
+  const img = document.getElementById('docSignImg');
+  if (!img || !_docSign) return;
+  const r = img.getBoundingClientRect();
+  _docSign.x = Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100));
+  _docSign.y = Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100));
+  const mk = document.getElementById('docSignMarker');
+  if (mk) { mk.style.left = _docSign.x + '%'; mk.style.top = _docSign.y + '%'; }
+}
+function docSigPadInit() {
+  const cv = document.getElementById('docSigPad');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#0f172a';
+  let drawing = false;
+  const pos = (ev) => {
+    const r = cv.getBoundingClientRect();
+    const t = ev.touches ? ev.touches[0] : ev;
+    return { x: (t.clientX - r.left) * (cv.width / r.width), y: (t.clientY - r.top) * (cv.height / r.height) };
+  };
+  const start = (ev) => { ev.preventDefault(); drawing = true; _docSign.strokes = true; const p = pos(ev); ctx.beginPath(); ctx.moveTo(p.x, p.y); };
+  const move = (ev) => { if (!drawing) return; ev.preventDefault(); const p = pos(ev); ctx.lineTo(p.x, p.y); ctx.stroke(); };
+  const end = () => { drawing = false; };
+  cv.addEventListener('mousedown', start); cv.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+  cv.addEventListener('touchstart', start, { passive: false }); cv.addEventListener('touchmove', move, { passive: false }); cv.addEventListener('touchend', end);
+  cv._fsClear = () => { ctx.clearRect(0, 0, cv.width, cv.height); _docSign.strokes = false; };
+}
+function docSigClear() { const cv = document.getElementById('docSigPad'); if (cv && cv._fsClear) cv._fsClear(); }
+
+async function docSaveSignature() {
+  if (!_docSign) return;
+  const isLao = lang === 'lo';
+  if (!_docSign.strokes) { showToast(isLao ? '⚠️ ກະລຸນາວາດລາຍເຊັນ' : '⚠️ กรุณาวาดลายเซ็น', 'warning'); return; }
+  const cv = document.getElementById('docSigPad');
+  const sigPng = cv.toDataURL('image/png');
+  const d = _docData.find(x => x.id === _docSign.id);
+  if (!d) return;
+  const btn = document.getElementById('docSigSaveBtn');
+  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.innerHTML = '<span class="loader"></span>'; }
+  const newSig = {
+    position: _docSign.position, signed_by: user.id, signed_by_name: user.full_name,
+    signed_at: new Date().toISOString(), page: _docSign.page,
+    x: Math.round(_docSign.x * 10) / 10, y: Math.round(_docSign.y * 10) / 10, sig_png: sigPng
+  };
+  const sigs = (d.signatures || []).filter(s => s.position !== _docSign.position).concat(newSig);
+  const allSigned = (d.required_positions || []).every(p => sigs.some(s => s.position === p));
+  const { error } = await sb.from('doc_requests').update({
+    signatures: sigs, status: allSigned ? 'completed' : 'pending', updated_at: new Date().toISOString()
+  }).eq('id', d.id);
+  if (error) { showToast('Error: ' + error.message, 'error'); if (btn) { btn.disabled = false; btn.innerHTML = '✓'; } return; }
+  d.signatures = sigs; d.status = allSigned ? 'completed' : 'pending';
+  if (typeof logActivity === 'function') logActivity('doc_sign', docPosLabel(_docSign.position) + ' / ' + (d.title || ''));
+  showToast(isLao ? '✓ ເຊັນແລ້ວ' : '✓ เซ็นเรียบร้อย', 'success');
+  _docSign = null;
+  closeModal();
+  renderDocList();
+  if (typeof updateDocBadge === 'function') updateDocBadge();
+  setTimeout(() => docOpen(d.id), 120);
+}
+
+// -------- composite รูป+ลายเซ็น เป็น canvas (ใช้ทั้ง print + save) --------
+function docCompositePage(url, sigs) {
+  return new Promise((resolve) => {
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const cv = document.createElement('canvas'); cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+      const ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0);
+      let pending = sigs.length;
+      if (!pending) return resolve(cv.toDataURL('image/jpeg', 0.9));
+      sigs.forEach(s => {
+        const si = new Image();
+        si.onload = () => {
+          const w = cv.width * 0.24, h = w * (si.naturalHeight / si.naturalWidth);
+          ctx.drawImage(si, cv.width * s.x / 100 - w / 2, cv.height * s.y / 100 - h / 2, w, h);
+          if (--pending === 0) resolve(cv.toDataURL('image/jpeg', 0.9));
+        };
+        si.onerror = () => { if (--pending === 0) resolve(cv.toDataURL('image/jpeg', 0.9)); };
+        si.src = s.sig_png;
+      });
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+async function docPrint(id) {
+  const d = _docData.find(x => x.id === id);
+  if (!d) return;
+  showToast(lang === 'lo' ? 'ກຳລັງກຽມพิมพ์...' : 'กำลังเตรียมพิมพ์...', 'info');
+  const photos = d.photo_urls || [], sigs = d.signatures || [];
+  const imgs = [];
+  for (let i = 0; i < photos.length; i++) {
+    const data = await docCompositePage(photos[i], sigs.filter(s => (s.page || 0) === i));
+    if (data) imgs.push(data);
+  }
+  const w = window.open('', '_blank');
+  if (!w) { showToast(lang === 'lo' ? 'ບລັອກ popup ຢູ່' : 'เบราว์เซอร์บล็อก popup', 'error'); return; }
+  w.document.write('<html><head><title>' + (d.title || 'document') + '</title><style>body{margin:0;font-family:sans-serif;}img{width:100%;page-break-after:always;display:block;}h3{padding:8px 12px;margin:0;}</style></head><body>'
+    + '<h3>' + (d.title || '') + ' — ' + docTypeMeta(d.doc_type).th + '</h3>'
+    + imgs.map(s => '<img src="' + s + '">').join('')
+    + '<script>window.onload=function(){setTimeout(function(){window.print();},400);}<\/script></body></html>');
+  w.document.close();
+}
+
+async function docSaveFile(id) {
+  const d = _docData.find(x => x.id === id);
+  if (!d) return;
+  showToast(lang === 'lo' ? 'ກຳລັງສ້າງໄຟລ໌...' : 'กำลังสร้างไฟล์...', 'info');
+  const photos = d.photo_urls || [], sigs = d.signatures || [];
+  for (let i = 0; i < photos.length; i++) {
+    const data = await docCompositePage(photos[i], sigs.filter(s => (s.page || 0) === i));
+    if (!data) continue;
+    const a = document.createElement('a');
+    a.href = data;
+    a.download = (d.title || 'document').replace(/[^a-zA-Z0-9ก-๙ເ-ໝ_-]/g, '_') + (photos.length > 1 ? '_' + (i + 1) : '') + '.jpg';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    await new Promise(r => setTimeout(r, 300));
+  }
+  showToast(lang === 'lo' ? '✓ ບັນທຶກແລ້ວ' : '✓ บันทึกไฟล์แล้ว', 'success');
+}
+
+async function docDelete(id) {
+  const d = _docData.find(x => x.id === id);
+  if (!d) return;
+  const isLao = lang === 'lo';
+  if (!confirm(isLao ? 'ລຶບເອກະສານນີ້?' : 'ลบเอกสารนี้?')) return;
+  // ลบรูปออกจาก storage
+  try {
+    const paths = (d.photo_urls || []).map(u => { const m = u.match(/ticket-photos\/(.+)$/); return m ? m[1] : null; }).filter(Boolean);
+    if (paths.length) await sb.storage.from('ticket-photos').remove(paths);
+  } catch (e) { log('doc photo del', e); }
+  const { error } = await sb.from('doc_requests').delete().eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  if (typeof logActivity === 'function') logActivity('doc_delete', d.title || id);
+  showToast(isLao ? '✓ ລຶບແລ້ວ' : '✓ ลบแล้ว', 'success');
+  closeModal();
+  loadDocRequests();
+}
+
+// -------- badge: เอกสารที่รอเซ็น (สำหรับ role ที่เซ็นได้) --------
+async function updateDocBadge() {
+  const badge = document.getElementById('tabDocBadge');
+  if (!badge) return;
+  if (!docCanSign() || !branch || !branch.id) { badge.style.display = 'none'; return; }
+  try {
+    const rows = await fetchAllQuery(() => sb.from('doc_requests')
+      .select('id, required_positions, signatures, status').eq('branch_id', branch.id).neq('status', 'completed'));
+    let n = 0;
+    rows.forEach(d => { if (docPendingPositions(d).length > 0) n++; });
+    if (n > 0) { badge.textContent = n; badge.style.display = 'flex'; }
+    else badge.style.display = 'none';
+  } catch (e) { badge.style.display = 'none'; }
+}
+
+window.renderDocSignPage = renderDocSignPage; window.loadDocRequests = loadDocRequests;
+window.docSetTypeFilter = docSetTypeFilter; window.docNewOpen = docNewOpen; window.docNewOnPhoto = docNewOnPhoto;
+window.docNewRemovePhoto = docNewRemovePhoto; window.docSubmitNew = docSubmitNew; window.docOpen = docOpen;
+window.docStartSign = docStartSign; window.docSignSetPage = docSignSetPage; window.docSignPlace = docSignPlace;
+window.docSigClear = docSigClear; window.docSaveSignature = docSaveSignature; window.docPrint = docPrint;
+window.docSaveFile = docSaveFile; window.docDelete = docDelete; window.updateDocBadge = updateDocBadge;
 window.renderWorkTrackPage = renderWorkTrackPage;
 window.loadWorkTickets = loadWorkTickets;
 window.wrSubmit = wrSubmit;
