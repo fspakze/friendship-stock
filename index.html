@@ -26520,6 +26520,7 @@ const DOCSIGN_TYPES = [
   { key: 'other',      th: 'อื่น ๆ',    lo: 'ອື່ນໆ',     color: 'var(--slate-500)' },
 ];
 function docPosLabel(k) { const p = DOCSIGN_POSITIONS.find(x => x.key === k); return p ? (lang === 'lo' ? p.lo : p.th) : k; }
+function docFmtDT(iso) { const d = new Date(iso); if (isNaN(d)) return ''; const p = n => String(n).padStart(2, '0'); return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); }
 function docTypeMeta(k) { return DOCSIGN_TYPES.find(x => x.key === k) || DOCSIGN_TYPES[3]; }
 function docCanSign() { return ['admin', 'scc', 'bcs', 'ctl'].includes((user && user.role) || ''); }
 function docCanManage() { return ['admin', 'scc', 'bcs', 'ctl'].includes((user && user.role) || ''); }
@@ -26537,7 +26538,8 @@ function renderDocSignPage() {
     return '<button onclick="docSetTypeFilter(\'' + k + '\')" style="flex-shrink:0;border:1.5px solid ' + (on ? 'var(--teal-500)' : 'var(--slate-200)') + ';background:' + (on ? 'var(--teal-50)' : 'white') + ';color:' + (on ? 'var(--teal-700)' : 'var(--slate-600)') + ';border-radius:20px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;">' + label + '</button>';
   }).join('');
   return ''
-    + '<div style="padding:14px 0;">'
+    + '<div style="padding:14px 0 90px;">'
+    + '<button onclick="goPage(\'stockcheck\')" style="display:inline-flex;align-items:center;gap:5px;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:12px;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;">'
     + '<div><div style="font-size:18px;font-weight:800;color:var(--slate-900);">📄 ' + (isLao ? 'ແຈ້ງເອກະສານ' : 'แจ้งเอกสาร') + '</div>'
     + '<div style="font-size:12px;color:var(--slate-500);">' + (isLao ? 'ຖ່າຍເອກະສານ → ເລືອກຕຳແໜ່ງເຊັນ → ສົ່ງໃຫ້ເຊັນຮັບຮອງ' : 'ถ่ายเอกสาร → เลือกตำแหน่งเซ็น → ส่งให้เซ็นรับรอง') + '</div></div>'
@@ -26687,8 +26689,10 @@ function docOpen(id) {
   // รูปเอกสาร + ลายเซ็นวางทับ
   const photosHtml = photos.map((url, pi) => {
     const overlay = sigs.filter(s => (s.page || 0) === pi).map(s =>
-      '<img src="' + s.sig_png + '" style="position:absolute;left:' + s.x + '%;top:' + s.y + '%;width:24%;transform:translate(-50%,-50%);pointer-events:none;">'
-      + '<div style="position:absolute;left:' + s.x + '%;top:' + (s.y + 7) + '%;transform:translate(-50%,0);font-size:8px;color:var(--slate-500);background:rgba(255,255,255,0.7);padding:0 3px;border-radius:3px;white-space:nowrap;pointer-events:none;">' + docPosLabel(s.position) + '</div>'
+      '<div style="position:absolute;left:' + s.x + '%;top:' + s.y + '%;width:' + (s.size || 24) + '%;transform:translate(-50%,-50%);pointer-events:none;text-align:center;">'
+      + '<img src="' + s.sig_png + '" style="width:100%;display:block;">'
+      + '<div style="font-size:8px;color:var(--slate-600);background:rgba(255,255,255,0.78);border-radius:3px;display:inline-block;padding:0 3px;margin-top:1px;line-height:1.3;white-space:nowrap;">' + docPosLabel(s.position) + '<br>' + docFmtDT(s.signed_at) + '</div>'
+      + '</div>'
     ).join('');
     return '<div style="position:relative;margin-bottom:10px;border:1px solid var(--slate-200);border-radius:10px;overflow:hidden;"><img src="' + url + '" style="width:100%;display:block;">' + overlay + '</div>';
   }).join('');
@@ -26697,7 +26701,10 @@ function docOpen(id) {
     const s = sigs.find(x => x.position === pk);
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 11px;border:1px solid var(--slate-200);border-radius:9px;margin-bottom:6px;">'
       + '<span style="font-size:13px;font-weight:700;color:var(--slate-700);">' + docPosLabel(pk) + '</span>'
-      + (s ? '<span style="font-size:11px;color:var(--emerald-700);font-weight:700;">✓ ' + escapeHtml(s.signed_by_name || '') + '</span>'
+      + (s ? '<span style="display:flex;align-items:center;gap:7px;"><span style="font-size:11px;color:var(--emerald-700);font-weight:700;">✓ ' + escapeHtml(s.signed_by_name || '') + '</span>'
+           + (docCanManage() ? '<span style="display:inline-flex;gap:3px;"><button onclick="docResizeSig(\'' + d.id + '\',\'' + pk + '\',-3)" title="' + (isLao ? 'ນ້ອຍລົງ' : 'เล็กลง') + '" style="width:26px;height:26px;border:1px solid var(--slate-200);background:var(--slate-50);border-radius:7px;font-size:15px;font-weight:800;color:var(--slate-600);cursor:pointer;line-height:1;">−</button>'
+                              + '<button onclick="docResizeSig(\'' + d.id + '\',\'' + pk + '\',3)" title="' + (isLao ? 'ໃหญ่ขึ้น' : 'ใหญ่ขึ้น') + '" style="width:26px;height:26px;border:1px solid var(--slate-200);background:var(--slate-50);border-radius:7px;font-size:15px;font-weight:800;color:var(--slate-600);cursor:pointer;line-height:1;">+</button></span>' : '')
+           + '</span>'
            : (docCanSign() ? '<button onclick="docStartSign(\'' + d.id + '\',\'' + pk + '\')" style="background:var(--teal-600);color:white;border:none;border-radius:8px;padding:7px 13px;font-size:12px;font-weight:800;cursor:pointer;">✍️ ' + (isLao ? 'ເຊັນ' : 'เซ็น') + '</button>'
                           : '<span style="font-size:11px;color:var(--amber-600);font-weight:700;">⏳ ' + (isLao ? 'ລໍເຊັນ' : 'รอเซ็น') + '</span>'))
       + '</div>';
@@ -26712,8 +26719,7 @@ function docOpen(id) {
     + '<div style="font-size:12px;font-weight:800;color:var(--slate-600);margin:9px 0 7px;">' + (isLao ? 'ການເຊັນ' : 'การเซ็น') + '</div>'
     + posRows
     + '<div style="display:flex;gap:8px;margin-top:13px;">'
-    + '<button onclick="docPrint(\'' + d.id + '\')" style="flex:1;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">🖨️ ' + (isLao ? 'พิมพ์' : 'พิมพ์') + '</button>'
-    + '<button onclick="docSaveFile(\'' + d.id + '\')" style="flex:1;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">💾 ' + (isLao ? 'ບັນທຶກ' : 'บันทึกไฟล์') + '</button>'
+    + '<button onclick="docPrint(\'' + d.id + '\')" style="flex:2;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">🖨️ ' + (isLao ? 'พิมพ์ / ບັນທຶກລົງເครื่อง' : 'พิมพ์ / บันทึกลงเครื่อง') + '</button>'
     + (canDelete ? '<button onclick="docDelete(\'' + d.id + '\')" style="flex:1;background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">🗑️ ' + (isLao ? 'ລຶບ' : 'ลบ') + '</button>' : '')
     + '</div>');
 }
@@ -26724,7 +26730,7 @@ function docStartSign(id, position) {
   if (!d) return;
   const isLao = lang === 'lo';
   const photos = d.photo_urls || [];
-  _docSign = { id, position, page: 0, x: 50, y: 80, strokes: false };
+  _docSign = { id, position, page: 0, x: 50, y: 80, strokes: false, size: 24 };
   const pageSel = photos.length > 1
     ? '<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">' + photos.map((u, i) => '<button onclick="docSignSetPage(' + i + ')" id="docPageBtn' + i + '" style="border:1.5px solid ' + (i === 0 ? 'var(--teal-500)' : 'var(--slate-200)') + ';background:' + (i === 0 ? 'var(--teal-50)' : 'white') + ';border-radius:8px;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;">' + (isLao ? 'ໜ້າ' : 'หน้า') + ' ' + (i + 1) + '</button>').join('') + '</div>'
     : '';
@@ -26739,6 +26745,11 @@ function docStartSign(id, position) {
     + '</div>'
     + '<div style="font-size:11.5px;color:var(--slate-500);margin-bottom:5px;">2. ' + (isLao ? 'ວາດລາຍເຊັນ' : 'วาดลายเซ็น') + '</div>'
     + '<canvas id="docSigPad" width="500" height="200" style="width:100%;height:160px;border:1.5px dashed var(--slate-300);border-radius:10px;background:white;touch-action:none;"></canvas>'
+    + '<div style="display:flex;align-items:center;gap:9px;margin-top:10px;">'
+    + '<span style="font-size:12px;font-weight:700;color:var(--slate-600);white-space:nowrap;">' + (isLao ? 'ຂະໜາດ' : 'ขนาด') + '</span>'
+    + '<input type="range" min="10" max="45" value="24" id="docSigSize" oninput="docSignSetSize(this.value)" style="flex:1;accent-color:var(--teal-600);">'
+    + '<span id="docSigSizeVal" style="font-size:12px;font-weight:800;color:var(--teal-700);width:34px;text-align:right;">24%</span>'
+    + '</div>'
     + '<div style="display:flex;gap:9px;margin-top:12px;">'
     + '<button onclick="docSigClear()" style="flex:1;background:var(--slate-100);color:var(--slate-600);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">↺ ' + (isLao ? 'ລ້າງ' : 'ล้าง') + '</button>'
     + '<button onclick="docSaveSignature()" id="docSigSaveBtn" style="flex:2;background:var(--teal-600);color:white;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;">✓ ' + (isLao ? 'ບັນທຶກລາຍເຊັນ' : 'บันทึกลายเซ็น') + '</button>'
@@ -26796,7 +26807,8 @@ async function docSaveSignature() {
   const newSig = {
     position: _docSign.position, signed_by: user.id, signed_by_name: user.full_name,
     signed_at: new Date().toISOString(), page: _docSign.page,
-    x: Math.round(_docSign.x * 10) / 10, y: Math.round(_docSign.y * 10) / 10, sig_png: sigPng
+    x: Math.round(_docSign.x * 10) / 10, y: Math.round(_docSign.y * 10) / 10,
+    size: _docSign.size || 24, sig_png: sigPng
   };
   const sigs = (d.signatures || []).filter(s => s.position !== _docSign.position).concat(newSig);
   const allSigned = (d.required_positions || []).every(p => sigs.some(s => s.position === p));
@@ -26826,8 +26838,16 @@ function docCompositePage(url, sigs) {
       sigs.forEach(s => {
         const si = new Image();
         si.onload = () => {
-          const w = cv.width * 0.24, h = w * (si.naturalHeight / si.naturalWidth);
-          ctx.drawImage(si, cv.width * s.x / 100 - w / 2, cv.height * s.y / 100 - h / 2, w, h);
+          const w = cv.width * ((s.size || 24) / 100), h = w * (si.naturalHeight / si.naturalWidth);
+          const cx = cv.width * s.x / 100, cy = cv.height * s.y / 100;
+          ctx.drawImage(si, cx - w / 2, cy - h / 2, w, h);
+          // ป้ายตำแหน่ง + วันที่เวลา ใต้ลายเซ็น
+          const fs = Math.max(9, Math.round(cv.width * 0.013));
+          ctx.font = '600 ' + fs + 'px sans-serif';
+          ctx.textAlign = 'center'; ctx.fillStyle = '#475569';
+          ctx.fillText(docPosLabel(s.position), cx, cy + h / 2 + fs + 2);
+          ctx.fillStyle = '#64748b';
+          ctx.fillText(docFmtDT(s.signed_at), cx, cy + h / 2 + fs * 2 + 4);
           if (--pending === 0) resolve(cv.toDataURL('image/jpeg', 0.9));
         };
         si.onerror = () => { if (--pending === 0) resolve(cv.toDataURL('image/jpeg', 0.9)); };
@@ -26893,6 +26913,28 @@ async function docDelete(id) {
   loadDocRequests();
 }
 
+function docSignSetSize(v) {
+  if (!_docSign) return;
+  _docSign.size = parseInt(v, 10) || 24;
+  const val = document.getElementById('docSigSizeVal');
+  if (val) val.textContent = _docSign.size + '%';
+}
+
+// ปรับขนาดลายเซ็นที่เซ็นไปแล้ว (−/+ ในหน้าเอกสาร) แล้วบันทึก
+async function docResizeSig(id, position, delta) {
+  const d = _docData.find(x => x.id === id);
+  if (!d) return;
+  const sigs = (d.signatures || []).map(s => {
+    if (s.position !== position) return s;
+    const ns = Math.max(8, Math.min(60, (s.size || 24) + delta));
+    return Object.assign({}, s, { size: ns });
+  });
+  d.signatures = sigs; // อัปเดตจอทันที
+  docOpen(id);
+  const { error } = await sb.from('doc_requests').update({ signatures: sigs, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) showToast('Error: ' + error.message, 'error');
+}
+
 // -------- badge: เอกสารที่รอเซ็น (สำหรับ role ที่เซ็นได้) --------
 async function updateDocBadge() {
   const badge = document.getElementById('tabDocBadge');
@@ -26913,6 +26955,7 @@ window.docSetTypeFilter = docSetTypeFilter; window.docNewOpen = docNewOpen; wind
 window.docNewRemovePhoto = docNewRemovePhoto; window.docSubmitNew = docSubmitNew; window.docOpen = docOpen;
 window.docStartSign = docStartSign; window.docSignSetPage = docSignSetPage; window.docSignPlace = docSignPlace;
 window.docSigClear = docSigClear; window.docSaveSignature = docSaveSignature; window.docPrint = docPrint;
+window.docSignSetSize = docSignSetSize; window.docResizeSig = docResizeSig;
 window.docSaveFile = docSaveFile; window.docDelete = docDelete; window.updateDocBadge = updateDocBadge;
 window.renderWorkTrackPage = renderWorkTrackPage;
 window.loadWorkTickets = loadWorkTickets;
