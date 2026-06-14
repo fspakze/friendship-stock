@@ -26544,7 +26544,12 @@ function renderDocSignPage() {
     + '<div><div style="font-size:18px;font-weight:800;color:var(--slate-900);">📄 ' + (isLao ? 'ແຈ້ງເອກະສານ' : 'แจ้งเอกสาร') + '</div>'
     + '<div style="font-size:12px;color:var(--slate-500);">' + (isLao ? 'ຖ່າຍເອກະສານ → ເລືອກຕຳແໜ່ງເຊັນ → ສົ່ງໃຫ້ເຊັນຮັບຮອງ' : 'ถ่ายเอกสาร → เลือกตำแหน่งเซ็น → ส่งให้เซ็นรับรอง') + '</div></div>'
     + '</div>'
-    + '<button onclick="docNewOpen()" style="width:100%;background:linear-gradient(135deg,var(--teal-600),var(--teal-500));color:white;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:13px;">+ ' + (isLao ? 'ແຈ້ງເອກະສານໃໝ່' : 'แจ้งเอกสารใหม่') + '</button>'
+    + '<button onclick="docNewOpen()" style="width:100%;background:linear-gradient(135deg,var(--teal-600),var(--teal-500));color:white;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:11px;">+ ' + (isLao ? 'ແຈ້ງເອກະສານໃໝ່' : 'แจ้งเอกสารใหม่') + '</button>'
+    + '<div id="docUsage" style="background:white;border:1px solid var(--slate-200);border-radius:11px;padding:10px 12px;margin-bottom:11px;"></div>'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;">'
+    + '<button onclick="docToggleSelMode()" style="flex:1;border:1px solid ' + (_docSelMode ? 'var(--rose-300)' : 'var(--slate-200)') + ';background:' + (_docSelMode ? 'var(--rose-50)' : 'white') + ';color:' + (_docSelMode ? 'var(--rose-600)' : 'var(--slate-600)') + ';border-radius:9px;padding:9px;font-size:12.5px;font-weight:700;cursor:pointer;">' + (_docSelMode ? '✕ ' + (isLao ? 'ຍົກເລີກເລືອກ' : 'ยกเลิกเลือก') : '☑️ ' + (isLao ? 'ເລືອກລຶບ' : 'เลือกลบ')) + '</button>'
+    + (_docSelMode ? '<button onclick="docDeleteSelected()" style="flex:1;border:none;background:var(--rose-600);color:white;border-radius:9px;padding:9px;font-size:12.5px;font-weight:800;cursor:pointer;">🗑️ ' + (isLao ? 'ລຶບ' : 'ลบ') + ' (' + _docSelected.size + ')</button>' : '')
+    + '</div>'
     + '<div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:9px;margin-bottom:6px;">' + chips + '</div>'
     + '<div id="docList"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>'
     + '</div>';
@@ -26565,6 +26570,7 @@ async function loadDocRequests() {
       .select('*').eq('branch_id', branch.id).order('created_at', { ascending: false }));
   } catch (e) { _docData = []; log('doc load error', e); }
   renderDocList();
+  renderDocUsage();
   if (typeof updateDocBadge === 'function') updateDocBadge();
 }
 
@@ -26583,22 +26589,38 @@ function renderDocList() {
     el.innerHTML = '<div style="text-align:center;padding:34px;color:var(--slate-400);font-size:13px;">' + (isLao ? 'ຍັງບໍ່ມີເອກະສານ' : 'ยังไม่มีเอกสาร') + '</div>';
     return;
   }
-  el.innerHTML = rows.map(d => {
-    const tm = docTypeMeta(d.doc_type);
-    const pend = docPendingPositions(d);
-    const done = (d.required_positions || []).length - pend.length;
-    const total = (d.required_positions || []).length;
-    const complete = pend.length === 0 && total > 0;
-    const photo = (d.photo_urls || [])[0];
-    return '<div onclick="docOpen(\'' + d.id + '\')" style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:12px;margin-bottom:10px;cursor:pointer;display:flex;gap:11px;align-items:center;box-shadow:var(--sh-sm);">'
-      + (photo ? '<img src="' + photo + '" style="width:52px;height:52px;border-radius:9px;object-fit:cover;flex-shrink:0;background:var(--slate-100);">' : '<div style="width:52px;height:52px;border-radius:9px;background:var(--slate-100);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">📄</div>')
-      + '<div style="flex:1;min-width:0;">'
-      + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;"><span style="background:' + tm.color + ';color:white;font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:6px;">' + tm[isLao ? 'lo' : 'th'] + '</span>'
-      + (complete ? '<span style="background:var(--emerald-100);color:var(--emerald-700);font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:6px;">✓ ' + (isLao ? 'ເຊັນຄົບ' : 'เซ็นครบ') + '</span>' : '<span style="background:var(--amber-100);color:var(--amber-700);font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:6px;">' + done + '/' + total + ' ' + (isLao ? 'ເຊັນ' : 'เซ็น') + '</span>') + '</div>'
-      + '<div style="font-size:13.5px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(d.title || (isLao ? '(ບໍ່ມີຫົວຂໍ້)' : '(ไม่มีหัวข้อ)')) + '</div>'
-      + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + escapeHtml(d.created_by_name || '?') + ' • ' + (typeof getTimeAgo === 'function' ? getTimeAgo(d.created_at, isLao) : '') + '</div>'
-      + (pend.length ? '<div style="font-size:10.5px;color:var(--rose-600);margin-top:3px;font-weight:700;">⏳ ' + (isLao ? 'ລໍເຊັນ' : 'รอเซ็น') + ': ' + pend.map(docPosLabel).join(', ') + '</div>' : '')
-      + '</div><div style="color:var(--slate-300);font-size:18px;">›</div></div>';
+  // จัดกลุ่มตามวัน
+  const groups = {};
+  rows.forEach(d => { const k = localDayKey(d.created_at); (groups[k] = groups[k] || []).push(d); });
+  const dayKeys = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+  el.innerHTML = dayKeys.map(dk => {
+    const items = groups[dk];
+    const daySel = items.every(d => _docSelected.has(d.id));
+    const header = '<div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0 7px;">'
+      + '<span style="font-size:12px;font-weight:800;color:var(--slate-500);">📅 ' + dk + ' <span style="color:var(--slate-400);font-weight:600;">(' + items.length + ')</span></span>'
+      + (_docSelMode ? '<button onclick="docSelectDay(\'' + dk + '\')" style="border:1px solid var(--slate-200);background:' + (daySel ? 'var(--teal-50)' : 'white') + ';color:' + (daySel ? 'var(--teal-700)' : 'var(--slate-500)') + ';border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">' + (daySel ? '✓ ' + (isLao ? 'ເລືອกทั้งวัน' : 'เลือกทั้งวัน') : (isLao ? 'ເລືອກທັງວັນ' : 'เลือกทั้งวัน')) + '</button>' : '')
+      + '</div>';
+    const cards = items.map(d => {
+      const tm = docTypeMeta(d.doc_type);
+      const pend = docPendingPositions(d);
+      const done = (d.required_positions || []).length - pend.length;
+      const total = (d.required_positions || []).length;
+      const complete = pend.length === 0 && total > 0;
+      const photo = (d.photo_urls || [])[0];
+      const sel = _docSelected.has(d.id);
+      const onclick = _docSelMode ? 'docToggleSelect(\'' + d.id + '\',event)' : 'docOpen(\'' + d.id + '\')';
+      return '<div onclick="' + onclick + '" style="background:white;border:1.5px solid ' + (sel ? 'var(--rose-400)' : 'var(--slate-200)') + ';border-radius:13px;padding:12px;margin-bottom:10px;cursor:pointer;display:flex;gap:11px;align-items:center;box-shadow:var(--sh-sm);">'
+        + (_docSelMode ? '<div style="width:22px;height:22px;border-radius:6px;border:2px solid ' + (sel ? 'var(--rose-500)' : 'var(--slate-300)') + ';background:' + (sel ? 'var(--rose-500)' : 'white') + ';color:white;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;">' + (sel ? '✓' : '') + '</div>' : '')
+        + (photo ? '<img src="' + photo + '" style="width:52px;height:52px;border-radius:9px;object-fit:cover;flex-shrink:0;background:var(--slate-100);">' : '<div style="width:52px;height:52px;border-radius:9px;background:var(--slate-100);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">📄</div>')
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;"><span style="background:' + tm.color + ';color:white;font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:6px;">' + tm[isLao ? 'lo' : 'th'] + '</span>'
+        + (complete ? '<span style="background:var(--emerald-100);color:var(--emerald-700);font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:6px;">✓ ' + (isLao ? 'ເຊັນຄົບ' : 'เซ็นครบ') + '</span>' : '<span style="background:var(--amber-100);color:var(--amber-700);font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:6px;">' + done + '/' + total + ' ' + (isLao ? 'ເຊັນ' : 'เซ็น') + '</span>') + '</div>'
+        + '<div style="font-size:13.5px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(d.title || (isLao ? '(ບໍ່ມີຫົວຂໍ້)' : '(ไม่มีหัวข้อ)')) + '</div>'
+        + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + escapeHtml(d.created_by_name || '?') + ' • ' + (typeof getTimeAgo === 'function' ? getTimeAgo(d.created_at, isLao) : '') + '</div>'
+        + (pend.length ? '<div style="font-size:10.5px;color:var(--rose-600);margin-top:3px;font-weight:700;">⏳ ' + (isLao ? 'ລໍເຊັນ' : 'รอเซ็น') + ': ' + pend.map(docPosLabel).join(', ') + '</div>' : '')
+        + '</div>' + (_docSelMode ? '' : '<div style="color:var(--slate-300);font-size:18px;">›</div>') + '</div>';
+    }).join('');
+    return header + cards;
   }).join('');
 }
 
@@ -26691,7 +26713,7 @@ function docOpen(id) {
     const overlay = sigs.filter(s => (s.page || 0) === pi).map(s =>
       '<div style="position:absolute;left:' + s.x + '%;top:' + s.y + '%;width:' + (s.size || 24) + '%;transform:translate(-50%,-50%);pointer-events:none;text-align:center;">'
       + '<img src="' + s.sig_png + '" style="width:100%;display:block;">'
-      + '<div style="font-size:8px;color:var(--slate-600);background:rgba(255,255,255,0.78);border-radius:3px;display:inline-block;padding:0 3px;margin-top:1px;line-height:1.3;white-space:nowrap;">' + docPosLabel(s.position) + '<br>' + docFmtDT(s.signed_at) + '</div>'
+      + '<div style="font-size:8px;color:var(--slate-600);background:rgba(255,255,255,0.78);border-radius:3px;display:inline-block;padding:0 3px;margin-top:1px;line-height:1.3;white-space:nowrap;">' + docFmtDT(s.signed_at) + '</div>'
       + '</div>'
     ).join('');
     return '<div style="position:relative;margin-bottom:10px;border:1px solid var(--slate-200);border-radius:10px;overflow:hidden;"><img src="' + url + '" style="width:100%;display:block;">' + overlay + '</div>';
@@ -26701,9 +26723,10 @@ function docOpen(id) {
     const s = sigs.find(x => x.position === pk);
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 11px;border:1px solid var(--slate-200);border-radius:9px;margin-bottom:6px;">'
       + '<span style="font-size:13px;font-weight:700;color:var(--slate-700);">' + docPosLabel(pk) + '</span>'
-      + (s ? '<span style="display:flex;align-items:center;gap:7px;"><span style="font-size:11px;color:var(--emerald-700);font-weight:700;">✓ ' + escapeHtml(s.signed_by_name || '') + '</span>'
-           + (docCanManage() ? '<span style="display:inline-flex;gap:3px;"><button onclick="docResizeSig(\'' + d.id + '\',\'' + pk + '\',-3)" title="' + (isLao ? 'ນ້ອຍລົງ' : 'เล็กลง') + '" style="width:26px;height:26px;border:1px solid var(--slate-200);background:var(--slate-50);border-radius:7px;font-size:15px;font-weight:800;color:var(--slate-600);cursor:pointer;line-height:1;">−</button>'
-                              + '<button onclick="docResizeSig(\'' + d.id + '\',\'' + pk + '\',3)" title="' + (isLao ? 'ໃหญ่ขึ้น' : 'ใหญ่ขึ้น') + '" style="width:26px;height:26px;border:1px solid var(--slate-200);background:var(--slate-50);border-radius:7px;font-size:15px;font-weight:800;color:var(--slate-600);cursor:pointer;line-height:1;">+</button></span>' : '')
+      + (s ? '<span style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end;"><span style="font-size:11px;color:var(--emerald-700);font-weight:700;">✓ ' + escapeHtml(s.signed_by_name || '') + '</span>'
+           + (docCanManage() ? '<span style="display:inline-flex;gap:3px;align-items:center;"><button onclick="docResizeSig(\'' + d.id + '\',\'' + pk + '\',-3)" title="' + (isLao ? 'ນ້ອຍລົງ' : 'เล็กลง') + '" style="width:26px;height:26px;border:1px solid var(--slate-200);background:var(--slate-50);border-radius:7px;font-size:15px;font-weight:800;color:var(--slate-600);cursor:pointer;line-height:1;">−</button>'
+                              + '<button onclick="docResizeSig(\'' + d.id + '\',\'' + pk + '\',3)" title="' + (isLao ? 'ໃหญ่ขึ้น' : 'ใหญ่ขึ้น') + '" style="width:26px;height:26px;border:1px solid var(--slate-200);background:var(--slate-50);border-radius:7px;font-size:15px;font-weight:800;color:var(--slate-600);cursor:pointer;line-height:1;">+</button>'
+                              + '<button onclick="docStartSign(\'' + d.id + '\',\'' + pk + '\')" title="' + (isLao ? 'ແກ້ໄຂລາຍເຊັນ' : 'แก้ไขลายเซ็น') + '" style="width:26px;height:26px;border:1px solid var(--sky-200);background:var(--sky-50);border-radius:7px;font-size:13px;cursor:pointer;line-height:1;">✏️</button></span>' : '')
            + '</span>'
            : (docCanSign() ? '<button onclick="docStartSign(\'' + d.id + '\',\'' + pk + '\')" style="background:var(--teal-600);color:white;border:none;border-radius:8px;padding:7px 13px;font-size:12px;font-weight:800;cursor:pointer;">✍️ ' + (isLao ? 'ເຊັນ' : 'เซ็น') + '</button>'
                           : '<span style="font-size:11px;color:var(--amber-600);font-weight:700;">⏳ ' + (isLao ? 'ລໍເຊັນ' : 'รอเซ็น') + '</span>'))
@@ -26711,6 +26734,7 @@ function docOpen(id) {
   }).join('');
   const canDelete = docCanManage() || (user && d.created_by === user.id);
   showModal(''
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><button onclick="closeModal()" style="display:inline-flex;align-items:center;gap:5px;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button></div>'
     + '<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;"><span style="background:' + tm.color + ';color:white;font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;">' + tm[isLao ? 'lo' : 'th'] + '</span></div>'
     + '<div style="font-size:16px;font-weight:800;margin-bottom:2px;">' + escapeHtml(d.title || '') + '</div>'
     + '<div style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">' + escapeHtml(d.created_by_name || '?') + ' • ' + (typeof getTimeAgo === 'function' ? getTimeAgo(d.created_at, isLao) : '') + '</div>'
@@ -26730,7 +26754,8 @@ function docStartSign(id, position) {
   if (!d) return;
   const isLao = lang === 'lo';
   const photos = d.photo_urls || [];
-  _docSign = { id, position, page: 0, x: 50, y: 80, strokes: false, size: 24 };
+  const existing = (d.signatures || []).find(x => x.position === position);
+  _docSign = { id, position, page: existing ? (existing.page || 0) : 0, x: existing ? existing.x : 50, y: existing ? existing.y : 80, strokes: false, size: existing ? (existing.size || 24) : 24 };
   const pageSel = photos.length > 1
     ? '<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">' + photos.map((u, i) => '<button onclick="docSignSetPage(' + i + ')" id="docPageBtn' + i + '" style="border:1.5px solid ' + (i === 0 ? 'var(--teal-500)' : 'var(--slate-200)') + ';background:' + (i === 0 ? 'var(--teal-50)' : 'white') + ';border-radius:8px;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;">' + (isLao ? 'ໜ້າ' : 'หน้า') + ' ' + (i + 1) + '</button>').join('') + '</div>'
     : '';
@@ -26740,15 +26765,15 @@ function docStartSign(id, position) {
     + pageSel
     + '<div style="font-size:11.5px;color:var(--slate-500);margin-bottom:5px;">1. ' + (isLao ? 'ແຕະຈุดที่ต้องการเซ็นบนเอกสาร' : 'แตะจุดที่ต้องการเซ็นบนเอกสาร') + '</div>'
     + '<div id="docSignImgWrap" style="position:relative;border:1px solid var(--slate-200);border-radius:10px;overflow:hidden;margin-bottom:12px;cursor:crosshair;">'
-    + '<img id="docSignImg" src="' + (photos[0] || '') + '" style="width:100%;display:block;" onclick="docSignPlace(event)">'
-    + '<div id="docSignMarker" style="position:absolute;left:50%;top:80%;transform:translate(-50%,-50%);width:22px;height:22px;border:2px solid var(--rose-500);border-radius:50%;background:rgba(244,63,94,0.2);pointer-events:none;"></div>'
+    + '<img id="docSignImg" src="' + (photos[_docSign.page] || photos[0] || '') + '" style="width:100%;display:block;" onclick="docSignPlace(event)">'
+    + '<div id="docSignMarker" style="position:absolute;left:' + _docSign.x + '%;top:' + _docSign.y + '%;transform:translate(-50%,-50%);width:22px;height:22px;border:2px solid var(--rose-500);border-radius:50%;background:rgba(244,63,94,0.2);pointer-events:none;"></div>'
     + '</div>'
     + '<div style="font-size:11.5px;color:var(--slate-500);margin-bottom:5px;">2. ' + (isLao ? 'ວາດລາຍເຊັນ' : 'วาดลายเซ็น') + '</div>'
     + '<canvas id="docSigPad" width="500" height="200" style="width:100%;height:160px;border:1.5px dashed var(--slate-300);border-radius:10px;background:white;touch-action:none;"></canvas>'
     + '<div style="display:flex;align-items:center;gap:9px;margin-top:10px;">'
     + '<span style="font-size:12px;font-weight:700;color:var(--slate-600);white-space:nowrap;">' + (isLao ? 'ຂະໜາດ' : 'ขนาด') + '</span>'
-    + '<input type="range" min="10" max="45" value="24" id="docSigSize" oninput="docSignSetSize(this.value)" style="flex:1;accent-color:var(--teal-600);">'
-    + '<span id="docSigSizeVal" style="font-size:12px;font-weight:800;color:var(--teal-700);width:34px;text-align:right;">24%</span>'
+    + '<input type="range" min="10" max="45" value="' + (_docSign.size || 24) + '" id="docSigSize" oninput="docSignSetSize(this.value)" style="flex:1;accent-color:var(--teal-600);">'
+    + '<span id="docSigSizeVal" style="font-size:12px;font-weight:800;color:var(--teal-700);width:34px;text-align:right;">' + (_docSign.size || 24) + '%</span>'
     + '</div>'
     + '<div style="display:flex;gap:9px;margin-top:12px;">'
     + '<button onclick="docSigClear()" style="flex:1;background:var(--slate-100);color:var(--slate-600);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">↺ ' + (isLao ? 'ລ້າງ' : 'ล้าง') + '</button>'
@@ -26841,13 +26866,11 @@ function docCompositePage(url, sigs) {
           const w = cv.width * ((s.size || 24) / 100), h = w * (si.naturalHeight / si.naturalWidth);
           const cx = cv.width * s.x / 100, cy = cv.height * s.y / 100;
           ctx.drawImage(si, cx - w / 2, cy - h / 2, w, h);
-          // ป้ายตำแหน่ง + วันที่เวลา ใต้ลายเซ็น
+          // วันที่เวลา ใต้ลายเซ็น (ไม่แสดงตำแหน่ง)
           const fs = Math.max(9, Math.round(cv.width * 0.013));
           ctx.font = '600 ' + fs + 'px sans-serif';
-          ctx.textAlign = 'center'; ctx.fillStyle = '#475569';
-          ctx.fillText(docPosLabel(s.position), cx, cy + h / 2 + fs + 2);
-          ctx.fillStyle = '#64748b';
-          ctx.fillText(docFmtDT(s.signed_at), cx, cy + h / 2 + fs * 2 + 4);
+          ctx.textAlign = 'center'; ctx.fillStyle = '#64748b';
+          ctx.fillText(docFmtDT(s.signed_at), cx, cy + h / 2 + fs + 3);
           if (--pending === 0) resolve(cv.toDataURL('image/jpeg', 0.9));
         };
         si.onerror = () => { if (--pending === 0) resolve(cv.toDataURL('image/jpeg', 0.9)); };
@@ -26935,6 +26958,75 @@ async function docResizeSig(id, position, delta) {
   if (error) showToast('Error: ' + error.message, 'error');
 }
 
+// -------- พื้นที่ที่ใช้ (ประมาณ) + ลบตามวัน/กลุ่ม --------
+function docEstimateBytes() {
+  // ประมาณจากจำนวนรูป × ~250KB (รูปบีบ 1280px q0.7) — เป็นค่าประมาณ
+  let imgs = 0;
+  _docData.forEach(d => { imgs += (d.photo_urls || []).length; });
+  return imgs * 250 * 1024;
+}
+function docFmtBytes(b) {
+  if (b >= 1024 * 1024 * 1024) return (b / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+  if (b >= 1024 * 1024) return (b / 1024 / 1024).toFixed(1) + ' MB';
+  return Math.round(b / 1024) + ' KB';
+}
+function renderDocUsage() {
+  const el = document.getElementById('docUsage');
+  if (!el) return;
+  const isLao = lang === 'lo';
+  const used = docEstimateBytes();
+  const quota = 1024 * 1024 * 1024; // 1 GB (แผนฟรี — ใช้ร่วมกับรูปแจ้งปัญหา/แจ้งงาน)
+  const pct = Math.min(100, used / quota * 100);
+  const imgs = _docData.reduce((a, d) => a + (d.photo_urls || []).length, 0);
+  const barColor = pct > 80 ? 'var(--rose-500)' : pct > 50 ? 'var(--amber-500)' : 'var(--teal-500)';
+  el.innerHTML = ''
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">'
+    + '<span style="font-size:11.5px;font-weight:700;color:var(--slate-600);">💾 ' + (isLao ? 'ພື້ນທີ່ໃຊ້ (ປະມาณ)' : 'พื้นที่ใช้ (ประมาณ)') + '</span>'
+    + '<span style="font-size:11.5px;font-weight:800;color:' + barColor + ';">' + docFmtBytes(used) + ' / 1 GB</span></div>'
+    + '<div style="height:7px;border-radius:5px;background:var(--slate-100);overflow:hidden;"><div style="width:' + pct.toFixed(1) + '%;height:100%;background:' + barColor + ';"></div></div>'
+    + '<div style="font-size:10px;color:var(--slate-400);margin-top:4px;">' + (isLao ? 'ເອกະສານ' : 'เอกสาร') + ' ' + _docData.length + ' • ' + (isLao ? 'ຮູບ' : 'รูป') + ' ' + imgs + ' • ' + (isLao ? 'ໃຊ້ຮ່ວມกับรูปแจ้งปัญหา/แจ้งงาน' : 'ใช้ร่วมกับรูปแจ้งปัญหา/แจ้งงาน') + '</div>';
+}
+
+let _docSelMode = false;
+let _docSelected = new Set();
+function docToggleSelMode() {
+  _docSelMode = !_docSelMode;
+  if (!_docSelMode) _docSelected.clear();
+  renderDocSignPage_chips();
+}
+function docToggleSelect(id, ev) {
+  if (ev) { ev.stopPropagation(); }
+  if (_docSelected.has(id)) _docSelected.delete(id); else _docSelected.add(id);
+  renderDocList();
+}
+// เลือกทั้งหมดของ "วันนั้น" (กดที่หัววันที่)
+function docSelectDay(dayKey) {
+  const ids = _docData.filter(d => localDayKey(d.created_at) === dayKey).map(d => d.id);
+  const allSel = ids.every(id => _docSelected.has(id));
+  ids.forEach(id => { if (allSel) _docSelected.delete(id); else _docSelected.add(id); });
+  renderDocList();
+}
+async function docDeleteSelected() {
+  const isLao = lang === 'lo';
+  if (!_docSelected.size) { showToast(isLao ? 'ຍັງບໍ່ໄດ້ເລືອກ' : 'ยังไม่ได้เลือก', 'warning'); return; }
+  if (!confirm((isLao ? 'ລຶບ ' : 'ลบ ') + _docSelected.size + (isLao ? ' ເອກະສານ?' : ' เอกสาร?'))) return;
+  const ids = [..._docSelected];
+  // รวม path รูปทั้งหมดเพื่อลบจาก storage
+  const paths = [];
+  ids.forEach(id => {
+    const d = _docData.find(x => x.id === id);
+    (d?.photo_urls || []).forEach(u => { const m = u.match(/ticket-photos\/(.+)$/); if (m) paths.push(m[1]); });
+  });
+  try { if (paths.length) await sb.storage.from('ticket-photos').remove(paths); } catch (e) { log('bulk photo del', e); }
+  const { error } = await sb.from('doc_requests').delete().in('id', ids);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  if (typeof logActivity === 'function') logActivity('doc_bulk_delete', ids.length + ' docs');
+  showToast(isLao ? '✓ ລຶບແລ້ວ ' : '✓ ลบแล้ว ' + ids.length, 'success');
+  _docSelected.clear(); _docSelMode = false;
+  loadDocRequests();
+  renderDocSignPage_chips();
+}
+
 // -------- badge: เอกสารที่รอเซ็น (สำหรับ role ที่เซ็นได้) --------
 async function updateDocBadge() {
   const badge = document.getElementById('tabDocBadge');
@@ -26956,6 +27048,7 @@ window.docNewRemovePhoto = docNewRemovePhoto; window.docSubmitNew = docSubmitNew
 window.docStartSign = docStartSign; window.docSignSetPage = docSignSetPage; window.docSignPlace = docSignPlace;
 window.docSigClear = docSigClear; window.docSaveSignature = docSaveSignature; window.docPrint = docPrint;
 window.docSignSetSize = docSignSetSize; window.docResizeSig = docResizeSig;
+window.docToggleSelMode = docToggleSelMode; window.docToggleSelect = docToggleSelect; window.docSelectDay = docSelectDay; window.docDeleteSelected = docDeleteSelected; window.renderDocUsage = renderDocUsage;
 window.docSaveFile = docSaveFile; window.docDelete = docDelete; window.updateDocBadge = updateDocBadge;
 window.renderWorkTrackPage = renderWorkTrackPage;
 window.loadWorkTickets = loadWorkTickets;
