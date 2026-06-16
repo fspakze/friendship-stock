@@ -26759,10 +26759,30 @@ function docNewRenderPhotos() {
   const pv = document.getElementById('docNewPhotoPreview');
   if (!pv) return;
   pv.innerHTML = _docNewPhotos.map((p, i) =>
-    '<div style="position:relative;width:70px;height:70px;border-radius:9px;overflow:hidden;border:1px solid var(--slate-200);">'
+    '<div style="position:relative;width:84px;height:84px;border-radius:9px;overflow:hidden;border:1px solid var(--slate-200);">'
     + '<img src="' + p.dataUrl + '" style="width:100%;height:100%;object-fit:cover;">'
+    + '<button type="button" onclick="docNewRotatePhoto(' + i + ')" title="หมุน" style="position:absolute;bottom:2px;left:2px;background:rgba(15,23,42,0.6);color:white;border:none;height:21px;padding:0 7px;border-radius:11px;font-size:11px;font-weight:700;line-height:21px;cursor:pointer;">🔄</button>'
     + '<button type="button" onclick="docNewRemovePhoto(' + i + ')" style="position:absolute;top:2px;right:2px;background:rgba(225,29,72,0.9);color:white;border:none;width:19px;height:19px;border-radius:50%;font-size:11px;line-height:1;cursor:pointer;">✕</button></div>'
   ).join('');
+}
+// หมุนรูปตัวอย่าง 90° (ก่อนส่ง) — แก้รูปที่ถ่ายมาตะแคงให้ตรงทันที
+function docNewRotatePhoto(i) {
+  const p = _docNewPhotos[i];
+  if (!p) return;
+  const img = new Image();
+  img.onload = () => {
+    const cv = document.createElement('canvas');
+    cv.width = img.naturalHeight; cv.height = img.naturalWidth; // 90° → สลับกว้าง-สูง
+    const ctx = cv.getContext('2d');
+    ctx.translate(cv.width / 2, cv.height / 2);
+    ctx.rotate(90 * Math.PI / 180);
+    ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+    cv.toBlob(blob => {
+      _docNewPhotos[i] = { blob, dataUrl: cv.toDataURL('image/jpeg', 0.7) };
+      docNewRenderPhotos();
+    }, 'image/jpeg', 0.7);
+  };
+  img.src = p.dataUrl;
 }
 function docNewRemovePhoto(i) { _docNewPhotos.splice(i, 1); docNewRenderPhotos(); }
 function docNewOnAttach(e) {
@@ -27344,7 +27364,7 @@ async function updateDocBadge() {
 
 window.renderDocSignPage = renderDocSignPage; window.loadDocRequests = loadDocRequests;
 window.docSetTypeFilter = docSetTypeFilter; window.docSetBranchFilter = docSetBranchFilter; window.docNewOpen = docNewOpen; window.docNewOnPhoto = docNewOnPhoto;
-window.docNewRemovePhoto = docNewRemovePhoto; window.docNewOnAttach = docNewOnAttach; window.docNewRemoveAttach = docNewRemoveAttach; window.docSubmitNew = docSubmitNew; window.docOpen = docOpen;
+window.docNewRemovePhoto = docNewRemovePhoto; window.docNewRotatePhoto = docNewRotatePhoto; window.docNewOnAttach = docNewOnAttach; window.docNewRemoveAttach = docNewRemoveAttach; window.docSubmitNew = docSubmitNew; window.docOpen = docOpen;
 window.docStartSign = docStartSign; window.docSignSetPage = docSignSetPage; window.docSignPlace = docSignPlace; window.docSignRotate = docSignRotate; window.docRotatePhoto = docRotatePhoto;
 window.docSigClear = docSigClear; window.docSaveSignature = docSaveSignature; window.docPrint = docPrint;
 window.docSignSetSize = docSignSetSize; window.docResizeSig = docResizeSig; window.docRotateSig = docRotateSig;
