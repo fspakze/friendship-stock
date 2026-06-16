@@ -4405,6 +4405,52 @@ function renderApp() {
   const r = user.role;
   // หน้าหลักหลัง login = เช็คสต๊อก (ກວດສະຕ໋ອກ) สำหรับทุก role
   goPage('stockcheck');
+  armBackGuard();
+}
+
+// ==================== กันกดกลับแล้วออกจากแอปทันที ====================
+// ดักปุ่ม/ท่าทาง "กลับ" ของมือถือ: ถ้ามี modal/เมนูเปิด → ปิดก่อน,
+// ถ้าไม่ได้อยู่หน้าหลัก → กลับหน้าหลัก, ถ้าหน้าหลัก → ถามยืนยันก่อนออก
+let _backGuardOn = false;
+function armBackGuard() {
+  if (_backGuardOn) return;
+  _backGuardOn = true;
+  try { history.pushState({ fsGuard: true }, ''); } catch (e) {}
+  window.addEventListener('popstate', onBackGuard);
+}
+function onBackGuard() {
+  // ดันสถานะกลับเข้าไปทันที เพื่อไม่ให้หลุดออกจากแอป
+  try { history.pushState({ fsGuard: true }, ''); } catch (e) {}
+  // 1) มี modal เปิดอยู่ → ปิด modal
+  const mo = document.getElementById('modalOverlay');
+  if (mo && mo.classList.contains('show')) { closeModal(); return; }
+  // 2) เมนูลิ้นชักเปิดอยู่ → ปิดเมนู
+  const dr = document.getElementById('menuDrawer');
+  if (dr && dr.classList.contains('open')) { if (typeof closeMenuDrawer === 'function') closeMenuDrawer(); return; }
+  // 3) ไม่ได้อยู่หน้าหลัก → กลับหน้าหลัก
+  if (window._currentPage && window._currentPage !== 'stockcheck') { goPage('stockcheck'); return; }
+  // 4) อยู่หน้าหลักแล้ว → ถามยืนยันออกจากแอป
+  showExitConfirm();
+}
+function showExitConfirm() {
+  const isLao = (typeof lang !== 'undefined' && lang === 'lo');
+  showModal(
+    '<div style="padding:22px 20px;text-align:center;">'
+    + '<div style="font-size:38px;margin-bottom:8px;">🚪</div>'
+    + '<div style="font-size:17px;font-weight:800;color:var(--slate-800);margin-bottom:6px;">' + (isLao ? 'ອອກຈາກແອັບ?' : 'ออกจากแอป?') + '</div>'
+    + '<div style="font-size:13px;color:var(--slate-500);margin-bottom:18px;">' + (isLao ? 'ກົດ "ອອກ" ເພື່ອປິດແອັບ ຫຼື "ຍົກເລີກ" ເພື່ອຢູ່ຕໍ່' : 'กด "ออก" เพื่อปิดแอป หรือ "ยกเลิก" เพื่ออยู่ต่อ') + '</div>'
+    + '<div style="display:flex;gap:10px;">'
+    + '<button onclick="closeModal()" style="flex:1;border:1px solid var(--slate-200);background:white;border-radius:11px;padding:13px;font-size:14px;font-weight:700;color:var(--slate-600);cursor:pointer;">' + (isLao ? 'ຍົກເລີກ' : 'ยกเลิก') + '</button>'
+    + '<button onclick="doExitApp()" style="flex:1;border:none;background:var(--rose-600);color:white;border-radius:11px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;">' + (isLao ? 'ອອກ' : 'ออก') + '</button>'
+    + '</div></div>'
+  );
+}
+function doExitApp() {
+  closeModal();
+  _backGuardOn = false;
+  window.removeEventListener('popstate', onBackGuard);
+  // ถอยออกจริง (เผื่อ standalone PWA จะปิดแอป / แท็บปกติจะกลับหน้าก่อนหน้า)
+  try { history.go(-2); } catch (e) { try { history.back(); } catch (e2) {} }
 }
 
 // ==================== MENU CONFIG (Single Source of Truth) ====================
@@ -27632,7 +27678,7 @@ window.bmOpenAdd = bmOpenAdd;
 window.bmOpenEdit = bmOpenEdit;
 window.bmSave = bmSave;
 window.bmDelete = bmDelete;
-window.closeModal = closeModal;
+window.closeModal = closeModal; window.doExitApp = doExitApp;
 window.openExpiryModal = openExpiryModal;
 window.saveExpiry = saveExpiry;
 window.openNewSKUModal = openNewSKUModal;
