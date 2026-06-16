@@ -4403,8 +4403,8 @@ function renderApp() {
   document.getElementById('app').innerHTML = renderShell();
   
   const r = user.role;
-  // หน้าหลักหลัง login = เช็คสต๊อก (ກວດສະຕ໋ອກ) สำหรับทุก role
-  goPage('stockcheck');
+  // หน้าหลักหลัง login = แท็บแรกที่มองเห็น (ปกติ = ตรวจสต๊อก / ตอนนับสต๊อก counter-verifier = สแกน)
+  goPage(getHomePage());
   armBackGuard();
 }
 
@@ -4435,7 +4435,8 @@ function onBackGuard() {
   const dr = document.getElementById('menuDrawer');
   if (dr && dr.classList.contains('open')) { if (typeof closeMenuDrawer === 'function') closeMenuDrawer(); return; }
   // 3) ไม่ได้อยู่หน้าหลัก → กลับหน้าหลัก
-  if (window._currentPage && window._currentPage !== 'stockcheck') { goPage('stockcheck'); return; }
+  const home = getHomePage();
+  if (window._currentPage && window._currentPage !== home) { goPage(home); return; }
   // 4) อยู่หน้าหลักแล้ว → ถามยืนยันออกจากแอป
   showExitConfirm();
 }
@@ -4469,7 +4470,7 @@ function doExitApp() {
 // Icons use Heroicons-style paths (stroke-based, 24x24 viewBox)
 const MENU_CONFIG = {
   counter: {
-    bottomTabs: ['stockcheck', 'scan', 'gapscan', 'history'],
+    bottomTabs: ['stockcheck', 'docsign', 'scan', 'gapscan', 'history'],
     drawerGroups: [
       { titleTh: 'งาน', titleLo: 'งาน', items: ['workreport'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -4484,7 +4485,7 @@ const MENU_CONFIG = {
     ]
   },
   verifier: {
-    bottomTabs: ['stockcheck', 'tiebreaker', 'scan', 'history'],
+    bottomTabs: ['stockcheck', 'docsign', 'tiebreaker', 'scan', 'history'],
     drawerGroups: [
       { titleTh: 'งาน', titleLo: 'งาน', items: ['workreport'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -4498,12 +4499,11 @@ const MENU_CONFIG = {
     ]
   },
   ctl: {
-    bottomTabs: ['stockcheck', 'gapscan', 'floormap', 'tiebreaker', 'workflow'],
+    bottomTabs: ['stockcheck', 'docsign', 'gapscan', 'floormap', 'tiebreaker', 'workflow'],
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'workreport', 'worktrack'] },
       { titleTh: '📝 งานรายวัน SC', titleLo: '📝 งานรายวัน SC', items: ['scdaily', 'scdailylog'] },
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
-      { titleTh: '📄 เอกสาร', titleLo: '📄 ເອກະສານ', items: ['docsign'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport', 'issuereport', 'invmovement'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -4654,16 +4654,40 @@ function renderMenuButton(hasDrawerItems) {
 // กรองเมนูนับสต๊อก (scan+tiebreaker) ออกจาก counter/verifier เมื่อปิดสวิตช์
 function wtFilterMenuCfg(cfg, role) {
   if (!cfg) return cfg;
-  if (_countMenuEnabled) return cfg;
-  // ⭐ เมื่อ Admin ยังไม่เปิดรอบนับสต๊อก: ซ่อนเมนูที่เกี่ยวกับการนับ
-  let hide = null;
-  if (role === 'counter' || role === 'verifier') hide = ['scan', 'tiebreaker'];
-  else if (role === 'ctl') hide = ['tiebreaker', 'workflow'];
-  if (!hide) return cfg;
-  return {
-    bottomTabs: (cfg.bottomTabs || []).filter(x => !hide.includes(x)),
-    drawerGroups: (cfg.drawerGroups || []).map(g => ({ ...g, items: g.items.filter(x => !hide.includes(x)) })).filter(g => g.items.length > 0),
-  };
+  let bottomTabs = (cfg.bottomTabs || []).slice();
+  let drawerGroups = (cfg.drawerGroups || []).map(g => ({ ...g, items: (g.items || []).slice() }));
+  const isCV = (role === 'counter' || role === 'verifier');
+
+  if (!_countMenuEnabled) {
+    // ⭐ ยังไม่เปิดรอบนับสต๊อก: ซ่อนเมนูที่เกี่ยวกับการนับ (docsign + gapscan โชว์เป็นแท็บล่างตามปกติ)
+    let hide = [];
+    if (isCV) hide = ['scan', 'tiebreaker'];
+    else if (role === 'ctl') hide = ['tiebreaker', 'workflow'];
+    if (hide.length) {
+      bottomTabs = bottomTabs.filter(x => !hide.includes(x));
+      drawerGroups = drawerGroups.map(g => ({ ...g, items: g.items.filter(x => !hide.includes(x)) })).filter(g => g.items.length > 0);
+    }
+  } else {
+    // ⭐ เปิดรอบนับสต๊อกแล้ว: สลับอัตโนมัติ
+    //   - ย้าย docsign + gapscan ออกจากแท็บล่าง → เก็บเข้าเมนูลิ้นชัก
+    const moveItems = ['docsign', 'gapscan'].filter(x => bottomTabs.includes(x));
+    bottomTabs = bottomTabs.filter(x => !moveItems.includes(x));
+    //   - counter/verifier: ซ่อน "ตรวจสต๊อก" กันเปิดดูสต๊อกระหว่างนับ
+    if (isCV) bottomTabs = bottomTabs.filter(x => x !== 'stockcheck');
+    //   - เพิ่มรายการที่ย้ายเข้าเมนู (กันซ้ำกับที่มีอยู่)
+    if (moveItems.length) {
+      const already = new Set(drawerGroups.reduce((a, g) => a.concat(g.items), []));
+      const toAdd = moveItems.filter(x => !already.has(x));
+      if (toAdd.length) drawerGroups = [{ titleTh: '📄 เอกสาร / Gap', titleLo: '📄 ເອກະສານ / Gap', items: toAdd }].concat(drawerGroups);
+    }
+  }
+  return { bottomTabs, drawerGroups };
+}
+// หน้าแรกของ role ปัจจุบัน = แท็บล่างตัวแรกที่มองเห็น (อัตโนมัติตามสถานะนับสต๊อก)
+function getHomePage() {
+  const r = (user && user.role) || 'counter';
+  const cfg = wtFilterMenuCfg(MENU_CONFIG[r] || MENU_CONFIG.counter, r);
+  return (cfg.bottomTabs && cfg.bottomTabs[0]) || 'stockcheck';
 }
 
 /**
@@ -4815,6 +4839,11 @@ function renderShell() {
 }
 
 function goPage(page) {
+  // ⭐ ตอนเปิดรอบนับสต๊อก: counter/verifier ห้ามเปิดหน้าตรวจสต๊อก (กันดูสต๊อกระหว่างนับ)
+  if (page === 'stockcheck' && _countMenuEnabled && user && (user.role === 'counter' || user.role === 'verifier')) {
+    const cfg = wtFilterMenuCfg(MENU_CONFIG[user.role] || MENU_CONFIG.counter, user.role);
+    page = (cfg.bottomTabs && cfg.bottomTabs[0]) || 'scan';
+  }
   // Store current page for drawer active state tracking
   window._currentPage = page;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.page === page));
@@ -26608,7 +26637,8 @@ function docFmtDT(iso) { const d = new Date(iso); if (isNaN(d)) return ''; const
 function docTypeMeta(k) { return DOCSIGN_TYPES.find(x => x.key === k) || DOCSIGN_TYPES[3]; }
 function docCanSign() { return ['admin', 'scc', 'bcs', 'ctl'].includes((user && user.role) || ''); }
 function docCanManage() { return ['admin', 'scc', 'bcs', 'ctl'].includes((user && user.role) || ''); }
-function docCanDelete() { return ['admin', 'bcs'].includes((user && user.role) || ''); } // ⭐ ลบได้เฉพาะ BCS/Admin
+function docCanEdit() { return ['admin', 'scc', 'bcs', 'ctl'].includes((user && user.role) || ''); } // ⭐ สร้าง/แก้ไข/เซ็น = CTL ขึ้นไป
+function docCanDelete() { return ['admin', 'scc', 'bcs'].includes((user && user.role) || ''); } // ⭐ ลบ = BCS ขึ้นไป
 
 // ⭐ ใครเซ็นตำแหน่งไหนได้ (ตามที่กำหนด)
 //   SC + หัวหน้าสาขา = CTL | ผจก.สาขา (มินิ/ซุปเปอร์) = BCS | ผู้ช่วยผู้บริหาร = admin
