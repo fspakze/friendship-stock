@@ -4412,15 +4412,22 @@ function renderApp() {
 // ดักปุ่ม/ท่าทาง "กลับ" ของมือถือ: ถ้ามี modal/เมนูเปิด → ปิดก่อน,
 // ถ้าไม่ได้อยู่หน้าหลัก → กลับหน้าหลัก, ถ้าหน้าหลัก → ถามยืนยันก่อนออก
 let _backGuardOn = false;
+const _FS_BUFFER = 3; // ใส่จุดดักหลายชั้น กันปัดเร็ว/ปัดซ้ำแล้วหลุดออก
+function _fsFillBuffer() {
+  // เติมจุดดักให้ครบ _FS_BUFFER ชั้น (ทำทั้งทันทีและซ้ำอีกครั้งกันพลาดจังหวะ)
+  try { for (let i = 0; i < _FS_BUFFER; i++) history.pushState({ fsGuard: true }, ''); } catch (e) {}
+}
 function armBackGuard() {
   if (_backGuardOn) return;
   _backGuardOn = true;
-  try { history.pushState({ fsGuard: true }, ''); } catch (e) {}
+  _fsFillBuffer();
   window.addEventListener('popstate', onBackGuard);
 }
 function onBackGuard() {
-  // ดันสถานะกลับเข้าไปทันที เพื่อไม่ให้หลุดออกจากแอป
-  try { history.pushState({ fsGuard: true }, ''); } catch (e) {}
+  // เติมจุดดักกลับให้เต็มทันที — การกดกลับจะไม่พาออกจากแอปเองอีก
+  _fsFillBuffer();
+  // เผื่อจังหวะ race: เติมซ้ำใน microtask อีกที
+  setTimeout(() => { if (_backGuardOn) { try { history.pushState({ fsGuard: true }, ''); } catch (e) {} } }, 0);
   // 1) มี modal เปิดอยู่ → ปิด modal
   const mo = document.getElementById('modalOverlay');
   if (mo && mo.classList.contains('show')) { closeModal(); return; }
@@ -4450,7 +4457,7 @@ function doExitApp() {
   _backGuardOn = false;
   window.removeEventListener('popstate', onBackGuard);
   // ถอยออกจริง (เผื่อ standalone PWA จะปิดแอป / แท็บปกติจะกลับหน้าก่อนหน้า)
-  try { history.go(-2); } catch (e) { try { history.back(); } catch (e2) {} }
+  try { history.go(-(_FS_BUFFER + 2)); } catch (e) { try { history.back(); } catch (e2) {} }
 }
 
 // ==================== MENU CONFIG (Single Source of Truth) ====================
