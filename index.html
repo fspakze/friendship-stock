@@ -25408,15 +25408,15 @@ async function scSubmit() {
   const checklist = {};
   let done = 0;
   SC_CHECKLIST.forEach(g => g.items.forEach(it => { const el = document.getElementById('scc_' + it.k); const v = !!(el && el.checked); checklist[it.k] = v; if (v) done += (it.w || 0); }));
+  // หาเลขถัดไปจาก "เลขมากสุดที่มีอยู่ +1" (กันลบแล้วชน) แล้วลองใหม่อัตโนมัติถ้าชน (กันบันทึกพร้อมกัน)
   let seq = 1;
   try {
-    const { count } = await sb.from('sc_daily_logs').select('id', { count: 'exact', head: true });
-    seq = (count || 0) + 1;
+    const { data: last } = await sb.from('sc_daily_logs').select('log_no').like('log_no', 'SC-%').order('log_no', { ascending: false }).limit(1).maybeSingle();
+    if (last && last.log_no) { const n = parseInt(String(last.log_no).replace(/\D/g, ''), 10); if (!isNaN(n)) seq = n + 1; }
   } catch (e) {}
-  const logNo = 'SC-' + String(seq).padStart(4, '0');
   const reasonEl = document.getElementById('scReason');
   const payload = {
-    log_no: logNo, branch_id: branch.id,
+    branch_id: branch.id,
     reporter_id: user.id, reporter_name: user.full_name || user.username || '', reporter_role: user.role || '',
     log_date: date, checklist: checklist,
     sales_reason: reasonEl ? (reasonEl.value.trim() || null) : null,
@@ -25424,8 +25424,17 @@ async function scSubmit() {
     done_count: done, total_count: scTotalItems(),
     status: 'open',
   };
-  const { error } = await sb.from('sc_daily_logs').insert(payload).select().single();
-  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  let logNo = '', error = null, ok = false;
+  for (let attempt = 0; attempt < 15 && !ok; attempt++) {
+    logNo = 'SC-' + String(seq).padStart(4, '0');
+    payload.log_no = logNo;
+    const res = await sb.from('sc_daily_logs').insert(payload).select().single();
+    if (!res.error) { ok = true; break; }
+    error = res.error;
+    if (res.error.code === '23505' || /duplicate key/i.test(res.error.message || '')) { seq++; continue; } // ชน → เลื่อนเลขแล้วลองใหม่
+    break; // error อื่น → หยุด
+  }
+  if (!ok) { showToast('Error: ' + (error ? error.message : 'insert failed'), 'error'); return; }
   logActivity('sc_daily_create', logNo + ' | ' + date + ' | ' + done + '/' + scTotalItems());
   document.getElementById('scAckNo').textContent = logNo;
   document.getElementById('scForm').style.display = 'none';
@@ -26639,6 +26648,8 @@ function docCanSign() { return ['admin', 'scc', 'bcs', 'ctl'].includes((user && 
 function docCanManage() { return ['admin', 'scc', 'bcs', 'ctl'].includes((user && user.role) || ''); }
 function docCanEdit() { return ['admin', 'scc', 'bcs', 'ctl'].includes((user && user.role) || ''); } // ⭐ สร้าง/แก้ไข/เซ็น = CTL ขึ้นไป
 function docCanDelete() { return ['admin', 'scc', 'bcs'].includes((user && user.role) || ''); } // ⭐ ลบ = BCS ขึ้นไป
+// ⭐ แก้ไขลายเซ็น (ปรับขนาด/หมุน) ได้เฉพาะตำแหน่งของตัวเอง — admin/scc เป็น super แก้ได้ทุกตำแหน่ง
+function docCanEditSig(pos) { return docCanSignPosition(pos) || ['admin', 'scc'].includes((user && user.role) || ''); }
 
 // ⭐ ใครเซ็นตำแหน่งไหนได้ (ตามที่กำหนด)
 //   SC + หัวหน้าสาขา = CTL | ผจก.สาขา (มินิ/ซุปเปอร์) = BCS | ผู้ช่วยผู้บริหาร = admin
@@ -26970,7 +26981,7 @@ function docOpen(id) {
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 11px;border:1px solid var(--slate-200);border-radius:9px;margin-bottom:6px;">'
       + '<span style="font-size:13px;font-weight:700;color:var(--slate-700);">' + docPosLabel(pk) + '</span>'
       + (s ? '<span style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end;"><span style="font-size:11px;color:var(--emerald-700);font-weight:700;">✓ ' + escapeHtml(s.signed_by_name || '') + '</span>'
-           + (docCanSignPosition(pk) || docCanManage() ? '<span style="display:inline-flex;gap:3px;align-items:center;"><button onclick="docResizeSig(\'' + d.id + '\',\'' + pk + '\',-3)" title="' + (isLao ? 'ນ້ອຍລົງ' : 'เล็กลง') + '" style="width:26px;height:26px;border:1px solid var(--slate-200);background:var(--slate-50);border-radius:7px;font-size:15px;font-weight:800;color:var(--slate-600);cursor:pointer;line-height:1;">−</button>'
+           + (docCanEditSig(pk) ? '<span style="display:inline-flex;gap:3px;align-items:center;"><button onclick="docResizeSig(\'' + d.id + '\',\'' + pk + '\',-3)" title="' + (isLao ? 'ນ້ອຍລົງ' : 'เล็กลง') + '" style="width:26px;height:26px;border:1px solid var(--slate-200);background:var(--slate-50);border-radius:7px;font-size:15px;font-weight:800;color:var(--slate-600);cursor:pointer;line-height:1;">−</button>'
                               + '<button onclick="docResizeSig(\'' + d.id + '\',\'' + pk + '\',3)" title="' + (isLao ? 'ໃหญ่ขึ้น' : 'ใหญ่ขึ้น') + '" style="width:26px;height:26px;border:1px solid var(--slate-200);background:var(--slate-50);border-radius:7px;font-size:15px;font-weight:800;color:var(--slate-600);cursor:pointer;line-height:1;">+</button>'
                               + '<button onclick="docRotateSig(\'' + d.id + '\',\'' + pk + '\')" title="' + (isLao ? 'ໝຸນ' : 'หมุน') + '" style="width:26px;height:26px;border:1px solid var(--slate-200);background:var(--slate-50);border-radius:7px;font-size:13px;cursor:pointer;line-height:1;">↻</button>'
                               + (docCanSignPosition(pk) ? '<button onclick="docStartSign(\'' + d.id + '\',\'' + pk + '\')" title="' + (isLao ? 'ແກ້ໄຂລາຍເຊັນ' : 'แก้ไขลายเซ็น') + '" style="width:26px;height:26px;border:1px solid var(--sky-200);background:var(--sky-50);border-radius:7px;font-size:13px;cursor:pointer;line-height:1;">✏️</button>' : '') + '</span>' : '')
@@ -27325,6 +27336,7 @@ async function docRotatePhoto(id, pi) {
 
 // หมุนลายเซ็นทีละ 90° แล้วบันทึก
 async function docRotateSig(id, position) {
+  if (!docCanEditSig(position)) return;
   const d = _docData.find(x => x.id === id);
   if (!d) return;
   const sigs = (d.signatures || []).map(s => s.position !== position ? s : Object.assign({}, s, { rot: (((s.rot || 0) + 90) % 360) }));
@@ -27336,6 +27348,7 @@ async function docRotateSig(id, position) {
 
 // ปรับขนาดลายเซ็นที่เซ็นไปแล้ว (−/+ ในหน้าเอกสาร) แล้วบันทึก
 async function docResizeSig(id, position, delta) {
+  if (!docCanEditSig(position)) return;
   const d = _docData.find(x => x.id === id);
   if (!d) return;
   const sigs = (d.signatures || []).map(s => {
