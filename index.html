@@ -4516,7 +4516,8 @@ const MENU_CONFIG = {
       { titleTh: '📝 ติดตามงาน SC', titleLo: '📝 ຕິດຕາມงาน SC', items: ['scdailylog'] },
       { titleTh: '📄 เอกสาร', titleLo: '📄 ເອກະສານ', items: ['docsign'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
-      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct', 'productstatus', 'purchasehistory'] },
+      { titleTh: '🔄 อัปเดตข้อมูล', titleLo: '🔄 ອัปเดตข้อมูล', items: ['updatehub'] },
+      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
@@ -4530,7 +4531,8 @@ const MENU_CONFIG = {
       { titleTh: '🕘 ประวัติ', titleLo: '🕘 ປະຫວັດ', items: ['history'] },
       { titleTh: 'วิเคราะห์', titleLo: 'ວິເຄາະ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['issuereport', 'invmovement'] },
-      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'branchmanage', 'masterproduct', 'productstatus', 'purchasehistory', 'settings', 'activitylog'] },
+      { titleTh: '🔄 อัปเดตข้อมูล', titleLo: '🔄 ອัปเดตข้อมูล', items: ['updatehub'] },
+      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'branchmanage', 'settings', 'activitylog'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
@@ -4541,7 +4543,8 @@ const MENU_CONFIG = {
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: '📝 ติดตามงาน SC', titleLo: '📝 ຕິດຕາມงาน SC', items: ['scdailylog'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
-      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'masterproduct', 'productstatus', 'purchasehistory', 'settings'] },
+      { titleTh: '🔄 อัปเดตข้อมูล', titleLo: '🔄 ອัปเดตข้อมูล', items: ['updatehub'] },
+      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'settings'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   }
@@ -4579,7 +4582,8 @@ const PAGE_META = {
   scdailylog:{ iconSvg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', labelTh: 'ประวัติงาน SC', labelLo: 'ປະຫວັດงาน SC', page: 'scdailylog' },
   masterproduct: { iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/><path d="M7.5 4.5l9 5.2"/>', labelTh: 'Master Product', labelLo: 'Master Product', page: 'masterproduct' },
   productstatus: { iconSvg: '<path d="M3 3v18h18"/><path d="M7 16l4-6 4 3 5-7"/>', labelTh: 'Status สินค้า', labelLo: 'Status สินค้า', page: 'productstatus' },
-  purchasehistory: { iconSvg: '<path d="M9 2v2M15 2v2M3 8h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>', labelTh: 'ข้อมูลการซื้อ', labelLo: 'ຂໍ້มูลการซื้อ', page: 'purchasehistory' }
+  purchasehistory: { iconSvg: '<path d="M9 2v2M15 2v2M3 8h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>', labelTh: 'ข้อมูลการซื้อ', labelLo: 'ຂໍ້มูลการซื้อ', page: 'purchasehistory' },
+  updatehub: { iconSvg: '<path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>', labelTh: '\ud83d\udd04 อัปเดตข้อมูล', labelLo: '\ud83d\udd04 ອัปเดตข้อมูล', page: 'updatehub' }
 };
 
 /**
@@ -4933,6 +4937,9 @@ function goPage(page) {
   } else if (page === 'purchasehistory') {
     c.innerHTML = renderPurchaseUploadPage();
     setTimeout(() => phLoadCount(), 50);
+  } else if (page === 'updatehub') {
+    c.innerHTML = renderUpdateHubPage();
+    setTimeout(() => loadUpdateHub(), 30);
   } else if (page === 'users') {
     c.innerHTML = renderUsersPage();
     loadUsers();
@@ -6415,6 +6422,7 @@ async function phHandleFile(ev) {
       + (failed ? ' · ' + (isLao ? 'ລົ້มเหลว' : 'ล้มเหลว') + ' ' + failed : '')
       + '<br><span style="font-weight:400;color:var(--slate-500);">' + (isLao ? 'ປี' : 'ปี') + ': ' + years.join(', ') + '</span></div>');
     ev.target.value = '';
+    if (typeof markDataUpdated === 'function' && done > 0) markDataUpdated('last_update_purchase');
     phLoadCount();
   } catch (e) {
     set('<div style="color:var(--rose-500);">Error: ' + ((e && e.message) ? e.message : e) + '</div>');
@@ -28120,6 +28128,66 @@ window.psHandleFile = psHandleFile;
 window.renderPurchaseUploadPage = renderPurchaseUploadPage;
 window.phHandleFile = phHandleFile;
 window.phLoadCount = phLoadCount;
+
+// ==================== 🔄 อัพเดท (Update Hub) ====================
+const UPDATE_HUB_ITEMS = [
+  { id: 'master',   page: 'masterproduct',   icon: '📦', th: 'Master Product',  lo: 'Master Product' },
+  { id: 'status',   page: 'productstatus',   icon: '📊', th: 'Status สินค้า',   lo: 'Status สินค้า' },
+  { id: 'purchase', page: 'purchasehistory', icon: '🧾', th: 'ข้อมูลการซื้อ',   lo: 'ຂໍ້มูลการซื้อ' },
+  { id: 'pos',      page: 'settings',        icon: '🏪', th: 'นำเข้าข้อมูล POS', lo: 'ນຳເຂົ້າຂໍ້ມູນ POS' },
+];
+function renderUpdateHubPage() {
+  const isLao = lang === 'lo';
+  return '<div style="padding:14px 13px 90px;max-width:560px;margin:0 auto;">'
+    + '<div style="display:flex;align-items:center;gap:9px;margin-bottom:12px;">'
+    + '<button onclick="goPage(getHomePage())" style="border:1px solid var(--slate-200);background:white;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
+    + '</div>'
+    + '<h2 style="font-size:19px;font-weight:800;color:var(--slate-800);margin:0 0 3px;">🔄 ' + (isLao ? 'ອัปเดตข้อมูล' : 'อัปเดตข้อมูล') + '</h2>'
+    + '<div style="font-size:12px;color:var(--slate-500);margin-bottom:14px;">' + (isLao ? 'ແຕะเพื่อไปอัปเดต — แสดงวันที่อัปเดตล่าสุด' : 'แตะเพื่อไปอัปเดต — แสดงวันที่อัปเดตล่าสุด') + '</div>'
+    + UPDATE_HUB_ITEMS.map(it =>
+        '<button onclick="goPage(\'' + it.page + '\')" style="width:100%;text-align:left;border:1px solid var(--slate-200);background:white;border-radius:13px;padding:14px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:13px;box-shadow:0 2px 6px rgba(0,0,0,0.03);">'
+        + '<span style="font-size:26px;">' + it.icon + '</span>'
+        + '<span style="flex:1;min-width:0;">'
+        + '<span style="font-size:15px;font-weight:800;color:var(--slate-800);display:block;line-height:1.3;">' + (isLao ? it.lo : it.th) + '</span>'
+        + '<span id="uh_' + it.id + '" style="font-size:11.5px;color:var(--slate-400);">' + (isLao ? 'ກຳລັງโหลด...' : 'กำลังโหลด...') + '</span>'
+        + '</span>'
+        + '<span style="font-size:18px;color:var(--slate-300);">›</span>'
+        + '</button>'
+      ).join('')
+    + '</div>';
+}
+async function loadUpdateHub() {
+  const isLao = lang === 'lo';
+  const dates = { master: null, status: null, purchase: null, pos: null };
+  // app_settings flags (เผื่อบันทึกไว้)
+  try {
+    const { data } = await sb.from('app_settings').select('key,value').in('key', ['last_update_master', 'last_update_status', 'last_update_pos', 'last_update_purchase']);
+    (data || []).forEach(r => {
+      if (r.key === 'last_update_master') dates.master = r.value;
+      else if (r.key === 'last_update_status') dates.status = r.value;
+      else if (r.key === 'last_update_pos') dates.pos = r.value;
+      else if (r.key === 'last_update_purchase') dates.purchase = r.value;
+    });
+  } catch (e) {}
+  const newer = (a, b) => (b && (!a || new Date(b) > new Date(a))) ? b : a;
+  try { const { data: mp } = await sb.from('master_products').select('imported_at').order('imported_at', { ascending: false }).limit(1).maybeSingle(); if (mp) dates.master = newer(dates.master, mp.imported_at); } catch (e) {}
+  try { const { data: ps } = await sb.from('product_status').select('updated_at').order('updated_at', { ascending: false }).limit(1).maybeSingle(); if (ps) dates.status = newer(dates.status, ps.updated_at); } catch (e) {}
+  try { const { data: sn } = await sb.from('v_pos_snapshots').select('snapshot_date').eq('branch_id', branch.id).order('snapshot_date', { ascending: false }).limit(1).maybeSingle(); if (sn) dates.pos = newer(dates.pos, sn.snapshot_date); } catch (e) {}
+  try { const { data: ph } = await sb.from('purchase_history').select('buy_date').order('buy_date', { ascending: false }).limit(1).maybeSingle(); if (ph) dates.purchase = newer(dates.purchase, ph.buy_date); } catch (e) {}
+  UPDATE_HUB_ITEMS.forEach(it => {
+    const el = document.getElementById('uh_' + it.id);
+    if (!el) return;
+    const v = dates[it.id];
+    if (!v) { el.innerHTML = '<span style="color:var(--rose-500);font-weight:700;">⚠️ ' + (isLao ? 'ຍັງບໍ່ເຄີຍอัปเดต' : 'ยังไม่เคยอัปเดต') + '</span>'; return; }
+    const d = new Date(v);
+    const today = isSameDay(v);
+    const ago = (typeof reminderAgo === 'function') ? reminderAgo(v, isLao) : '';
+    const col = today ? 'var(--emerald-600)' : 'var(--amber-600)';
+    const dstr = isNaN(d) ? String(v) : (String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear());
+    el.innerHTML = '<span style="color:' + col + ';font-weight:700;">' + (today ? '✓ ' : '') + (isLao ? 'ອັปล่าสุด ' : 'อัปเดตล่าสุด ') + dstr + '</span> <span style="color:var(--slate-400);">· ' + ago + '</span>';
+  });
+}
+window.renderUpdateHubPage = renderUpdateHubPage; window.loadUpdateHub = loadUpdateHub;
 window.scShowPurchase = scShowPurchase;
 window.irShowTimeline = irShowTimeline;
 window.psLoadCount = psLoadCount;
