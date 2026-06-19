@@ -27475,6 +27475,7 @@ window.docStartSign = docStartSign; window.docSignSetPage = docSignSetPage; wind
 let _cmpProduct = null;   // สินค้าที่สแกนล่าสุด
 let _cmpPhotos = [];      // [{blob,dataUrl}]
 let _cmpData = [];        // รายการที่โหลดมา
+let _cmpStore = '';       // ชื่อร้านคู่แข่งของรอบสำรวจปัจจุบัน
 
 function cmpEsc(s) { return escapeHtml(String(s == null ? '' : s)); }
 function cmpFmtDate(d) { if (!d) return '-'; try { const x = new Date(d); if (isNaN(x)) return String(d); return String(x.getDate()).padStart(2, '0') + '/' + String(x.getMonth() + 1).padStart(2, '0') + '/' + x.getFullYear(); } catch (e) { return String(d); } }
@@ -27482,19 +27483,36 @@ function cmpNum(n) { return Number(n || 0).toLocaleString(); }
 
 function renderCmpPage() {
   const isLao = lang === 'lo';
+  let top;
+  if (!_cmpStore) {
+    // ── ขั้นที่ 1: พิมพ์ชื่อร้านคู่แข่งก่อนเริ่มเทียบ ──
+    top = '<div style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.04);margin-bottom:8px;">'
+      + '<div style="font-size:13px;font-weight:700;color:var(--slate-700);margin-bottom:7px;">🏬 ' + (isLao ? 'ຈะเทียบกับร้านอะไร?' : 'จะเทียบกับร้านอะไร?') + '</div>'
+      + '<input id="cmpStoreInput" placeholder="' + (isLao ? 'ຊື່ຮ້ານຄູ່ແข่ง' : 'ชื่อร้านคู่แข่ง') + '" onkeydown="if(event.key===\'Enter\')cmpStartSession()" style="width:100%;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:15px;margin-bottom:10px;">'
+      + '<button onclick="cmpStartSession()" style="width:100%;background:linear-gradient(135deg,var(--teal-600),var(--teal-500));color:white;border:none;border-radius:11px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;">' + (isLao ? 'ເລີ່ມເทียบราคา →' : 'เริ่มเทียบราคา →') + '</button>'
+      + '</div>';
+  } else {
+    // ── ขั้นที่ 2: กำลังเทียบกับร้านนี้ — สแกน + เทียบได้หลายรายการ ──
+    top = '<div style="display:flex;align-items:center;gap:8px;background:var(--teal-50);border:1px solid var(--teal-200);border-radius:11px;padding:11px 13px;margin-bottom:11px;">'
+      + '<span style="font-size:18px;">🏬</span>'
+      + '<div style="flex:1;min-width:0;"><div style="font-size:9.5px;color:var(--teal-700);">' + (isLao ? 'ກຳລັງเทียบกับ' : 'กำลังเทียบกับ') + '</div><div style="font-size:15px;font-weight:800;color:var(--teal-800);line-height:1.2;">' + cmpEsc(_cmpStore) + '</div></div>'
+      + '<button onclick="cmpEndSession()" style="border:none;background:var(--teal-600);color:white;border-radius:9px;padding:9px 13px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;">✓ ' + (isLao ? 'ເສັຈ/ร้านใหม่' : 'เสร็จ/ร้านใหม่') + '</button>'
+      + '</div>'
+      // กล่องสแกน
+      + '<div style="display:flex;gap:7px;margin-bottom:11px;">'
+      + '<input id="cmpBarcode" inputmode="numeric" placeholder="' + (isLao ? 'ບາໂค้ด' : 'บาร์โค้ด') + '" onkeydown="if(event.key===\'Enter\')cmpLookup()" style="flex:1;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:14px;font-family:monospace;">'
+      + '<button onclick="cmpStartScan()" style="border:none;background:linear-gradient(135deg,var(--teal-600),var(--teal-500));color:white;border-radius:10px;padding:0 15px;font-size:18px;cursor:pointer;">📷</button>'
+      + '<button onclick="cmpLookup()" style="border:none;background:var(--slate-700);color:white;border-radius:10px;padding:0 15px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? 'ຄົ້ນ' : 'ค้นหา') + '</button>'
+      + '</div>'
+      + '<div id="cmpInfo"></div>';
+  }
   return '<div style="padding:14px 13px 90px;max-width:560px;margin:0 auto;">'
     + '<div style="display:flex;align-items:center;gap:9px;margin-bottom:12px;">'
     + '<button onclick="goPage(getHomePage())" style="border:1px solid var(--slate-200);background:white;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
     + '</div>'
     + '<h2 style="font-size:19px;font-weight:800;color:var(--slate-800);margin:0 0 3px;">🆚 ' + (isLao ? 'ທຽບລາຄາຄູ່ແข่ง' : 'เทียบราคาคู่แข่ง') + '</h2>'
-    + '<div style="font-size:12px;color:var(--slate-500);margin-bottom:13px;">' + (isLao ? 'ສแกนสินค้า → ใส่ราคาคู่แข่ง → ถ่ายรูป → บันทึก' : 'สแกนสินค้า → ใส่ราคาคู่แข่ง → ถ่ายรูป → บันทึก') + '</div>'
-    // กล่องสแกน
-    + '<div style="display:flex;gap:7px;margin-bottom:11px;">'
-    + '<input id="cmpBarcode" inputmode="numeric" placeholder="' + (isLao ? 'ບາໂค้ด' : 'บาร์โค้ด') + '" onkeydown="if(event.key===\'Enter\')cmpLookup()" style="flex:1;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:14px;font-family:monospace;">'
-    + '<button onclick="cmpStartScan()" style="border:none;background:linear-gradient(135deg,var(--teal-600),var(--teal-500));color:white;border-radius:10px;padding:0 15px;font-size:18px;cursor:pointer;">📷</button>'
-    + '<button onclick="cmpLookup()" style="border:none;background:var(--slate-700);color:white;border-radius:10px;padding:0 15px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? 'ຄົ້ນ' : 'ค้นหา') + '</button>'
-    + '</div>'
-    + '<div id="cmpInfo"></div>'
+    + '<div style="font-size:12px;color:var(--slate-500);margin-bottom:13px;">' + (isLao ? 'ໃສ່ชื่อร้าน → สแกน → ใส่ราคาคู่แข่ง → ถ่ายรูป → บันทึก' : 'ใส่ชื่อร้าน → สแกน → ใส่ราคาคู่แข่ง → ถ่ายรูป → บันทึก') + '</div>'
+    + top
     + '<div style="border-top:1px solid var(--slate-200);margin:18px 0 13px;"></div>'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
     + '<h3 style="font-size:15px;font-weight:800;color:var(--slate-800);margin:0;">📋 ' + (isLao ? 'ລາຍການที่แจ้ง' : 'รายการที่แจ้ง') + '</h3>'
@@ -27502,6 +27520,20 @@ function renderCmpPage() {
     + '</div>'
     + '<div id="cmpList"><div style="text-align:center;padding:18px;"><div class="loader"></div></div></div>'
     + '</div>';
+}
+
+function cmpRerender() { const c = document.getElementById('appContent'); if (c) { c.innerHTML = renderCmpPage(); cmpLoadList(); } }
+function cmpStartSession() {
+  const isLao = lang === 'lo';
+  const v = (document.getElementById('cmpStoreInput').value || '').trim();
+  if (!v) { showToast(isLao ? 'ໃສ່ชื่อร้าน' : 'ใส่ชื่อร้านคู่แข่ง', 'error'); return; }
+  _cmpStore = v; _cmpProduct = null; _cmpPhotos = [];
+  cmpRerender();
+  setTimeout(() => { const b = document.getElementById('cmpBarcode'); if (b) b.focus(); }, 60);
+}
+function cmpEndSession() {
+  _cmpStore = ''; _cmpProduct = null; _cmpPhotos = [];
+  cmpRerender();
 }
 
 function cmpInit() { cmpLoadList(); }
@@ -27619,7 +27651,7 @@ async function cmpSave() {
     } catch (e) {}
   }
   const payload = {
-    branch_id: branch.id, barcode: _cmpProduct.barcode, product_name: _cmpProduct.name,
+    branch_id: branch.id, competitor_store: _cmpStore || null, barcode: _cmpProduct.barcode, product_name: _cmpProduct.name,
     fs_price: _cmpProduct.fs_price || 0, competitor_price: comp,
     stock_qty: _cmpProduct.stock || 0, last_buy: _cmpProduct.last_buy || null, last_sale: _cmpProduct.last_sale || null,
     photo_urls: photoUrls, note: (document.getElementById('cmpNote').value || '').trim() || null,
@@ -27665,7 +27697,7 @@ async function cmpLoadList() {
         + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;margin-bottom:4px;">' + cmpEsc(r.barcode || '') + '</div>'
         + '<div style="font-size:12px;color:var(--slate-600);">FS <b style="font-family:\'Space Grotesk\',monospace;">' + cmpNum(r.fs_price) + '</b> · ' + (isLao ? 'ຄູ່ແข่ง' : 'คู่แข่ง') + ' <b style="font-family:\'Space Grotesk\',monospace;color:var(--amber-700);">' + cmpNum(r.competitor_price) + '</b> · ' + diffTxt + '</div>'
         + (r.note ? '<div style="font-size:11px;color:var(--slate-500);margin-top:3px;">📝 ' + cmpEsc(r.note) + '</div>' : '')
-        + '<div style="font-size:10px;color:var(--slate-400);margin-top:3px;">' + cmpEsc(r.created_by_name || '') + '</div>'
+        + '<div style="font-size:10px;color:var(--slate-400);margin-top:3px;">' + (r.competitor_store ? '🏬 ' + cmpEsc(r.competitor_store) + ' · ' : '') + cmpEsc(r.created_by_name || '') + '</div>'
         + '</div>'
         + (canDel(r) ? '<button onclick="cmpDelete(\'' + r.id + '\')" style="border:none;background:var(--rose-50);color:var(--rose-600);border-radius:7px;width:28px;height:28px;font-size:13px;cursor:pointer;flex-shrink:0;">🗑️</button>' : '')
         + '</div>';
@@ -27693,6 +27725,7 @@ function cmpExport() {
   if (typeof XLSX === 'undefined') { showToast('XLSX not loaded', 'error'); return; }
   const rows = _cmpData.map(r => ({
     'วันที่': cmpFmtDate(r.created_at),
+    'ร้านคู่แข่ง': r.competitor_store || '',
     'บาร์โค้ด': r.barcode || '',
     'ชื่อสินค้า': r.product_name || '',
     'ราคาเฟรนชิพ': r.fs_price || 0,
@@ -27703,7 +27736,7 @@ function cmpExport() {
     'ผู้แจ้ง': r.created_by_name || '',
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
-  ws['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 36 }, { wch: 13 }, { wch: 13 }, { wch: 16 }, { wch: 28 }, { wch: 40 }, { wch: 16 }];
+  ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 16 }, { wch: 36 }, { wch: 13 }, { wch: 13 }, { wch: 16 }, { wch: 28 }, { wch: 40 }, { wch: 16 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'CompetitorPrice');
   const d = new Date();
@@ -27714,6 +27747,7 @@ function cmpExport() {
 window.renderCmpPage = renderCmpPage; window.cmpInit = cmpInit; window.cmpStartScan = cmpStartScan; window.cmpLookup = cmpLookup;
 window.cmpUpdateDiff = cmpUpdateDiff; window.cmpOnPhoto = cmpOnPhoto; window.cmpRemovePhoto = cmpRemovePhoto; window.cmpRotatePhoto = cmpRotatePhoto;
 window.cmpSave = cmpSave; window.cmpLoadList = cmpLoadList; window.cmpDelete = cmpDelete; window.cmpExport = cmpExport;
+window.cmpStartSession = cmpStartSession; window.cmpEndSession = cmpEndSession; window.cmpRerender = cmpRerender;
 
 window.docSigClear = docSigClear; window.docSaveSignature = docSaveSignature; window.docPrint = docPrint;
 window.docSignSetSize = docSignSetSize; window.docResizeSig = docResizeSig; window.docRotateSig = docRotateSig;
