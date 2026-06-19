@@ -20070,7 +20070,14 @@ async function showSnapshotHistory() {
     .limit(20);
   
   if (error) {
-    showToast('Error: ' + error.message, 'error');
+    const isLao = lang === 'lo';
+    showModal('<h3>' + T('snapshot_history') + '</h3>'
+      + '<div class="empty-state" style="padding:24px 12px;text-align:center;">'
+      + '<div style="font-size:30px;margin-bottom:8px;">📭</div>'
+      + '<p style="font-size:13px;color:var(--slate-500);">' + (isLao ? 'ຍັງບໍ່ມีประวัติ Snapshot' : 'ยังไม่มีประวัติ Snapshot') + '</p>'
+      + '<p style="font-size:11px;color:var(--slate-400);margin-top:5px;">' + (isLao ? 'ການนำเข้า POS ล่าสุดยังบันทึกข้อมูล products ปกติ' : 'การนำเข้า POS ยังอัปเดตข้อมูล products ตามปกติ') + '</p>'
+      + '</div>'
+      + '<button class="btn btn-secondary" onclick="closeModal()" style="margin-top:10px;width:100%;">' + (isLao ? 'ປິด' : 'ปิด') + '</button>');
     return;
   }
   
@@ -28172,6 +28179,8 @@ async function loadUpdateHub() {
   const newer = (a, b) => (b && (!a || new Date(b) > new Date(a))) ? b : a;
   try { const { data: mp } = await sb.from('master_products').select('imported_at').order('imported_at', { ascending: false }).limit(1).maybeSingle(); if (mp) dates.master = newer(dates.master, mp.imported_at); } catch (e) {}
   try { const { data: ps } = await sb.from('product_status').select('updated_at').order('updated_at', { ascending: false }).limit(1).maybeSingle(); if (ps) dates.status = newer(dates.status, ps.updated_at); } catch (e) {}
+  // POS: ใช้เวลาที่ products ถูกอัปเดตล่าสุด (import POS อัปเดต products.pos_qty) — เชื่อถือได้กว่า v_pos_snapshots ที่อาจไม่มี
+  try { const { data: pr } = await sb.from('products').select('updated_at').order('updated_at', { ascending: false }).limit(1).maybeSingle(); if (pr) dates.pos = newer(dates.pos, pr.updated_at); } catch (e) {}
   try { const { data: sn } = await sb.from('v_pos_snapshots').select('snapshot_date').order('snapshot_date', { ascending: false }).limit(1).maybeSingle(); if (sn) dates.pos = newer(dates.pos, sn.snapshot_date); } catch (e) {}
   try { const { data: ph } = await sb.from('purchase_history').select('buy_date').order('buy_date', { ascending: false }).limit(1).maybeSingle(); if (ph) dates.purchase = newer(dates.purchase, ph.buy_date); } catch (e) {}
   UPDATE_HUB_ITEMS.forEach(it => {
