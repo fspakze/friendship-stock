@@ -2765,31 +2765,31 @@ async function loadUpdateReminder() {
   if (!pending.length) {
     host.innerHTML = '<div class="banner" style="background:var(--emerald-50);border:1px solid var(--emerald-300);">'
       + '<div class="banner-icon" style="background:var(--emerald-500);">✓</div>'
-      + '<div class="banner-text"><h4 style="color:var(--emerald-700);">' + (isLao ? 'ອัปเดตข้อมูลครบแล้ววันนี้' : 'อัปเดตข้อมูลครบแล้ววันนี้') + '</h4>'
-      + '<p style="color:var(--emerald-600);">Status · Stock · Master ' + (isLao ? 'ລ່າสุดวันนี้' : 'ล่าสุดวันนี้') + '</p></div></div>';
+      + '<div class="banner-text"><h4 style="color:var(--emerald-700);">' + (isLao ? 'ອັບເດດຂໍ້ມູນຄົບແລ້ວມື້ນີ້' : 'อัปเดตข้อมูลครบแล้ววันนี้') + '</h4>'
+      + '<p style="color:var(--emerald-600);">Status · Stock · Master ' + (isLao ? 'ຫຼ້າສຸດມື້ນີ້' : 'ล่าสุดวันนี้') + '</p></div></div>';
     return;
   }
   const items = pending.map(t =>
     '<button onclick="goPage(\'' + t.page + '\')" style="display:flex;align-items:center;gap:7px;width:100%;text-align:left;background:white;border:1px solid var(--amber-300);border-radius:9px;padding:9px 11px;margin-top:6px;cursor:pointer;">'
     + '<span style="font-size:15px;">⬆️</span>'
     + '<span style="flex:1;font-size:12px;font-weight:700;color:var(--slate-700);">' + (isLao ? t.lo : t.th) + '</span>'
-    + '<span style="font-size:10px;color:var(--amber-600);font-weight:700;">' + (lastSeen[t.key] ? (isLao ? 'ອัปล่าสุด ' : 'ล่าสุด ') + reminderAgo(lastSeen[t.key], isLao) : (isLao ? 'ຍັງບໍ່ເຄີຍ' : 'ยังไม่เคย')) + '</span>'
+    + '<span style="font-size:10px;color:var(--amber-600);font-weight:700;">' + (lastSeen[t.key] ? (isLao ? 'ຫຼ້າສຸດ ' : 'ล่าสุด ') + reminderAgo(lastSeen[t.key], isLao) : (isLao ? 'ຍັງບໍ່ເຄີຍ' : 'ยังไม่เคย')) + '</span>'
     + '<span style="font-size:13px;color:var(--amber-500);">›</span></button>'
   ).join('');
   host.innerHTML = '<div class="banner amber" style="flex-direction:column;align-items:stretch;">'
     + '<div style="display:flex;gap:10px;align-items:center;">'
     + '<div class="banner-icon">🔔</div>'
-    + '<div class="banner-text"><h4>' + (isLao ? 'ເຕືອน: อัปเดตข้อมูลประจำวัน' : 'เตือน: อัปเดตข้อมูลประจำวัน') + '</h4>'
-    + '<p>' + (isLao ? 'ມี ' : 'มี ') + pending.length + (isLao ? ' รายการที่ยังไม่อัปเดตวันนี้' : ' รายการที่ยังไม่อัปเดตวันนี้') + '</p></div></div>'
+    + '<div class="banner-text"><h4>' + (isLao ? 'ເຕືອນ: อัปเดตข้อมูลประจำวัน' : 'เตือน: อัปเดตข้อมูลประจำวัน') + '</h4>'
+    + '<p>' + (isLao ? 'ມີ ' : 'มี ') + pending.length + (isLao ? ' รายการที่ยังไม่อัปเดตวันนี้' : ' รายการที่ยังไม่อัปเดตวันนี้') + '</p></div></div>'
     + items + '</div>';
 }
 
 function reminderAgo(iso, isLao) {
   const diff = Date.now() - new Date(iso).getTime();
   const days = Math.floor(diff / 86400000);
-  if (days === 0) return isLao ? 'ມື้นี้' : 'วันนี้';
-  if (days === 1) return isLao ? 'ມื้วาน' : 'เมื่อวาน';
-  return days + (isLao ? ' ມื้ก่อน' : ' วันก่อน');
+  if (days === 0) return isLao ? 'ມື້ນີ້' : 'วันนี้';
+  if (days === 1) return isLao ? 'ມື້ວານ' : 'เมื่อวาน';
+  return days + (isLao ? ' ມື້ກ່ອນ' : ' วันก่อน');
 }
 
 // บันทึกวันที่อัพเดทล่าสุดของงาน (สำหรับ banner เตือน Admin)
@@ -2810,13 +2810,13 @@ window._getCountMenuEnabled = () => _countMenuEnabled;
 // เปิด/ปิดเมนูนับสต๊อก (admin/scc) → เก็บ Supabase → มีผลทุกเครื่อง
 async function toggleCountMenu() {
   const isLao = lang === 'lo';
-  if (!['admin', 'scc'].includes(user.role)) { showToast(isLao ? 'ບໍ່ມีสิทธิ์' : 'ไม่มีสิทธิ์', 'error'); return; }
+  if (!['admin', 'scc'].includes(user.role)) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
   const next = !_countMenuEnabled;
   const { error } = await sb.from('app_settings').upsert({ key: 'count_menu_enabled', value: next ? 'on' : 'off', updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: 'key' });
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   _countMenuEnabled = next;
   logActivity('toggle_count_menu', next ? 'on' : 'off');
-  showToast(next ? (isLao ? 'ເປີດເມนูนับสต๊อกแล้ว' : 'เปิดเมนูนับสต๊อกแล้ว') : (isLao ? 'ປິດເມนูนับสต๊อกแล้ว' : 'ปิดเมนูนับสต๊อกแล้ว'), 'success');
+  showToast(next ? (isLao ? 'ເປີດເມນູນັບສະຕ໋ອກແລ້ວ' : 'เปิดเมนูนับสต๊อกแล้ว') : (isLao ? 'ປິດເມນູນັບສະຕ໋ອກແລ້ວ' : 'ปิดเมนูนับสต๊อกแล้ว'), 'success');
   // อัปเดตปุ่ม toggle ทันที
   const btn = document.getElementById('countMenuToggle');
   const status = document.getElementById('countMenuStatus');
@@ -2827,7 +2827,7 @@ async function toggleCountMenu() {
   }
   if (status) {
     status.style.color = next ? 'var(--teal-600)' : 'var(--slate-400)';
-    status.textContent = next ? (isLao ? '● ເປີດ' : '● เปิดอยู่') : (isLao ? '○ ປິด' : '○ ปิดอยู่');
+    status.textContent = next ? (isLao ? '● ເປີດ' : '● เปิดอยู่') : (isLao ? '○ ປິດ' : '○ ปิดอยู่');
   }
   // re-render shell เพื่อให้เมนูที่เปิดอยู่ (counter/verifier/ctl บนเครื่องเดียวกัน) อัปเดต
   if (typeof renderApp === 'function' && ['counter', 'verifier', 'ctl'].includes(user.role)) renderApp();
@@ -4558,10 +4558,10 @@ const MENU_CONFIG = {
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'workreport', 'worktrack', 'tiebreaker'] },
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
-      { titleTh: '📝 ติดตามงาน SC', titleLo: '📝 ຕິດຕາມงาน SC', items: ['scdailylog'] },
+      { titleTh: '📝 ติดตามงาน SC', titleLo: '📝 ຕິດຕາມງານ SC', items: ['scdailylog'] },
       { titleTh: '📄 เอกสาร', titleLo: '📄 ເອກະສານ', items: ['docsign'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
-      { titleTh: '🔄 อัปเดตข้อมูล', titleLo: '🔄 ອัปเดตข้อมูล', items: ['updatehub'] },
+      { titleTh: '🔄 อัปเดตข้อมูล', titleLo: '🔄 ອັບເດດຂໍ້ມູນ', items: ['updatehub'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -4570,13 +4570,13 @@ const MENU_CONFIG = {
     bottomTabs: ['stockcheck', 'floormap', 'gapreport'],
     drawerGroups: [
       { titleTh: '🛒 งานสต๊อก', titleLo: '🛒 ງານສະຕ໋ອກ', items: ['scan', 'gapscan', 'expirytrack', 'tiebreaker', 'workflow'] },
-      { titleTh: '📢 ระบบแจ้งงาน', titleLo: '📢 ລະບົບແຈ້ງงาน', items: ['workreport', 'worktrack', 'docsign'] },
+      { titleTh: '📢 ระบบแจ้งงาน', titleLo: '📢 ລະບົບແຈ້ງງານ', items: ['workreport', 'worktrack', 'docsign'] },
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: '📝 งานรายวัน SC', titleLo: '📝 งานรายวัน SC', items: ['scdaily', 'scdailylog'] },
       { titleTh: '🕘 ประวัติ', titleLo: '🕘 ປະຫວັດ', items: ['history'] },
       { titleTh: 'วิเคราะห์', titleLo: 'ວິເຄາະ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['issuereport', 'invmovement'] },
-      { titleTh: '🔄 อัปเดตข้อมูล', titleLo: '🔄 ອัปเดตข้อมูล', items: ['updatehub'] },
+      { titleTh: '🔄 อัปเดตข้อมูล', titleLo: '🔄 ອັບເດດຂໍ້ມູນ', items: ['updatehub'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'branchmanage', 'settings', 'activitylog'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -4586,9 +4586,9 @@ const MENU_CONFIG = {
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'workreport', 'worktrack', 'tiebreaker'] },
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
-      { titleTh: '📝 ติดตามงาน SC', titleLo: '📝 ຕິດຕາມงาน SC', items: ['scdailylog'] },
+      { titleTh: '📝 ติดตามงาน SC', titleLo: '📝 ຕິດຕາມງານ SC', items: ['scdailylog'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
-      { titleTh: '🔄 อัปเดตข้อมูล', titleLo: '🔄 ອัปเดตข้อมูล', items: ['updatehub'] },
+      { titleTh: '🔄 อัปเดตข้อมูล', titleLo: '🔄 ອັບເດດຂໍ້ມູນ', items: ['updatehub'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'settings'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -4610,25 +4610,25 @@ const PAGE_META = {
   variance:   { iconSvg: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',                                                                                  labelTh: 'คลาดเคลื่อน',  labelLo: 'ຂາດເຄື່ອນ',    page: 'variance' },
   gapreport:  { iconSvg: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',                                                                                                                             labelTh: 'Gap Scan',     labelLo: 'Gap Scan',     page: 'gapreport',      badge: 'tabGapBadge' },
   users:      { iconSvg: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',                                                                                                        labelTh: 'พนักงาน',      labelLo: 'ພະນັກງານ',     page: 'users' },
-  branchmanage: { iconSvg: '<path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-3"/><path d="M9 9v0M9 12v0M9 15v0"/>', labelTh: 'จัดการสาขา', labelLo: 'ຈັດການສาขา', page: 'branchmanage' },
+  branchmanage: { iconSvg: '<path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-3"/><path d="M9 9v0M9 12v0M9 15v0"/>', labelTh: 'จัดการสาขา', labelLo: 'ຈັດການສາຂາ', page: 'branchmanage' },
   settings:   { iconSvg: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>', labelTh: 'ตั้งค่า',      labelLo: 'ຕັ້ງຄ່າ',      page: 'settings' },
   stockcheck: { iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',                                       labelTh: 'เช็คสต๊อก',    labelLo: 'ກວດສະຕ໋ອກ',     page: 'stockcheck' },
   issuereport:{ iconSvg: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',                                                                                  labelTh: 'รายงานปัญหา',  labelLo: 'ລາຍງານປັນຫາ',   page: 'issuereport',    badge: 'tabIssueBadge' },
   invmovement:{ iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="7.5 4.21 12 6.81 16.5 4.21"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>', labelTh: 'การเคลื่อนสต๊อค', labelLo: 'ການເຄື່ອນສະຕ໋ອກ', page: 'invmovement' },
   activitylog:{ iconSvg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>', labelTh: 'บันทึกกิจกรรม', labelLo: 'ບັນທຶກກິດຈະກຳ', page: 'activitylog' },
   expirytrack:{ iconSvg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', labelTh: 'ติดตามอายุ', labelLo: 'ຕິດຕາມອາຍຸ', page: 'expirytrack' },
-  workreport:{ iconSvg: '<path d="M12 5v14M5 12h14"/>', labelTh: 'แจ้งงาน', labelLo: 'ແຈ້ງงาน', page: 'workreport' },
-  worktrack:{ iconSvg: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', labelTh: 'ติดตามงาน', labelLo: 'ຕິດຕາມงาน', page: 'worktrack' },
-  docsign:{ iconSvg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15c1-1.5 2.5-1.5 3 0s2 1.5 3 0"/>', labelTh: 'แจ้งเอกสาร', labelLo: 'ແຈ້ງເອกະສານ', page: 'docsign', badge: 'tabDocBadge' },
-  cmpprice:{ iconSvg: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>', labelTh: 'เทียบราคาคู่แข่ง', labelLo: 'ທຽບລາຄາຄູ່ແข่ง', page: 'cmpprice' },
+  workreport:{ iconSvg: '<path d="M12 5v14M5 12h14"/>', labelTh: 'แจ้งงาน', labelLo: 'ແຈ້ງງານ', page: 'workreport' },
+  worktrack:{ iconSvg: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', labelTh: 'ติดตามงาน', labelLo: 'ຕິດຕາມງານ', page: 'worktrack' },
+  docsign:{ iconSvg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15c1-1.5 2.5-1.5 3 0s2 1.5 3 0"/>', labelTh: 'แจ้งเอกสาร', labelLo: 'ແຈ້ງເອກະສານ', page: 'docsign', badge: 'tabDocBadge' },
+  cmpprice:{ iconSvg: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>', labelTh: 'เทียบราคาคู่แข่ง', labelLo: 'ທຽບລາຄາຄູ່ແຂ່ງ', page: 'cmpprice' },
   dailybrief:{ iconSvg: '<path d="M9 11H15M9 15H13M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>', labelTh: 'Daily Brief', labelLo: 'Daily Brief', page: 'dailybrief' },
   brieflog:{ iconSvg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', labelTh: 'ประวัติ Brief', labelLo: 'ປະຫວັດ Brief', page: 'brieflog' },
   scdaily:{ iconSvg: '<path d="M9 11l3 3 8-8M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0z"/>', labelTh: 'งานรายวัน SC', labelLo: 'งานรายวัน SC', page: 'scdaily' },
-  scdailylog:{ iconSvg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', labelTh: 'ประวัติงาน SC', labelLo: 'ປະຫວັດงาน SC', page: 'scdailylog' },
+  scdailylog:{ iconSvg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', labelTh: 'ประวัติงาน SC', labelLo: 'ປະຫວັດງານ SC', page: 'scdailylog' },
   masterproduct: { iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/><path d="M7.5 4.5l9 5.2"/>', labelTh: 'Master Product', labelLo: 'Master Product', page: 'masterproduct' },
   productstatus: { iconSvg: '<path d="M3 3v18h18"/><path d="M7 16l4-6 4 3 5-7"/>', labelTh: 'Status สินค้า', labelLo: 'Status สินค้า', page: 'productstatus' },
-  purchasehistory: { iconSvg: '<path d="M9 2v2M15 2v2M3 8h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>', labelTh: 'ข้อมูลการซื้อ', labelLo: 'ຂໍ້มูลการซื้อ', page: 'purchasehistory' },
-  updatehub: { iconSvg: '<path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>', labelTh: '\ud83d\udd04 อัปเดตข้อมูล', labelLo: '\ud83d\udd04 ອัปเดตข้อมูล', page: 'updatehub' }
+  purchasehistory: { iconSvg: '<path d="M9 2v2M15 2v2M3 8h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>', labelTh: 'ข้อมูลการซื้อ', labelLo: 'ຂໍ້ມູນການຊື້', page: 'purchasehistory' },
+  updatehub: { iconSvg: '<path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>', labelTh: '\ud83d\udd04 อัปเดตข้อมูล', labelLo: '\ud83d\udd04 ອັບເດດຂໍ້ມູນ', page: 'updatehub' }
 };
 
 /**
@@ -4737,7 +4737,7 @@ function wtFilterMenuCfg(cfg, role) {
       const i = bottomTabs.indexOf('stockcheck');
       if (i >= 0) bottomTabs.splice(i + 1, 0, 'cmpprice'); else bottomTabs.unshift('cmpprice');
     } else {
-      drawerGroups = drawerGroups.concat([{ titleTh: '🆚 เทียบราคาคู่แข่ง', titleLo: '🆚 ທຽບລາຄາຄູ່ແข่ง', items: ['cmpprice'] }]);
+      drawerGroups = drawerGroups.concat([{ titleTh: '🆚 เทียบราคาคู่แข่ง', titleLo: '🆚 ທຽບລາຄາຄູ່ແຂ່ງ', items: ['cmpprice'] }]);
     }
   }
   return { bottomTabs, drawerGroups };
@@ -6383,16 +6383,16 @@ function renderPurchaseUploadPage() {
   const isLao = lang === 'lo';
   return `
     <div style="padding:14px 13px 90px;max-width:640px;margin:0 auto;">
-      <h2 style="font-size:17px;margin:0 0 5px;">🧾 ${isLao ? 'ຂໍ້ມูลการซื้อสินค้า' : 'ข้อมูลการซื้อสินค้า'}</h2>
-      <p style="font-size:11px;color:var(--slate-500);margin:0 0 14px;">${isLao ? 'ອัปโหลดไฟล์ Buy (ปี 2019-2026)' : 'อัปโหลดไฟล์ Buy (ปี 2019-2026)'}</p>
+      <h2 style="font-size:17px;margin:0 0 5px;">🧾 ${isLao ? 'ຂໍ້ມູນການຊື້ສິນຄ້າ' : 'ข้อมูลการซื้อสินค้า'}</h2>
+      <p style="font-size:11px;color:var(--slate-500);margin:0 0 14px;">${isLao ? 'ອັບໂຫຼດໄຟລ໌ Buy (ปี 2019-2026)' : 'อัปโหลดไฟล์ Buy (ปี 2019-2026)'}</p>
       <div id="phCount" style="font-size:12px;color:var(--slate-600);margin-bottom:12px;"></div>
       <label style="display:block;background:var(--fs-blue);color:white;border-radius:12px;padding:16px;text-align:center;font-weight:800;cursor:pointer;font-size:14px;">
-        📁 ${isLao ? 'ເລือกไฟล์ Buy (.xlsx)' : 'เลือกไฟล์ Buy (.xlsx)'}
+        📁 ${isLao ? 'ເລືອກໄຟລ໌ Buy (.xlsx)' : 'เลือกไฟล์ Buy (.xlsx)'}
         <input type="file" accept=".xlsx,.xls" style="display:none;" onchange="phHandleFile(event)">
       </label>
       <div id="phResult" style="margin-top:14px;"></div>
       <div style="margin-top:18px;font-size:11px;color:var(--slate-500);line-height:1.7;">
-        💡 ${isLao ? 'ປี 2019-2025: อัปโหลดครั้งเดียว · ปี 2026: อัปโหลดซ้ำได้ (กันซ้ำด้วย Buy ID)' : 'ปี 2019-2025: อัปโหลดครั้งเดียว · ปี 2026: อัปโหลดซ้ำได้ (กันซ้ำด้วย Buy ID)'}
+        💡 ${isLao ? 'ປີ 2019-2025: อัปโหลดครั้งเดียว · ปี 2026: อัปโหลดซ้ำได้ (กันซ้ำด้วย Buy ID)' : 'ปี 2019-2025: อัปโหลดครั้งเดียว · ปี 2026: อัปโหลดซ้ำได้ (กันซ้ำด้วย Buy ID)'}
       </div>
     </div>`;
 }
@@ -6401,7 +6401,7 @@ async function phLoadCount() {
   try {
     const { count } = await sb.from('purchase_history').select('id', { count: 'exact', head: true });
     const el = document.getElementById('phCount');
-    if (el) el.innerHTML = (lang === 'lo' ? 'ໃนระบบ: ' : 'ในระบบ: ') + '<b>' + (count || 0).toLocaleString() + '</b> ' + (lang === 'lo' ? 'ລາຍการ' : 'รายการ');
+    if (el) el.innerHTML = (lang === 'lo' ? 'ໃນລະບົບ: ' : 'ในระบบ: ') + '<b>' + (count || 0).toLocaleString() + '</b> ' + (lang === 'lo' ? 'ລາຍການ' : 'รายการ');
   } catch (e) {}
 }
 
@@ -6410,13 +6410,13 @@ async function phHandleFile(ev) {
   const file = ev.target.files && ev.target.files[0];
   if (!file) return;
   const set = h => { const el = document.getElementById('phResult'); if (el) el.innerHTML = h; };
-  set('<div style="text-align:center;padding:14px;"><div class="loader" style="margin:0 auto;"></div>' + (isLao ? 'ກຳລັງอ่านไฟล์...' : 'กำลังอ่านไฟล์...') + '</div>');
+  set('<div style="text-align:center;padding:14px;"><div class="loader" style="margin:0 auto;"></div>' + (isLao ? 'ກຳລັງອ່ານໄຟລ໌...' : 'กำลังอ่านไฟล์...') + '</div>');
   try {
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, { type: 'array' });
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: null });
-    if (rows.length < 2) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ໄຟລ໌ว่าง' : 'ไฟล์ว่าง') + '</div>'); return; }
+    if (rows.length < 2) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ໄຟລ໌ວ່າງ' : 'ไฟล์ว่าง') + '</div>'); return; }
     const header = rows[0].map(h => String(h || '').trim());
     const findCol = (...names) => { const ns = names.map(phNorm); return header.findIndex(h => ns.includes(phNorm(h))); };
     const COL = {
@@ -6431,7 +6431,7 @@ async function phHandleFile(ev) {
       unitPrice: findCol('ซื้อต่อหน่วย รวมภาษีแล้ว'),
       total: findCol('รวมซื้อ รวมภาษีแล้ว'),
     };
-    if (COL.barcode < 0) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ພบคอลัมน์ Barcode' : 'ไม่พบคอลัมน์ Barcode') + '</div>'); return; }
+    if (COL.barcode < 0) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ພົບຄໍລຳ Barcode' : 'ไม่พบคอลัมน์ Barcode') + '</div>'); return; }
     const data = [];
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i];
@@ -6452,7 +6452,7 @@ async function phHandleFile(ev) {
         buy_year: bdate ? Number(bdate.slice(0, 4)) : null,
       });
     }
-    if (!data.length) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ມีข้อมูล' : 'ไม่มีข้อมูล') + '</div>'); return; }
+    if (!data.length) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล') + '</div>'); return; }
     // upsert กันซ้ำด้วย (buy_id, barcode, doc_no)
     let done = 0, failed = 0;
     for (let i = 0; i < data.length; i += PH_UPSERT_BATCH) {
@@ -6460,13 +6460,13 @@ async function phHandleFile(ev) {
       const { error } = await sb.from('purchase_history').upsert(chunk, { onConflict: 'buy_id,barcode,doc_no', ignoreDuplicates: false });
       if (error) { console.warn('[FS] ph upsert:', error.message); failed += chunk.length; }
       else done += chunk.length;
-      set('<div style="text-align:center;"><div class="loader" style="margin:5px auto;"></div>' + (isLao ? 'ກຳລັງບันทึก...' : 'กำลังบันทึก...') + ' ' + done.toLocaleString() + '/' + data.length.toLocaleString() + '</div>');
+      set('<div style="text-align:center;"><div class="loader" style="margin:5px auto;"></div>' + (isLao ? 'ກຳລັງບັນທຶກ...' : 'กำลังบันทึก...') + ' ' + done.toLocaleString() + '/' + data.length.toLocaleString() + '</div>');
     }
     const years = [...new Set(data.map(d => d.buy_year).filter(Boolean))].sort();
     set('<div style="background:var(--emerald-50);border:1px solid var(--emerald-200);border-radius:10px;padding:12px;color:var(--emerald-700);font-size:12px;font-weight:700;text-align:center;">✓ '
-      + (isLao ? 'ສຳเร็จ' : 'สำเร็จ') + ' ' + done.toLocaleString() + ' ' + (isLao ? 'ລາຍการ' : 'รายการ')
-      + (failed ? ' · ' + (isLao ? 'ລົ້มเหลว' : 'ล้มเหลว') + ' ' + failed : '')
-      + '<br><span style="font-weight:400;color:var(--slate-500);">' + (isLao ? 'ປี' : 'ปี') + ': ' + years.join(', ') + '</span></div>');
+      + (isLao ? 'ສຳເລັດ' : 'สำเร็จ') + ' ' + done.toLocaleString() + ' ' + (isLao ? 'ລາຍການ' : 'รายการ')
+      + (failed ? ' · ' + (isLao ? 'ລົ້ມເຫຼວ' : 'ล้มเหลว') + ' ' + failed : '')
+      + '<br><span style="font-weight:400;color:var(--slate-500);">' + (isLao ? 'ປີ' : 'ปี') + ': ' + years.join(', ') + '</span></div>');
     ev.target.value = '';
     if (typeof markDataUpdated === 'function' && done > 0) markDataUpdated('last_update_purchase');
     phLoadCount();
@@ -6478,14 +6478,14 @@ async function phHandleFile(ev) {
 // แสดงประวัติการซื้อ (เรียกจากปุ่มในเช็คสต๊อก)
 async function scShowPurchase(barcode, name) {
   const isLao = lang === 'lo';
-  if (!user || !['admin', 'bcs'].includes(user.role)) { showToast(isLao ? 'ສະเพาะ BCS/Admin' : 'เฉพาะ BCS/Admin', 'error'); return; }
+  if (!user || !['admin', 'bcs'].includes(user.role)) { showToast(isLao ? 'ສະເພາະ BCS/Admin' : 'เฉพาะ BCS/Admin', 'error'); return; }
   const bc = barcode || (window._scLastBarcode || '');
   name = name || window._scLastName || bc;
   if (!bc) return;
-  showModal('<h3 style="font-size:15px;margin:0 0 4px;">🧾 ' + (isLao ? 'ຂໍ້ມูลการซื้อ' : 'ข้อมูลการซื้อ') + '</h3>'
+  showModal('<h3 style="font-size:15px;margin:0 0 4px;">🧾 ' + (isLao ? 'ຂໍ້ມູນການຊື້' : 'ข้อมูลการซื้อ') + '</h3>'
     + '<div style="font-size:11px;color:var(--slate-500);margin-bottom:10px;">' + (name || bc) + '</div>'
     + '<div id="phModalBody" style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>'
-    + '<button onclick="closeModal()" style="width:100%;margin-top:12px;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? '✕ ປິด' : '✕ ปิด') + '</button>');
+    + '<button onclick="closeModal()" style="width:100%;margin-top:12px;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? '✕ ປິດ' : '✕ ปิด') + '</button>');
   try {
     // สรุปทั้งหมด + 10 ครั้งล่าสุด
     const { data, error } = await sb.from('purchase_history')
@@ -6496,7 +6496,7 @@ async function scShowPurchase(barcode, name) {
     const body = document.getElementById('phModalBody');
     if (!body) return;
     if (!rows.length) {
-      body.innerHTML = '<div style="color:var(--slate-400);padding:20px;">' + (isLao ? 'ບໍ່ມีข้อมูลการซื้อ' : 'ไม่มีข้อมูลการซื้อ') + '</div>';
+      body.innerHTML = '<div style="color:var(--slate-400);padding:20px;">' + (isLao ? 'ບໍ່ມີຂໍ້ມູນການຊື້' : 'ไม่มีข้อมูลการซื้อ') + '</div>';
       return;
     }
     const totalQty = rows.reduce((s, r) => s + (Number(r.qty) || 0), 0);
@@ -6505,11 +6505,11 @@ async function scShowPurchase(barcode, name) {
     const fmtD = iso => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d.getTime()) ? '—' : String(d.getUTCDate()).padStart(2, '0') + '/' + String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + d.getUTCFullYear(); };
     const num = v => v != null ? Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
     let html = '<div style="display:flex;gap:8px;margin-bottom:12px;">'
-      + '<div style="flex:1;background:var(--sky-50);border-radius:9px;padding:9px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ຊื้อรวม' : 'ซื้อรวม') + '</div><div style="font-size:15px;font-weight:800;color:var(--sky-700);">' + num(totalQty) + '</div></div>'
-      + '<div style="flex:1;background:var(--violet-50);border-radius:9px;padding:9px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ຜู้ขาย' : 'ผู้ขาย') + '</div><div style="font-size:15px;font-weight:800;color:var(--violet-700);">' + vendors.length + '</div></div>'
-      + '<div style="flex:1;background:var(--teal-50);border-radius:9px;padding:9px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ຄรั้ง' : 'ครั้ง') + '</div><div style="font-size:15px;font-weight:800;color:var(--teal-700);">' + rows.length + '</div></div>'
+      + '<div style="flex:1;background:var(--sky-50);border-radius:9px;padding:9px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ຊື້ລວມ' : 'ซื้อรวม') + '</div><div style="font-size:15px;font-weight:800;color:var(--sky-700);">' + num(totalQty) + '</div></div>'
+      + '<div style="flex:1;background:var(--violet-50);border-radius:9px;padding:9px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ຜູ້ຂາຍ' : 'ผู้ขาย') + '</div><div style="font-size:15px;font-weight:800;color:var(--violet-700);">' + vendors.length + '</div></div>'
+      + '<div style="flex:1;background:var(--teal-50);border-radius:9px;padding:9px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ຄັ້ງ' : 'ครั้ง') + '</div><div style="font-size:15px;font-weight:800;color:var(--teal-700);">' + rows.length + '</div></div>'
       + '</div>';
-    html += '<div style="font-size:11px;font-weight:700;color:var(--slate-600);margin-bottom:6px;">' + (isLao ? '10 ຄรั้งล่าสุด' : '10 ครั้งล่าสุด') + '</div>';
+    html += '<div style="font-size:11px;font-weight:700;color:var(--slate-600);margin-bottom:6px;">' + (isLao ? '10 ຄັ້ງຫຼ້າສຸດ' : '10 ครั้งล่าสุด') + '</div>';
     html += '<div style="max-height:46vh;overflow-y:auto;">';
     last10.forEach(r => {
       html += '<div style="border:1px solid var(--slate-200);border-radius:9px;padding:9px 11px;margin-bottom:7px;">'
@@ -6533,16 +6533,16 @@ function psBuildStatusCard(ps, posQty) {
   const isLao = lang === 'lo';
   if (!ps) {
     return '<div style="text-align:center;font-size:12px;color:var(--fs-ink3);">'
-      + (isLao ? 'ບໍ່ມีข้อมูล Status สินค้า (ยังไม่ได้อัปโหลด หรือไม่พบ barcode นี้)' : 'ไม่มีข้อมูล Status สินค้า (ยังไม่อัปโหลด หรือไม่พบ barcode นี้)') + '</div>';
+      + (isLao ? 'ບໍ່ມີຂໍ້ມູນ Status สินค้า (ยังไม่ได้อัปโหลด หรือไม่พบ barcode นี้)' : 'ไม่มีข้อมูล Status สินค้า (ยังไม่อัปโหลด หรือไม่พบ barcode นี้)') + '</div>';
   }
   // AVG สาขานี้
   const bkey = psBranchKey(ps.branch_avg);
   const bAvg = (ps.branch_avg && bkey != null) ? ps.branch_avg[bkey] : null;
   const stBranch = psCalcStatus(posQty, bAvg || 0);
-  const dohBranch = stBranch.doh != null ? Math.round(stBranch.doh) + ' ' + (isLao ? 'ມื้' : 'วัน') : null;
+  const dohBranch = stBranch.doh != null ? Math.round(stBranch.doh) + ' ' + (isLao ? 'ມື້' : 'วัน') : null;
   // ALLStore
   const stAll = psCalcStatus(ps.stock_allstore || 0, ps.avg_allstore || 0);
-  const dohAll = stAll.doh != null ? Math.round(stAll.doh) + ' ' + (isLao ? 'ມື้' : 'วัน') : null;
+  const dohAll = stAll.doh != null ? Math.round(stAll.doh) + ' ' + (isLao ? 'ມື້' : 'วัน') : null;
 
   // TOP + จัดซื้อ chips
   let chips = '';
@@ -6561,8 +6561,8 @@ function psBuildStatusCard(ps, posQty) {
   let dateRow = '';
   if (lastBuyStr || lastSaleStr) {
     dateRow = '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:11px;font-size:11px;color:var(--slate-600);">'
-      + (lastBuyStr ? '<span>📥 ' + (isLao ? 'ຊื้อล่าสุด' : 'ซื้อล่าสุด') + ': <b>' + lastBuyStr + '</b></span>' : '')
-      + (lastSaleStr ? '<span>📤 ' + (isLao ? 'ຂายล่าสุด' : 'ขายล่าสุด') + ': <b>' + lastSaleStr + '</b></span>' : '')
+      + (lastBuyStr ? '<span>📥 ' + (isLao ? 'ຊື້ຫຼ້າສຸດ' : 'ซื้อล่าสุด') + ': <b>' + lastBuyStr + '</b></span>' : '')
+      + (lastSaleStr ? '<span>📤 ' + (isLao ? 'ຂາຍຫຼ້າສຸດ' : 'ขายล่าสุด') + ': <b>' + lastSaleStr + '</b></span>' : '')
       + '</div>';
   }
 
@@ -6571,13 +6571,13 @@ function psBuildStatusCard(ps, posQty) {
     + dateRow
     // สาขานี้
     + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;flex-wrap:wrap;">'
-    + '<div><div style="font-size:9px;color:var(--slate-400);">' + (isLao ? 'ສาขานี้' : 'สาขานี้') + ' (' + (bkey || '?') + ')</div>'
+    + '<div><div style="font-size:9px;color:var(--slate-400);">' + (isLao ? 'ສາຂານີ້' : 'สาขานี้') + ' (' + (bkey || '?') + ')</div>'
     + '<div style="font-size:11px;color:var(--slate-600);">AVG: <b>' + fmtAvg(bAvg != null ? bAvg / 30 : null) + '</b>/' + (isLao ? 'ມື້' : 'วัน') + ' <span style="color:var(--slate-400);">(' + fmtAvg(bAvg) + '/' + (isLao ? 'ເດືອນ' : 'เดือน') + ')</span>' + (dohBranch ? ' · DOH ' + dohBranch : '') + '</div></div>'
     + psStatusBadge(stBranch) + '</div>'
     // ALLStore
     + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid var(--slate-200);padding-top:7px;flex-wrap:wrap;">'
-    + '<div><div style="font-size:9px;color:var(--slate-400);">' + (isLao ? 'ລວมทุกสาขา' : 'รวมทุกสาขา') + '</div>'
-    + '<div style="font-size:11px;color:var(--slate-600);">AVG: <b>' + fmtAvg(ps.avg_allstore != null ? ps.avg_allstore / 30 : null) + '</b>/' + (isLao ? 'ມື້' : 'วัน') + ' <span style="color:var(--slate-400);">(' + fmtAvg(ps.avg_allstore) + '/' + (isLao ? 'ເດືອน' : 'เดือน') + ')</span> · Stock <b>' + (ps.stock_allstore != null ? Number(ps.stock_allstore).toLocaleString() : '—') + '</b>' + (dohAll ? ' · DOH ' + dohAll : '') + '</div></div>'
+    + '<div><div style="font-size:9px;color:var(--slate-400);">' + (isLao ? 'ລວມທຸກສາຂາ' : 'รวมทุกสาขา') + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-600);">AVG: <b>' + fmtAvg(ps.avg_allstore != null ? ps.avg_allstore / 30 : null) + '</b>/' + (isLao ? 'ມື້' : 'วัน') + ' <span style="color:var(--slate-400);">(' + fmtAvg(ps.avg_allstore) + '/' + (isLao ? 'ເດືອນ' : 'เดือน') + ')</span> · Stock <b>' + (ps.stock_allstore != null ? Number(ps.stock_allstore).toLocaleString() : '—') + '</b>' + (dohAll ? ' · DOH ' + dohAll : '') + '</div></div>'
     + psStatusBadge(stAll) + '</div>'
     + '</div>';
 }
@@ -6612,15 +6612,15 @@ function renderProductStatusPage() {
   return `
     <div style="padding:14px 13px 90px;max-width:620px;margin:0 auto;">
       <h2 style="font-size:18px;font-weight:800;margin:0 0 3px;">📊 ${isLao ? 'Status สินค้า' : 'Status สินค้า'}</h2>
-      <p style="font-size:12px;color:var(--slate-500);margin:0 0 15px;">${isLao ? 'ອัปโหลดไฟล์ Form_Status_Product เพื่อใช้ดู AVG Sale / Status ตอนเช็คสต๊อก' : 'อัปโหลดไฟล์ Form_Status_Product เพื่อใช้ดู AVG Sale / Status ตอนเช็คสต๊อก'}</p>
+      <p style="font-size:12px;color:var(--slate-500);margin:0 0 15px;">${isLao ? 'ອັບໂຫຼດໄຟລ໌ Form_Status_Product เพื่อใช้ดู AVG Sale / Status ตอนเช็คสต๊อก' : 'อัปโหลดไฟล์ Form_Status_Product เพื่อใช้ดู AVG Sale / Status ตอนเช็คสต๊อก'}</p>
 
       <div id="psCount" style="margin-bottom:13px;"></div>
 
       <div style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:16px;">
-        <div style="font-size:14px;font-weight:800;margin-bottom:4px;">⬆️ ${isLao ? 'ອัปโหลดไฟล์' : 'อัปโหลดไฟล์'}</div>
-        <div style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">${isLao ? 'ໄຟล์ Form_Status_Product_Filled.xlsx (sheet: Status สินค้า)' : 'ไฟล์ Form_Status_Product_Filled.xlsx (sheet: Status สินค้า)'}</div>
+        <div style="font-size:14px;font-weight:800;margin-bottom:4px;">⬆️ ${isLao ? 'ອັບໂຫຼດໄຟລ໌' : 'อัปโหลดไฟล์'}</div>
+        <div style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">${isLao ? 'ໄຟລ໌ Form_Status_Product_Filled.xlsx (sheet: Status สินค้า)' : 'ไฟล์ Form_Status_Product_Filled.xlsx (sheet: Status สินค้า)'}</div>
         <input type="file" id="psFile" accept=".xlsx,.xls" onchange="psHandleFile(event)" style="display:none;">
-        <button onclick="document.getElementById('psFile').click()" style="width:100%;border:1.5px dashed var(--teal-400);background:var(--teal-50);border-radius:10px;padding:13px;font-size:13px;font-weight:700;color:var(--teal-700);cursor:pointer;">📁 ${isLao ? 'ເລືອกไฟล์' : 'เลือกไฟล์'}</button>
+        <button onclick="document.getElementById('psFile').click()" style="width:100%;border:1.5px dashed var(--teal-400);background:var(--teal-50);border-radius:10px;padding:13px;font-size:13px;font-weight:700;color:var(--teal-700);cursor:pointer;">📁 ${isLao ? 'ເລືອກໄຟລ໌' : 'เลือกไฟล์'}</button>
         <div id="psStatus" style="margin-top:12px;font-size:12px;"></div>
       </div>
     </div>`;
@@ -6634,7 +6634,7 @@ async function psLoadCount() {
     const isLao = lang === 'lo';
     el.innerHTML = '<div style="background:linear-gradient(135deg,var(--sky-50),var(--teal-50));border:1px solid var(--teal-200);border-radius:11px;padding:12px;text-align:center;">'
       + '<div style="font-size:22px;font-weight:800;color:var(--teal-700);font-family:\'Space Grotesk\',monospace;">' + (count || 0).toLocaleString() + '</div>'
-      + '<div style="font-size:11px;color:var(--slate-500);">' + (isLao ? 'ລາຍการในระบบ' : 'รายการในระบบ') + '</div></div>';
+      + '<div style="font-size:11px;color:var(--slate-500);">' + (isLao ? 'ລາຍການໃນລະບົບ' : 'รายการในระบบ') + '</div></div>';
   } catch (e) {}
 }
 
@@ -6686,7 +6686,7 @@ async function psHandleFile(ev) {
     const sheetName = wb.SheetNames.find(n => n.includes('Status')) || wb.SheetNames[0];
     const ws = wb.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: null });
-    if (rows.length < 2) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ໄຟล์ว่าง' : 'ไฟล์ว่างเปล่า') + '</div>'); return; }
+    if (rows.length < 2) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ໄຟລ໌ວ່າງເປົ່າ' : 'ไฟล์ว่างเปล่า') + '</div>'); return; }
 
     const header = rows[0].map(h => String(h || '').trim());
     const norm = h => h.replace(/\s+/g, '').replace(/\n/g, '');  // ตัด space/newline เทียบง่าย
@@ -6702,7 +6702,7 @@ async function psHandleFile(ev) {
       lastBuy: findCol('ซื้อล่าสุด'),
       lastSale: findCol('ขายล่าสุด'),
     };
-    if (COL.barcode < 0) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ພบคอลัมน์ Barcode' : 'ไม่พบคอลัมน์ Barcode') + '</div>'); return; }
+    if (COL.barcode < 0) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ພົບຄໍລຳ Barcode' : 'ไม่พบคอลัมน์ Barcode') + '</div>'); return; }
 
     // หา column AVG Sale ของทุกสาขา: ขึ้นต้นด้วย AVG...Sale_ หรือ Avg Sale_ (ยกเว้น ALLStore)
     const branchCols = [];
@@ -6712,7 +6712,7 @@ async function psHandleFile(ev) {
       if (m && m[2] !== 'ALLStore') branchCols.push({ idx, name: m[2] });
     });
 
-    set('<div style="text-align:center;"><div class="loader" style="margin:5px auto;"></div>' + (isLao ? 'ກຳລັງประมวลผล...' : 'กำลังประมวลผล...') + ' (' + (rows.length - 1).toLocaleString() + ')</div>');
+    set('<div style="text-align:center;"><div class="loader" style="margin:5px auto;"></div>' + (isLao ? 'ກຳລັງປະມວນຜົນ...' : 'กำลังประมวลผล...') + ' (' + (rows.length - 1).toLocaleString() + ')</div>');
 
     const seen = {};
     const out = [];
@@ -6737,15 +6737,15 @@ async function psHandleFile(ev) {
       };
     }
     const data = Object.values(seen);
-    if (!data.length) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ມีข้อมูล' : 'ไม่มีข้อมูล') + '</div>'); return; }
+    if (!data.length) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล') + '</div>'); return; }
 
     // debug: นับว่า parse วันที่ได้กี่รายการ + เจอ column ไหม
     const nBuy = data.filter(x => x.last_buy).length;
     const nSale = data.filter(x => x.last_sale).length;
-    const dateInfo = (isLao ? 'ຄอลัมน์วันที่: ' : 'คอลัมน์วันที่: ')
-      + (COL.lastBuy >= 0 ? '✓ ' + (isLao ? 'ຊื้อ' : 'ซื้อ') : '✗ ' + (isLao ? 'ບໍ່ພบ ซื้อล่าสุด' : 'ไม่พบ ซื้อล่าสุด'))
-      + ' · ' + (COL.lastSale >= 0 ? '✓ ' + (isLao ? 'ຂาย' : 'ขาย') : '✗ ' + (isLao ? 'ບໍ່ພบ ขายล่าสุด' : 'ไม่พบ ขายล่าสุด'))
-      + ' · ' + (isLao ? 'ມีค่า ' : 'มีค่า ') + nBuy + '/' + nSale;
+    const dateInfo = (isLao ? 'ຄໍລຳວັນທີ: ' : 'คอลัมน์วันที่: ')
+      + (COL.lastBuy >= 0 ? '✓ ' + (isLao ? 'ຊື້' : 'ซื้อ') : '✗ ' + (isLao ? 'ບໍ່ພົບ ซื้อล่าสุด' : 'ไม่พบ ซื้อล่าสุด'))
+      + ' · ' + (COL.lastSale >= 0 ? '✓ ' + (isLao ? 'ຂາຍ' : 'ขาย') : '✗ ' + (isLao ? 'ບໍ່ພົບ ขายล่าสุด' : 'ไม่พบ ขายล่าสุด'))
+      + ' · ' + (isLao ? 'ມີຄ່າ ' : 'มีค่า ') + nBuy + '/' + nSale;
 
     // batch upsert
     let done = 0, failed = 0;
@@ -6754,14 +6754,14 @@ async function psHandleFile(ev) {
       const { error } = await sb.from('product_status').upsert(chunk, { onConflict: 'barcode' });
       if (error) { console.warn('[FS] ps upsert:', error.message); failed += chunk.length; }
       else done += chunk.length;
-      set('<div style="text-align:center;"><div class="loader" style="margin:5px auto;"></div>' + (isLao ? 'ກຳລັງบันทึก...' : 'กำลังบันทึก...') + ' ' + done.toLocaleString() + '/' + data.length.toLocaleString() + '</div>');
+      set('<div style="text-align:center;"><div class="loader" style="margin:5px auto;"></div>' + (isLao ? 'ກຳລັງບັນທຶກ...' : 'กำลังบันทึก...') + ' ' + done.toLocaleString() + '/' + data.length.toLocaleString() + '</div>');
     }
     logActivity('product_status_upload', done + ' rows, ' + branchCols.length + ' branches');
     markDataUpdated('last_update_status');
     set('<div style="background:var(--emerald-50);border:1px solid var(--emerald-200);border-radius:10px;padding:12px;color:var(--emerald-700);font-size:12px;font-weight:700;text-align:center;">✓ '
-      + (isLao ? 'ສຳเร็จ' : 'สำเร็จ') + ' ' + done.toLocaleString() + ' ' + (isLao ? 'ລາຍการ' : 'รายการ')
-      + (failed ? ' · ' + (isLao ? 'ລົ້มเหลว' : 'ล้มเหลว') + ' ' + failed : '')
-      + '<br><span style="font-weight:400;color:var(--slate-500);">' + (isLao ? 'ສาขาที่พบ' : 'สาขาที่พบ') + ': ' + branchCols.map(b => b.name).join(', ') + '</span>'
+      + (isLao ? 'ສຳເລັດ' : 'สำเร็จ') + ' ' + done.toLocaleString() + ' ' + (isLao ? 'ລາຍການ' : 'รายการ')
+      + (failed ? ' · ' + (isLao ? 'ລົ້ມເຫຼວ' : 'ล้มเหลว') + ' ' + failed : '')
+      + '<br><span style="font-weight:400;color:var(--slate-500);">' + (isLao ? 'ສາຂາທີ່ພົບ' : 'สาขาที่พบ') + ': ' + branchCols.map(b => b.name).join(', ') + '</span>'
       + '<br><span style="font-weight:400;color:var(--slate-500);">' + dateInfo + '</span></div>');
     ev.target.value = '';
     psLoadCount();
@@ -8941,7 +8941,7 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
           </button>
           ${['admin', 'bcs'].includes(user.role) ? `<button class="fs-tile" style="grid-column:span 2;" onclick="scShowPurchase('${(prod.barcode||'').replace(/'/g,'')}')">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 3v18l2-1.5L10 21l2-1.5L14 21l2-1.5L18 21V3l-2 1.5L14 3l-2 1.5L10 3 8 4.5 6 3zM9 8h6M9 12h5"/></svg>
-            ${isLao ? 'ຂໍ້มูลการซื้อ' : 'ข้อมูลการซื้อ'}
+            ${isLao ? 'ຂໍ້ມູນການຊື້' : 'ข้อมูลการซื้อ'}
           </button>` : ''}
         </div>
       </div>
@@ -9117,9 +9117,9 @@ function scOpenIssueModal() {
         <textarea id="scIssueNote" rows="3" placeholder="${isLao ? 'ລາຍລະອຽດເພີ່ມເຕີມ...' : 'รายละเอียดเพิ่มเติม...'}" style="width:100%;padding:10px;border:1.5px solid var(--slate-200);border-radius:9px;font-size:12px;font-family:inherit;resize:vertical;"></textarea>
       </div>
       <div style="margin-top:11px;">
-        <div style="font-size:11px;font-weight:700;color:var(--slate-700);margin-bottom:6px;">📷 ${isLao ? 'ຮูปประกอบ (ไม่บังคับ · สูงสุด 3)' : 'รูปประกอบ (ไม่บังคับ · สูงสุด 3)'}:</div>
+        <div style="font-size:11px;font-weight:700;color:var(--slate-700);margin-bottom:6px;">📷 ${isLao ? 'ຮູບປະກອບ (ไม่บังคับ · สูงสุด 3)' : 'รูปประกอบ (ไม่บังคับ · สูงสุด 3)'}:</div>
         <input type="file" id="scIssuePhotoInput" accept="image/*" capture="environment" multiple style="display:none;" onchange="scIssueOnPhoto(event)">
-        <button type="button" onclick="document.getElementById('scIssuePhotoInput').click()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:11px;font-size:12px;font-weight:700;color:var(--slate-600);cursor:pointer;">📷 ${isLao ? 'ຖ່າຍຮูป / ເລືອกรูป' : 'ถ่ายรูป / เลือกรูป'}</button>
+        <button type="button" onclick="document.getElementById('scIssuePhotoInput').click()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:11px;font-size:12px;font-weight:700;color:var(--slate-600);cursor:pointer;">📷 ${isLao ? 'ຖ່າຍຮູບ / ເລືອກຮູບ' : 'ถ่ายรูป / เลือกรูป'}</button>
         <div id="scIssuePhotoPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;"></div>
       </div>
       <div style="display:flex;gap:7px;margin-top:15px;">
@@ -9148,7 +9148,7 @@ function scIssueOnPhoto(e) {
   const files = Array.from(e.target.files || []);
   e.target.value = '';
   files.forEach(f => {
-    if (_scIssuePhotos.length >= 3) { showToast(lang === 'lo' ? 'ສูงสุด 3 รูป' : 'สูงสุด 3 รูป', 'warning'); return; }
+    if (_scIssuePhotos.length >= 3) { showToast(lang === 'lo' ? 'ສູງສຸດ 3 รูป' : 'สูงสุด 3 รูป', 'warning'); return; }
     wrCompressImage(f, (blob, dataUrl) => {
       _scIssuePhotos.push({ blob, dataUrl });
       scIssueRenderPhotos();
@@ -9222,7 +9222,7 @@ async function scSubmitIssue() {
   };
   // อัปโหลดรูป (ถ้ามี)
   if (_scIssuePhotos.length) {
-    showToast(lang === 'lo' ? 'ກຳລັງอัปโหลดรูป...' : 'กำลังอัปโหลดรูป...', 'info');
+    showToast(lang === 'lo' ? 'ກຳລັງອັບໂຫຼດຮູບ...' : 'กำลังอัปโหลดรูป...', 'info');
     payload.photo_urls = await scIssueUploadPhotos(_scCurrentProduct.barcode);
   }
   
@@ -9456,7 +9456,7 @@ async function loadIssueReports() {
   console.log('[FS] issue reports: rows=' + (data ? data.length : 0) + ' filter=' + _irFilter + (error ? ' ERROR=' + error.message : ''));
   if (error) {
     if (error._timeout) {
-      list.innerHTML = `<div style="text-align:center;padding:18px;"><div style="color:var(--amber-600);font-size:12px;margin-bottom:10px;">${lang === 'lo' ? 'ໂหลดนานเกินไป' : 'โหลดนานเกินไป'}</div><button onclick="loadIssueReports()" style="background:var(--violet-500);color:white;border:none;border-radius:9px;padding:9px 18px;font-size:12px;font-weight:700;cursor:pointer;">${lang === 'lo' ? 'ລอງใหม่' : 'ลองใหม่'}</button></div>`;
+      list.innerHTML = `<div style="text-align:center;padding:18px;"><div style="color:var(--amber-600);font-size:12px;margin-bottom:10px;">${lang === 'lo' ? 'ໂຫຼດດົນເກີນໄປ' : 'โหลดนานเกินไป'}</div><button onclick="loadIssueReports()" style="background:var(--violet-500);color:white;border:none;border-radius:9px;padding:9px 18px;font-size:12px;font-weight:700;cursor:pointer;">${lang === 'lo' ? 'ລອງໃໝ່' : 'ลองใหม่'}</button></div>`;
     } else {
       list.innerHTML = `<div style="color:var(--rose-600);padding:15px;text-align:center;font-size:12px;">Error: ${error.message}</div>`;
     }
@@ -9565,7 +9565,7 @@ function renderIssueReportList() {
           ${T('ir_reported_by')}: <strong>${escapeHtml(it.reporter?.full_name || '?')}</strong> • ${ago}
           ${it.starter ? `<br>🔧 ${lang === 'lo' ? 'ຜູ້ຮັບງານ' : 'ผู้รับงาน'}: <strong>${escapeHtml(it.starter.full_name)}</strong>` : ''}
           ${it.resolver ? `<br>${T('ir_resolved_by')}: <strong>${escapeHtml(it.resolver.full_name)}</strong>${it.resolution_note ? ' — "'+escapeHtml(it.resolution_note)+'"' : ''}` : ''}
-          <button onclick="irShowTimeline(${it.id})" style="margin-top:6px;background:var(--violet-50);color:var(--violet-700);border:1px solid var(--violet-200);border-radius:7px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;">📋 ${isLao ? 'ປະຫວັດการติดตาม' : 'ประวัติการติดตาม'}</button>
+          <button onclick="irShowTimeline(${it.id})" style="margin-top:6px;background:var(--violet-50);color:var(--violet-700);border:1px solid var(--violet-200);border-radius:7px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;">📋 ${isLao ? 'ປະຫວັດການຕິດຕາມ' : 'ประวัติการติดตาม'}</button>
         </div>
         ${actions ? `<div style="display:flex;gap:5px;">${actions}</div>` : ''}
       </div>
@@ -9576,9 +9576,9 @@ function renderIssueReportList() {
 // แสดง timeline ติดตามปัญหา (ประวัติการเปลี่ยนสถานะ)
 async function irShowTimeline(issueId) {
   const isLao = lang === 'lo';
-  showModal('<h3 style="font-size:15px;margin:0 0 10px;">📋 ' + (isLao ? 'ປະຫວັດการติดตาม' : 'ประวัติการติดตาม') + '</h3>'
+  showModal('<h3 style="font-size:15px;margin:0 0 10px;">📋 ' + (isLao ? 'ປະຫວັດການຕິດຕາມ' : 'ประวัติการติดตาม') + '</h3>'
     + '<div id="irTlBody" style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>'
-    + '<button onclick="closeModal()" style="width:100%;margin-top:12px;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? '✕ ປິด' : '✕ ปิด') + '</button>');
+    + '<button onclick="closeModal()" style="width:100%;margin-top:12px;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? '✕ ປິດ' : '✕ ปิด') + '</button>');
   try {
     const { data, error } = await sb.from('product_issue_logs')
       .select('status, note, changed_by_name, changed_at')
@@ -9588,12 +9588,12 @@ async function irShowTimeline(issueId) {
     const body = document.getElementById('irTlBody');
     if (!body) return;
     if (!logs.length) {
-      body.innerHTML = '<div style="color:var(--slate-400);padding:18px;font-size:12px;">' + (isLao ? 'ຍັງບໍ່ມีประวัติ (รายการเก่าก่อนเปิดฟีเจอร์นี้)' : 'ยังไม่มีประวัติ (รายการเก่าก่อนเปิดฟีเจอร์นี้)') + '</div>';
+      body.innerHTML = '<div style="color:var(--slate-400);padding:18px;font-size:12px;">' + (isLao ? 'ຍັງບໍ່ມີປະຫວັດ (รายการเก่าก่อนเปิดฟีเจอร์นี้)' : 'ยังไม่มีประวัติ (รายการเก่าก่อนเปิดฟีเจอร์นี้)') + '</div>';
       return;
     }
     const stCfg = {
-      open: { icon: '📥', label: isLao ? 'ແຈ້ງปัญหา' : 'แจ้งปัญหา', color: 'var(--rose-500)' },
-      in_progress: { icon: '⚙️', label: isLao ? 'ກຳລັງดำเนินการ' : 'กำลังดำเนินการ', color: 'var(--amber-500)' },
+      open: { icon: '📥', label: isLao ? 'ແຈ້ງບັນຫາ' : 'แจ้งปัญหา', color: 'var(--rose-500)' },
+      in_progress: { icon: '⚙️', label: isLao ? 'ກຳລັງດຳເນີນການ' : 'กำลังดำเนินการ', color: 'var(--amber-500)' },
       resolved: { icon: '✅', label: isLao ? 'ແກ້ໄຂແລ້ວ' : 'แก้ไขแล้ว', color: 'var(--emerald-500)' },
       cancelled: { icon: '✕', label: isLao ? 'ຍົກເລີກ' : 'ยกเลิก', color: 'var(--slate-400)' }
     };
@@ -10167,13 +10167,13 @@ function triggerPhotoScan(mode) {
 
 async function decodeBarcodePhoto(file, mode) {
   const isLao = lang === 'lo';
-  showToast(isLao ? 'ກຳລັງอ่านรูป...' : 'กำลังอ่านรูป...', 'info');
+  showToast(isLao ? 'ກຳລັງອ່ານຮູບ...' : 'กำลังอ่านรูป...', 'info');
 
   // ป้อนผลเข้า flow เดิม
   const feedResult = (code) => {
     code = String(code).trim();
     if (typeof beep === 'function') beep();
-    showToast((isLao ? 'ອ່ານได้: ' : 'อ่านได้: ') + code, 'success');
+    showToast((isLao ? 'ອ່ານໄດ້: ' : 'อ่านได้: ') + code, 'success');
     if (mode === 'stockcheck') {
       const input = document.getElementById('scBarcode');
       if (input) { input.value = code; scLookup(); }
@@ -10491,7 +10491,7 @@ function updateLiteBtn() {
   btn.style.background = on ? 'var(--amber-100)' : 'var(--slate-50)';
   btn.style.color = on ? 'var(--amber-700)' : 'var(--slate-500)';
   btn.style.borderColor = on ? 'var(--amber-300)' : 'var(--slate-200)';
-  btn.innerHTML = '🍎 ' + (isLao ? 'ໂໝດໄອໂຟນ' : 'โหมดไอโฟน') + ': <b>' + (on ? (isLao ? 'ເปิด' : 'เปิด') : (isLao ? 'ປິด' : 'ปิด')) + '</b>';
+  btn.innerHTML = '🍎 ' + (isLao ? 'ໂໝດໄອໂຟນ' : 'โหมดไอโฟน') + ': <b>' + (on ? (isLao ? 'ເປີດ' : 'เปิด') : (isLao ? 'ປິດ' : 'ปิด')) + '</b>';
 }
 
 // แก้ video element ให้ทำงานได้ทุก device (iOS + Android)
@@ -18296,10 +18296,10 @@ function renderBranchManagePage() {
   return `
     <div style="padding:14px 13px 90px;max-width:640px;margin:0 auto;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;">
-        <h2 style="font-size:18px;font-weight:800;margin:0;">🏪 ${isLao ? 'ຈັດການສາขา' : 'จัดการสาขา'}</h2>
-        <button onclick="bmOpenAdd()" style="background:var(--fs-blue);color:white;border:none;border-radius:10px;padding:9px 15px;font-size:13px;font-weight:700;cursor:pointer;">+ ${isLao ? 'ເพิ่มสาขา' : 'เพิ่มสาขา'}</button>
+        <h2 style="font-size:18px;font-weight:800;margin:0;">🏪 ${isLao ? 'ຈັດການສາຂາ' : 'จัดการสาขา'}</h2>
+        <button onclick="bmOpenAdd()" style="background:var(--fs-blue);color:white;border:none;border-radius:10px;padding:9px 15px;font-size:13px;font-weight:700;cursor:pointer;">+ ${isLao ? 'ເພີ່ມສາຂາ' : 'เพิ่มสาขา'}</button>
       </div>
-      <p style="font-size:12px;color:var(--slate-500);margin:0 0 14px;">${isLao ? 'ເພີ່ม/ແກ້ໄຂ ສาขาในระบบ' : 'เพิ่ม/แก้ไข สาขาในระบบ'}</p>
+      <p style="font-size:12px;color:var(--slate-500);margin:0 0 14px;">${isLao ? 'ເພີ່ມ/ແກ້ໄຂ ສາຂາໃນລະບົບ' : 'เพิ่ม/แก้ไข สาขาในระบบ'}</p>
       <div id="bmList"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
     </div>`;
 }
@@ -18319,7 +18319,7 @@ function renderBmList() {
   const isLao = lang === 'lo';
   const el = document.getElementById('bmList'); if (!el) return;
   if (!_bmBranches.length) {
-    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--slate-400);">' + (isLao ? 'ຍັງບໍ່ມีสาขา' : 'ยังไม่มีสาขา') + '</div>';
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--slate-400);">' + (isLao ? 'ຍັງບໍ່ມີສາຂາ' : 'ยังไม่มีสาขา') + '</div>';
     return;
   }
   el.innerHTML = _bmBranches.map(b => {
@@ -18328,10 +18328,10 @@ function renderBmList() {
     return '<div style="background:white;border:1px solid ' + (isCur ? 'var(--teal-400)' : 'var(--slate-200)') + ';border-radius:12px;padding:13px;margin-bottom:9px;">'
       + '<div style="display:flex;align-items:center;gap:9px;">'
       + '<div style="flex:1;min-width:0;">'
-      + '<div style="font-weight:800;font-size:14px;">' + bmEsc(isLao ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo)) + (isCur ? ' <span style="font-size:9px;color:var(--teal-600);background:var(--teal-50);border-radius:20px;padding:1px 8px;">' + (isLao ? 'ປັจจุบัน' : 'ปัจจุบัน') + '</span>' : '') + '</div>'
+      + '<div style="font-weight:800;font-size:14px;">' + bmEsc(isLao ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo)) + (isCur ? ' <span style="font-size:9px;color:var(--teal-600);background:var(--teal-50);border-radius:20px;padding:1px 8px;">' + (isLao ? 'ປັດຈຸບັນ' : 'ปัจจุบัน') + '</span>' : '') + '</div>'
       + '<div style="font-size:10px;color:var(--slate-500);font-family:monospace;margin-top:2px;">' + bmEsc(b.code || '') + ' · ID ' + b.id + '</div>'
       + '</div>'
-      + '<span style="font-size:10px;font-weight:700;border-radius:20px;padding:3px 9px;color:' + (zonesOn ? 'var(--emerald-700)' : 'var(--slate-400)') + ';background:' + (zonesOn ? 'var(--emerald-50)' : 'var(--slate-100)') + ';">' + (isLao ? 'ໂซน' : 'โซน') + ': ' + (zonesOn ? (isLao ? 'ເປີດ' : 'เปิด') : (isLao ? 'ປິດ' : 'ปิด')) + '</span>'
+      + '<span style="font-size:10px;font-weight:700;border-radius:20px;padding:3px 9px;color:' + (zonesOn ? 'var(--emerald-700)' : 'var(--slate-400)') + ';background:' + (zonesOn ? 'var(--emerald-50)' : 'var(--slate-100)') + ';">' + (isLao ? 'ໂຊນ' : 'โซน') + ': ' + (zonesOn ? (isLao ? 'ເປີດ' : 'เปิด') : (isLao ? 'ປິດ' : 'ปิด')) + '</span>'
       + '<button onclick="bmOpenEdit(' + b.id + ')" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer;">✏️</button>'
       + (isCur ? '' : '<button onclick="bmDelete(' + b.id + ')" style="background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer;">🗑️</button>')
       + '</div></div>';
@@ -18343,59 +18343,59 @@ function bmForm(b) {
   const v = b || {};
   const zonesOn = v.use_zones !== false;
   const bt = v.branch_type || 'minimart';
-  const typeOpts = [['super', isLao ? 'ຊูเปอร์มาร์เก็ต' : 'ซูเปอร์มาร์เก็ต'], ['hq', isLao ? 'ສຳนักงานใหญ่' : 'สำนักงานใหญ่'], ['minimart', 'Minimart'], ['mall', 'Mall'], ['warehouse', isLao ? 'ຄลังสินค้า' : 'คลังสินค้า']]
+  const typeOpts = [['super', isLao ? 'ຊູເປີມາເກັດ' : 'ซูเปอร์มาร์เก็ต'], ['hq', isLao ? 'ສຳນັກງານໃຫຍ່' : 'สำนักงานใหญ่'], ['minimart', 'Minimart'], ['mall', 'Mall'], ['warehouse', isLao ? 'ຄັງສິນຄ້າ' : 'คลังสินค้า']]
     .map(([val, lbl]) => '<option value="' + val + '"' + (bt === val ? ' selected' : '') + '>' + lbl + '</option>').join('');
-  return '<div class="form-group"><label class="form-label">' + (isLao ? 'ລະຫัสสาขา (Code)' : 'รหัสสาขา (Code)') + ' *</label>'
+  return '<div class="form-group"><label class="form-label">' + (isLao ? 'ລະຫັດສາຂາ (Code)' : 'รหัสสาขา (Code)') + ' *</label>'
     + '<input class="form-input" id="bmCode" value="' + bmEsc(v.code || '') + '" placeholder="เช่น SALAKHAM, EXP-TRADING"></div>'
-    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ປະເພດສาขา' : 'ประเภทสาขา') + ' *</label>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ປະເພດສາຂາ' : 'ประเภทสาขา') + ' *</label>'
     + '<select class="form-input" id="bmType">' + typeOpts + '</select></div>'
-    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ຊื่อสาขา (ไทย)' : 'ชื่อสาขา (ไทย)') + ' *</label>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ຊື່ສາຂາ (ไทย)' : 'ชื่อสาขา (ไทย)') + ' *</label>'
     + '<input class="form-input" id="bmNameTh" value="' + bmEsc(v.name_th || '') + '"></div>'
-    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ຊื่อสาขา (ลาว)' : 'ชื่อสาขา (ลาว)') + '</label>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ຊື່ສາຂາ (ลาว)' : 'ชื่อสาขา (ลาว)') + '</label>'
     + '<input class="form-input" id="bmNameLo" value="' + bmEsc(v.name_lo || '') + '"></div>'
     + '<label style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--slate-50);border-radius:9px;cursor:pointer;margin-top:4px;">'
     + '<input type="checkbox" id="bmZones"' + (zonesOn ? ' checked' : '') + ' style="width:18px;height:18px;accent-color:var(--teal-500);">'
-    + '<span style="font-size:12px;"><b>' + (isLao ? 'ໃຊ້ระบบโซน' : 'ใช้ระบบโซน') + '</b><br><span style="color:var(--slate-500);font-size:11px;">' + (isLao ? 'ປິดถ้าไม่ต้องการให้ counter เลือกโซนก่อนนับ' : 'ปิดถ้าไม่ต้องการให้ counter เลือกโซนก่อนนับ') + '</span></span></label>';
+    + '<span style="font-size:12px;"><b>' + (isLao ? 'ໃຊ້ລະບົບໂຊນ' : 'ใช้ระบบโซน') + '</b><br><span style="color:var(--slate-500);font-size:11px;">' + (isLao ? 'ປິດຖ້າບໍ່ຕ້ອງການໃຫ້ counter เลือกโซนก่อนนับ' : 'ปิดถ้าไม่ต้องการให้ counter เลือกโซนก่อนนับ') + '</span></span></label>';
 }
 
 function bmOpenAdd() {
   const isLao = lang === 'lo';
-  showModal('<h3 style="font-size:16px;margin:0 0 13px;">🏪 ' + (isLao ? 'ເພີ່ມສาขาใหม่' : 'เพิ่มสาขาใหม่') + '</h3>'
+  showModal('<h3 style="font-size:16px;margin:0 0 13px;">🏪 ' + (isLao ? 'ເພີ່ມສາຂາໃໝ່' : 'เพิ่มสาขาใหม่') + '</h3>'
     + bmForm(null)
-    + '<div class="action-row"><button class="btn btn-secondary" onclick="closeModal()">' + (isLao ? 'ຍกเลิก' : 'ยกเลิก') + '</button>'
-    + '<button class="btn btn-primary" onclick="bmSave(null)">' + (isLao ? 'ບันทึก' : 'บันทึก') + '</button></div>');
+    + '<div class="action-row"><button class="btn btn-secondary" onclick="closeModal()">' + (isLao ? 'ຍົກເລີກ' : 'ยกเลิก') + '</button>'
+    + '<button class="btn btn-primary" onclick="bmSave(null)">' + (isLao ? 'ບັນທຶກ' : 'บันทึก') + '</button></div>');
 }
 
 function bmOpenEdit(id) {
   const isLao = lang === 'lo';
   const b = _bmBranches.find(x => String(x.id) === String(id));
   if (!b) return;
-  showModal('<h3 style="font-size:16px;margin:0 0 13px;">✏️ ' + (isLao ? 'ແກ້ໄຂສาขา' : 'แก้ไขสาขา') + '</h3>'
+  showModal('<h3 style="font-size:16px;margin:0 0 13px;">✏️ ' + (isLao ? 'ແກ້ໄຂສາຂາ' : 'แก้ไขสาขา') + '</h3>'
     + bmForm(b)
-    + '<div class="action-row"><button class="btn btn-secondary" onclick="closeModal()">' + (isLao ? 'ຍกเลิก' : 'ยกเลิก') + '</button>'
-    + '<button class="btn btn-primary" onclick="bmSave(' + id + ')">' + (isLao ? 'ບันทึก' : 'บันทึก') + '</button></div>');
+    + '<div class="action-row"><button class="btn btn-secondary" onclick="closeModal()">' + (isLao ? 'ຍົກເລີກ' : 'ยกเลิก') + '</button>'
+    + '<button class="btn btn-primary" onclick="bmSave(' + id + ')">' + (isLao ? 'ບັນທຶກ' : 'บันทึก') + '</button></div>');
 }
 
 async function bmSave(id) {
   const isLao = lang === 'lo';
-  if (!user || user.role !== 'admin') { showToast(isLao ? 'ສະเพาะ admin' : 'เฉพาะ admin', 'error'); return; }
+  if (!user || user.role !== 'admin') { showToast(isLao ? 'ສະເພາະ admin' : 'เฉพาะ admin', 'error'); return; }
   const code = document.getElementById('bmCode').value.trim();
   const nameTh = document.getElementById('bmNameTh').value.trim();
   const nameLo = document.getElementById('bmNameLo').value.trim();
   const useZones = document.getElementById('bmZones').checked;
-  if (!code || !nameTh) { showToast(isLao ? 'ໃສ່รหัส + ชื่อสาขา' : 'ใส่รหัส + ชื่อสาขา', 'error'); return; }
+  if (!code || !nameTh) { showToast(isLao ? 'ໃສ່ລະຫັດ + ชื่อสาขา' : 'ใส่รหัส + ชื่อสาขา', 'error'); return; }
   const branchType = document.getElementById('bmType').value || 'minimart';
   const payload = { code: code, name_th: nameTh, name_lo: nameLo || nameTh, use_zones: useZones, branch_type: branchType };
   if (id) {
     const { error } = await sb.from('branches').update(payload).eq('id', id);
     if (error) { showToast('Error: ' + error.message, 'error'); return; }
     logActivity('branch_edit', code);
-    showToast(isLao ? 'ບันทึกแล้ว ✓' : 'บันทึกแล้ว ✓', 'success');
+    showToast(isLao ? 'ບັນທຶກແລ້ວ ✓' : 'บันทึกแล้ว ✓', 'success');
   } else {
     const { error } = await sb.from('branches').insert(payload).select().single();
     if (error) { showToast('Error: ' + error.message, 'error'); return; }
     logActivity('branch_create', code);
-    showToast(isLao ? 'ເพิ่มสาขาแล้ว ✓' : 'เพิ่มสาขาแล้ว ✓', 'success');
+    showToast(isLao ? 'ເພີ່ມສາຂາແລ້ວ ✓' : 'เพิ่มสาขาแล้ว ✓', 'success');
   }
   closeModal();
   loadBranchList();
@@ -18403,12 +18403,12 @@ async function bmSave(id) {
 
 async function bmDelete(id) {
   const isLao = lang === 'lo';
-  if (!user || user.role !== 'admin') { showToast(isLao ? 'ສະเพาะ admin' : 'เฉพาะ admin', 'error'); return; }
+  if (!user || user.role !== 'admin') { showToast(isLao ? 'ສະເພາະ admin' : 'เฉพาะ admin', 'error'); return; }
   const b = _bmBranches.find(x => String(x.id) === String(id));
   if (!b) return;
-  if (branch && String(b.id) === String(branch.id)) { showToast(isLao ? 'ລบสาขาที่ใช้งานอยู่ไม่ได้' : 'ลบสาขาที่กำลังใช้งานไม่ได้', 'error'); return; }
+  if (branch && String(b.id) === String(branch.id)) { showToast(isLao ? 'ລຶບສາຂາທີ່ກຳລັງໃຊ້ງານບໍ່ໄດ້' : 'ลบสาขาที่กำลังใช้งานไม่ได้', 'error'); return; }
   // เช็ค dependency: users + products ที่ผูกกับสาขา
-  showToast(isLao ? 'ກຳລັງກວดสอบข้อมูล...' : 'กำลังตรวจสอบข้อมูล...', 'info');
+  showToast(isLao ? 'ກຳລັງກວດສອບຂໍ້ມູນ...' : 'กำลังตรวจสอบข้อมูล...', 'info');
   let uCount = 0, pCount = 0;
   try {
     const { count: uc } = await sb.from('users').select('id', { count: 'exact', head: true }).eq('branch_id', id);
@@ -18417,23 +18417,23 @@ async function bmDelete(id) {
     pCount = pc || 0;
   } catch (e) {}
   if (uCount > 0 || pCount > 0) {
-    showModal('<h3 style="font-size:16px;margin:0 0 11px;color:var(--rose-600);">⚠️ ' + (isLao ? 'ລบไม่ได้' : 'ลบไม่ได้') + '</h3>'
+    showModal('<h3 style="font-size:16px;margin:0 0 11px;color:var(--rose-600);">⚠️ ' + (isLao ? 'ລຶບບໍ່ໄດ້' : 'ลบไม่ได้') + '</h3>'
       + '<div style="font-size:13px;color:var(--slate-700);line-height:1.7;">'
-      + (isLao ? 'ສาขา ' : 'สาขา ') + '<b>' + bmEsc(b.name_th || b.code) + '</b> ' + (isLao ? 'ຍังมีข้อมูลผูกอยู่:' : 'ยังมีข้อมูลผูกอยู่:') + '<br><br>'
-      + (uCount > 0 ? '• ' + (isLao ? 'ພนักงาน ' : 'พนักงาน ') + '<b>' + uCount + '</b> ' + (isLao ? 'ຄน' : 'คน') + '<br>' : '')
-      + (pCount > 0 ? '• ' + (isLao ? 'ສินค้า/สต๊อก ' : 'สินค้า/สต๊อก ') + '<b>' + pCount.toLocaleString() + '</b> ' + (isLao ? 'ລາຍการ' : 'รายการ') + '<br>' : '')
-      + '<br>' + (isLao ? 'ກะรุณาย้าย/ลบข้อมูลเหล่านี้ก่อน จึงจะลบสาขาได้' : 'กรุณาย้าย/ลบข้อมูลเหล่านี้ก่อน จึงจะลบสาขาได้') + '</div>'
-      + '<div class="action-row"><button class="btn btn-primary" onclick="closeModal()">' + (isLao ? 'ເข้าใจแล้ว' : 'เข้าใจแล้ว') + '</button></div>');
+      + (isLao ? 'ສາຂາ ' : 'สาขา ') + '<b>' + bmEsc(b.name_th || b.code) + '</b> ' + (isLao ? 'ຍັງມີຂໍ້ມູນຜູກຢູ່:' : 'ยังมีข้อมูลผูกอยู่:') + '<br><br>'
+      + (uCount > 0 ? '• ' + (isLao ? 'ພະນັກງານ ' : 'พนักงาน ') + '<b>' + uCount + '</b> ' + (isLao ? 'ຄົນ' : 'คน') + '<br>' : '')
+      + (pCount > 0 ? '• ' + (isLao ? 'ສິນຄ້າ/สต๊อก ' : 'สินค้า/สต๊อก ') + '<b>' + pCount.toLocaleString() + '</b> ' + (isLao ? 'ລາຍການ' : 'รายการ') + '<br>' : '')
+      + '<br>' + (isLao ? 'ກະລຸນາຍ້າຍ/ลบข้อมูลเหล่านี้ก่อน จึงจะลบสาขาได้' : 'กรุณาย้าย/ลบข้อมูลเหล่านี้ก่อน จึงจะลบสาขาได้') + '</div>'
+      + '<div class="action-row"><button class="btn btn-primary" onclick="closeModal()">' + (isLao ? 'ເຂົ້າໃຈແລ້ວ' : 'เข้าใจแล้ว') + '</button></div>');
     return;
   }
   // ไม่มี users/products → สาขาเปล่า/ทดสอบ → ลบได้ (cascade ลบข้อมูลที่ผูกอยู่ก่อน)
-  if (!confirm((isLao ? 'ລบสาขา ' : 'ลบสาขา ') + (b.name_th || b.code) + ' ?\n' + (isLao ? 'ລบข้อมูลการนับ/เซสชันที่ผูกอยู่ด้วย กู้คืนไม่ได้' : 'จะลบข้อมูลการนับ/เซสชันที่ผูกอยู่ด้วย · กู้คืนไม่ได้'))) return;
-  showToast(isLao ? 'ກຳລັງລบ...' : 'กำลังลบ...', 'info');
+  if (!confirm((isLao ? 'ລຶບສາຂາ ' : 'ลบสาขา ') + (b.name_th || b.code) + ' ?\n' + (isLao ? 'ລຶບຂໍ້ມູນການນັບ/เซสชันที่ผูกอยู่ด้วย กู้คืนไม่ได้' : 'จะลบข้อมูลการนับ/เซสชันที่ผูกอยู่ด้วย · กู้คืนไม่ได้'))) return;
+  showToast(isLao ? 'ກຳລັງລຶບ...' : 'กำลังลบ...', 'info');
   // ลบ cascade ฝั่ง server ผ่าน RPC (ข้าม RLS ที่บล็อก DELETE จาก client)
   const { error } = await sb.rpc('delete_branch_cascade', { p_branch_id: id });
-  if (error) { showToast((isLao ? 'ລบไม่สำเร็จ: ' : 'ลบไม่สำเร็จ: ') + error.message, 'error'); console.warn('[FS] branch delete:', error.message); return; }
+  if (error) { showToast((isLao ? 'ລຶບບໍ່ສຳເລັດ: ' : 'ลบไม่สำเร็จ: ') + error.message, 'error'); console.warn('[FS] branch delete:', error.message); return; }
   logActivity('branch_delete', b.code || id);
-  showToast(isLao ? 'ລບแล้ว ✓' : 'ลบแล้ว ✓', 'success');
+  showToast(isLao ? 'ລຶບແລ້ວ ✓' : 'ลบแล้ว ✓', 'success');
   loadBranchList();
 }
 
@@ -19893,7 +19893,7 @@ async function executeMultiBranchImport() {
       ${aggStats.errors > 0 ? `
         <div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--slate-200);text-align:center;">
           <div style="color:var(--rose-500);font-size:11px;font-weight:700;">
-            ❌ ${isLao ? 'ສາຂາທີ່ ผິດพลาด' : 'สาขาที่ผิดพลาด'}: ${aggStats.errors}
+            ❌ ${isLao ? 'ສາຂາທີ່ ຜິດພລາດ' : 'สาขาที่ผิดพลาด'}: ${aggStats.errors}
           </div>
         </div>
       ` : ''}
@@ -20135,10 +20135,10 @@ async function showSnapshotHistory() {
     showModal('<h3>' + T('snapshot_history') + '</h3>'
       + '<div class="empty-state" style="padding:24px 12px;text-align:center;">'
       + '<div style="font-size:30px;margin-bottom:8px;">📭</div>'
-      + '<p style="font-size:13px;color:var(--slate-500);">' + (isLao ? 'ຍັງບໍ່ມีประวัติ Snapshot' : 'ยังไม่มีประวัติ Snapshot') + '</p>'
-      + '<p style="font-size:11px;color:var(--slate-400);margin-top:5px;">' + (isLao ? 'ການนำเข้า POS ล่าสุดยังบันทึกข้อมูล products ปกติ' : 'การนำเข้า POS ยังอัปเดตข้อมูล products ตามปกติ') + '</p>'
+      + '<p style="font-size:13px;color:var(--slate-500);">' + (isLao ? 'ຍັງບໍ່ມີປະຫວັດ Snapshot' : 'ยังไม่มีประวัติ Snapshot') + '</p>'
+      + '<p style="font-size:11px;color:var(--slate-400);margin-top:5px;">' + (isLao ? 'ການນຳເຂົ້າ POS ล่าสุดยังบันทึกข้อมูล products ปกติ' : 'การนำเข้า POS ยังอัปเดตข้อมูล products ตามปกติ') + '</p>'
       + '</div>'
-      + '<button class="btn btn-secondary" onclick="closeModal()" style="margin-top:10px;width:100%;">' + (isLao ? 'ປິด' : 'ปิด') + '</button>');
+      + '<button class="btn btn-secondary" onclick="closeModal()" style="margin-top:10px;width:100%;">' + (isLao ? 'ປິດ' : 'ปิด') + '</button>');
     return;
   }
   
@@ -23940,13 +23940,13 @@ function renderSettingsPage() {
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
         <div style="flex:1;">
           <div style="font-size:14px;font-weight:800;color:var(--slate-800);">📦 ${lang === 'lo' ? 'ເມນູນັບສະຕ໋ອກ (Counter/Verifier)' : 'เมนูนับสต๊อก (Counter/Verifier)'}</div>
-          <div style="font-size:11px;color:var(--slate-500);margin-top:3px;">${lang === 'lo' ? 'ເປີດເມื่อ จะนับสต๊อก ປິดเมื่อ ບໍ່ໃຊ້' : 'เปิดเมื่อจะนับสต๊อก · ปิดเมื่อไม่ใช้ (ซ่อน นับสต๊อค+ตัดสิน)'}</div>
+          <div style="font-size:11px;color:var(--slate-500);margin-top:3px;">${lang === 'lo' ? 'ເປີດເມື່ອ จะนับสต๊อก ປິດເມື່ອ ບໍ່ໃຊ້' : 'เปิดเมื่อจะนับสต๊อก · ปิดเมื่อไม่ใช้ (ซ่อน นับสต๊อค+ตัดสิน)'}</div>
         </div>
         <button id="countMenuToggle" onclick="toggleCountMenu()" style="flex-shrink:0;width:56px;height:30px;border-radius:20px;border:none;cursor:pointer;position:relative;background:${_countMenuEnabled ? 'var(--teal-500)' : 'var(--slate-300)'};transition:background 0.2s;">
           <span style="position:absolute;top:3px;left:${_countMenuEnabled ? '29px' : '3px'};width:24px;height:24px;border-radius:50%;background:white;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></span>
         </button>
       </div>
-      <div id="countMenuStatus" style="font-size:11px;font-weight:700;margin-top:9px;color:${_countMenuEnabled ? 'var(--teal-600)' : 'var(--slate-400)'};">${_countMenuEnabled ? (lang === 'lo' ? '● ເປີດ' : '● เปิดอยู่') : (lang === 'lo' ? '○ ປິด' : '○ ปิดอยู่')}</div>
+      <div id="countMenuStatus" style="font-size:11px;font-weight:700;margin-top:9px;color:${_countMenuEnabled ? 'var(--teal-600)' : 'var(--slate-400)'};">${_countMenuEnabled ? (lang === 'lo' ? '● ເປີດ' : '● เปิดอยู่') : (lang === 'lo' ? '○ ປິດ' : '○ ปิดอยู่')}</div>
     </div>
     ` : ''}
 
@@ -24999,12 +24999,12 @@ function renderDailyBriefPage() {
   return `
     <div style="padding:14px 13px 90px;max-width:620px;margin:0 auto;">
       <h2 style="font-size:18px;font-weight:800;margin:0 0 3px;">📋 Daily Brief</h2>
-      <p style="font-size:12px;color:var(--slate-500);margin:0 0 15px;">${isLao ? 'ບັນທຶກການປະຊຸມເຊົ້າ ກັບพนักงาน' : 'บันทึกการประชุมเช้ากับพนักงาน'}</p>
+      <p style="font-size:12px;color:var(--slate-500);margin:0 0 15px;">${isLao ? 'ບັນທຶກການປະຊຸມເຊົ້າ ກັບພະນັກງານ' : 'บันทึกการประชุมเช้ากับพนักงาน'}</p>
 
       <div id="dbAck" style="display:none;background:var(--fs-green-tint);border:1px solid var(--emerald-200);border-radius:14px;padding:18px;text-align:center;margin-bottom:14px;">
         <div style="font-size:26px;font-weight:800;color:var(--emerald-700);font-family:'Space Grotesk',monospace;" id="dbAckNo">DB-0000</div>
-        <div style="font-size:12px;color:var(--slate-600);margin-top:6px;">${isLao ? 'ບันทึกสำเร็จ' : 'บันทึกสำเร็จ'} ✓</div>
-        <button onclick="dbReset()" style="margin-top:12px;background:var(--emerald-600);color:white;border:none;border-radius:9px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;">${isLao ? 'ບันทึกใหม่' : 'บันทึกใหม่'}</button>
+        <div style="font-size:12px;color:var(--slate-600);margin-top:6px;">${isLao ? 'ບັນທຶກສຳເລັດ' : 'บันทึกสำเร็จ'} ✓</div>
+        <button onclick="dbReset()" style="margin-top:12px;background:var(--emerald-600);color:white;border:none;border-radius:9px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;">${isLao ? 'ບັນທຶກໃໝ່' : 'บันทึกใหม่'}</button>
       </div>
 
       <div id="dbForm">
@@ -25021,14 +25021,14 @@ function renderDailyBriefPage() {
         </div>
 
         <!-- 1. ยอดขาย -->
-        <div class="db-sec"><div class="db-sec-t">1. ${isLao ? 'ລາຍงานยอดขาย' : 'รายงานยอดขาย'}</div>
-          <div class="form-group"><label class="form-label">${isLao ? 'ຍอดขายเมื่อวาน (ກີບ)' : 'ยอดขายเมื่อวาน (กีบ)'}</label><input class="form-input" id="dbSalesY" type="number" inputmode="numeric" placeholder="0"></div>
+        <div class="db-sec"><div class="db-sec-t">1. ${isLao ? 'ລາຍງານຍອດຂາຍ' : 'รายงานยอดขาย'}</div>
+          <div class="form-group"><label class="form-label">${isLao ? 'ຍອດຂາຍມື້ວານ (ກີບ)' : 'ยอดขายเมื่อวาน (กีบ)'}</label><input class="form-input" id="dbSalesY" type="number" inputmode="numeric" placeholder="0"></div>
           <div style="display:flex;gap:8px;margin-bottom:9px;" id="dbMetRow">
             <button type="button" class="db-met" data-v="met" onclick="dbSetMet('met')" style="flex:1;border:2px solid var(--slate-200);background:white;color:var(--slate-600);border-radius:10px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;">✓ ${isLao ? 'ຕາມເປົ້າ' : 'ตามเป้า'}</button>
             <button type="button" class="db-met" data-v="below" onclick="dbSetMet('below')" style="flex:1;border:2px solid var(--slate-200);background:white;color:var(--slate-600);border-radius:10px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;">✕ ${isLao ? 'ຫຼຸດເປົ້າ' : 'หลุดเป้า'}</button>
           </div>
           <div style="display:flex;gap:8px;">
-            <div class="form-group" style="flex:1;"><label class="form-label">${isLao ? 'ເປົ້າວันนี้' : 'เป้าวันนี้'}</label><input class="form-input" id="dbTargetToday" type="number" inputmode="numeric" placeholder="0"></div>
+            <div class="form-group" style="flex:1;"><label class="form-label">${isLao ? 'ເປົ້າມື້ນີ້' : 'เป้าวันนี้'}</label><input class="form-input" id="dbTargetToday" type="number" inputmode="numeric" placeholder="0"></div>
             <div class="form-group" style="flex:1;"><label class="form-label">Diff %</label><input class="form-input" id="dbDiff" type="number" inputmode="numeric" placeholder="0"></div>
           </div>
         </div>
@@ -25041,7 +25041,7 @@ function renderDailyBriefPage() {
 
         <!-- 3. ตรวจมาตรฐานร้าน -->
         <div class="db-sec"><div class="db-sec-t">3. ${isLao ? 'ກວດສອບມາດຕະຖານຮ້ານ' : 'ตรวจมาตรฐานร้าน'}</div>
-          ${[['staff', isLao ? 'ຄວາມຮຽບຮ້ອຍพนักงาน (ຍູນິฟอร์ม/ປ້າຍຊື່)' : 'ความเรียบร้อยพนักงาน (ยูนิฟอร์ม/ป้ายชื่อ)'],
+          ${[['staff', isLao ? 'ຄວາມຮຽບຮ້ອຍພະນັກງານ (ຍູນິຟອມ/ປ້າຍຊື່)' : 'ความเรียบร้อยพนักงาน (ยูนิฟอร์ม/ป้ายชื่อ)'],
              ['clean', isLao ? 'ຄວາມສະອາດ (ພື້ນ/ຊັ້ນວາງ/ລົດເຂັນ)' : 'ความสะอาด (พื้น/ชั้นวาง/รถเข็น)'],
              ['stock', isLao ? 'ສະຕ໋ອກ (TOP 20, FEFO)' : 'สต๊อก (TOP 20, FEFO)'],
              ['price', isLao ? 'ປ້າຍລາຄາ (ຄວາມຖືກຕ້ອງ/ສະພາບ)' : 'ป้ายราคา (ความถูกต้อง/สภาพ)']]
@@ -25049,13 +25049,13 @@ function renderDailyBriefPage() {
         </div>
 
         <!-- 4-6 ข้อความ -->
-        <div class="db-sec"><div class="db-sec-t">4. ${isLao ? 'ການຂາຍ/ການບໍລິການ (ຫົວข้ออบรม)' : 'การขาย/บริการ (หัวข้ออบรม)'}</div>
-          <textarea class="form-input" id="dbTraining" rows="2" placeholder="${isLao ? 'ຫົວข้อที่อบรมวันนี้' : 'หัวข้อที่อบรมวันนี้'}"></textarea></div>
-        <div class="db-sec"><div class="db-sec-t">5. ${isLao ? 'ປันຫາ/ຂໍ້ສະເໜີແນະ' : 'ปัญหา/ข้อเสนอแนะจากพนักงาน'}</div>
-          <textarea class="form-input" id="dbIssues" rows="2" placeholder="${isLao ? 'ປันຫາ ຫຼື ຂໍ້ສະເໜີ' : 'ปัญหา หรือ ข้อเสนอแนะ'}"></textarea></div>
+        <div class="db-sec"><div class="db-sec-t">4. ${isLao ? 'ການຂາຍ/ການບໍລິການ (ຫົວຂໍ້ອົບຮົມ)' : 'การขาย/บริการ (หัวข้ออบรม)'}</div>
+          <textarea class="form-input" id="dbTraining" rows="2" placeholder="${isLao ? 'ຫົວຂໍ້ທີ່ອົບຮົມມື້ນີ້' : 'หัวข้อที่อบรมวันนี้'}"></textarea></div>
+        <div class="db-sec"><div class="db-sec-t">5. ${isLao ? 'ບັນຫາ/ຂໍ້ສະເໜີແນະ' : 'ปัญหา/ข้อเสนอแนะจากพนักงาน'}</div>
+          <textarea class="form-input" id="dbIssues" rows="2" placeholder="${isLao ? 'ບັນຫາ ຫຼື ຂໍ້ສະເໜີ' : 'ปัญหา หรือ ข้อเสนอแนะ'}"></textarea></div>
         <div class="db-sec"><div class="db-sec-t">6. ${isLao ? 'ສະຫຼຸບບັນຍາກາດ Brief' : 'สรุปบรรยากาศ Brief'}</div>
           <textarea class="form-input" id="dbSummary" rows="2" placeholder="${isLao ? 'ສະຫຼຸບ' : 'สรุปบรรยากาศการประชุม'}"></textarea>
-          <label class="form-label" style="margin-top:9px;">${isLao ? 'ລະດັບพลังทีม' : 'ระดับพลังทีม'}</label>
+          <label class="form-label" style="margin-top:9px;">${isLao ? 'ລະດັບພະລັງທີມ' : 'ระดับพลังทีม'}</label>
           <div style="display:flex;gap:7px;" id="dbEnergyRow">
             ${[['high', isLao ? 'ດີຫຼາຍ' : 'ดีมาก', '#16a34a'], ['mid', isLao ? 'ປານກາງ' : 'ปานกลาง', '#d97706'], ['low', isLao ? 'ຕ້ອງປັບປຸງ' : 'ต้องปรับปรุง', '#e11d48']]
               .map(([v, t, c]) => '<button type="button" class="db-energy" data-v="' + v + '" onclick="dbSetEnergy(\'' + v + '\')" style="flex:1;border:2px solid var(--slate-200);background:white;color:var(--slate-600);border-radius:10px;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;">' + t + '</button>').join('')}
@@ -25063,12 +25063,12 @@ function renderDailyBriefPage() {
         </div>
 
         <!-- 7. ชมเชย -->
-        <div class="db-sec"><div class="db-sec-t">7. ${isLao ? 'ຊົມເຊີຍพนักงาน' : 'ชมเชยพนักงาน'}</div>
+        <div class="db-sec"><div class="db-sec-t">7. ${isLao ? 'ຊົມເຊີຍພະນັກງານ' : 'ชมเชยพนักงาน'}</div>
           <div id="dbPraiseList"></div>
-          <button type="button" onclick="dbAddPraise()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:9px;padding:9px;font-size:12px;font-weight:700;color:var(--slate-600);cursor:pointer;">+ ${isLao ? 'ເພີ່ມพนักงาน' : 'เพิ่มพนักงาน'}</button>
+          <button type="button" onclick="dbAddPraise()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:9px;padding:9px;font-size:12px;font-weight:700;color:var(--slate-600);cursor:pointer;">+ ${isLao ? 'ເພີ່ມພະນັກງານ' : 'เพิ่มพนักงาน'}</button>
         </div>
 
-        <button onclick="dbSubmit()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;margin-top:12px;">${isLao ? 'ບันทึก Brief' : 'บันทึก Brief'} →</button>
+        <button onclick="dbSubmit()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;margin-top:12px;">${isLao ? 'ບັນທຶກ Brief' : 'บันทึก Brief'} →</button>
       </div>
     </div>
     <style>
@@ -25097,8 +25097,8 @@ function dbRenderPromos() {
   const el = document.getElementById('dbPromoList'); if (!el) return;
   el.innerHTML = _dbPromos.map((p, i) =>
     '<div style="display:flex;gap:5px;margin-bottom:6px;align-items:center;">'
-    + '<input class="form-input" style="flex:2;margin:0;" placeholder="' + (isLao ? 'ຊื่อ' : 'ชื่อสินค้า') + '" value="' + (p.name || '').replace(/"/g, '&quot;') + '" oninput="_dbPromos[' + i + '].name=this.value">'
-    + '<input class="form-input" style="flex:2;margin:0;" placeholder="' + (isLao ? 'ໂປโม' : 'โปรโมชั่น') + '" value="' + (p.promo || '').replace(/"/g, '&quot;') + '" oninput="_dbPromos[' + i + '].promo=this.value">'
+    + '<input class="form-input" style="flex:2;margin:0;" placeholder="' + (isLao ? 'ຊື່' : 'ชื่อสินค้า') + '" value="' + (p.name || '').replace(/"/g, '&quot;') + '" oninput="_dbPromos[' + i + '].name=this.value">'
+    + '<input class="form-input" style="flex:2;margin:0;" placeholder="' + (isLao ? 'ໂປຣໂມ' : 'โปรโมชั่น') + '" value="' + (p.promo || '').replace(/"/g, '&quot;') + '" oninput="_dbPromos[' + i + '].promo=this.value">'
     + '<input class="form-input" style="flex:1;margin:0;" placeholder="Unit" value="' + (p.target || '').replace(/"/g, '&quot;') + '" oninput="_dbPromos[' + i + '].target=this.value">'
     + '<button type="button" onclick="dbRemovePromo(' + i + ')" style="background:var(--rose-50);color:var(--rose-600);border:none;width:30px;height:30px;border-radius:7px;cursor:pointer;flex-shrink:0;">✕</button>'
     + '</div>'
@@ -25112,8 +25112,8 @@ function dbRenderPraises() {
   const depts = WT_DEPTS.map(d => '<option value="' + d + '">' + d + '</option>').join('');
   el.innerHTML = _dbPraises.map((p, i) =>
     '<div style="display:flex;gap:5px;margin-bottom:6px;align-items:center;">'
-    + '<input class="form-input" style="flex:2;margin:0;" placeholder="' + (isLao ? 'ຊื่อพนักงาน' : 'ชื่อพนักงาน') + '" value="' + (p.name || '').replace(/"/g, '&quot;') + '" oninput="_dbPraises[' + i + '].name=this.value">'
-    + '<select class="form-input" style="flex:1;margin:0;" onchange="_dbPraises[' + i + '].dept=this.value"><option value="">' + (isLao ? 'ແผนก' : 'แผนก') + '</option>' + depts + '</select>'
+    + '<input class="form-input" style="flex:2;margin:0;" placeholder="' + (isLao ? 'ຊື່ພະນັກງານ' : 'ชื่อพนักงาน') + '" value="' + (p.name || '').replace(/"/g, '&quot;') + '" oninput="_dbPraises[' + i + '].name=this.value">'
+    + '<select class="form-input" style="flex:1;margin:0;" onchange="_dbPraises[' + i + '].dept=this.value"><option value="">' + (isLao ? 'ແຜນກ' : 'แผนก') + '</option>' + depts + '</select>'
     + '<button type="button" onclick="dbRemovePraise(' + i + ')" style="background:var(--rose-50);color:var(--rose-600);border:none;width:30px;height:30px;border-radius:7px;cursor:pointer;flex-shrink:0;">✕</button>'
     + '</div>'
   ).join('');
@@ -25130,7 +25130,7 @@ async function dbSubmit() {
   const isLao = lang === 'lo';
   const g = id => document.getElementById(id);
   const date = g('dbDate').value;
-  if (!date) { showToast(isLao ? 'ໃສ่วันที่' : 'ใส่วันที่', 'error'); return; }
+  if (!date) { showToast(isLao ? 'ໃສ່ວັນທີ' : 'ใส่วันที่', 'error'); return; }
   let seq = 1;
   try {
     const { data: last } = await sb.from('daily_briefs').select('brief_no').like('brief_no', 'DB-%').order('brief_no', { ascending: false }).limit(1).maybeSingle();
@@ -25204,7 +25204,7 @@ function renderDbFilter() {
   const reps = Object.keys(repMap);
   let repSel = '';
   if (reps.length > 1) {
-    const opts = '<option value="all">' + (isLao ? 'ທຸกคน' : 'ทุกคน') + ' (' + reps.length + ')</option>'
+    const opts = '<option value="all">' + (isLao ? 'ທຸກຄົນ' : 'ทุกคน') + ' (' + reps.length + ')</option>'
       + reps.map(id => '<option value="' + id + '"' + (id === _dbFilterReporter ? ' selected' : '') + '>' + dbEsc(repMap[id]) + '</option>').join('');
     repSel = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">'
       + '<span style="font-size:12px;font-weight:700;color:var(--slate-600);flex-shrink:0;">👤 ' + (isLao ? 'ຜູ້ບັນທຶກ' : 'ผู้บันทึก') + ':</span>'
@@ -25220,7 +25220,7 @@ function dbSetFilterMonth(v) { _dbFilterMonth = v; renderDbList(); }
 function dbEditOpen(id) {
   const isLao = lang === 'lo';
   const role = (user && user.role) || '';
-  if (!(role === 'ctl' || role === 'admin')) { showToast(isLao ? 'ບໍ່ມีสิทธิ์' : 'ไม่มีสิทธิ์', 'error'); return; }
+  if (!(role === 'ctl' || role === 'admin')) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
   const b = _dbData.find(x => x.id === id);
   if (!b) return;
   _dbPromos = Array.isArray(b.promotions) ? JSON.parse(JSON.stringify(b.promotions)) : [];
@@ -25229,27 +25229,27 @@ function dbEditOpen(id) {
   let html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;"><h3 style="font-size:15px;margin:0;">✏️ ' + (isLao ? 'ແກ້ໄຂ' : 'แก้ไข') + ' ' + b.brief_no + '</h3>'
     + '<button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;color:var(--slate-600);">✕</button></div>';
   // 1 ยอดขาย
-  html += '<div class="form-group"><label class="form-label">' + (isLao ? 'ຍอดขายเมื่อวาน' : 'ยอดขายเมื่อวาน') + '</label><input class="form-input" id="dbeSalesY" type="number" value="' + (b.sales_yesterday != null ? b.sales_yesterday : '') + '"></div>';
-  html += '<div style="display:flex;gap:8px;"><div class="form-group" style="flex:1;"><label class="form-label">' + (isLao ? 'ເປົ້าวันนี้' : 'เป้าวันนี้') + '</label><input class="form-input" id="dbeTarget" type="number" value="' + (b.sales_today_target != null ? b.sales_today_target : '') + '"></div>'
+  html += '<div class="form-group"><label class="form-label">' + (isLao ? 'ຍອດຂາຍມື້ວານ' : 'ยอดขายเมื่อวาน') + '</label><input class="form-input" id="dbeSalesY" type="number" value="' + (b.sales_yesterday != null ? b.sales_yesterday : '') + '"></div>';
+  html += '<div style="display:flex;gap:8px;"><div class="form-group" style="flex:1;"><label class="form-label">' + (isLao ? 'ເປົ້າມື້ນີ້' : 'เป้าวันนี้') + '</label><input class="form-input" id="dbeTarget" type="number" value="' + (b.sales_today_target != null ? b.sales_today_target : '') + '"></div>'
     + '<div class="form-group" style="flex:1;"><label class="form-label">Diff %</label><input class="form-input" id="dbeDiff" type="number" value="' + (b.sales_diff_pct != null ? b.sales_diff_pct : '') + '"></div></div>';
   // มาตรฐานร้าน
-  html += '<label class="form-label">' + (isLao ? 'ມາດຕະฐานร้าน' : 'มาตรฐานร้าน') + '</label>';
+  html += '<label class="form-label">' + (isLao ? 'ມາດຕະຖານຮ້ານ' : 'มาตรฐานร้าน') + '</label>';
   [['staff', isLao ? 'พนักงาน' : 'ความเรียบร้อยพนักงาน'], ['clean', isLao ? 'ຄວາມສະອາດ' : 'ความสะอาด'], ['stock', 'สต๊อก'], ['price', isLao ? 'ປ້າຍລາຄາ' : 'ป้ายราคา']].forEach(([k, t]) => {
     html += '<label style="display:flex;align-items:center;gap:9px;padding:6px 0;font-size:12px;cursor:pointer;"><input type="checkbox" id="dbeChk_' + k + '"' + (sc[k] ? ' checked' : '') + ' style="width:17px;height:17px;accent-color:var(--teal-500);"> ' + t + '</label>';
   });
   // ข้อความ
-  html += '<div class="form-group" style="margin-top:9px;"><label class="form-label">' + (isLao ? 'ຫົວข้ออบรม' : 'หัวข้ออบรม') + '</label><textarea class="form-input" id="dbeTraining" rows="2">' + dbEsc(b.training_topic || '') + '</textarea></div>';
-  html += '<div class="form-group"><label class="form-label">' + (isLao ? 'ປันຫາ/ຂໍ້ສະເໜี' : 'ปัญหา/ข้อเสนอแนะ') + '</label><textarea class="form-input" id="dbeIssues" rows="2">' + dbEsc(b.staff_issues || '') + '</textarea></div>';
+  html += '<div class="form-group" style="margin-top:9px;"><label class="form-label">' + (isLao ? 'ຫົວຂໍ້ອົບຮົມ' : 'หัวข้ออบรม') + '</label><textarea class="form-input" id="dbeTraining" rows="2">' + dbEsc(b.training_topic || '') + '</textarea></div>';
+  html += '<div class="form-group"><label class="form-label">' + (isLao ? 'ບັນຫາ/ຂໍ້ສະເໜີ' : 'ปัญหา/ข้อเสนอแนะ') + '</label><textarea class="form-input" id="dbeIssues" rows="2">' + dbEsc(b.staff_issues || '') + '</textarea></div>';
   html += '<div class="form-group"><label class="form-label">' + (isLao ? 'ສະຫຼຸບ' : 'สรุปบรรยากาศ') + '</label><textarea class="form-input" id="dbeSummary" rows="2">' + dbEsc(b.brief_summary || '') + '</textarea></div>';
   html += '<div class="action-row"><button class="btn btn-secondary" onclick="dbOpen(' + id + ')">' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
-    + '<button class="btn btn-primary" onclick="dbEditSave(' + id + ')">' + (isLao ? 'ບันทึก' : 'บันทึก') + '</button></div>';
+    + '<button class="btn btn-primary" onclick="dbEditSave(' + id + ')">' + (isLao ? 'ບັນທຶກ' : 'บันทึก') + '</button></div>';
   showModal(html);
 }
 
 async function dbEditSave(id) {
   const isLao = lang === 'lo';
   const role = (user && user.role) || '';
-  if (!(role === 'ctl' || role === 'admin')) { showToast(isLao ? 'ບໍ່ມีสิทธิ์' : 'ไม่มีสิทธิ์', 'error'); return; }
+  if (!(role === 'ctl' || role === 'admin')) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
   const g = i => document.getElementById(i);
   const upd = {
     sales_yesterday: g('dbeSalesY').value ? Number(g('dbeSalesY').value) : null,
@@ -25264,7 +25264,7 @@ async function dbEditSave(id) {
   const { error } = await sb.from('daily_briefs').update(upd).eq('id', id);
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   logActivity('daily_brief_edit', id);
-  showToast(isLao ? 'ບันทึกแล้ว ✓' : 'บันทึกแล้ว ✓', 'success');
+  showToast(isLao ? 'ບັນທຶກແລ້ວ ✓' : 'บันทึกแล้ว ✓', 'success');
   closeModal();
   loadDailyBriefs();
 }
@@ -25272,10 +25272,10 @@ async function dbEditSave(id) {
 // ---------- ลบ (Admin) ----------
 async function dbDelete(id) {
   const isLao = lang === 'lo';
-  if ((user && user.role) !== 'admin') { showToast(isLao ? 'ສະເພาะ admin' : 'เฉพาะ admin', 'error'); return; }
+  if ((user && user.role) !== 'admin') { showToast(isLao ? 'ສະເພາະ admin' : 'เฉพาะ admin', 'error'); return; }
   const b = _dbData.find(x => x.id === id);
   if (!b) return;
-  if (!confirm((isLao ? 'ລຶບ ' : 'ลบ ') + b.brief_no + ' (' + dbFmtDate(b.brief_date) + ') ?\n' + (isLao ? 'ລຶບແລ້วกู้คืนไม่ได้' : 'ลบแล้วกู้คืนไม่ได้'))) return;
+  if (!confirm((isLao ? 'ລຶບ ' : 'ลบ ') + b.brief_no + ' (' + dbFmtDate(b.brief_date) + ') ?\n' + (isLao ? 'ລຶບແລ້ວກູ້ຄືນບໍ່ໄດ້' : 'ลบแล้วกู้คืนไม่ได้'))) return;
   const { error } = await sb.from('daily_briefs').delete().eq('id', id);
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   logActivity('daily_brief_delete', b.brief_no);
@@ -25319,7 +25319,7 @@ function renderDbList() {
   if (_dbFilterMonth && _dbFilterMonth !== 'all') _rows = _rows.filter(b => (b.brief_date || '').slice(0, 7) === _dbFilterMonth);
   if (_dbFilterReporter && _dbFilterReporter !== 'all') _rows = _rows.filter(b => String(b.reporter_id) === String(_dbFilterReporter));
   if (!_dbData.length) {
-    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--slate-400);"><div style="font-size:34px;">📭</div>' + (isLao ? 'ຍັງບໍ່ມี Brief' : 'ยังไม่มีบันทึก Brief') + '</div>';
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--slate-400);"><div style="font-size:34px;">📭</div>' + (isLao ? 'ຍັງບໍ່ມີ Brief' : 'ยังไม่มีบันทึก Brief') + '</div>';
     return;
   }
   const energyBadge = e => {
@@ -25359,19 +25359,19 @@ function dbOpen(id) {
     + '<button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;color:var(--slate-600);flex-shrink:0;">✕</button></div>'
     + '<div style="font-size:11px;color:var(--slate-400);font-family:monospace;margin-bottom:11px;">' + b.brief_no + ' · ' + dbEsc(b.reporter_name || '') + '</div>';
   // 1 ยอดขาย
-  html += sec('1. ' + (isLao ? 'ຍอดขาย' : 'ยอดขาย'),
-    '<div style="font-size:12px;color:var(--slate-700);">' + (isLao ? 'ມื້ວาน' : 'เมื่อวาน') + ': <b>' + fmtNum(b.sales_yesterday) + '</b> ' + (b.sales_target_met === 'met' ? '✓ ' + (isLao ? 'ຕາມເປົ້າ' : 'ตามเป้า') : b.sales_target_met === 'below' ? '✕ ' + (isLao ? 'ຫຼຸດເປົ້າ' : 'หลุดเป้า') : '') + '<br>' + (isLao ? 'ເປົ້າวันนี้' : 'เป้าวันนี้') + ': <b>' + fmtNum(b.sales_today_target) + '</b>' + (b.sales_diff_pct != null ? ' · Diff ' + b.sales_diff_pct + '%' : '') + '</div>');
+  html += sec('1. ' + (isLao ? 'ຍອດຂາຍ' : 'ยอดขาย'),
+    '<div style="font-size:12px;color:var(--slate-700);">' + (isLao ? 'ມື້ວານ' : 'เมื่อวาน') + ': <b>' + fmtNum(b.sales_yesterday) + '</b> ' + (b.sales_target_met === 'met' ? '✓ ' + (isLao ? 'ຕາມເປົ້າ' : 'ตามเป้า') : b.sales_target_met === 'below' ? '✕ ' + (isLao ? 'ຫຼຸດເປົ້າ' : 'หลุดเป้า') : '') + '<br>' + (isLao ? 'ເປົ້າມື້ນີ້' : 'เป้าวันนี้') + ': <b>' + fmtNum(b.sales_today_target) + '</b>' + (b.sales_diff_pct != null ? ' · Diff ' + b.sales_diff_pct + '%' : '') + '</div>');
   // 2 โปรโมชั่น
   if (b.promotions && b.promotions.length) {
     html += sec('2. ' + (isLao ? 'ໂປໂມຊັ່ນ' : 'โปรโมชั่น'),
       b.promotions.map(p => '<div style="font-size:11px;color:var(--slate-600);padding:2px 0;">• ' + dbEsc(p.name) + (p.promo ? ' — ' + dbEsc(p.promo) : '') + (p.target ? ' (' + dbEsc(p.target) + ')' : '') + '</div>').join(''));
   }
   // 3 มาตรฐานร้าน
-  html += sec('3. ' + (isLao ? 'ມາດຕະฐานร้าน' : 'มาตรฐานร้าน'),
+  html += sec('3. ' + (isLao ? 'ມາດຕະຖານຮ້ານ' : 'มาตรฐานร้าน'),
     chk(sc.staff, isLao ? 'พนักงาน' : 'ความเรียบร้อยพนักงาน') + chk(sc.clean, isLao ? 'ຄວາມສະອາດ' : 'ความสะอาด') + chk(sc.stock, isLao ? 'ສະຕ໋ອກ' : 'สต๊อก (TOP20/FEFO)') + chk(sc.price, isLao ? 'ປ້າຍລາຄາ' : 'ป้ายราคา'));
   // 4-6
-  if (b.training_topic) html += sec('4. ' + (isLao ? 'ຫົວข้ออบรม' : 'หัวข้ออบรม'), '<div style="font-size:12px;color:var(--slate-700);white-space:pre-wrap;">' + dbEsc(b.training_topic) + '</div>');
-  if (b.staff_issues) html += sec('5. ' + (isLao ? 'ປันຫາ/ຂໍ້ສະເໜີ' : 'ปัญหา/ข้อเสนอแนะ'), '<div style="font-size:12px;color:var(--slate-700);white-space:pre-wrap;">' + dbEsc(b.staff_issues) + '</div>');
+  if (b.training_topic) html += sec('4. ' + (isLao ? 'ຫົວຂໍ້ອົບຮົມ' : 'หัวข้ออบรม'), '<div style="font-size:12px;color:var(--slate-700);white-space:pre-wrap;">' + dbEsc(b.training_topic) + '</div>');
+  if (b.staff_issues) html += sec('5. ' + (isLao ? 'ບັນຫາ/ຂໍ້ສະເໜີ' : 'ปัญหา/ข้อเสนอแนะ'), '<div style="font-size:12px;color:var(--slate-700);white-space:pre-wrap;">' + dbEsc(b.staff_issues) + '</div>');
   if (b.brief_summary) html += sec('6. ' + (isLao ? 'ສະຫຼຸບ' : 'สรุปบรรยากาศ'), '<div style="font-size:12px;color:var(--slate-700);white-space:pre-wrap;">' + dbEsc(b.brief_summary) + '</div>');
   // 7 ชมเชย
   if (b.praises && b.praises.length) {
@@ -25427,7 +25427,7 @@ const SC_CHECKLIST = [
     { k: 'lb_record',     w: 20, th: 'Logbook record : บันทึกในสมุดส่งมอบงาน' },
     { k: 'zone_check_end', w: 10, th: 'Zone check : เดินตรวจโซนก่อนเลิกงาน แจ้งงานต่อกะ' },
   ]},
-  { group: 'งานประจำบางวัน', groupLo: 'ງານบางวัน', items: [
+  { group: 'งานประจำบางวัน', groupLo: 'ງານບາງມື້', items: [
     { k: 'cycle_count',    w: 20, th: 'Cycle Count : นับสต๊อกสินค้าประจำวัน' },
     { k: 'staff_coaching', w: 5,  th: 'Staff Coaching : อบรมพนักงาน จุดที่ต้องพัฒนา' },
   ]},
@@ -25443,7 +25443,7 @@ function renderScDailyPage() {
       + '<input type="checkbox" id="scc_' + it.k + '" onchange="scUpdateProgress()" style="width:18px;height:18px;accent-color:var(--teal-500);flex-shrink:0;margin-top:1px;"> '
       + '<span style="flex:1;">' + it.th + '</span>'
       + '<span style="flex-shrink:0;font-size:10px;font-weight:800;color:var(--teal-600);background:var(--teal-50);border-radius:7px;padding:2px 7px;align-self:center;">' + it.w + '</span></label>'
-      + (it.reason ? '<input class="form-input" id="scReason" style="margin:6px 0 4px;font-size:12px;" placeholder="' + (isLao ? 'ສາເຫດถ้ายอดไม่ถึงเป้า...' : 'สาเหตุถ้ายอดไม่ถึงเป้า...') + '">' : '')
+      + (it.reason ? '<input class="form-input" id="scReason" style="margin:6px 0 4px;font-size:12px;" placeholder="' + (isLao ? 'ສາເຫດຖ້າຍອດບໍ່ເຖິງເປົ້າ...' : 'สาเหตุถ้ายอดไม่ถึงเป้า...') + '">' : '')
     ).join('');
     return '<div class="db-sec"><div class="db-sec-t">' + (isLao ? g.groupLo : g.group) + '</div>' + rows + '</div>';
   }).join('');
@@ -25454,8 +25454,8 @@ function renderScDailyPage() {
 
       <div id="scAck" style="display:none;background:var(--fs-green-tint);border:1px solid var(--emerald-200);border-radius:14px;padding:18px;text-align:center;margin-bottom:14px;">
         <div style="font-size:26px;font-weight:800;color:var(--emerald-700);font-family:'Space Grotesk',monospace;" id="scAckNo">SC-0000</div>
-        <div style="font-size:12px;color:var(--slate-600);margin-top:6px;">${isLao ? 'ບันทึกสำเร็จ' : 'บันทึกสำเร็จ'} ✓</div>
-        <button onclick="scReset()" style="margin-top:12px;background:var(--emerald-600);color:white;border:none;border-radius:9px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;">${isLao ? 'ບันทึกใหม่' : 'บันทึกใหม่'}</button>
+        <div style="font-size:12px;color:var(--slate-600);margin-top:6px;">${isLao ? 'ບັນທຶກສຳເລັດ' : 'บันทึกสำเร็จ'} ✓</div>
+        <button onclick="scReset()" style="margin-top:12px;background:var(--emerald-600);color:white;border:none;border-radius:9px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;">${isLao ? 'ບັນທຶກໃໝ່' : 'บันทึกใหม่'}</button>
       </div>
 
       <div id="scForm">
@@ -25469,10 +25469,10 @@ function renderScDailyPage() {
 
         ${groups}
 
-        <div class="db-sec"><div class="db-sec-t">${isLao ? 'ໝາຍເຫດເพิ่มเติม' : 'หมายเหตุเพิ่มเติม'}</div>
+        <div class="db-sec"><div class="db-sec-t">${isLao ? 'ໝາຍເຫດເພີ່ມເຕີມ' : 'หมายเหตุเพิ่มเติม'}</div>
           <textarea class="form-input" id="scNote" rows="2" placeholder="${isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ'}"></textarea></div>
 
-        <button onclick="scSubmit()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;margin-top:6px;">${isLao ? 'ບันทึก' : 'บันทึก'} →</button>
+        <button onclick="scSubmit()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;margin-top:6px;">${isLao ? 'ບັນທຶກ' : 'บันทึก'} →</button>
       </div>
     </div>
     <style>
@@ -25500,7 +25500,7 @@ function scReset() {
 async function scSubmit() {
   const isLao = lang === 'lo';
   const date = document.getElementById('scDate').value;
-  if (!date) { showToast(isLao ? 'ໃສ่วันที่' : 'ใส่วันที่', 'error'); return; }
+  if (!date) { showToast(isLao ? 'ໃສ່ວັນທີ' : 'ใส่วันที่', 'error'); return; }
   const checklist = {};
   let done = 0;
   SC_CHECKLIST.forEach(g => g.items.forEach(it => { const el = document.getElementById('scc_' + it.k); const v = !!(el && el.checked); checklist[it.k] = v; if (v) done += (it.w || 0); }));
@@ -25543,7 +25543,7 @@ function renderScDailyLogPage() {
   const isLao = lang === 'lo';
   return `
     <div style="padding:14px 13px 90px;max-width:680px;margin:0 auto;">
-      <h2 style="font-size:18px;font-weight:800;margin:0 0 11px;">📝 ${isLao ? 'ປະຫວັดงานรายวัน SC' : 'ประวัติงานรายวัน SC'}</h2>
+      <h2 style="font-size:18px;font-weight:800;margin:0 0 11px;">📝 ${isLao ? 'ປະຫວັດງານລາຍວັນ SC' : 'ประวัติงานรายวัน SC'}</h2>
       <div id="scChart"></div>
       <div id="scFilter"></div>
       <div id="scList"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
@@ -25574,7 +25574,7 @@ function renderScFilter() {
   (_scData || []).forEach(r => { if (r.reporter_id) repMap[r.reporter_id] = r.reporter_name || r.reporter_id; });
   const reps = Object.keys(repMap);
   if (reps.length <= 1) { el.innerHTML = ''; return; } // มีคนเดียวไม่ต้องโชว์ filter
-  const opts = '<option value="all">' + (isLao ? 'ທຸกคน' : 'ทุกคน') + ' (' + reps.length + ')</option>'
+  const opts = '<option value="all">' + (isLao ? 'ທຸກຄົນ' : 'ทุกคน') + ' (' + reps.length + ')</option>'
     + reps.map(id => '<option value="' + id + '"' + (id === _scFilterReporter ? ' selected' : '') + '>' + scEsc(repMap[id]) + '</option>').join('');
   el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">'
     + '<span style="font-size:12px;font-weight:700;color:var(--slate-600);flex-shrink:0;">👤 ' + (isLao ? 'ຜູ້ບັນທຶກ' : 'ผู้บันทึก') + ':</span>'
@@ -25587,7 +25587,7 @@ function scSetFilterReporter(v) { _scFilterReporter = v; renderScChart(); render
 function scEditOpen(id) {
   const isLao = lang === 'lo';
   const role = (user && user.role) || '';
-  if (!(role === 'ctl' || role === 'admin')) { showToast(isLao ? 'ບໍ່ມีสิทธิ์' : 'ไม่มีสิทธิ์', 'error'); return; }
+  if (!(role === 'ctl' || role === 'admin')) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
   const r = _scData.find(x => x.id === id);
   if (!r) return;
   const cl = r.checklist || {};
@@ -25604,17 +25604,17 @@ function scEditOpen(id) {
         + '<span style="flex-shrink:0;font-size:10px;font-weight:800;color:var(--teal-600);">' + it.w + '</span></label>';
     });
   });
-  html += '<div class="form-group" style="margin-top:11px;"><label class="form-label">' + (isLao ? 'ສາເຫด' : 'สาเหตุ (ยอดไม่ถึงเป้า)') + '</label><input class="form-input" id="sceReason" value="' + scEsc(r.sales_reason || '') + '"></div>';
-  html += '<div class="form-group"><label class="form-label">' + (isLao ? 'ໝາຍເຫด' : 'หมายเหตุ') + '</label><textarea class="form-input" id="sceNote" rows="2">' + scEsc(r.note || '') + '</textarea></div>';
+  html += '<div class="form-group" style="margin-top:11px;"><label class="form-label">' + (isLao ? 'ສາເຫດ' : 'สาเหตุ (ยอดไม่ถึงเป้า)') + '</label><input class="form-input" id="sceReason" value="' + scEsc(r.sales_reason || '') + '"></div>';
+  html += '<div class="form-group"><label class="form-label">' + (isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ') + '</label><textarea class="form-input" id="sceNote" rows="2">' + scEsc(r.note || '') + '</textarea></div>';
   html += '<div class="action-row"><button class="btn btn-secondary" onclick="scOpen(' + id + ')">' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
-    + '<button class="btn btn-primary" onclick="scEditSave(' + id + ')">' + (isLao ? 'ບันทึก' : 'บันทึก') + '</button></div>';
+    + '<button class="btn btn-primary" onclick="scEditSave(' + id + ')">' + (isLao ? 'ບັນທຶກ' : 'บันทึก') + '</button></div>';
   showModal(html);
 }
 
 async function scEditSave(id) {
   const isLao = lang === 'lo';
   const role = (user && user.role) || '';
-  if (!(role === 'ctl' || role === 'admin')) { showToast(isLao ? 'ບໍ່ມีสิทธิ์' : 'ไม่มีสิทธิ์', 'error'); return; }
+  if (!(role === 'ctl' || role === 'admin')) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
   const checklist = {};
   let done = 0;
   SC_CHECKLIST.forEach(g => g.items.forEach(it => { const el = document.getElementById('sce_' + it.k); const v = !!(el && el.checked); checklist[it.k] = v; if (v) done += (it.w || 0); }));
@@ -25629,7 +25629,7 @@ async function scEditSave(id) {
   const { error } = await sb.from('sc_daily_logs').update(upd).eq('id', id);
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   logActivity('sc_daily_edit', id + ' | ' + done + '/' + scTotalItems());
-  showToast(isLao ? 'ບันทึกแล้ว ✓' : 'บันทึกแล้ว ✓', 'success');
+  showToast(isLao ? 'ບັນທຶກແລ້ວ ✓' : 'บันทึกแล้ว ✓', 'success');
   closeModal();
   loadScDailyLogs();
 }
@@ -25637,10 +25637,10 @@ async function scEditSave(id) {
 // ---------- ลบ (Admin) ----------
 async function scDelete(id) {
   const isLao = lang === 'lo';
-  if ((user && user.role) !== 'admin') { showToast(isLao ? 'ສະເພาะ admin' : 'เฉพาะ admin', 'error'); return; }
+  if ((user && user.role) !== 'admin') { showToast(isLao ? 'ສະເພາະ admin' : 'เฉพาะ admin', 'error'); return; }
   const r = _scData.find(x => x.id === id);
   if (!r) return;
-  if (!confirm((isLao ? 'ລຶບ ' : 'ลบ ') + r.log_no + ' (' + scFmtDate(r.log_date) + ') ?\n' + (isLao ? 'ລຶບແລ້วกู้คืนไม่ได้' : 'ลบแล้วกู้คืนไม่ได้'))) return;
+  if (!confirm((isLao ? 'ລຶບ ' : 'ลบ ') + r.log_no + ' (' + scFmtDate(r.log_date) + ') ?\n' + (isLao ? 'ລຶບແລ້ວກູ້ຄືນບໍ່ໄດ້' : 'ลบแล้วกู้คืนไม่ได้'))) return;
   const { error } = await sb.from('sc_daily_logs').delete().eq('id', id);
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   logActivity('sc_daily_delete', r.log_no);
@@ -25703,7 +25703,7 @@ function renderScChart() {
       const h = Math.max(2, sc / yMax * plotH);
       const y = padT + plotH - h;
       const col = sc >= total ? '#16a34a' : sc >= total * 0.7 ? '#0d9488' : sc >= total * 0.5 ? '#d97706' : '#e11d48';
-      bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + col + '" rx="1"><title>' + (isLao ? 'ມื້ที่ ' : 'วันที่ ') + d + ': ' + sc + '/' + total + '</title></rect>';
+      bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + col + '" rx="1"><title>' + (isLao ? 'ມື້ທີ່ ' : 'วันที่ ') + d + ': ' + sc + '/' + total + '</title></rect>';
     }
     // เลขวันที่ (โชว์เฉพาะวันที่ 1,5,10,15,20,25,30 กันแน่น)
     if (d === 1 || d % 5 === 0) {
@@ -25725,16 +25725,16 @@ function renderScChart() {
   el.innerHTML = ''
     + '<div style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:13px;margin-bottom:12px;">'
     + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;flex-wrap:wrap;">'
-    + '<div style="font-size:13px;font-weight:800;color:var(--slate-700);">📊 ' + (isLao ? 'ສະຫຼຸບລາຍເດືອน' : 'สรุปรายเดือน') + '</div>'
+    + '<div style="font-size:13px;font-weight:800;color:var(--slate-700);">📊 ' + (isLao ? 'ສະຫຼຸບລາຍເດືອນ' : 'สรุปรายเดือน') + '</div>'
     + (months.length ? '<select onchange="scSetChartMonth(this.value)" style="font-size:12px;padding:5px 9px;border:1px solid var(--slate-200);border-radius:8px;background:white;font-weight:700;color:var(--slate-700);">' + monthOpts + '</select>' : '')
     + '</div>'
     + (filledDays
         ? svg + '<div style="display:flex;gap:7px;margin-top:9px;flex-wrap:wrap;">'
-            + '<span style="font-size:10px;background:var(--slate-50);border-radius:7px;padding:4px 9px;">' + (isLao ? 'ມື້ที่บันทึก' : 'วันที่บันทึก') + ': <b>' + filledDays + '</b></span>'
-            + '<span style="font-size:10px;background:var(--emerald-50);color:var(--emerald-700);border-radius:7px;padding:4px 9px;">' + (isLao ? 'ຄົບ 200' : 'ครบ 200') + ': <b>' + fullDays + '</b> ' + (isLao ? 'ມື้' : 'วัน') + '</span>'
-            + '<span style="font-size:10px;background:var(--teal-50);color:var(--teal-700);border-radius:7px;padding:4px 9px;">' + (isLao ? 'ສະເລ່ย' : 'เฉลี่ย') + ': <b>' + avg + '</b>/' + total + '</span>'
+            + '<span style="font-size:10px;background:var(--slate-50);border-radius:7px;padding:4px 9px;">' + (isLao ? 'ມື້ທີ່ບັນທຶກ' : 'วันที่บันทึก') + ': <b>' + filledDays + '</b></span>'
+            + '<span style="font-size:10px;background:var(--emerald-50);color:var(--emerald-700);border-radius:7px;padding:4px 9px;">' + (isLao ? 'ຄົບ 200' : 'ครบ 200') + ': <b>' + fullDays + '</b> ' + (isLao ? 'ມື້' : 'วัน') + '</span>'
+            + '<span style="font-size:10px;background:var(--teal-50);color:var(--teal-700);border-radius:7px;padding:4px 9px;">' + (isLao ? 'ສະເລ່ຍ' : 'เฉลี่ย') + ': <b>' + avg + '</b>/' + total + '</span>'
             + '</div>'
-        : '<div style="text-align:center;padding:24px;color:var(--slate-400);font-size:12px;">' + (isLao ? 'ບໍ່ມีข้อมูลในเดือนนี้' : 'ไม่มีข้อมูลในเดือนนี้') + '</div>')
+        : '<div style="text-align:center;padding:24px;color:var(--slate-400);font-size:12px;">' + (isLao ? 'ບໍ່ມີຂໍ້ມູນໃນເດືອນນີ້' : 'ไม่มีข้อมูลในเดือนนี้') + '</div>')
     + '</div>';
 }
 
@@ -25742,7 +25742,7 @@ function renderScList() {
   const isLao = lang === 'lo';
   const el = document.getElementById('scList'); if (!el) return;
   const _rows = (_scFilterReporter && _scFilterReporter !== 'all') ? _scData.filter(r => String(r.reporter_id) === String(_scFilterReporter)) : _scData;
-  if (!_rows.length) { el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--slate-400);"><div style="font-size:34px;">📭</div>' + (isLao ? 'ຍັງບໍ່ມีบันทึก' : 'ยังไม่มีบันทึก') + '</div>'; return; }
+  if (!_rows.length) { el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--slate-400);"><div style="font-size:34px;">📭</div>' + (isLao ? 'ຍັງບໍ່ມີບັນທຶກ' : 'ยังไม่มีบันทึก') + '</div>'; return; }
   el.innerHTML = _rows.map(r => {
     const pct = r.total_count ? Math.round(r.done_count / r.total_count * 100) : 0;
     const col = pct >= 80 ? 'var(--emerald-600)' : pct >= 50 ? 'var(--amber-600)' : 'var(--rose-500)';
@@ -25770,8 +25770,8 @@ function scOpen(id) {
         + '<span style="flex-shrink:0;font-weight:800;color:' + (ok ? 'var(--emerald-600)' : 'var(--slate-300)') + ';">' + (ok ? '+' + it.w : it.w) + '</span></div>';
     });
   });
-  if (r.sales_reason) html += '<div style="margin-top:10px;font-size:11px;"><b>' + (isLao ? 'ສາເຫด:' : 'สาเหตุ:') + '</b> <span style="color:var(--slate-600);">' + scEsc(r.sales_reason) + '</span></div>';
-  if (r.note) html += '<div style="margin-top:8px;font-size:11px;"><b>' + (isLao ? 'ໝາຍເຫด:' : 'หมายเหตุ:') + '</b> <span style="color:var(--slate-600);white-space:pre-wrap;">' + scEsc(r.note) + '</span></div>';
+  if (r.sales_reason) html += '<div style="margin-top:10px;font-size:11px;"><b>' + (isLao ? 'ສາເຫດ:' : 'สาเหตุ:') + '</b> <span style="color:var(--slate-600);">' + scEsc(r.sales_reason) + '</span></div>';
+  if (r.note) html += '<div style="margin-top:8px;font-size:11px;"><b>' + (isLao ? 'ໝາຍເຫດ:' : 'หมายเหตุ:') + '</b> <span style="color:var(--slate-600);white-space:pre-wrap;">' + scEsc(r.note) + '</span></div>';
   const role = (user && user.role) || '';
   const canEdit = role === 'ctl' || role === 'admin';
   const canDelete = role === 'admin';
@@ -25798,47 +25798,47 @@ function renderWorkReportPage() {
   const depts = WT_DEPTS.map(d => '<option value="' + d + '">' + d + '</option>').join('');
   return `
     <div style="padding:14px 13px 90px;max-width:560px;margin:0 auto;">
-      <h2 style="font-size:18px;font-weight:800;margin:0 0 3px;">📢 ${isLao ? 'ແຈ້ງงาน' : 'แจ้งงาน'}</h2>
-      <p style="font-size:12px;color:var(--slate-500);margin:0 0 15px;">${isLao ? 'ສ້າງໃບແຈ້ງงาน ສົ່ງຕໍ່ໄປແผนกที่รับผิดชอบ' : 'สร้างใบแจ้งงาน ส่งต่อไปแผนกที่รับผิดชอบ'}</p>
+      <h2 style="font-size:18px;font-weight:800;margin:0 0 3px;">📢 ${isLao ? 'ແຈ້ງງານ' : 'แจ้งงาน'}</h2>
+      <p style="font-size:12px;color:var(--slate-500);margin:0 0 15px;">${isLao ? 'ສ້າງໃບແຈ້ງງານ ສົ່ງຕໍ່ໄປແຜນກທີ່ຮັບຜິດຊອບ' : 'สร้างใบแจ้งงาน ส่งต่อไปแผนกที่รับผิดชอบ'}</p>
 
       <div id="wrAck" style="display:none;background:var(--fs-green-tint);border:1px solid var(--emerald-200);border-radius:14px;padding:18px;text-align:center;margin-bottom:14px;">
         <div style="font-size:26px;font-weight:800;color:var(--emerald-700);font-family:'Space Grotesk',monospace;" id="wrAckNo">WD-0000</div>
-        <div style="font-size:12px;color:var(--slate-600);margin-top:6px;">${isLao ? 'ສົ່ງແຈ້ງงานสำเร็จ' : 'ส่งแจ้งงานสำเร็จ'} ✓</div>
+        <div style="font-size:12px;color:var(--slate-600);margin-top:6px;">${isLao ? 'ສົ່ງແຈ້ງງານສຳເລັດ' : 'ส่งแจ้งงานสำเร็จ'} ✓</div>
         <div style="font-size:11px;color:var(--slate-500);margin-top:3px;">${isLao ? 'ສົ່ງຕໍ່' : 'ส่งต่อ'}: <b id="wrAckDept">—</b> · ${isLao ? 'ກຳນົດ' : 'กำหนด'}: <b id="wrAckSla">—</b></div>
-        <button onclick="wrReset()" style="margin-top:12px;background:var(--emerald-600);color:white;border:none;border-radius:9px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;">${isLao ? 'ແຈ້ງใหม่' : 'แจ้งงานใหม่'}</button>
+        <button onclick="wrReset()" style="margin-top:12px;background:var(--emerald-600);color:white;border:none;border-radius:9px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;">${isLao ? 'ແຈ້ງໃໝ່' : 'แจ้งงานใหม่'}</button>
       </div>
 
       <div id="wrForm">
-        <div class="form-group"><label class="form-label">${isLao ? 'ປະເພດงาน' : 'ประเภทงาน'} *</label>
+        <div class="form-group"><label class="form-label">${isLao ? 'ປະເພດງານ' : 'ประเภทงาน'} *</label>
           <select class="form-input" id="wrCat" onchange="wrOnCatChange()">
             <option value="" disabled selected>— ${isLao ? 'ເລືອກປະເພດ' : 'เลือกประเภท'} —</option>
             ${cats}
           </select>
         </div>
-        <div class="form-group"><label class="form-label">${isLao ? 'ຫົວข้อ' : 'หัวข้อ'} *</label>
-          <input class="form-input" id="wrTitle" type="text" placeholder="${isLao ? 'ສรุปสั้นๆ ว่าต้องการอะไร' : 'สรุปสั้นๆ ว่าต้องการอะไร'}"></div>
+        <div class="form-group"><label class="form-label">${isLao ? 'ຫົວຂໍ້' : 'หัวข้อ'} *</label>
+          <input class="form-input" id="wrTitle" type="text" placeholder="${isLao ? 'ສະຫຼຸບສັ້ນໆ ว่าต้องการอะไร' : 'สรุปสั้นๆ ว่าต้องการอะไร'}"></div>
         <div class="form-group"><label class="form-label">${isLao ? 'ລາຍລະອຽດ' : 'รายละเอียด'}</label>
           <textarea class="form-input" id="wrDesc" rows="3" placeholder="${isLao ? 'ອະທິບາຍເພີ່ມ เช่น จำนวน งบประมาณ กำหนด' : 'อธิบายเพิ่ม เช่น จำนวน งบประมาณ กำหนด'}"></textarea></div>
-        <div class="form-group"><label class="form-label">${isLao ? 'ຄວາມเร่งด่วน' : 'ความเร่งด่วน'} *</label>
+        <div class="form-group"><label class="form-label">${isLao ? 'ຄວາມເຮ່ງດ່ວນ' : 'ความเร่งด่วน'} *</label>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;" id="wrPriRow">
-            <button type="button" class="wr-pri" data-pri="low" onclick="wrSetPri('low')" style="border:2px solid var(--teal-500);background:var(--teal-50);border-radius:10px;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;color:var(--teal-700);">${isLao ? 'ປົກກະຕິ' : 'ปกติ'}<br><small style="font-weight:400;color:var(--slate-500);">3 ${isLao ? 'ມื້' : 'วัน'}</small></button>
-            <button type="button" class="wr-pri" data-pri="mid" onclick="wrSetPri('mid')" style="border:2px solid var(--slate-200);background:white;border-radius:10px;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;color:var(--slate-600);">${isLao ? 'ເร่งด่วน' : 'เร่งด่วน'}<br><small style="font-weight:400;color:var(--slate-400);">1 ${isLao ? 'ມື້' : 'วัน'}</small></button>
-            <button type="button" class="wr-pri" data-pri="high" onclick="wrSetPri('high')" style="border:2px solid var(--slate-200);background:white;border-radius:10px;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;color:var(--slate-600);">${isLao ? 'ด่วนมาก' : 'ด่วนมาก'}<br><small style="font-weight:400;color:var(--slate-400);">${isLao ? 'ມື້นี้' : 'วันนี้'}</small></button>
+            <button type="button" class="wr-pri" data-pri="low" onclick="wrSetPri('low')" style="border:2px solid var(--teal-500);background:var(--teal-50);border-radius:10px;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;color:var(--teal-700);">${isLao ? 'ປົກກະຕິ' : 'ปกติ'}<br><small style="font-weight:400;color:var(--slate-500);">3 ${isLao ? 'ມື້' : 'วัน'}</small></button>
+            <button type="button" class="wr-pri" data-pri="mid" onclick="wrSetPri('mid')" style="border:2px solid var(--slate-200);background:white;border-radius:10px;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;color:var(--slate-600);">${isLao ? 'ເຮ່ງດ່ວນ' : 'เร่งด่วน'}<br><small style="font-weight:400;color:var(--slate-400);">1 ${isLao ? 'ມື້' : 'วัน'}</small></button>
+            <button type="button" class="wr-pri" data-pri="high" onclick="wrSetPri('high')" style="border:2px solid var(--slate-200);background:white;border-radius:10px;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;color:var(--slate-600);">${isLao ? 'ด่วนมาก' : 'ด่วนมาก'}<br><small style="font-weight:400;color:var(--slate-400);">${isLao ? 'ມື້ນີ້' : 'วันนี้'}</small></button>
           </div>
         </div>
         <div class="form-group"><label class="form-label">${isLao ? 'แผนกที่รับผิดชอบ' : 'แผนกที่รับผิดชอบ'} *</label>
           <select class="form-input" id="wrDept">
-            <option value="" disabled selected>— ${isLao ? 'ເລືອກแผนก' : 'เลือกแผนก'} —</option>
+            <option value="" disabled selected>— ${isLao ? 'ເລືອກແຜນກ' : 'เลือกแผนก'} —</option>
             ${depts}
           </select>
-          <div style="font-size:10px;color:var(--slate-400);margin-top:4px;">${isLao ? 'ລະບົບແນະນຳແผนกให้อัตโนมัติ แก้ได้' : 'ระบบแนะนำแผนกให้อัตโนมัติ แก้ได้'}</div>
+          <div style="font-size:10px;color:var(--slate-400);margin-top:4px;">${isLao ? 'ລະບົບແນະນຳແຜນກໃຫ້ອັດຕະໂນມັດ แก้ได้' : 'ระบบแนะนำแผนกให้อัตโนมัติ แก้ได้'}</div>
         </div>
-        <div class="form-group"><label class="form-label">${isLao ? 'ຮูป (ไม่เกิน 3)' : 'รูปภาพ (ไม่เกิน 3)'}</label>
+        <div class="form-group"><label class="form-label">${isLao ? 'ຮູບ (ไม่เกิน 3)' : 'รูปภาพ (ไม่เกิน 3)'}</label>
           <input type="file" id="wrPhotoInput" accept="image/*" capture="environment" multiple style="display:none;" onchange="wrOnPhotoSelected(event)">
-          <button type="button" onclick="document.getElementById('wrPhotoInput').click()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:12px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">📷 ${isLao ? 'ຖ່າຍຮูป / ເລືອกรูป' : 'ถ่ายรูป / เลือกรูป'}</button>
+          <button type="button" onclick="document.getElementById('wrPhotoInput').click()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:12px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">📷 ${isLao ? 'ຖ່າຍຮູບ / ເລືອກຮູບ' : 'ถ่ายรูป / เลือกรูป'}</button>
           <div id="wrPhotoPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;"></div>
         </div>
-        <button onclick="wrSubmit()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;margin-top:6px;">${isLao ? 'ສົ່ງແຈ້ງงาน' : 'ส่งแจ้งงาน'} →</button>
+        <button onclick="wrSubmit()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;margin-top:6px;">${isLao ? 'ສົ່ງແຈ້ງງານ' : 'ส่งแจ้งงาน'} →</button>
       </div>
     </div>`;
 }
@@ -25860,7 +25860,7 @@ function wrOnPhotoSelected(e) {
   const files = Array.from(e.target.files || []);
   e.target.value = '';
   files.forEach(f => {
-    if (_wrPhotos.length >= 3) { showToast(lang === 'lo' ? 'ສูงสุด 3 รูป' : 'สูงสุด 3 รูป', 'warning'); return; }
+    if (_wrPhotos.length >= 3) { showToast(lang === 'lo' ? 'ສູງສຸດ 3 รูป' : 'สูงสุด 3 รูป', 'warning'); return; }
     wrCompressImage(f, (blob, dataUrl) => {
       _wrPhotos.push({ blob, dataUrl });
       wrRenderPhotoPreview();
@@ -25963,9 +25963,9 @@ async function wrSubmit() {
   const title = document.getElementById('wrTitle').value.trim();
   const desc = document.getElementById('wrDesc').value.trim();
   const dept = document.getElementById('wrDept').value;
-  if (!cat) { showToast(isLao ? 'ເລືອกประเภทงาน' : 'เลือกประเภทงาน', 'error'); return; }
-  if (!title) { showToast(isLao ? 'ໃສ່ຫົວข้อ' : 'ใส่หัวข้อ', 'error'); return; }
-  if (!dept) { showToast(isLao ? 'ເລືອกแผนก' : 'เลือกแผนก', 'error'); return; }
+  if (!cat) { showToast(isLao ? 'ເລືອກປະເພດງານ' : 'เลือกประเภทงาน', 'error'); return; }
+  if (!title) { showToast(isLao ? 'ໃສ່ຫົວຂໍ້' : 'ใส่หัวข้อ', 'error'); return; }
+  if (!dept) { showToast(isLao ? 'ເລືອກແຜນກ' : 'เลือกแผนก', 'error'); return; }
   // gen ticket_no: WD-xxxx จากเลขมากสุด +1 แล้วลองใหม่อัตโนมัติถ้าชน (กันลบเก่าแล้วซ้ำ/บันทึกพร้อมกัน)
   let seq = 1;
   try {
@@ -26062,7 +26062,7 @@ function renderWorkTrackPage() {
   ).join('');
   return `
     <div style="padding:14px 13px 90px;max-width:680px;margin:0 auto;">
-      <h2 style="font-size:18px;font-weight:800;margin:0 0 11px;">📋 ${isLao ? 'ຕິດຕາມงาน' : 'ติดตามงาน'}</h2>
+      <h2 style="font-size:18px;font-weight:800;margin:0 0 11px;">📋 ${isLao ? 'ຕິດຕາມງານ' : 'ติดตามงาน'}</h2>
       <div id="wtDash"></div>
       <div id="wtDeptBar"></div>
       <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:7px;margin-bottom:10px;">${chips}</div>
@@ -26132,10 +26132,10 @@ function renderWtList() {
     });
   }
   if (!_wtData.length) {
-    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--slate-400);"><div style="font-size:34px;">📭</div>' + (isLao ? 'ຍັງບໍ່ມีงาน' : 'ยังไม่มีงานที่แจ้ง') + '</div>';
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--slate-400);"><div style="font-size:34px;">📭</div>' + (isLao ? 'ຍັງບໍ່ມີງານ' : 'ยังไม่มีงานที่แจ้ง') + '</div>';
     return;
   }
-  if (!rows.length) { el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--slate-400);">' + (isLao ? 'ບໍ່ມีงานในสถานะนี้' : 'ไม่มีงานในสถานะนี้') + '</div>'; return; }
+  if (!rows.length) { el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--slate-400);">' + (isLao ? 'ບໍ່ມີງານໃນສະຖານະນີ້' : 'ไม่มีงานในสถานะนี้') + '</div>'; return; }
   el.innerHTML = rows.map(t => {
     const s = wtStatusOf(t);
     return '<div onclick="wtOpen(' + t.id + ')" style="background:white;border:1px solid var(--slate-200);border-radius:12px;padding:12px;margin-bottom:9px;cursor:pointer;">'
@@ -26179,14 +26179,14 @@ function wtOpen(id) {
   const canMng = wtCanManage();
   let actions = '';
   if (t.status === 'done') {
-    actions = '<div style="background:var(--emerald-50);border-radius:9px;padding:10px;text-align:center;font-size:12px;color:var(--emerald-700);font-weight:700;">✓ ' + (isLao ? 'ປິດงานแล้ว' : 'ปิดงานแล้ว') + (t.handled_name ? ' · ' + wtEsc(t.handled_name) : '') + '</div>';
+    actions = '<div style="background:var(--emerald-50);border-radius:9px;padding:10px;text-align:center;font-size:12px;color:var(--emerald-700);font-weight:700;">✓ ' + (isLao ? 'ປິດງານແລ້ວ' : 'ปิดงานแล้ว') + (t.handled_name ? ' · ' + wtEsc(t.handled_name) : '') + '</div>';
   } else if (canMng) {
     actions = '<div style="display:flex;gap:8px;">'
-      + '<button onclick="wtSetStatus(' + id + ',\'prog\')" ' + (t.status === 'prog' ? 'disabled' : '') + ' style="flex:1;background:' + (t.status === 'prog' ? 'var(--slate-200)' : 'var(--teal-500)') + ';color:white;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? 'ເริ่มทำ' : 'เริ่มดำเนินการ') + '</button>'
-      + '<button onclick="wtSetStatus(' + id + ',\'done\')" style="flex:1;background:var(--emerald-600);color:white;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? 'ປິดงาน' : 'ปิดงาน (เสร็จ)') + '</button>'
+      + '<button onclick="wtSetStatus(' + id + ',\'prog\')" ' + (t.status === 'prog' ? 'disabled' : '') + ' style="flex:1;background:' + (t.status === 'prog' ? 'var(--slate-200)' : 'var(--teal-500)') + ';color:white;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? 'ເລີ່ມເຮັດ' : 'เริ่มดำเนินการ') + '</button>'
+      + '<button onclick="wtSetStatus(' + id + ',\'done\')" style="flex:1;background:var(--emerald-600);color:white;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? 'ປິດງານ' : 'ปิดงาน (เสร็จ)') + '</button>'
       + '</div>';
   } else {
-    actions = '<div style="background:var(--slate-50);border-radius:9px;padding:10px;text-align:center;font-size:11px;color:var(--slate-400);">' + (isLao ? 'ສະເພาະ manager จัดการสถานะ' : 'เฉพาะ manager จัดการสถานะได้') + '</div>';
+    actions = '<div style="background:var(--slate-50);border-radius:9px;padding:10px;text-align:center;font-size:11px;color:var(--slate-400);">' + (isLao ? 'ສະເພາະ manager จัดการสถานะ' : 'เฉพาะ manager จัดการสถานะได้') + '</div>';
   }
   const kv = (k, v, color) => '<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--slate-100);font-size:12px;"><span style="color:var(--slate-500);">' + k + '</span><span style="font-weight:600;text-align:right;' + (color ? 'color:' + color + ';' : '') + '">' + v + '</span></div>';
   showModal(''
@@ -26195,13 +26195,13 @@ function wtOpen(id) {
     + '<div style="font-size:11px;color:var(--slate-400);font-family:monospace;margin-bottom:10px;">' + t.ticket_no + '</div>'
     + (t.description ? '<div style="background:var(--slate-50);border-radius:9px;padding:10px;font-size:12px;color:var(--slate-700);margin-bottom:10px;white-space:pre-wrap;">' + wtEsc(t.description) + '</div>' : '')
     + ((t.photo_urls && t.photo_urls.length) ? '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px;">' + t.photo_urls.map(u => '<a href="' + u + '" target="_blank" rel="noopener" style="display:block;width:72px;height:72px;border-radius:9px;overflow:hidden;border:1px solid var(--slate-200);"><img src="' + u + '" style="width:100%;height:100%;object-fit:cover;"></a>').join('') + '</div>' : '')
-    + kv(isLao ? 'ຜູ້ແຈ້ง' : 'ผู้แจ้ง', wtEsc(t.reporter_name || '—'))
+    + kv(isLao ? 'ຜູ້ແຈ້ງ' : 'ผู้แจ้ง', wtEsc(t.reporter_name || '—'))
     + ((t.status === 'prog' || t.status === 'done') && t.handled_name ? kv('🔧 ' + (isLao ? 'ຜູ້ຮັບງານ' : 'ผู้รับงาน'), wtEsc(t.handled_name)) : '')
     + kv(isLao ? 'ປະເພດ' : 'ประเภท', wtCatLabel(t.category))
     + kv(isLao ? 'ສົ່ງຕໍ່' : 'ส่งต่อไปยัง', wtEsc(t.dept))
-    + kv(isLao ? 'ເร่งด่วน' : 'ความเร่งด่วน', WT_PRI_LABEL[t.priority] || t.priority)
-    + kv(isLao ? 'ແຈ້ງเมื่อ' : 'แจ้งเมื่อ', wtFmtDate(t.created_at))
-    + kv(isLao ? 'ກຳນົดเสร็จ' : 'กำหนดเสร็จ', wtFmtDate(t.due_at) + (s === 'over' ? ' (' + (isLao ? 'ເກີນ' : 'เกินกำหนด') + ')' : ''), s === 'over' ? 'var(--rose-500)' : '')
+    + kv(isLao ? 'ເຮ່ງດ່ວນ' : 'ความเร่งด่วน', WT_PRI_LABEL[t.priority] || t.priority)
+    + kv(isLao ? 'ແຈ້ງເມື່ອ' : 'แจ้งเมื่อ', wtFmtDate(t.created_at))
+    + kv(isLao ? 'ກຳນົດສຳເລັດ' : 'กำหนดเสร็จ', wtFmtDate(t.due_at) + (s === 'over' ? ' (' + (isLao ? 'ເກີນ' : 'เกินกำหนด') + ')' : ''), s === 'over' ? 'var(--rose-500)' : '')
     + '<div style="margin-top:14px;">' + actions + '</div>'
     + ((user && user.role === 'admin') ? '<div style="display:flex;gap:8px;margin-top:9px;border-top:1px solid var(--slate-100);padding-top:11px;">'
         + '<button onclick="wtEditOpen(' + id + ')" style="flex:1;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;">✏️ ' + (isLao ? 'ແກ້ໄຂ' : 'แก้ไข') + '</button>'
@@ -26212,13 +26212,13 @@ function wtOpen(id) {
 
 async function wtSetStatus(id, st) {
   const isLao = lang === 'lo';
-  if (!wtCanManage()) { showToast(isLao ? 'ບໍ່ມีสิทธิ์' : 'ไม่มีสิทธิ์', 'error'); return; }
+  if (!wtCanManage()) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
   const upd = { status: st, updated_at: new Date().toISOString() };
   if (st === 'prog' || st === 'done') { upd.handled_by = user.id; upd.handled_name = user.full_name || user.username || ''; }
   const { error } = await sb.from('work_tickets').update(upd).eq('id', id);
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   logActivity('work_ticket_status', id + ' -> ' + st);
-  showToast(st === 'done' ? (isLao ? 'ປິดงานแล้ว ✓' : 'ปิดงานแล้ว ✓') : (isLao ? 'ອัปเดตแล้ว' : 'อัปเดตแล้ว'), 'success');
+  showToast(st === 'done' ? (isLao ? 'ປິດງານແລ້ວ ✓' : 'ปิดงานแล้ว ✓') : (isLao ? 'ອັບເດດແລ້ວ' : 'อัปเดตแล้ว'), 'success');
   closeModal();
   loadWorkTickets();
 }
@@ -26226,7 +26226,7 @@ async function wtSetStatus(id, st) {
 // ---------- admin: แก้ไข / ลบ ticket ----------
 function wtEditOpen(id) {
   const isLao = lang === 'lo';
-  if (!(user && user.role === 'admin')) { showToast(isLao ? 'ສະເພาะ admin' : 'เฉพาะ admin', 'error'); return; }
+  if (!(user && user.role === 'admin')) { showToast(isLao ? 'ສະເພາະ admin' : 'เฉพาะ admin', 'error'); return; }
   const t = _wtData.find(x => x.id === id);
   if (!t) return;
   const cats = WT_CATEGORIES.map(g =>
@@ -26243,19 +26243,19 @@ function wtEditOpen(id) {
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;"><h3 style="font-size:15px;margin:0;">✏️ ' + (isLao ? 'ແກ້ໄຂງານ' : 'แก้ไขงาน') + ' ' + t.ticket_no + '</h3>'
     + '<button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;color:var(--slate-600);">✕</button></div>'
     + '<div class="form-group"><label class="form-label">' + (isLao ? 'ປະເພດ' : 'ประเภท') + '</label><select class="form-input" id="wteCat">' + cats + '</select></div>'
-    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ຫົວข้อ' : 'หัวข้อ') + '</label><input class="form-input" id="wteTitle" type="text" value="' + wtEsc(t.title) + '"></div>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ຫົວຂໍ້' : 'หัวข้อ') + '</label><input class="form-input" id="wteTitle" type="text" value="' + wtEsc(t.title) + '"></div>'
     + '<div class="form-group"><label class="form-label">' + (isLao ? 'ລາຍລະອຽດ' : 'รายละเอียด') + '</label><textarea class="form-input" id="wteDesc" rows="3">' + wtEsc(t.description || '') + '</textarea></div>'
-    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ແผนก' : 'แผนก') + '</label><select class="form-input" id="wteDept">' + depts + '</select></div>'
-    + '<div style="display:flex;gap:8px;"><div class="form-group" style="flex:1;"><label class="form-label">' + (isLao ? 'ເร่งด่วน' : 'เร่งด่วน') + '</label><select class="form-input" id="wtePri">' + priOpt + '</select></div>'
-    + '<div class="form-group" style="flex:1;"><label class="form-label">' + (isLao ? 'ສະຖານะ' : 'สถานะ') + '</label><select class="form-input" id="wteStatus">' + stOpt + '</select></div></div>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ແຜນກ' : 'แผนก') + '</label><select class="form-input" id="wteDept">' + depts + '</select></div>'
+    + '<div style="display:flex;gap:8px;"><div class="form-group" style="flex:1;"><label class="form-label">' + (isLao ? 'ເຮ່ງດ່ວນ' : 'เร่งด่วน') + '</label><select class="form-input" id="wtePri">' + priOpt + '</select></div>'
+    + '<div class="form-group" style="flex:1;"><label class="form-label">' + (isLao ? 'ສະຖານະ' : 'สถานะ') + '</label><select class="form-input" id="wteStatus">' + stOpt + '</select></div></div>'
     + '<div class="action-row"><button class="btn btn-secondary" onclick="wtOpen(' + id + ')">' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
-    + '<button class="btn btn-primary" onclick="wtEditSave(' + id + ')">' + (isLao ? 'ບันทึก' : 'บันทึก') + '</button></div>'
+    + '<button class="btn btn-primary" onclick="wtEditSave(' + id + ')">' + (isLao ? 'ບັນທຶກ' : 'บันทึก') + '</button></div>'
   );
 }
 
 async function wtEditSave(id) {
   const isLao = lang === 'lo';
-  if (!(user && user.role === 'admin')) { showToast(isLao ? 'ສະເພาะ admin' : 'เฉพาะ admin', 'error'); return; }
+  if (!(user && user.role === 'admin')) { showToast(isLao ? 'ສະເພາະ admin' : 'เฉพาะ admin', 'error'); return; }
   const g = elid => document.getElementById(elid);
   const upd = {
     category: g('wteCat').value,
@@ -26266,21 +26266,21 @@ async function wtEditSave(id) {
     status: g('wteStatus').value,
     updated_at: new Date().toISOString(),
   };
-  if (!upd.title) { showToast(isLao ? 'ໃສ່ຫົວข้อ' : 'ใส่หัวข้อ', 'error'); return; }
+  if (!upd.title) { showToast(isLao ? 'ໃສ່ຫົວຂໍ້' : 'ใส่หัวข้อ', 'error'); return; }
   const { error } = await sb.from('work_tickets').update(upd).eq('id', id);
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   logActivity('work_ticket_edit', id + ' | ' + upd.title);
-  showToast(isLao ? 'ບันทึกแล้ว ✓' : 'บันทึกแล้ว ✓', 'success');
+  showToast(isLao ? 'ບັນທຶກແລ້ວ ✓' : 'บันทึกแล้ว ✓', 'success');
   closeModal();
   loadWorkTickets();
 }
 
 async function wtDelete(id) {
   const isLao = lang === 'lo';
-  if (!(user && user.role === 'admin')) { showToast(isLao ? 'ສະເພาะ admin' : 'เฉพาะ admin', 'error'); return; }
+  if (!(user && user.role === 'admin')) { showToast(isLao ? 'ສະເພາະ admin' : 'เฉพาะ admin', 'error'); return; }
   const t = _wtData.find(x => x.id === id);
   if (!t) return;
-  if (!confirm((isLao ? 'ລຶບງານ ' : 'ลบงาน ') + t.ticket_no + ' ?\n' + (isLao ? 'ລຶບແລ້ວกู้คืนไม่ได้' : 'ลบแล้วกู้คืนไม่ได้'))) return;
+  if (!confirm((isLao ? 'ລຶບງານ ' : 'ลบงาน ') + t.ticket_no + ' ?\n' + (isLao ? 'ລຶບແລ້ວກູ້ຄືນບໍ່ໄດ້' : 'ลบแล้วกู้คืนไม่ได้'))) return;
   // ลบรูปใน storage ก่อน (ถ้ามี)
   if (t.photo_urls && t.photo_urls.length) {
     try {
@@ -26322,19 +26322,19 @@ async function loadHistoryWork() {
   const badge = document.getElementById('histWorkCount');
   if (badge) badge.textContent = rows.length + issues.length;
   if (!rows.length && !issues.length) {
-    list.innerHTML = '<div style="text-align:center;padding:36px;color:var(--slate-400);"><div style="font-size:32px;">📭</div>' + (isLao ? 'ຍັງບໍ່ມีงานที่แจ้ง' : 'ยังไม่มีงานที่คุณแจ้ง') + '</div>';
+    list.innerHTML = '<div style="text-align:center;padding:36px;color:var(--slate-400);"><div style="font-size:32px;">📭</div>' + (isLao ? 'ຍັງບໍ່ມີງານທີ່ແຈ້ງ' : 'ยังไม่มีงานที่คุณแจ้ง') + '</div>';
     return;
   }
   // ส่วนแจ้งปัญหาสินค้า (product_issues)
   const issStatus = {
     open: { icon: '📥', label: isLao ? 'ລໍຖ້າ' : 'รอดำเนินการ', color: 'var(--rose-500)', bg: 'var(--rose-50)' },
-    in_progress: { icon: '⚙️', label: isLao ? 'ກຳລັງทำ' : 'กำลังดำเนินการ', color: 'var(--amber-600)', bg: 'var(--amber-50)' },
+    in_progress: { icon: '⚙️', label: isLao ? 'ກຳລັງເຮັດ' : 'กำลังดำเนินการ', color: 'var(--amber-600)', bg: 'var(--amber-50)' },
     resolved: { icon: '✅', label: isLao ? 'ແກ້ໄຂແລ້ວ' : 'แก้ไขแล้ว', color: 'var(--emerald-600)', bg: 'var(--emerald-50)' },
     cancelled: { icon: '✕', label: isLao ? 'ຍົກເລີກ' : 'ยกเลิก', color: 'var(--slate-500)', bg: 'var(--slate-100)' }
   };
   let html = '';
   if (issues.length) {
-    html += '<div style="font-size:11px;font-weight:700;color:var(--slate-500);margin:0 14px 6px;">🚨 ' + (isLao ? 'ການแจ้งปัญหาสินค้า' : 'การแจ้งปัญหาสินค้า') + '</div>';
+    html += '<div style="font-size:11px;font-weight:700;color:var(--slate-500);margin:0 14px 6px;">🚨 ' + (isLao ? 'ການແຈ້ງບັນຫາສິນຄ້າ' : 'การแจ้งปัญหาสินค้า') + '</div>';
     html += issues.map(it => {
       const c = issStatus[it.status] || issStatus.open;
       const label = (typeof T === 'function') ? T('issue_' + it.issue_type) : it.issue_type;
@@ -26343,13 +26343,13 @@ async function loadHistoryWork() {
         + '<span style="background:' + c.bg + ';color:' + c.color + ';padding:2px 9px;border-radius:9px;font-size:10px;font-weight:800;">' + c.icon + ' ' + c.label + '</span></div>'
         + '<div style="font-size:11px;color:var(--slate-600);margin-bottom:3px;">⚠️ ' + label + (it.note ? ' · ' + it.note : '') + '</div>'
         + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;">' + it.barcode + ' · ' + getTimeAgo(it.created_at, isLao) + '</div>'
-        + '<button onclick="irShowTimeline(' + it.id + ')" style="margin-top:6px;background:var(--violet-50);color:var(--violet-700);border:1px solid var(--violet-200);border-radius:7px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;">📋 ' + (isLao ? 'ຕິດຕາມສະຖານะ' : 'ติดตามสถานะ') + '</button>'
+        + '<button onclick="irShowTimeline(' + it.id + ')" style="margin-top:6px;background:var(--violet-50);color:var(--violet-700);border:1px solid var(--violet-200);border-radius:7px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;">📋 ' + (isLao ? 'ຕິດຕາມສະຖານະ' : 'ติดตามสถานะ') + '</button>'
         + '</div>';
     }).join('');
   }
   // ส่วนงานที่แจ้ง (work_tickets)
   if (rows.length) {
-    if (issues.length) html += '<div style="font-size:11px;font-weight:700;color:var(--slate-500);margin:10px 14px 6px;">📢 ' + (isLao ? 'ງານທີ່แจ้ง' : 'งานที่แจ้ง') + '</div>';
+    if (issues.length) html += '<div style="font-size:11px;font-weight:700;color:var(--slate-500);margin:10px 14px 6px;">📢 ' + (isLao ? 'ງານທີ່ແຈ້ງ' : 'งานที่แจ้ง') + '</div>';
     html += rows.map(t => {
       const s = wtStatusOf(t);
       return '<div onclick="wtOpen(' + t.id + ')" style="background:white;border:1px solid var(--slate-200);border-radius:11px;padding:11px 12px;margin:0 14px 8px;cursor:pointer;">'
@@ -26556,13 +26556,13 @@ async function expDoMarkdown(id, step) {
     : '';
   showModal(''
     + '<h3 style="font-size:15px;margin:0 0 4px;">' + (isLao ? 'ໂອນເປັນ Markdown' : 'โอนเป็น Markdown') + ' (Step ' + step + ')</h3>'
-    + '<p style="font-size:11px;color:var(--slate-500);margin:0 0 11px;">' + (item.product_name || item.barcode) + '<br>' + (isLao ? 'ບາร์ปกติ' : 'บาร์ปกติ') + ': ' + item.barcode + '</p>'
-    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ບາร์ Markdown (888...)' : 'บาร์ Markdown (888...)') + '</label>'
+    + '<p style="font-size:11px;color:var(--slate-500);margin:0 0 11px;">' + (item.product_name || item.barcode) + '<br>' + (isLao ? 'ບາປົກກະຕິ' : 'บาร์ปกติ') + ': ' + item.barcode + '</p>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ບາ Markdown (888...)' : 'บาร์ Markdown (888...)') + '</label>'
     + '<input class="form-input" id="mdBarcodeInput" type="text" value="' + autoMd + '" placeholder="' + (isLao ? 'ສະແກນ ຫຼື ພິມ' : 'สแกน หรือ พิมพ์') + '"></div>'
-    + '<button onclick="startScanForMd()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:11px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:9px;">\uD83D\uDCF7 ' + (isLao ? 'ສະແກนບາร์ Markdown' : 'สแกนบาร์ Markdown') + '</button>'
+    + '<button onclick="startScanForMd()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:11px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:9px;">\uD83D\uDCF7 ' + (isLao ? 'ສະແກນບາ Markdown' : 'สแกนบาร์ Markdown') + '</button>'
     + foundHtml
     + '<div class="action-row"><button class="btn btn-secondary" onclick="closeModal()">' + (isLao ? 'ຍົກເລີກ' : 'ยกเลิก') + '</button>'
-    + '<button class="btn btn-primary" onclick="expConfirmToMd()">' + (isLao ? 'ຢืนยัน' : 'ยืนยัน') + '</button></div>'
+    + '<button class="btn btn-primary" onclick="expConfirmToMd()">' + (isLao ? 'ຢືນຢັນ' : 'ยืนยัน') + '</button></div>'
   );
 }
 
@@ -26580,7 +26580,7 @@ async function expConfirmToMd() {
   if (!ctx) { closeModal(); return; }
   const el = document.getElementById('mdBarcodeInput');
   const mdBc = el ? el.value.trim() : '';
-  if (!mdBc) { showToast(isLao ? 'ກະລุนาໃส่บาร์ markdown' : 'กรุณาใส่บาร์ markdown', 'error'); return; }
+  if (!mdBc) { showToast(isLao ? 'ກະລຸນາໃສ່ບາ markdown' : 'กรุณาใส่บาร์ markdown', 'error'); return; }
   let mdProd = null;
   try {
     const { data } = await sb.from('products').select('*').eq('barcode', mdBc).eq('branch_id', branch.id).eq('is_active', true).maybeSingle();
@@ -26621,12 +26621,12 @@ async function expDoTransfer(id) {
   showModal(`
     <h3 style="font-size:15px;margin:0 0 11px;">🔄 ${isLao ? 'ໂອນສາຂາ' : 'โอนสาขา'}</h3>
     <div class="form-group">
-      <label class="form-label">${isLao ? 'ສາຂາปາຍທາງ' : 'สาขาปลายทาง'}</label>
+      <label class="form-label">${isLao ? 'ສາຂາປາຍທາງ' : 'สาขาปลายทาง'}</label>
       <select class="form-select" id="etrkDest">${opts}</select>
     </div>
     <div class="action-row">
       <button class="btn btn-secondary" onclick="closeModal()">${isLao ? 'ຍົກເລີກ' : 'ยกเลิก'}</button>
-      <button class="btn btn-primary" onclick="expConfirmTransfer(${id})">${isLao ? 'ຢືนยัน' : 'ยืนยัน'}</button>
+      <button class="btn btn-primary" onclick="expConfirmTransfer(${id})">${isLao ? 'ຢືນຢັນ' : 'ยืนยัน'}</button>
     </div>
   `);
 }
@@ -26778,7 +26778,7 @@ function docCanSignPosition(pos) { return docMyPositions().includes(pos); }
 function docBranchName(bid) {
   const list = window._allBranchesCache || [];
   const b = list.find(x => x.id === bid);
-  if (!b) return (lang === 'lo' ? 'ສาขา #' : 'สาขา #') + bid;
+  if (!b) return (lang === 'lo' ? 'ສາຂາ #' : 'สาขา #') + bid;
   return lang === 'lo' ? (b.name_lo || b.code || ('#' + bid)) : (b.name_th || b.code || ('#' + bid));
 }
 
@@ -26881,7 +26881,7 @@ function renderDocList() {
       const daySel = items.every(d => _docSelected.has(d.id));
       const header = '<div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0 6px;padding-left:4px;">'
         + '<span style="font-size:11.5px;font-weight:700;color:var(--slate-500);">📅 ' + dk + ' <span style="color:var(--slate-400);font-weight:600;">(' + items.length + ')</span></span>'
-        + (_docSelMode ? '<button onclick="docSelectDay(\'' + bid + '\',\'' + dk + '\')" style="border:1px solid var(--slate-200);background:' + (daySel ? 'var(--teal-50)' : 'white') + ';color:' + (daySel ? 'var(--teal-700)' : 'var(--slate-500)') + ';border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">' + (daySel ? '✓ ' : '') + (isLao ? 'ເລືອກວັນนี้' : 'เลือกวันนี้') + '</button>' : '')
+        + (_docSelMode ? '<button onclick="docSelectDay(\'' + bid + '\',\'' + dk + '\')" style="border:1px solid var(--slate-200);background:' + (daySel ? 'var(--teal-50)' : 'white') + ';color:' + (daySel ? 'var(--teal-700)' : 'var(--slate-500)') + ';border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">' + (daySel ? '✓ ' : '') + (isLao ? 'ເລືອກວັນນີ້' : 'เลือกวันนี้') + '</button>' : '')
         + '</div>';
       const cards = items.map(d => {
         const tm = docTypeMeta(d.doc_type);
@@ -26933,11 +26933,11 @@ function docNewOpen() {
     + '<input type="file" id="docNewPhotoInput" accept="image/*" capture="environment" multiple style="display:none;" onchange="docNewOnPhoto(event)">'
     + '<button type="button" onclick="document.getElementById(\'docNewPhotoInput\').click()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:12px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;margin-bottom:8px;">📷 ' + (isLao ? 'ຖ່າຍ / ເລືອກຮູບ' : 'ถ่าย / เลือกรูป') + '</button>'
     + '<div id="docNewPhotoPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px;"></div>'
-    + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:5px;">📎 ' + (isLao ? 'ເອกະສານປະກອບແນບ (ສຳລັບກວດກ່ອນເຊັນ)' : 'เอกสารประกอบแนบ (สำหรับตรวจก่อนเซ็น)') + '</div>'
+    + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:5px;">📎 ' + (isLao ? 'ເອກະສານປະກອບແນບ (ສຳລັບກວດກ່ອນເຊັນ)' : 'เอกสารประกอบแนบ (สำหรับตรวจก่อนเซ็น)') + '</div>'
     + '<input type="file" id="docNewAttachFile" accept="image/*,application/pdf" multiple style="display:none;" onchange="docNewOnAttach(event)">'
     + '<input type="file" id="docNewAttachCam" accept="image/*" capture="environment" style="display:none;" onchange="docNewOnAttach(event)">'
     + '<div style="display:flex;gap:8px;margin-bottom:8px;">'
-    + '<button type="button" onclick="document.getElementById(\'docNewAttachFile\').click()" style="flex:1;border:1.5px dashed var(--violet-300);background:var(--violet-50);border-radius:10px;padding:12px 8px;font-size:12.5px;font-weight:700;color:var(--violet-700);cursor:pointer;">📁 ' + (isLao ? 'ເລືອກໄຟລ໌/ເອกະສານ' : 'เลือกไฟล์/เอกสาร') + '</button>'
+    + '<button type="button" onclick="document.getElementById(\'docNewAttachFile\').click()" style="flex:1;border:1.5px dashed var(--violet-300);background:var(--violet-50);border-radius:10px;padding:12px 8px;font-size:12.5px;font-weight:700;color:var(--violet-700);cursor:pointer;">📁 ' + (isLao ? 'ເລືອກໄຟລ໌/ເອກະສານ' : 'เลือกไฟล์/เอกสาร') + '</button>'
     + '<button type="button" onclick="document.getElementById(\'docNewAttachCam\').click()" style="flex:1;border:1.5px dashed var(--violet-300);background:var(--violet-50);border-radius:10px;padding:12px 8px;font-size:12.5px;font-weight:700;color:var(--violet-700);cursor:pointer;">📷 ' + (isLao ? 'ຖ່າຍຮູບແນບ' : 'ถ่ายรูปแนบ') + '</button>'
     + '</div>'
     + '<div id="docNewAttachPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px;"></div>'
@@ -27051,7 +27051,7 @@ async function docSubmitNew() {
     delete insertRow.attachments; // ยังไม่ได้รัน migration → บันทึกแบบไม่มีเอกสารแนบไปก่อน
     ({ error } = await sb.from('doc_requests').insert(insertRow));
   }
-  if (error) { showToast('Error: ' + error.message, 'error'); if (btn) { btn.disabled = false; btn.innerHTML = isLao ? 'ສົ່ງເອกະສານ' : 'ส่งเอกสาร'; } return; }
+  if (error) { showToast('Error: ' + error.message, 'error'); if (btn) { btn.disabled = false; btn.innerHTML = isLao ? 'ສົ່ງເອກະສານ' : 'ส่งเอกสาร'; } return; }
   if (typeof logActivity === 'function') logActivity('doc_create', type + ' / ' + title);
   showToast(isLao ? '✓ ສົ່ງເອກະສານແລ້ວ' : '✓ ส่งเอกสารแล้ว', 'success');
   closeModal();
@@ -27086,7 +27086,7 @@ function docOpen(id) {
       + '<span style="font-size:13px;font-weight:700;color:var(--slate-700);">' + docPosLabel(pk) + '</span>'
       + (s ? '<span style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end;"><span style="font-size:11px;color:var(--emerald-700);font-weight:700;">✓ ' + escapeHtml(s.signed_by_name || '') + '</span>'
            + (docCanEditSig(pk) ? '<span style="display:inline-flex;gap:3px;align-items:center;"><button onclick="docResizeSig(\'' + d.id + '\',\'' + pk + '\',-3)" title="' + (isLao ? 'ນ້ອຍລົງ' : 'เล็กลง') + '" style="width:26px;height:26px;border:1px solid var(--slate-200);background:var(--slate-50);border-radius:7px;font-size:15px;font-weight:800;color:var(--slate-600);cursor:pointer;line-height:1;">−</button>'
-                              + '<button onclick="docResizeSig(\'' + d.id + '\',\'' + pk + '\',3)" title="' + (isLao ? 'ໃหญ่ขึ้น' : 'ใหญ่ขึ้น') + '" style="width:26px;height:26px;border:1px solid var(--slate-200);background:var(--slate-50);border-radius:7px;font-size:15px;font-weight:800;color:var(--slate-600);cursor:pointer;line-height:1;">+</button>'
+                              + '<button onclick="docResizeSig(\'' + d.id + '\',\'' + pk + '\',3)" title="' + (isLao ? 'ໃຫຍ່ຂຶ້ນ' : 'ใหญ่ขึ้น') + '" style="width:26px;height:26px;border:1px solid var(--slate-200);background:var(--slate-50);border-radius:7px;font-size:15px;font-weight:800;color:var(--slate-600);cursor:pointer;line-height:1;">+</button>'
                               + '<button onclick="docRotateSig(\'' + d.id + '\',\'' + pk + '\')" title="' + (isLao ? 'ໝຸນ' : 'หมุน') + '" style="width:26px;height:26px;border:1px solid var(--slate-200);background:var(--slate-50);border-radius:7px;font-size:13px;cursor:pointer;line-height:1;">↻</button>'
                               + (docCanSignPosition(pk) ? '<button onclick="docStartSign(\'' + d.id + '\',\'' + pk + '\')" title="' + (isLao ? 'ແກ້ໄຂລາຍເຊັນ' : 'แก้ไขลายเซ็น') + '" style="width:26px;height:26px;border:1px solid var(--sky-200);background:var(--sky-50);border-radius:7px;font-size:13px;cursor:pointer;line-height:1;">✏️</button>' : '') + '</span>' : '')
            + '</span>'
@@ -27102,14 +27102,14 @@ function docOpen(id) {
     + '<div style="font-size:11px;color:var(--slate-500);margin-bottom:11px;">🏪 ' + escapeHtml(docBranchName(d.branch_id)) + ' • ' + escapeHtml(d.created_by_name || '?') + ' • ' + (typeof getTimeAgo === 'function' ? getTimeAgo(d.created_at, isLao) : '') + '</div>'
     + (d.note ? '<div style="background:var(--slate-50);border-radius:9px;padding:9px 11px;font-size:12.5px;color:var(--slate-700);margin-bottom:11px;">' + escapeHtml(d.note) + '</div>' : '')
     + '<div id="docPhotos">' + photosHtml + '</div>'
-    + ((d.attachments || []).length ? '<div style="font-size:12px;font-weight:800;color:var(--violet-700);margin:11px 0 7px;">📎 ' + (isLao ? 'ເອกະສານປະກອບ (ກວດກ່อนເຊັน)' : 'เอกสารประกอบ (ตรวจก่อนเซ็น)') + '</div>'
+    + ((d.attachments || []).length ? '<div style="font-size:12px;font-weight:800;color:var(--violet-700);margin:11px 0 7px;">📎 ' + (isLao ? 'ເອກະສານປະກອບ (ກວດກ່ອນເຊັນ)' : 'เอกสารประกอบ (ตรวจก่อนเซ็น)') + '</div>'
         + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;">' + (d.attachments || []).map(u => /\.pdf($|\?)/i.test(u)
             ? '<a href="' + u + '" target="_blank" rel="noopener" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:78px;height:78px;border-radius:9px;border:1px solid var(--rose-200);background:var(--rose-50);text-decoration:none;color:var(--rose-600);"><span style="font-size:26px;">📄</span><span style="font-size:8px;font-weight:800;">PDF</span></a>'
             : '<a href="' + u + '" target="_blank" rel="noopener" style="display:block;width:78px;height:78px;border-radius:9px;overflow:hidden;border:1px solid var(--violet-200);"><img src="' + u + '" style="width:100%;height:100%;object-fit:cover;"></a>').join('') + '</div>' : '')
     + '<div style="font-size:12px;font-weight:800;color:var(--slate-600);margin:9px 0 7px;">' + (isLao ? 'ການເຊັນ' : 'การเซ็น') + '</div>'
     + posRows
     + '<div style="display:flex;gap:8px;margin-top:13px;">'
-    + '<button onclick="docPrint(\'' + d.id + '\')" style="flex:2;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">🖨️ ' + (isLao ? 'พิมพ์ / ບັນທຶກລົງເครื่อง' : 'พิมพ์ / บันทึกลงเครื่อง') + '</button>'
+    + '<button onclick="docPrint(\'' + d.id + '\')" style="flex:2;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">🖨️ ' + (isLao ? 'พิมพ์ / ບັນທຶກລົງເຄື່ອງ' : 'พิมพ์ / บันทึกลงเครื่อง') + '</button>'
     + (canDelete ? '<button onclick="docDelete(\'' + d.id + '\')" style="flex:1;background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">🗑️ ' + (isLao ? 'ລຶບ' : 'ลบ') + '</button>' : '')
     + '</div>');
 }
@@ -27126,11 +27126,11 @@ function docStartSign(id, position) {
     ? '<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">' + photos.map((u, i) => '<button onclick="docSignSetPage(' + i + ')" id="docPageBtn' + i + '" style="border:1.5px solid ' + (i === 0 ? 'var(--teal-500)' : 'var(--slate-200)') + ';background:' + (i === 0 ? 'var(--teal-50)' : 'white') + ';border-radius:8px;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;">' + (isLao ? 'ໜ້າ' : 'หน้า') + ' ' + (i + 1) + '</button>').join('') + '</div>'
     : '';
   showModal(''
-    + '<div style="font-size:16px;font-weight:800;margin-bottom:3px;">✍️ ' + (isLao ? 'ເຊັນເອกະສານ' : 'เซ็นเอกสาร') + '</div>'
-    + '<div style="font-size:12px;color:var(--teal-700);font-weight:700;margin-bottom:11px;">' + (isLao ? 'ໃນนามตำแหน่ง' : 'ในนามตำแหน่ง') + ': ' + docPosLabel(position) + '</div>'
+    + '<div style="font-size:16px;font-weight:800;margin-bottom:3px;">✍️ ' + (isLao ? 'ເຊັນເອກະສານ' : 'เซ็นเอกสาร') + '</div>'
+    + '<div style="font-size:12px;color:var(--teal-700);font-weight:700;margin-bottom:11px;">' + (isLao ? 'ໃນນາມຕຳແໜ່ງ' : 'ในนามตำแหน่ง') + ': ' + docPosLabel(position) + '</div>'
     + pageSel
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">'
-    + '<span style="font-size:11.5px;color:var(--slate-500);">1. ' + (isLao ? 'ແຕະຈุดที่ต้องการเซ็นบนเอกสาร' : 'แตะจุดที่ต้องการเซ็นบนเอกสาร') + '</span>'
+    + '<span style="font-size:11.5px;color:var(--slate-500);">1. ' + (isLao ? 'ແຕະຈຸດທີ່ຕ້ອງການເຊັນບົນເອກະສານ' : 'แตะจุดที่ต้องการเซ็นบนเอกสาร') + '</span>'
     + '<button type="button" onclick="docSignRotate()" style="border:1px solid var(--slate-200);background:var(--slate-50);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--slate-600);cursor:pointer;">🔄 ' + (isLao ? 'ໝຸນຮູບ' : 'หมุนรูป') + '</button>'
     + '</div>'
     + '<div id="docSignImgWrap" style="position:relative;border:1px solid var(--slate-200);border-radius:10px;overflow:hidden;margin-bottom:12px;cursor:crosshair;background:var(--slate-50);">'
@@ -27334,7 +27334,7 @@ function docCompositePage(url, sigs) {
 async function docPrint(id) {
   const d = _docData.find(x => x.id === id);
   if (!d) return;
-  showToast(lang === 'lo' ? 'ກຳລັງກຽມพิมพ์...' : 'กำลังเตรียมพิมพ์...', 'info');
+  showToast(lang === 'lo' ? 'ກຳລັງກຽມພິມ...' : 'กำลังเตรียมพิมพ์...', 'info');
   const photos = d.photo_urls || [], sigs = d.signatures || [];
   const imgs = [];
   for (let i = 0; i < photos.length; i++) {
@@ -27371,7 +27371,7 @@ async function docDelete(id) {
   const d = _docData.find(x => x.id === id);
   if (!d) return;
   const isLao = lang === 'lo';
-  if (!docCanDelete()) { showToast(isLao ? 'ສະເພาะ BCS/Admin' : 'เฉพาะ BCS/Admin เท่านั้น', 'error'); return; }
+  if (!docCanDelete()) { showToast(isLao ? 'ສະເພາະ BCS/Admin' : 'เฉพาะ BCS/Admin เท่านั้น', 'error'); return; }
   if (!confirm(isLao ? 'ລຶບເອກະສານນີ້?' : 'ลบเอกสารนี้?')) return;
   // ลบรูปออกจาก storage
   try {
@@ -27489,10 +27489,10 @@ function renderDocUsage() {
   const barColor = pct > 80 ? 'var(--rose-500)' : pct > 50 ? 'var(--amber-500)' : 'var(--teal-500)';
   el.innerHTML = ''
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">'
-    + '<span style="font-size:11.5px;font-weight:700;color:var(--slate-600);">💾 ' + (isLao ? 'ພື້ນທີ່ໃຊ້ (ປະມาณ)' : 'พื้นที่ใช้ (ประมาณ)') + '</span>'
+    + '<span style="font-size:11.5px;font-weight:700;color:var(--slate-600);">💾 ' + (isLao ? 'ພື້ນທີ່ໃຊ້ (ປະມານ)' : 'พื้นที่ใช้ (ประมาณ)') + '</span>'
     + '<span style="font-size:11.5px;font-weight:800;color:' + barColor + ';">' + docFmtBytes(used) + ' / 1 GB</span></div>'
     + '<div style="height:7px;border-radius:5px;background:var(--slate-100);overflow:hidden;"><div style="width:' + pct.toFixed(1) + '%;height:100%;background:' + barColor + ';"></div></div>'
-    + '<div style="font-size:10px;color:var(--slate-400);margin-top:4px;">' + (isLao ? 'ເອกະສານ' : 'เอกสาร') + ' ' + _docData.length + ' • ' + (isLao ? 'ຮູບ' : 'รูป') + ' ' + imgs + ' • ' + (isLao ? 'ໃຊ້ຮ່ວມกับรูปแจ้งปัญหา/แจ้งงาน' : 'ใช้ร่วมกับรูปแจ้งปัญหา/แจ้งงาน') + '</div>';
+    + '<div style="font-size:10px;color:var(--slate-400);margin-top:4px;">' + (isLao ? 'ເອກະສານ' : 'เอกสาร') + ' ' + _docData.length + ' • ' + (isLao ? 'ຮູບ' : 'รูป') + ' ' + imgs + ' • ' + (isLao ? 'ໃຊ້ຮ່ວມກັບຮູບແຈ້ງບັນຫາ/แจ้งงาน' : 'ใช้ร่วมกับรูปแจ้งปัญหา/แจ้งงาน') + '</div>';
 }
 
 let _docSelMode = false;
@@ -27516,7 +27516,7 @@ function docSelectDay(bid, dayKey) {
 }
 async function docDeleteSelected() {
   const isLao = lang === 'lo';
-  if (!docCanDelete()) { showToast(isLao ? 'ສະເພาะ BCS/Admin' : 'เฉพาะ BCS/Admin เท่านั้น', 'error'); return; }
+  if (!docCanDelete()) { showToast(isLao ? 'ສະເພາະ BCS/Admin' : 'เฉพาะ BCS/Admin เท่านั้น', 'error'); return; }
   if (!_docSelected.size) { showToast(isLao ? 'ຍັງບໍ່ໄດ້ເລືອກ' : 'ยังไม่ได้เลือก', 'warning'); return; }
   if (!confirm((isLao ? 'ລຶບ ' : 'ลบ ') + _docSelected.size + (isLao ? ' ເອກະສານ?' : ' เอกสาร?'))) return;
   const ids = [..._docSelected];
@@ -27585,21 +27585,21 @@ function renderCmpPage() {
   if (!_cmpStore) {
     // ── ขั้นที่ 1: เลือก/สร้างร้านคู่แข่ง (เข้าร่วมร้านที่คนอื่นกำลังสำรวจได้) ──
     top = '<div style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.04);margin-bottom:11px;">'
-      + '<div style="font-size:13px;font-weight:700;color:var(--slate-700);margin-bottom:7px;">🏬 ' + (isLao ? 'ສຳຫຼວດร้านใหม่' : 'สำรวจร้านใหม่') + '</div>'
-      + '<input id="cmpStoreInput" placeholder="' + (isLao ? 'ຊື່ຮ້ານຄູ່ແข่ง' : 'ชื่อร้านคู่แข่ง') + '" onkeydown="if(event.key===\'Enter\')cmpStartSession()" style="width:100%;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:15px;margin-bottom:10px;">'
-      + '<button onclick="cmpStartSession()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:11px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;">' + (isLao ? 'ເລີ່ມเทียบราคา →' : 'เริ่มเทียบราคา →') + '</button>'
+      + '<div style="font-size:13px;font-weight:700;color:var(--slate-700);margin-bottom:7px;">🏬 ' + (isLao ? 'ສຳຫຼວດຮ້ານໃໝ່' : 'สำรวจร้านใหม่') + '</div>'
+      + '<input id="cmpStoreInput" placeholder="' + (isLao ? 'ຊື່ຮ້ານຄູ່ແຂ່ງ' : 'ชื่อร้านคู่แข่ง') + '" onkeydown="if(event.key===\'Enter\')cmpStartSession()" style="width:100%;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:15px;margin-bottom:10px;">'
+      + '<button onclick="cmpStartSession()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:11px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;">' + (isLao ? 'ເລີ່ມທຽບລາຄາ →' : 'เริ่มเทียบราคา →') + '</button>'
       + '</div>'
-      + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:7px;">👥 ' + (isLao ? 'ຮ້ານที่กำลังสำรวจ — แตะเพื่อเข้าร่วม' : 'ร้านที่กำลังสำรวจ — แตะเพื่อเข้าร่วม') + '</div>'
+      + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:7px;">👥 ' + (isLao ? 'ຮ້ານທີ່ກຳລັງສຳຫຼວດ — แตะเพื่อเข้าร่วม' : 'ร้านที่กำลังสำรวจ — แตะเพื่อเข้าร่วม') + '</div>'
       + '<div id="cmpStoreList"><div style="text-align:center;padding:14px;"><div class="loader"></div></div></div>';
   } else {
     // ── ขั้นที่ 2: กำลังเทียบกับร้านนี้ ──
     top = '<div style="display:flex;align-items:center;gap:8px;background:var(--teal-50);border:1px solid var(--teal-200);border-radius:11px;padding:11px 13px;margin-bottom:11px;">'
       + '<span style="font-size:18px;">🏬</span>'
-      + '<div style="flex:1;min-width:0;"><div style="font-size:9.5px;color:var(--teal-700);">' + (isLao ? 'ກຳລັງเทียบกับ' : 'กำลังเทียบกับ') + '</div><div style="font-size:15px;font-weight:800;color:var(--teal-800);line-height:1.2;">' + cmpEsc(_cmpStore) + '</div></div>'
+      + '<div style="flex:1;min-width:0;"><div style="font-size:9.5px;color:var(--teal-700);">' + (isLao ? 'ກຳລັງທຽບກັບ' : 'กำลังเทียบกับ') + '</div><div style="font-size:15px;font-weight:800;color:var(--teal-800);line-height:1.2;">' + cmpEsc(_cmpStore) + '</div></div>'
       + '<button onclick="cmpEndSession()" style="border:none;background:var(--teal-600);color:white;border-radius:9px;padding:9px 13px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;">✓ ' + (isLao ? 'ເສັຈ/ร้านใหม่' : 'เสร็จ/ร้านใหม่') + '</button>'
       + '</div>'
       + '<div style="display:flex;gap:7px;margin-bottom:11px;">'
-      + '<input id="cmpBarcode" inputmode="text" placeholder="' + (isLao ? 'ບາໂค้ด / ชื่อสินค้า' : 'บาร์โค้ด / ชื่อสินค้า') + '" onkeydown="if(event.key===\'Enter\')cmpLookup()" style="flex:1;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:14px;font-family:monospace;">'
+      + '<input id="cmpBarcode" inputmode="text" placeholder="' + (isLao ? 'ບາໂຄ້ດ / ชื่อสินค้า' : 'บาร์โค้ด / ชื่อสินค้า') + '" onkeydown="if(event.key===\'Enter\')cmpLookup()" style="flex:1;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:14px;font-family:monospace;">'
       + '<button onclick="cmpStartScan()" style="border:none;background:var(--fs-blue);color:white;border-radius:10px;padding:0 15px;font-size:18px;cursor:pointer;">📷</button>'
       + '<button onclick="cmpLookup()" style="border:none;background:var(--slate-700);color:white;border-radius:10px;padding:0 15px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? 'ຄົ້ນ' : 'ค้นหา') + '</button>'
       + '</div>'
@@ -27609,8 +27609,8 @@ function renderCmpPage() {
     + '<div style="display:flex;align-items:center;gap:9px;margin-bottom:12px;">'
     + '<button onclick="goPage(getHomePage())" style="border:1px solid var(--slate-200);background:white;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
     + '</div>'
-    + '<h2 style="font-size:19px;font-weight:800;color:var(--slate-800);margin:0 0 3px;">🆚 ' + (isLao ? 'ທຽບລາຄາຄູ່ແข่ง' : 'เทียบราคาคู่แข่ง') + '</h2>'
-    + '<div style="font-size:12px;color:var(--slate-500);margin-bottom:13px;">' + (isLao ? 'ເລືอกร้าน → สแกน → ใส่ราคาคู่แข่ง → บันทึก' : 'เลือกร้าน → สแกน → ใส่ราคาคู่แข่ง → บันทึก') + '</div>'
+    + '<h2 style="font-size:19px;font-weight:800;color:var(--slate-800);margin:0 0 3px;">🆚 ' + (isLao ? 'ທຽບລາຄາຄູ່ແຂ່ງ' : 'เทียบราคาคู่แข่ง') + '</h2>'
+    + '<div style="font-size:12px;color:var(--slate-500);margin-bottom:13px;">' + (isLao ? 'ເລືອກຮ້ານ → สแกน → ใส่ราคาคู่แข่ง → บันทึก' : 'เลือกร้าน → สแกน → ใส่ราคาคู่แข่ง → บันทึก') + '</div>'
     + top
     + '<div style="border-top:1px solid var(--slate-200);margin:18px 0 13px;"></div>'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;gap:8px;flex-wrap:wrap;">'
@@ -27622,12 +27622,12 @@ function renderCmpPage() {
     + '</div>'
     // ตัวจัดเรียง
     + '<div style="display:flex;align-items:center;gap:7px;margin-bottom:11px;">'
-    + '<span style="font-size:11.5px;color:var(--slate-500);font-weight:700;">↕️ ' + (isLao ? 'ຈัดเรียง' : 'จัดเรียง') + '</span>'
+    + '<span style="font-size:11.5px;color:var(--slate-500);font-weight:700;">↕️ ' + (isLao ? 'ຈັດຮຽງ' : 'จัดเรียง') + '</span>'
     + '<select id="cmpSortSel" onchange="cmpSetSort(this.value)" style="flex:1;border:1.5px solid var(--slate-200);border-radius:9px;padding:8px 10px;font-size:12.5px;font-weight:700;color:var(--slate-700);background:white;">'
-    + '<option value="recent"' + (_cmpSort === 'recent' ? ' selected' : '') + '>' + (isLao ? 'ໃໝ່ສຸด' : 'ล่าสุด') + '</option>'
-    + '<option value="category"' + (_cmpSort === 'category' ? ' selected' : '') + '>' + (isLao ? 'ປະເພດສินค้า' : 'ประเภทสินค้า') + '</option>'
+    + '<option value="recent"' + (_cmpSort === 'recent' ? ' selected' : '') + '>' + (isLao ? 'ໃໝ່ສຸດ' : 'ล่าสุด') + '</option>'
+    + '<option value="category"' + (_cmpSort === 'category' ? ' selected' : '') + '>' + (isLao ? 'ປະເພດສິນຄ້າ' : 'ประเภทสินค้า') + '</option>'
     + '<option value="diff"' + (_cmpSort === 'diff' ? ' selected' : '') + '>' + (isLao ? 'ສ່ວນຕ່າງ (ຫຼາຍ→ໜ້ອຍ)' : 'ส่วนต่าง (มาก→น้อย)') + '</option>'
-    + '<option value="name"' + (_cmpSort === 'name' ? ' selected' : '') + '>' + (isLao ? 'ຊື່ສินค้า' : 'ชื่อสินค้า') + '</option>'
+    + '<option value="name"' + (_cmpSort === 'name' ? ' selected' : '') + '>' + (isLao ? 'ຊື່ສິນຄ້າ' : 'ชื่อสินค้า') + '</option>'
     + '</select>'
     + '</div>'
     + '<div id="cmpList"><div style="text-align:center;padding:18px;"><div class="loader"></div></div></div>'
@@ -27655,13 +27655,13 @@ async function cmpLoadStores() {
     if (r.created_at > map[s].last) map[s].last = r.created_at;
   });
   const stores = Object.values(map).sort((a, b) => (b.last || '').localeCompare(a.last || ''));
-  if (!stores.length) { wrap.innerHTML = '<div style="text-align:center;color:var(--slate-400);font-size:12px;padding:14px;">' + (isLao ? 'ຍັງບໍ່ມีร้านที่สำรวจ' : 'ยังไม่มีร้านที่สำรวจ') + '</div>'; return; }
+  if (!stores.length) { wrap.innerHTML = '<div style="text-align:center;color:var(--slate-400);font-size:12px;padding:14px;">' + (isLao ? 'ຍັງບໍ່ມີຮ້ານທີ່ສຳຫຼວດ' : 'ยังไม่มีร้านที่สำรวจ') + '</div>'; return; }
   wrap.innerHTML = stores.map(s =>
     '<button onclick="cmpJoinStore(\'' + cmpEsc(s.store).replace(/'/g, '&#39;') + '\')" style="width:100%;text-align:left;border:1px solid var(--teal-200);background:var(--teal-50);border-radius:10px;padding:11px 13px;margin-bottom:7px;cursor:pointer;display:flex;align-items:center;gap:10px;">'
     + '<span style="font-size:17px;">🏬</span>'
     + '<span style="flex:1;min-width:0;"><span style="font-size:14px;font-weight:800;color:var(--teal-800);display:block;line-height:1.3;">' + cmpEsc(s.store) + '</span>'
-    + '<span style="font-size:10.5px;color:var(--teal-700);">' + s.count + (isLao ? ' ລາຍการ · ' : ' รายการ · ') + '👥 ' + Array.from(s.people).map(cmpEsc).join(', ') + '</span></span>'
-    + '<span style="font-size:12px;font-weight:800;color:var(--teal-600);white-space:nowrap;">' + (isLao ? 'ເข้าร่วม →' : 'เข้าร่วม →') + '</span>'
+    + '<span style="font-size:10.5px;color:var(--teal-700);">' + s.count + (isLao ? ' ລາຍການ · ' : ' รายการ · ') + '👥 ' + Array.from(s.people).map(cmpEsc).join(', ') + '</span></span>'
+    + '<span style="font-size:12px;font-weight:800;color:var(--teal-600);white-space:nowrap;">' + (isLao ? 'ເຂົ້າຮ່ວມ →' : 'เข้าร่วม →') + '</span>'
     + '</button>'
   ).join('');
 }
@@ -27671,7 +27671,7 @@ function cmpRerender() { const c = document.getElementById('appContent'); if (c)
 function cmpStartSession() {
   const isLao = lang === 'lo';
   const v = (document.getElementById('cmpStoreInput').value || '').trim();
-  if (!v) { showToast(isLao ? 'ໃສ່ชื่อร้าน' : 'ใส่ชื่อร้านคู่แข่ง', 'error'); return; }
+  if (!v) { showToast(isLao ? 'ໃສ່ຊື່ຮ້ານ' : 'ใส่ชื่อร้านคู่แข่ง', 'error'); return; }
   _cmpStore = v; _cmpProduct = null; _cmpPhotos = [];
   cmpRerender();
   setTimeout(() => { const b = document.getElementById('cmpBarcode'); if (b) b.focus(); }, 60);
@@ -27681,7 +27681,7 @@ function cmpEndSession() { _cmpStore = ''; _cmpProduct = null; _cmpPhotos = []; 
 async function cmpStartScan() {
   window._scanCallback = (bc) => { const i = document.getElementById('cmpBarcode'); if (i) i.value = bc; cmpLookup(); };
   if (typeof triggerPhotoScan === 'function') triggerPhotoScan('cmp');
-  else showToast(lang === 'lo' ? 'ສแกนไม่ได้' : 'สแกนไม่ได้', 'error');
+  else showToast(lang === 'lo' ? 'ສະແກນບໍ່ໄດ້' : 'สแกนไม่ได้', 'error');
 }
 
 async function cmpLookup() {
@@ -27702,8 +27702,8 @@ async function cmpSearchByName(term) {
     rows = data || [];
   } catch (e) {}
   if (!info) return;
-  if (!rows.length) { info.innerHTML = '<div style="background:var(--amber-50);border:1.5px solid var(--amber-300);border-radius:11px;padding:14px;text-align:center;color:var(--amber-700);font-size:13px;font-weight:700;">🔍 ' + (isLao ? 'ບໍ່ພບสินค้าชื่อ' : 'ไม่พบสินค้าชื่อ') + ' "' + cmpEsc(term) + '"</div>'; _cmpProduct = null; return; }
-  info.innerHTML = '<div style="font-size:11.5px;color:var(--slate-500);margin-bottom:7px;">' + (isLao ? 'ພบ ' : 'พบ ') + rows.length + (isLao ? ' ລາຍการ — ແຕะเพื่อเลือก' : ' รายการ — แตะเพื่อเลือก') + '</div>'
+  if (!rows.length) { info.innerHTML = '<div style="background:var(--amber-50);border:1.5px solid var(--amber-300);border-radius:11px;padding:14px;text-align:center;color:var(--amber-700);font-size:13px;font-weight:700;">🔍 ' + (isLao ? 'ບໍ່ພົບສິນຄ້າຊື່' : 'ไม่พบสินค้าชื่อ') + ' "' + cmpEsc(term) + '"</div>'; _cmpProduct = null; return; }
+  info.innerHTML = '<div style="font-size:11.5px;color:var(--slate-500);margin-bottom:7px;">' + (isLao ? 'ພົບ ' : 'พบ ') + rows.length + (isLao ? ' ລາຍການ — ແຕະເພື່ອເລືອກ' : ' รายการ — แตะเพื่อเลือก') + '</div>'
     + '<div style="display:flex;flex-direction:column;gap:6px;">'
     + rows.map(r => {
         const nm = isLao ? (r.name_lo || r.name_th || '?') : (r.name_th || r.name_lo || '?');
@@ -27732,7 +27732,7 @@ async function cmpLookupBarcode(bc) {
   } catch (e) {}
   let lastBuy = null, lastSale = null;
   try { const { data: ps } = await sb.from('product_status').select('last_buy,last_sale').eq('barcode', bc).maybeSingle(); if (ps) { lastBuy = ps.last_buy; lastSale = ps.last_sale; } } catch (e) {}
-  if (!name) { info.innerHTML = '<div style="background:var(--rose-50);border:1.5px solid var(--rose-300);border-radius:11px;padding:14px;text-align:center;color:var(--rose-700);font-size:13px;font-weight:700;">⚠️ ' + (isLao ? 'ບໍ່ພບสินค้า' : 'ไม่พบสินค้า') + ': <code>' + cmpEsc(bc) + '</code></div>'; _cmpProduct = null; return; }
+  if (!name) { info.innerHTML = '<div style="background:var(--rose-50);border:1.5px solid var(--rose-300);border-radius:11px;padding:14px;text-align:center;color:var(--rose-700);font-size:13px;font-weight:700;">⚠️ ' + (isLao ? 'ບໍ່ພົບສິນຄ້າ' : 'ไม่พบสินค้า') + ': <code>' + cmpEsc(bc) + '</code></div>'; _cmpProduct = null; return; }
   // ⭐ กันซ้ำ: สินค้านี้ถูกเทียบในร้านนี้แล้วหรือยัง (ของใครก็ได้ในทีม)
   _cmpDup = null;
   try {
@@ -27748,30 +27748,30 @@ async function cmpLookupBarcode(bc) {
     + (category ? '<div style="display:inline-block;font-size:10px;font-weight:700;color:var(--violet-700);background:var(--violet-50);border-radius:6px;padding:2px 8px;margin-bottom:9px;">🏷️ ' + cmpEsc(category) + '</div>' : '')
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:9px 0 13px;">'
     + cell((isLao ? 'ລາຄາຂາຍ (FS)' : 'ราคาขาย (FS)'), cmpNum(price) + ' ₭', 'var(--teal-700)')
-    + cell((isLao ? 'ສະຕ໋ອก' : 'สต๊อก'), cmpNum(stock) + (unit ? ' ' + cmpEsc(unit) : ''))
-    + cell((isLao ? 'ຊื้อล่าสุด' : 'ซื้อล่าสุด'), cmpFmtDate(lastBuy))
-    + cell((isLao ? 'ຂາຍล่าสุด' : 'ขายล่าสุด'), cmpFmtDate(lastSale))
+    + cell((isLao ? 'ສະຕ໋ອກ' : 'สต๊อก'), cmpNum(stock) + (unit ? ' ' + cmpEsc(unit) : ''))
+    + cell((isLao ? 'ຊື້ຫຼ້າສຸດ' : 'ซื้อล่าสุด'), cmpFmtDate(lastBuy))
+    + cell((isLao ? 'ຂາຍຫຼ້າສຸດ' : 'ขายล่าสุด'), cmpFmtDate(lastSale))
     + '</div>';
   if (_cmpDup) {
     // มีคนเทียบแล้ว → กันซ้ำ ไม่ให้บันทึกอีก
     html += '<div style="background:var(--rose-50);border:1.5px solid var(--rose-300);border-radius:11px;padding:13px;text-align:center;">'
-      + '<div style="font-size:13px;font-weight:800;color:var(--rose-700);margin-bottom:3px;">⚠️ ' + (isLao ? 'ສินค้านี้ถูกเทียบแล้วในร้านนี้' : 'สินค้านี้ถูกเทียบแล้วในร้านนี้') + '</div>'
-      + '<div style="font-size:12px;color:var(--rose-600);">' + (isLao ? 'ໂดย' : 'โดย') + ' ' + cmpEsc(_cmpDup.created_by_name || '?') + ' · ' + (isLao ? 'ຄ่ູแข่ง' : 'คู่แข่ง') + ' ' + cmpNum(_cmpDup.competitor_price) + ' ₭</div>'
-      + '<div style="font-size:11px;color:var(--slate-500);margin-top:6px;">' + (isLao ? 'ກັນຊ້ำ — ບໍ່ต้องเทียบอีก (แก้ที่รายการด้านล่างถ้าผิด)' : 'กันซ้ำ — ไม่ต้องเทียบอีก (แก้ที่รายการด้านล่างถ้าผิด)') + '</div>'
+      + '<div style="font-size:13px;font-weight:800;color:var(--rose-700);margin-bottom:3px;">⚠️ ' + (isLao ? 'ສິນຄ້ານີ້ຖືກທຽບແລ້ວໃນຮ້ານນີ້' : 'สินค้านี้ถูกเทียบแล้วในร้านนี้') + '</div>'
+      + '<div style="font-size:12px;color:var(--rose-600);">' + (isLao ? 'ໂດຍ' : 'โดย') + ' ' + cmpEsc(_cmpDup.created_by_name || '?') + ' · ' + (isLao ? 'ຄູ່ແຂ່ງ' : 'คู่แข่ง') + ' ' + cmpNum(_cmpDup.competitor_price) + ' ₭</div>'
+      + '<div style="font-size:11px;color:var(--slate-500);margin-top:6px;">' + (isLao ? 'ກັນຊ້ຳ — ບໍ່ຕ້ອງທຽບອີກ (แก้ที่รายการด้านล่างถ้าผิด)' : 'กันซ้ำ — ไม่ต้องเทียบอีก (แก้ที่รายการด้านล่างถ้าผิด)') + '</div>'
       + '</div>';
   } else {
-    html += '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:5px;">💰 ' + (isLao ? 'ລາຄາຄູ່ແข่ง' : 'ราคาคู่แข่ง') + '</div>'
+    html += '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:5px;">💰 ' + (isLao ? 'ລາຄາຄູ່ແຂ່ງ' : 'ราคาคู่แข่ง') + '</div>'
       + '<input id="cmpCompPrice" inputmode="decimal" placeholder="0" oninput="cmpUpdateDiff()" style="width:100%;border:1.5px solid var(--amber-300);border-radius:10px;padding:12px;font-size:16px;font-weight:800;font-family:\'Space Grotesk\',monospace;color:var(--amber-700);margin-bottom:4px;">'
       + '<div id="cmpDiff" style="font-size:12px;font-weight:700;min-height:16px;margin-bottom:11px;"></div>'
       + '<input type="file" id="cmpPhotoFile" accept="image/*" multiple style="display:none;" onchange="cmpOnPhoto(event)">'
       + '<input type="file" id="cmpPhotoCam" accept="image/*" capture="environment" style="display:none;" onchange="cmpOnPhoto(event)">'
       + '<div style="display:flex;gap:8px;margin-bottom:7px;">'
-      + '<button type="button" onclick="document.getElementById(\'cmpPhotoFile\').click()" style="flex:1;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:11px;font-size:12.5px;font-weight:700;color:var(--slate-600);cursor:pointer;">📁 ' + (isLao ? 'ເລືອกรูป' : 'เลือกรูป') + '</button>'
-      + '<button type="button" onclick="document.getElementById(\'cmpPhotoCam\').click()" style="flex:1;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:11px;font-size:12.5px;font-weight:700;color:var(--slate-600);cursor:pointer;">📷 ' + (isLao ? 'ຖ່າຍຮูป' : 'ถ่ายรูป') + '</button>'
+      + '<button type="button" onclick="document.getElementById(\'cmpPhotoFile\').click()" style="flex:1;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:11px;font-size:12.5px;font-weight:700;color:var(--slate-600);cursor:pointer;">📁 ' + (isLao ? 'ເລືອກຮູບ' : 'เลือกรูป') + '</button>'
+      + '<button type="button" onclick="document.getElementById(\'cmpPhotoCam\').click()" style="flex:1;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:11px;font-size:12.5px;font-weight:700;color:var(--slate-600);cursor:pointer;">📷 ' + (isLao ? 'ຖ່າຍຮູບ' : 'ถ่ายรูป') + '</button>'
       + '</div>'
       + '<div id="cmpPhotoPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px;"></div>'
-      + '<textarea id="cmpNote" rows="2" placeholder="' + (isLao ? 'ໝາຍເຫด' : 'หมายเหตุเพิ่มเติม') + '" style="width:100%;border:1.5px solid var(--slate-200);border-radius:10px;padding:11px;font-size:13px;resize:vertical;margin-bottom:12px;"></textarea>'
-      + '<button onclick="cmpSave()" id="cmpSaveBtn" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;">✓ ' + (isLao ? 'ບັນທຶก' : 'บันทึก') + '</button>';
+      + '<textarea id="cmpNote" rows="2" placeholder="' + (isLao ? 'ໝາຍເຫດ' : 'หมายเหตุเพิ่มเติม') + '" style="width:100%;border:1.5px solid var(--slate-200);border-radius:10px;padding:11px;font-size:13px;resize:vertical;margin-bottom:12px;"></textarea>'
+      + '<button onclick="cmpSave()" id="cmpSaveBtn" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;">✓ ' + (isLao ? 'ບັນທຶກ' : 'บันทึก') + '</button>';
   }
   html += '</div>';
   info.innerHTML = html;
@@ -27783,9 +27783,9 @@ function cmpUpdateDiff() {
   const comp = parseFloat((document.getElementById('cmpCompPrice').value || '').replace(/,/g, ''));
   if (isNaN(comp) || comp <= 0) { el.textContent = ''; return; }
   const diff = (_cmpProduct.fs_price || 0) - comp;
-  if (diff > 0) el.innerHTML = '<span style="color:var(--rose-600);">▲ ' + (isLao ? 'ເຮົາແพงกว่า' : 'เราแพงกว่า') + ' ' + cmpNum(Math.abs(diff)) + ' ₭</span>';
-  else if (diff < 0) el.innerHTML = '<span style="color:var(--emerald-600);">▼ ' + (isLao ? 'ເຮົາຖืกกว่า' : 'เราถูกกว่า') + ' ' + cmpNum(Math.abs(diff)) + ' ₭</span>';
-  else el.innerHTML = '<span style="color:var(--slate-500);">= ' + (isLao ? 'ເທົ່າກัน' : 'เท่ากัน') + '</span>';
+  if (diff > 0) el.innerHTML = '<span style="color:var(--rose-600);">▲ ' + (isLao ? 'ເຮົາແພງກວ່າ' : 'เราแพงกว่า') + ' ' + cmpNum(Math.abs(diff)) + ' ₭</span>';
+  else if (diff < 0) el.innerHTML = '<span style="color:var(--emerald-600);">▼ ' + (isLao ? 'ເຮົາຖືກກວ່າ' : 'เราถูกกว่า') + ' ' + cmpNum(Math.abs(diff)) + ' ₭</span>';
+  else el.innerHTML = '<span style="color:var(--slate-500);">= ' + (isLao ? 'ເທົ່າກັນ' : 'เท่ากัน') + '</span>';
 }
 
 function cmpOnPhoto(e) { const files = Array.from(e.target.files || []); e.target.value = ''; files.forEach(f => wrCompressImage(f, (blob, dataUrl) => { _cmpPhotos.push({ blob, dataUrl }); cmpRenderPhotos(); })); }
@@ -27808,14 +27808,14 @@ function cmpRotatePhoto(i) {
 
 async function cmpSave() {
   const isLao = lang === 'lo';
-  if (!_cmpProduct) { showToast(isLao ? 'ສแกนสินค้าก่อน' : 'สแกนสินค้าก่อน', 'error'); return; }
+  if (!_cmpProduct) { showToast(isLao ? 'ສະແກນສິນຄ້າກ່ອນ' : 'สแกนสินค้าก่อน', 'error'); return; }
   // กันซ้ำอีกชั้นตอนบันทึก (เผื่อมีคนบันทึกพร้อมกัน)
   try {
     const { data: dup } = await sb.from('competitor_prices').select('id,created_by_name').eq('branch_id', branch.id).eq('competitor_store', _cmpStore).eq('barcode', _cmpProduct.barcode).limit(1).maybeSingle();
-    if (dup) { showToast((isLao ? '⚠️ ຊ້ำ — ' : '⚠️ ซ้ำ — ') + (dup.created_by_name || '') + (isLao ? ' ເທียบแล้ว' : ' เทียบแล้ว'), 'error'); _cmpDup = dup; cmpLookupBarcode(_cmpProduct.barcode); return; }
+    if (dup) { showToast((isLao ? '⚠️ ຊ້ຳ — ' : '⚠️ ซ้ำ — ') + (dup.created_by_name || '') + (isLao ? ' ທຽບແລ້ວ' : ' เทียบแล้ว'), 'error'); _cmpDup = dup; cmpLookupBarcode(_cmpProduct.barcode); return; }
   } catch (e) {}
   const comp = parseFloat((document.getElementById('cmpCompPrice').value || '').replace(/,/g, ''));
-  if (isNaN(comp) || comp <= 0) { showToast(isLao ? 'ໃສ່ราคาคู่แข่ง' : 'ใส่ราคาคู่แข่ง', 'error'); return; }
+  if (isNaN(comp) || comp <= 0) { showToast(isLao ? 'ໃສ່ລາຄາຄູ່ແຂ່ງ' : 'ใส่ราคาคู่แข่ง', 'error'); return; }
   const btn = document.getElementById('cmpSaveBtn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader" style="margin:0 auto;"></div>'; }
   const photoUrls = [];
@@ -27831,9 +27831,9 @@ async function cmpSave() {
     created_by: user.id, created_by_name: user.full_name || user.username || '',
   };
   const { error } = await sb.from('competitor_prices').insert(payload);
-  if (error) { showToast('Error: ' + error.message, 'error'); if (btn) { btn.disabled = false; btn.innerHTML = '✓ ' + (isLao ? 'ບັນທຶก' : 'บันทึก'); } return; }
+  if (error) { showToast('Error: ' + error.message, 'error'); if (btn) { btn.disabled = false; btn.innerHTML = '✓ ' + (isLao ? 'ບັນທຶກ' : 'บันทึก'); } return; }
   if (typeof logActivity === 'function') logActivity('cmpprice_create', _cmpProduct.barcode + ' | ' + _cmpStore + ' | FS ' + _cmpProduct.fs_price + ' vs ' + comp);
-  showToast(isLao ? '✓ ບັນທຶກແລ້ว' : '✓ บันทึกแล้ว', 'success');
+  showToast(isLao ? '✓ ບັນທຶກແລ້ວ' : '✓ บันทึกแล้ว', 'success');
   _cmpProduct = null; _cmpPhotos = []; _cmpDup = null;
   document.getElementById('cmpInfo').innerHTML = '';
   const bcEl = document.getElementById('cmpBarcode'); if (bcEl) { bcEl.value = ''; bcEl.focus(); }
@@ -27868,7 +27868,7 @@ function cmpRenderList() {
   const wrap = document.getElementById('cmpList');
   if (!wrap) return;
   const rows = _cmpData || [];
-  if (!rows.length) { wrap.innerHTML = '<div style="text-align:center;color:var(--slate-400);font-size:13px;padding:22px;">' + (isLao ? 'ຍັງບໍ່ມีรายการ' : 'ยังไม่มีรายการ') + '</div>'; return; }
+  if (!rows.length) { wrap.innerHTML = '<div style="text-align:center;color:var(--slate-400);font-size:13px;padding:22px;">' + (isLao ? 'ຍັງບໍ່ມີລາຍການ' : 'ยังไม่มีรายการ') + '</div>'; return; }
   const canDel = (r) => (['admin', 'scc', 'bcs'].includes((user && user.role) || '')) || (r.created_by === user.id);
   // จัดกลุ่มตามร้าน
   const groups = {};
@@ -27883,7 +27883,7 @@ function cmpRenderList() {
     const items = cmpSortRows(groups[store]);
     html += '<div style="display:flex;align-items:center;gap:7px;margin:15px 0 8px;padding:8px 11px;background:var(--teal-50);border-radius:9px;">'
       + '<span style="font-size:15px;">🏬</span><span style="font-size:14px;font-weight:800;color:var(--teal-800);flex:1;">' + cmpEsc(store) + '</span>'
-      + '<span style="font-size:11px;font-weight:700;color:var(--teal-600);">' + items.length + (isLao ? ' ລາຍการ' : ' รายการ') + '</span></div>';
+      + '<span style="font-size:11px;font-weight:700;color:var(--teal-600);">' + items.length + (isLao ? ' ລາຍການ' : ' รายการ') + '</span></div>';
     items.forEach(r => {
       const diff = (r.fs_price || 0) - (r.competitor_price || 0);
       const diffTxt = diff > 0 ? '<span style="color:var(--rose-600);">▲ ' + cmpNum(Math.abs(diff)) + '</span>' : (diff < 0 ? '<span style="color:var(--emerald-600);">▼ ' + cmpNum(Math.abs(diff)) + '</span>' : '<span style="color:var(--slate-400);">=</span>');
@@ -27893,7 +27893,7 @@ function cmpRenderList() {
         + '<div style="flex:1;min-width:0;">'
         + '<div style="font-size:13px;font-weight:700;color:var(--slate-800);line-height:1.3;">' + cmpEsc(r.product_name || '') + '</div>'
         + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;margin-bottom:3px;">' + cmpEsc(r.barcode || '') + (r.category ? ' · 🏷️ ' + cmpEsc(r.category) : '') + '</div>'
-        + '<div style="font-size:12px;color:var(--slate-600);">FS <b style="font-family:\'Space Grotesk\',monospace;">' + cmpNum(r.fs_price) + '</b> · ' + (isLao ? 'ຄູ່ແข่ง' : 'คู่แข่ง') + ' <b style="font-family:\'Space Grotesk\',monospace;color:var(--amber-700);">' + cmpNum(r.competitor_price) + '</b> · ' + diffTxt + '</div>'
+        + '<div style="font-size:12px;color:var(--slate-600);">FS <b style="font-family:\'Space Grotesk\',monospace;">' + cmpNum(r.fs_price) + '</b> · ' + (isLao ? 'ຄູ່ແຂ່ງ' : 'คู่แข่ง') + ' <b style="font-family:\'Space Grotesk\',monospace;color:var(--amber-700);">' + cmpNum(r.competitor_price) + '</b> · ' + diffTxt + '</div>'
         + (r.note ? '<div style="font-size:11px;color:var(--slate-500);margin-top:3px;">📝 ' + cmpEsc(r.note) + '</div>' : '')
         + '<div style="font-size:10px;color:var(--slate-400);margin-top:3px;">' + cmpEsc(r.created_by_name || '') + ' · ' + cmpFmtDate(r.created_at) + '</div>'
         + '</div>'
@@ -27911,14 +27911,14 @@ async function cmpDelete(id) {
   const { error } = await sb.from('competitor_prices').delete().eq('id', id);
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   (r.photo_urls || []).forEach(async u => { const m = u && u.match(/ticket-photos\/(.+)$/); if (m) { try { await sb.storage.from('ticket-photos').remove([m[1]]); } catch (e) {} } });
-  showToast(isLao ? '✓ ລຶບແລ້ว' : '✓ ลบแล้ว', 'success');
+  showToast(isLao ? '✓ ລຶບແລ້ວ' : '✓ ลบแล้ว', 'success');
   cmpLoadList();
 }
 
 // Excel — แยก sheet ตามร้าน
 function cmpExport() {
   const isLao = lang === 'lo';
-  if (!_cmpData || !_cmpData.length) { showToast(isLao ? 'ບໍ່ມีข้อมูล' : 'ไม่มีข้อมูล', 'error'); return; }
+  if (!_cmpData || !_cmpData.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'error'); return; }
   if (typeof XLSX === 'undefined') { showToast('XLSX not loaded', 'error'); return; }
   const groups = {};
   _cmpData.forEach(r => { const k = (r.competitor_store || '—').trim() || '—'; (groups[k] = groups[k] || []).push(r); });
@@ -27943,11 +27943,11 @@ function cmpExport() {
 // PDF — แยกหน้าตามร้าน
 function cmpExportPdf() {
   const isLao = lang === 'lo';
-  if (!_cmpData || !_cmpData.length) { showToast(isLao ? 'ບໍ່ມีข้อมูล' : 'ไม่มีข้อมูล', 'error'); return; }
+  if (!_cmpData || !_cmpData.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'error'); return; }
   const esc = cmpEsc;
   const groups = {};
   _cmpData.forEach(r => { const k = (r.competitor_store || '—').trim() || '—'; (groups[k] = groups[k] || []).push(r); });
-  const th = '<tr><th>' + (isLao ? 'วันที่' : 'วันที่') + '</th><th>' + (isLao ? 'ປະເພด' : 'ประเภท') + '</th><th>' + (isLao ? 'ບາໂค้ด' : 'บาร์โค้ด') + '</th><th>' + (isLao ? 'ຊื่อสินค้า' : 'ชื่อสินค้า') + '</th><th>FS</th><th>' + (isLao ? 'ຄ่ູแข่ง' : 'คู่แข่ง') + '</th><th>' + (isLao ? 'ຕ່าง' : 'ส่วนต่าง') + '</th><th>' + (isLao ? 'ໝາຍເຫด' : 'หมายเหตุ') + '</th><th>' + (isLao ? 'ຮูป' : 'รูป') + '</th></tr>';
+  const th = '<tr><th>' + (isLao ? 'วันที่' : 'วันที่') + '</th><th>' + (isLao ? 'ປະເພດ' : 'ประเภท') + '</th><th>' + (isLao ? 'ບາໂຄ້ດ' : 'บาร์โค้ด') + '</th><th>' + (isLao ? 'ຊື່ສິນຄ້າ' : 'ชื่อสินค้า') + '</th><th>FS</th><th>' + (isLao ? 'ຄູ່ແຂ່ງ' : 'คู่แข่ง') + '</th><th>' + (isLao ? 'ຕ່າງ' : 'ส่วนต่าง') + '</th><th>' + (isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ') + '</th><th>' + (isLao ? 'ຮູບ' : 'รูป') + '</th></tr>';
   let sections = '';
   const keys = Object.keys(groups);
   keys.forEach((store, si) => {
@@ -27959,11 +27959,11 @@ function cmpExportPdf() {
       return '<tr><td>' + cmpFmtDate(r.created_at) + '</td><td>' + esc(r.category || '') + '</td><td style="font-family:monospace;">' + esc(r.barcode || '') + '</td><td>' + esc(r.product_name || '') + '</td><td style="text-align:right;">' + cmpNum(r.fs_price) + '</td><td style="text-align:right;">' + cmpNum(r.competitor_price) + '</td><td style="text-align:right;color:' + dcol + ';font-weight:700;">' + dtxt + '</td><td>' + esc(r.note || '') + '</td><td>' + imgs + '</td></tr>';
     }).join('');
     sections += '<div class="store"' + (si > 0 ? ' style="page-break-before:always;"' : '') + '>'
-      + '<h2>🏬 ' + esc(store) + ' <span style="font-size:11px;color:#64748b;font-weight:400;">(' + groups[store].length + (isLao ? ' ລາຍการ)' : ' รายการ)') + '</span></h2>'
+      + '<h2>🏬 ' + esc(store) + ' <span style="font-size:11px;color:#64748b;font-weight:400;">(' + groups[store].length + (isLao ? ' ລາຍການ)' : ' รายการ)') + '</span></h2>'
       + '<table><thead>' + th + '</thead><tbody>' + body + '</tbody></table></div>';
   });
-  const title = isLao ? 'ລາຍງານທຽບລາຄາຄູ່ແข่ง' : 'รายงานเทียบราคาคู่แข่ง';
-  const sub = (branch ? ((isLao ? 'ສาขา ' : 'สาขา ') + esc(branch.code || branch.name_th || branch.id)) : '') + ' · ' + cmpFmtDate(new Date()) + ' · ' + keys.length + (isLao ? ' ຮ້าน · ' : ' ร้าน · ') + _cmpData.length + (isLao ? ' ລາຍการ' : ' รายการ');
+  const title = isLao ? 'ລາຍງານທຽບລາຄາຄູ່ແຂ່ງ' : 'รายงานเทียบราคาคู่แข่ง';
+  const sub = (branch ? ((isLao ? 'ສາຂາ ' : 'สาขา ') + esc(branch.code || branch.name_th || branch.id)) : '') + ' · ' + cmpFmtDate(new Date()) + ' · ' + keys.length + (isLao ? ' ຮ້ານ · ' : ' ร้าน · ') + _cmpData.length + (isLao ? ' ລາຍການ' : ' รายการ');
   const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + title + '</title>'
     + '<style>*{box-sizing:border-box;} body{font-family:-apple-system,\'Segoe UI\',sans-serif;padding:14px;color:#0f172a;} h1{font-size:17px;margin:0 0 3px;} h2{font-size:14px;margin:14px 0 6px;} .sub{font-size:11px;color:#64748b;margin-bottom:6px;} table{border-collapse:collapse;width:100%;font-size:10.5px;} th,td{border:1px solid #cbd5e1;padding:5px 6px;vertical-align:top;text-align:left;} th{background:#f1f5f9;font-size:10px;} @media print{button{display:none;}}</style></head><body>'
     + '<h1>\uD83C\uDD9A ' + title + '</h1><div class="sub">' + sub + '</div>'
@@ -27971,7 +27971,7 @@ function cmpExportPdf() {
     + sections
     + '<scr' + 'ipt>window.onload=function(){setTimeout(function(){try{window.print();}catch(e){}},500);};</scr' + 'ipt></body></html>';
   const w = window.open('', '_blank');
-  if (!w) { showToast(isLao ? 'ເປີດไม่ได้ · อนุญาตป๊อปอัพแล้วลองใหม่' : 'เปิดไม่ได้ · อนุญาตป๊อปอัพแล้วลองใหม่', 'error'); return; }
+  if (!w) { showToast(isLao ? 'ເປີດບໍ່ໄດ້ · อนุญาตป๊อปอัพแล้วลองใหม่' : 'เปิดไม่ได้ · อนุญาตป๊อปอัพแล้วลองใหม่', 'error'); return; }
   w.document.open(); w.document.write(html); w.document.close();
 }
 
@@ -28201,7 +28201,7 @@ window.phLoadCount = phLoadCount;
 const UPDATE_HUB_ITEMS = [
   { id: 'master',   page: 'masterproduct',   icon: '📦', th: 'Master Product',  lo: 'Master Product' },
   { id: 'status',   page: 'productstatus',   icon: '📊', th: 'Status สินค้า',   lo: 'Status สินค้า' },
-  { id: 'purchase', page: 'purchasehistory', icon: '🧾', th: 'ข้อมูลการซื้อ',   lo: 'ຂໍ້มูลการซื้อ' },
+  { id: 'purchase', page: 'purchasehistory', icon: '🧾', th: 'ข้อมูลการซื้อ',   lo: 'ຂໍ້ມູນການຊື້' },
   { id: 'pos',      page: 'settings',        icon: '🏪', th: 'นำเข้าข้อมูล POS', lo: 'ນຳເຂົ້າຂໍ້ມູນ POS' },
 ];
 function renderUpdateHubPage() {
@@ -28210,14 +28210,14 @@ function renderUpdateHubPage() {
     + '<div style="display:flex;align-items:center;gap:9px;margin-bottom:12px;">'
     + '<button onclick="goPage(getHomePage())" style="border:1px solid var(--slate-200);background:white;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
     + '</div>'
-    + '<h2 style="font-size:19px;font-weight:800;color:var(--slate-800);margin:0 0 3px;">🔄 ' + (isLao ? 'ອัปเดตข้อมูล' : 'อัปเดตข้อมูล') + '</h2>'
-    + '<div style="font-size:12px;color:var(--slate-500);margin-bottom:14px;">' + (isLao ? 'ແຕะเพื่อไปอัปเดต — แสดงวันที่อัปเดตล่าสุด' : 'แตะเพื่อไปอัปเดต — แสดงวันที่อัปเดตล่าสุด') + '</div>'
+    + '<h2 style="font-size:19px;font-weight:800;color:var(--slate-800);margin:0 0 3px;">🔄 ' + (isLao ? 'ອັບເດດຂໍ້ມູນ' : 'อัปเดตข้อมูล') + '</h2>'
+    + '<div style="font-size:12px;color:var(--slate-500);margin-bottom:14px;">' + (isLao ? 'ແຕະເພື່ອໄປອັບເດດ — แสดงวันที่อัปเดตล่าสุด' : 'แตะเพื่อไปอัปเดต — แสดงวันที่อัปเดตล่าสุด') + '</div>'
     + UPDATE_HUB_ITEMS.map(it =>
         '<button onclick="goPage(\'' + it.page + '\')" style="width:100%;text-align:left;border:1px solid var(--slate-200);background:white;border-radius:13px;padding:14px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:13px;box-shadow:0 2px 6px rgba(0,0,0,0.03);">'
         + '<span style="font-size:26px;">' + it.icon + '</span>'
         + '<span style="flex:1;min-width:0;">'
         + '<span style="font-size:15px;font-weight:800;color:var(--slate-800);display:block;line-height:1.3;">' + (isLao ? it.lo : it.th) + '</span>'
-        + '<span id="uh_' + it.id + '" style="font-size:11.5px;color:var(--slate-400);">' + (isLao ? 'ກຳລັງโหลด...' : 'กำลังโหลด...') + '</span>'
+        + '<span id="uh_' + it.id + '" style="font-size:11.5px;color:var(--slate-400);">' + (isLao ? 'ກຳລັງໂຫຼດ...' : 'กำลังโหลด...') + '</span>'
         + '</span>'
         + '<span style="font-size:18px;color:var(--slate-300);">›</span>'
         + '</button>'
@@ -28248,13 +28248,13 @@ async function loadUpdateHub() {
     const el = document.getElementById('uh_' + it.id);
     if (!el) return;
     const v = dates[it.id];
-    if (!v) { el.innerHTML = '<span style="color:var(--rose-500);font-weight:700;">⚠️ ' + (isLao ? 'ຍັງບໍ່ເຄີຍอัปเดต' : 'ยังไม่เคยอัปเดต') + '</span>'; return; }
+    if (!v) { el.innerHTML = '<span style="color:var(--rose-500);font-weight:700;">⚠️ ' + (isLao ? 'ຍັງບໍ່ເຄີຍອັບເດດ' : 'ยังไม่เคยอัปเดต') + '</span>'; return; }
     const d = new Date(v);
     const today = isSameDay(v);
     const ago = (typeof reminderAgo === 'function') ? reminderAgo(v, isLao) : '';
     const col = today ? 'var(--emerald-600)' : 'var(--amber-600)';
     const dstr = isNaN(d) ? String(v) : (String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear());
-    el.innerHTML = '<span style="color:' + col + ';font-weight:700;">' + (today ? '✓ ' : '') + (isLao ? 'ອັปล่าสุด ' : 'อัปเดตล่าสุด ') + dstr + '</span> <span style="color:var(--slate-400);">· ' + ago + '</span>';
+    el.innerHTML = '<span style="color:' + col + ';font-weight:700;">' + (today ? '✓ ' : '') + (isLao ? 'ອັບເດດຫຼ້າສຸດ ' : 'อัปเดตล่าสุด ') + dstr + '</span> <span style="color:var(--slate-400);">· ' + ago + '</span>';
   });
 }
 window.renderUpdateHubPage = renderUpdateHubPage; window.loadUpdateHub = loadUpdateHub;
