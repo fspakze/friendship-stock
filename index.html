@@ -25057,12 +25057,10 @@ async function dbSubmit() {
   if (!date) { showToast(isLao ? 'ໃສ่วันที่' : 'ใส่วันที่', 'error'); return; }
   let seq = 1;
   try {
-    const { count } = await sb.from('daily_briefs').select('id', { count: 'exact', head: true });
-    seq = (count || 0) + 1;
+    const { data: last } = await sb.from('daily_briefs').select('brief_no').like('brief_no', 'DB-%').order('brief_no', { ascending: false }).limit(1).maybeSingle();
+    if (last && last.brief_no) { const n = parseInt(String(last.brief_no).replace(/\D/g, ''), 10); if (!isNaN(n)) seq = n + 1; }
   } catch (e) {}
-  const briefNo = 'DB-' + String(seq).padStart(4, '0');
   const payload = {
-    brief_no: briefNo,
     branch_id: branch.id,
     reporter_id: user.id,
     reporter_name: user.full_name || user.username || '',
@@ -25083,8 +25081,17 @@ async function dbSubmit() {
     praises: _dbPraises.filter(x => x.name),
     status: 'open',
   };
-  const { error } = await sb.from('daily_briefs').insert(payload).select().single();
-  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  let briefNo = '', error = null, ok = false;
+  for (let attempt = 0; attempt < 15 && !ok; attempt++) {
+    briefNo = 'DB-' + String(seq).padStart(4, '0');
+    payload.brief_no = briefNo;
+    const res = await sb.from('daily_briefs').insert(payload).select().single();
+    if (!res.error) { ok = true; break; }
+    error = res.error;
+    if (res.error.code === '23505' || /duplicate key/i.test(res.error.message || '')) { seq++; continue; }
+    break;
+  }
+  if (!ok) { showToast('Error: ' + (error ? error.message : 'insert failed'), 'error'); return; }
   logActivity('daily_brief_create', briefNo + ' | ' + date);
   g('dbAckNo').textContent = briefNo;
   g('dbForm').style.display = 'none';
@@ -25883,17 +25890,16 @@ async function wrSubmit() {
   if (!cat) { showToast(isLao ? 'ເລືອกประเภทงาน' : 'เลือกประเภทงาน', 'error'); return; }
   if (!title) { showToast(isLao ? 'ໃສ່ຫົວข้อ' : 'ใส่หัวข้อ', 'error'); return; }
   if (!dept) { showToast(isLao ? 'ເລືອกแผนก' : 'เลือกแผนก', 'error'); return; }
-  // gen ticket_no: WD-xxxx (นับจากจำนวนทั้งหมด)
+  // gen ticket_no: WD-xxxx จากเลขมากสุด +1 แล้วลองใหม่อัตโนมัติถ้าชน (กันลบเก่าแล้วซ้ำ/บันทึกพร้อมกัน)
   let seq = 1;
   try {
-    const { count } = await sb.from('work_tickets').select('id', { count: 'exact', head: true });
-    seq = (count || 0) + 1;
+    const { data: last } = await sb.from('work_tickets').select('ticket_no').like('ticket_no', 'WD-%').order('ticket_no', { ascending: false }).limit(1).maybeSingle();
+    if (last && last.ticket_no) { const n = parseInt(String(last.ticket_no).replace(/\D/g, ''), 10); if (!isNaN(n)) seq = n + 1; }
   } catch (e) {}
-  const ticketNo = 'WD-' + String(seq).padStart(4, '0');
   const sla = WT_SLA[_wrPri];
   const dueAt = new Date(Date.now() + sla.h * 3600 * 1000).toISOString();
+  const photoUrls = _wrPhotos.length ? await wrUploadPhotos('WD-' + String(seq).padStart(4, '0')) : [];
   const payload = {
-    ticket_no: ticketNo,
     branch_id: branch.id,
     reporter_id: user.id,
     reporter_name: user.full_name || user.username || '',
@@ -25901,10 +25907,19 @@ async function wrSubmit() {
     category: cat, title: title, description: desc,
     priority: _wrPri, dept: dept,
     status: 'new', due_at: dueAt,
-    photo_urls: _wrPhotos.length ? await wrUploadPhotos(ticketNo) : [],
+    photo_urls: photoUrls,
   };
-  const { error } = await sb.from('work_tickets').insert(payload).select().single();
-  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  let ticketNo = '', error = null, ok = false;
+  for (let attempt = 0; attempt < 15 && !ok; attempt++) {
+    ticketNo = 'WD-' + String(seq).padStart(4, '0');
+    payload.ticket_no = ticketNo;
+    const res = await sb.from('work_tickets').insert(payload).select().single();
+    if (!res.error) { ok = true; break; }
+    error = res.error;
+    if (res.error.code === '23505' || /duplicate key/i.test(res.error.message || '')) { seq++; continue; }
+    break;
+  }
+  if (!ok) { showToast('Error: ' + (error ? error.message : 'insert failed'), 'error'); return; }
   logActivity('work_ticket_create', ticketNo + ' | ' + dept + ' | ' + title);
   document.getElementById('wrAckNo').textContent = ticketNo;
   document.getElementById('wrAckDept').textContent = dept;
