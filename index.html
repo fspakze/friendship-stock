@@ -82,6 +82,14 @@
     --sh-md: 0 4px 12px rgba(15,23,42,0.08);
     --sh-lg: 0 12px 32px rgba(15,23,42,0.12);
     --sh-xl: 0 24px 48px rgba(15,118,110,0.18);
+    /* ===== FS DESIGN SYSTEM v5 — Apple/SaaS (ขาว/ฟ้า/แดง) — Phase 1 ===== */
+    --fs-blue: #0071e3; --fs-blue-press: #0063cc; --fs-blue-tint: #eaf2ff;
+    --fs-red: #ff3b30; --fs-red-tint: #ffeceb;
+    --fs-ink: #1d1d1f; --fs-ink2: #6e6e73; --fs-ink3: #8e8e93;
+    --fs-hair: #e5e5ea; --fs-fill: #e9e9ee; --fs-fill2: #f2f2f7;
+    --fs-card: #ffffff; --fs-chev: #c7c7cc;
+    --fs-1: 4px; --fs-2: 8px; --fs-3: 12px; --fs-4: 16px; --fs-5: 20px; --fs-6: 24px; --fs-7: 32px;
+    --fs-r1: 10px; --fs-r2: 12px; --fs-r3: 14px; --fs-r-pill: 999px;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { overflow-x: hidden; }
@@ -160,7 +168,30 @@
   
   .error-msg { background: var(--rose-100); color: var(--rose-500); padding: 11px 13px; border-radius: 10px; font-size: 13px; margin-bottom: 11px; display: none; }
   .error-msg.show { display: block; }
-  
+
+  /* ========== FS DESIGN SYSTEM (Apple/SaaS) — Phase 1: stockcheck ========== */
+  .fs-title { font-size: 22px; font-weight: 600; color: var(--fs-ink); letter-spacing: -0.02em; line-height: 1.2; }
+  .fs-sub { font-size: 12px; color: var(--fs-ink3); margin-top: 2px; }
+  .fs-card { background: var(--fs-card); border: 1px solid var(--fs-hair); border-radius: var(--fs-r3); padding: var(--fs-4); }
+  .fs-list { background: var(--fs-card); border: 1px solid var(--fs-hair); border-radius: var(--fs-r3); overflow: hidden; }
+  .fs-row { display: flex; align-items: center; gap: var(--fs-3); padding: 12px var(--fs-4); min-height: 48px; }
+  .fs-btn { width: 100%; min-height: 46px; border: none; border-radius: var(--fs-r2); font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 11px 14px; transition: background .15s, transform .1s; }
+  .fs-btn:active { transform: scale(0.98); }
+  .fs-btn-primary { background: var(--fs-blue); color: #fff; }
+  .fs-btn-primary:active { background: var(--fs-blue-press); }
+  .fs-btn-secondary { background: var(--fs-fill); color: var(--fs-ink); }
+  .fs-btn-danger { background: var(--fs-card); border: 1px solid #ffd0cc; color: var(--fs-red); }
+  .fs-btn-ghost { background: var(--fs-fill2); color: var(--fs-ink2); font-weight: 500; }
+  .fs-input { width: 100%; min-height: 44px; padding: 11px 13px; border: 1px solid var(--fs-hair); border-radius: var(--fs-r2); font-size: 15px; font-family: inherit; background: var(--fs-card); color: var(--fs-ink); }
+  .fs-input:focus { outline: none; border-color: var(--fs-blue); box-shadow: 0 0 0 3px var(--fs-blue-tint); }
+  .fs-input::placeholder { color: var(--fs-ink3); }
+  .fs-stat-num { font-size: 30px; font-weight: 600; color: var(--fs-ink); line-height: 1; font-family: 'Space Grotesk', sans-serif; font-variant-numeric: tabular-nums; }
+  .fs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .fs-tile { background: var(--fs-card); border: 1px solid var(--fs-hair); border-radius: var(--fs-r2); min-height: 72px; padding: 12px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; cursor: pointer; font-size: 12.5px; font-weight: 500; color: var(--fs-ink); text-align: center; line-height: 1.25; transition: background .15s; }
+  .fs-tile:active { background: var(--fs-fill2); }
+  .fs-tile svg { width: 22px; height: 22px; color: var(--fs-blue); stroke-width: 1.8; }
+  .fs-tile.fs-tile-danger svg { color: var(--fs-red); }
+
   /* APP */
   .app { min-height: 100vh; display: none; }
   .app.active { display: block; }
@@ -8639,32 +8670,30 @@ let _scCurrentProduct = null;
 function renderStockCheckPage() {
   const isLao = lang === 'lo';
   return `
-    <div style="background:linear-gradient(135deg,var(--sky-500),var(--violet-600));color:white;padding:13px 15px;border-radius:11px;margin-bottom:11px;">
-      <div style="display:flex;align-items:center;gap:9px;">
-        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-        <div>
-          <div style="font-size:14px;font-weight:800;">${T('sc_title')}</div>
-          <div style="font-size:10px;opacity:0.9;">${T('sc_subtitle')}</div>
-        </div>
-      </div>
+    <div style="padding:6px 2px 14px;">
+      <div class="fs-title">${T('sc_title')}</div>
+      <div class="fs-sub">${T('sc_subtitle')}</div>
     </div>
-    
-    <div class="scan-card">
-      <div class="scan-frame" id="scanFrame">
+
+    <div class="fs-card" style="margin-bottom:14px;">
+      <div class="scan-frame" id="scanFrame" style="margin-bottom:12px;">
         <div class="scan-placeholder" id="scanPlaceholder">
           <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5a1 1 0 011-1h2M9 4v16M15 4v16"/></svg>
           <p>${T('press_to_scan')}</p>
         </div>
         <div id="reader" style="display:none;"></div>
       </div>
-      <div style="display:flex;gap:6px;margin-bottom:9px;">
-        <button class="btn btn-primary" id="startScanBtn" onclick="startScanForStockCheck()" style="flex:1;">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/></svg>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button class="fs-btn fs-btn-primary" id="startScanBtn" onclick="startScanForStockCheck()" style="flex:1;">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3"/></svg>
           ${T('scan_barcode')}
         </button>
-        <button class="btn btn-danger" id="stopScanBtn" onclick="stopScan()" style="flex:1;display:none;">${T('stop')}</button>
+        <button class="fs-btn fs-btn-danger" id="stopScanBtn" onclick="stopScan()" style="flex:1;display:none;">${T('stop')}</button>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:9px;"><button id="liteScanBtn" onclick="toggleLiteScan()" style="flex:1;border:1px solid var(--slate-200);background:var(--slate-50);color:var(--slate-500);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📱 โหมดไอโฟน</button><button onclick="triggerPhotoScan('stockcheck')" style="flex:1;border:1px solid var(--violet-300);background:var(--violet-50);color:var(--violet-700);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📷 ถ่ายรูป</button></div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button class="fs-btn fs-btn-ghost" id="liteScanBtn" onclick="toggleLiteScan()" style="flex:1;font-size:13px;min-height:42px;">${lang === 'lo' ? 'ໂໝດໄອໂຟນ' : 'โหมดไอโฟน'}</button>
+        <button class="fs-btn fs-btn-ghost" onclick="triggerPhotoScan('stockcheck')" style="flex:1;font-size:13px;min-height:42px;">${lang === 'lo' ? 'ຖ່າຍຮູບ' : 'ถ่ายรูป'}</button>
+      </div>
       <!-- ⭐ วิธีใช้งานอย่างย่อ -->
       <button onclick="const h=document.getElementById('scHelpBox'); if(h) h.style.display = h.style.display==='none' ? 'block' : 'none';"
               style="border:none;background:none;color:var(--sky-600);font-size:11px;font-weight:700;cursor:pointer;padding:2px;text-align:center;width:100%;margin-bottom:7px;">
@@ -8689,14 +8718,13 @@ function renderStockCheckPage() {
           📏 iPhone: ถือห่างจากบาร์โค้ด ~1 คืบ (15-20ซม.) รอภาพชัดก่อน
         `}
       </div>
-      <div style="flex-direction:column;display:flex;gap:9px;">
-        <input id="scBarcode" type="text" inputmode="numeric"
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <input id="scBarcode" class="fs-input" type="text" inputmode="numeric"
                onkeypress="if(event.key==='Enter')scLookup()"
-               placeholder="${T('enter_barcode')}"
-               style="width:100%;padding:11px;border:1px solid var(--slate-300);border-radius:9px;font-size:14px;">
-        <button class="btn" onclick="scLookup()"
-                style="background:linear-gradient(135deg,var(--sky-500),var(--violet-600));color:white;border:none;width:100%;padding:13px;font-size:14px;font-weight:800;border-radius:11px;cursor:pointer;">
-          🔍 ${isLao ? 'ຄົ້ນຫາ' : 'ค้นหา'}
+               placeholder="${T('enter_barcode')}">
+        <button class="fs-btn fs-btn-primary" onclick="scLookup()">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.3-4.3"/></svg>
+          ${isLao ? 'ຄົ້ນຫາ' : 'ค้นหา'}
         </button>
       </div>
     </div>
@@ -8821,11 +8849,11 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
   const sellPrice = prod.sell_price || 0;
   
   const locHtml = pog?.location_code ? `
-    <div style="background:var(--amber-50);padding:10px 12px;border-radius:7px;margin-bottom:11px;display:flex;align-items:center;gap:8px;">
-      <span style="font-size:16px;">📍</span>
+    <div class="fs-row" style="border-top:1px solid var(--fs-hair);">
+      <svg width="20" height="20" fill="none" stroke="var(--fs-blue)" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21s-7-5.5-7-11a7 7 0 0114 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
       <div style="flex:1;">
-        <div style="font-size:9px;color:var(--amber-700);">${T('sc_location')}</div>
-        <div style="font-size:13px;font-weight:800;color:var(--amber-800);font-family:'Space Grotesk',monospace;">${pog.location_code}</div>
+        <div style="font-size:11px;color:var(--fs-ink3);">${T('sc_location')}</div>
+        <div style="font-size:14px;font-weight:600;color:var(--fs-ink);font-family:'Space Grotesk',monospace;">${pog.location_code}</div>
       </div>
     </div>
   ` : '';
@@ -8835,54 +8863,66 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
     const counter = lastCount.users?.full_name || '?';
     const ago = timeAgo(lastCount.created_at, isLao);
     lastCountHtml = `
-      <div style="font-size:11px;color:var(--slate-600);padding:8px 0;border-top:1px solid var(--slate-200);">
-        <span style="color:var(--slate-400);">${T('sc_last_count')}:</span>
-        <span style="color:var(--slate-800);font-weight:700;"> ${lastCount.counted_qty} ${unit}</span>
-        <span style="color:var(--slate-400);"> • ${counter} • ${ago}</span>
+      <div class="fs-row" style="border-top:1px solid var(--fs-hair);padding-bottom:4px;">
+        <span style="font-size:12px;color:var(--fs-ink3);">${T('sc_last_count')}</span>
+        <span style="flex:1;text-align:right;font-size:13px;color:var(--fs-ink);font-weight:500;">${lastCount.counted_qty} ${unit}</span>
       </div>
+      <div style="padding:0 16px 12px;font-size:11px;color:var(--fs-ink3);">${counter} • ${ago}</div>
     `;
   } else {
-    lastCountHtml = `<div style="font-size:11px;color:var(--slate-400);padding:8px 0;border-top:1px solid var(--slate-200);">${T('sc_last_count')}: <em>${T('sc_no_count')}</em></div>`;
+    lastCountHtml = `<div class="fs-row" style="border-top:1px solid var(--fs-hair);"><span style="font-size:12px;color:var(--fs-ink3);">${T('sc_last_count')}</span><span style="flex:1;text-align:right;font-size:12px;color:var(--fs-ink3);">${T('sc_no_count')}</span></div>`;
   }
   
+  const statusCard = psBuildStatusCard(ps, posQty);
+  const statusHtml = statusCard ? `<div style="padding:12px 16px;border-top:1px solid var(--fs-hair);">${statusCard}</div>` : '';
   card.innerHTML = `
-    <div style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:15px;margin-top:11px;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
-      <div style="margin-bottom:11px;padding-bottom:11px;border-bottom:1px solid var(--slate-200);">
-        <div style="font-size:14px;font-weight:800;color:var(--slate-800);margin-bottom:3px;line-height:1.3;">${name}</div>
-        <div style="font-size:10px;color:var(--slate-400);font-family:monospace;">${prod.barcode}</div>
+    <div class="fs-card" style="margin-top:14px;padding:0;overflow:hidden;">
+      <div style="padding:14px 16px 12px;border-bottom:1px solid var(--fs-hair);">
+        <div style="font-size:16px;font-weight:600;color:var(--fs-ink);line-height:1.35;">${name}</div>
+        <div style="font-size:12px;color:var(--fs-ink3);font-family:'Space Grotesk',monospace;margin-top:3px;">${prod.barcode}</div>
       </div>
-      
-      <div style="background:var(--emerald-50);border:1px solid var(--emerald-300);border-radius:9px;padding:13px;margin-bottom:11px;text-align:center;">
-        <div style="font-size:10px;color:var(--emerald-700);font-weight:700;margin-bottom:3px;">${T('sc_pos_now')}</div>
-        <div style="font-size:32px;font-weight:800;color:var(--emerald-700);line-height:1;font-family:'Space Grotesk',monospace;">${posQty}</div>
-        <div style="font-size:10px;color:var(--emerald-700);margin-top:2px;">${unit}</div>
+
+      <div style="display:flex;">
+        <div style="flex:1;padding:14px 16px;text-align:center;border-right:1px solid var(--fs-hair);">
+          <div style="font-size:11px;color:var(--fs-ink3);margin-bottom:5px;">${T('sc_pos_now')}</div>
+          <div class="fs-stat-num">${posQty}</div>
+          <div style="font-size:11px;color:var(--fs-ink3);margin-top:4px;">${unit}</div>
+        </div>
+        <div style="flex:1;padding:14px 16px;text-align:center;display:flex;flex-direction:column;justify-content:center;">
+          <div style="font-size:11px;color:var(--fs-ink3);margin-bottom:5px;">${T('sc_sell_price')}</div>
+          <div style="font-size:20px;font-weight:600;color:var(--fs-ink);font-family:'Space Grotesk',sans-serif;font-variant-numeric:tabular-nums;">${Number(sellPrice).toLocaleString()} ₭</div>
+        </div>
       </div>
-      
-      <div style="background:var(--slate-50);padding:10px 12px;border-radius:7px;margin-bottom:11px;">
-        <div style="font-size:9px;color:var(--slate-500);">${T('sc_sell_price')}</div>
-        <div style="font-size:15px;font-weight:800;color:var(--slate-800);font-family:'Space Grotesk',monospace;">${Number(sellPrice).toLocaleString()} ₭</div>
-      </div>
-      
-      ${psBuildStatusCard(ps, posQty)}
+
+      ${statusHtml}
       ${locHtml}
       ${lastCountHtml}
-      
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:11px;">
-        <button onclick="scShowBranchStock()" style="background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;border:none;padding:12px 8px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;line-height:1.2;">
-          <span style="font-size:19px;">🏪</span>${T('sc_view_other_branches')}
-        </button>
-        <button onclick="scOpenExpiryModal()" style="background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;padding:12px 8px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;line-height:1.2;">
-          <span style="font-size:19px;">📅</span>${isLao ? 'ບັນທຶກອາຍຸ' : 'บันทึกอายุ'}
-        </button>
-        <button onclick="scOpenPogPicker()" style="background:linear-gradient(135deg,var(--violet-500),var(--violet-600));color:white;border:none;padding:12px 8px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;line-height:1.2;">
-          <span style="font-size:19px;">${pog?.location_code ? '✏️' : '📍'}</span>${pog?.location_code ? T('sc_edit_pog') : T('sc_set_pog')}
-        </button>
-        <button onclick="scOpenIssueModal()" style="background:linear-gradient(135deg,var(--rose-500),var(--amber-500));color:white;border:none;padding:12px 8px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;line-height:1.2;">
-          <span style="font-size:19px;">🚨</span>${T('sc_report_issue')}
-        </button>
-        ${['admin', 'bcs'].includes(user.role) ? `<button onclick="scShowPurchase('${(prod.barcode||'').replace(/'/g,'')}')" style="background:linear-gradient(135deg,var(--indigo-500,#6366f1),var(--violet-600,#7c3aed));color:white;border:none;padding:12px 8px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;line-height:1.2;grid-column:span 2;">
-          <span style="font-size:19px;">🧾</span>${isLao ? 'ຂໍ້มูลการซื้อ' : 'ข้อมูลการซื้อ'}
-        </button>` : ''}
+
+      <div style="padding:14px 16px;border-top:1px solid var(--fs-hair);">
+        <div class="fs-grid">
+          <button class="fs-tile" onclick="scShowBranchStock()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.5 9l1.2-4.2A1 1 0 015.66 4h12.68a1 1 0 01.96.8L20.5 9M4.5 9h15v9.5a1 1 0 01-1 1H5.5a1 1 0 01-1-1V9zM4 9a2 2 0 004 0 2 2 0 004 0 2 2 0 004 0 2 2 0 004 0"/></svg>
+            ${T('sc_view_other_branches')}
+          </button>
+          <button class="fs-tile" onclick="scOpenExpiryModal()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path stroke-linecap="round" d="M3.5 9.5h17M8 3.5v3.5M16 3.5v3.5"/></svg>
+            ${isLao ? 'ບັນທຶກອາຍຸ' : 'บันทึกอายุ'}
+          </button>
+          <button class="fs-tile" onclick="scOpenPogPicker()">
+            ${pog?.location_code
+              ? `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 20h4L18.5 9.5a2.12 2.12 0 00-3-3L5 17v3z"/></svg>`
+              : `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21s-7-5.5-7-11a7 7 0 0114 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>`}
+            ${pog?.location_code ? T('sc_edit_pog') : T('sc_set_pog')}
+          </button>
+          <button class="fs-tile fs-tile-danger" onclick="scOpenIssueModal()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4l9 16H3l9-16zM12 10v4M12 17.5h.01"/></svg>
+            ${T('sc_report_issue')}
+          </button>
+          ${['admin', 'bcs'].includes(user.role) ? `<button class="fs-tile" style="grid-column:span 2;" onclick="scShowPurchase('${(prod.barcode||'').replace(/'/g,'')}')">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 3v18l2-1.5L10 21l2-1.5L14 21l2-1.5L18 21V3l-2 1.5L14 3l-2 1.5L10 3 8 4.5 6 3zM9 8h6M9 12h5"/></svg>
+            ${isLao ? 'ຂໍ້มูลการซื้อ' : 'ข้อมูลการซื้อ'}
+          </button>` : ''}
+        </div>
       </div>
     </div>
   `;
