@@ -4682,9 +4682,14 @@ function wtFilterMenuCfg(cfg, role) {
       if (toAdd.length) drawerGroups = [{ titleTh: '📄 เอกสาร / Gap', titleLo: '📄 ເອກະສານ / Gap', items: toAdd }].concat(drawerGroups);
     }
   }
-  // 🆚 เทียบราคาคู่แข่ง — ทุก role เข้าได้ (อยู่ในเมนูลิ้นชัก)
-  if (!drawerGroups.some(g => (g.items||[]).includes('cmpprice'))) {
-    drawerGroups = drawerGroups.concat([{ titleTh: '🆚 เทียบราคาคู่แข่ง', titleLo: '🆚 ທຽບລາຄາຄູ່ແข่ง', items: ['cmpprice'] }]);
+  // 🆚 เทียบราคาคู่แข่ง — ทุก role: ปกติเป็นแท็บล่างต่อจากตรวจสต๊อก / ตอนนับสต๊อกย้ายเข้าเมนู
+  if (!bottomTabs.includes('cmpprice') && !drawerGroups.some(g => (g.items || []).includes('cmpprice'))) {
+    if (!_countMenuEnabled) {
+      const i = bottomTabs.indexOf('stockcheck');
+      if (i >= 0) bottomTabs.splice(i + 1, 0, 'cmpprice'); else bottomTabs.unshift('cmpprice');
+    } else {
+      drawerGroups = drawerGroups.concat([{ titleTh: '🆚 เทียบราคาคู่แข่ง', titleLo: '🆚 ທຽບລາຄາຄູ່ແข่ง', items: ['cmpprice'] }]);
+    }
   }
   return { bottomTabs, drawerGroups };
 }
@@ -27476,6 +27481,8 @@ let _cmpProduct = null;   // สินค้าที่สแกนล่าส
 let _cmpPhotos = [];      // [{blob,dataUrl}]
 let _cmpData = [];        // รายการที่โหลดมา
 let _cmpStore = '';       // ชื่อร้านคู่แข่งของรอบสำรวจปัจจุบัน
+let _cmpSort = 'recent';  // การจัดเรียงรายการ
+let _cmpDup = null;       // ข้อมูลรายการซ้ำ (ถ้าสินค้านี้ถูกเทียบแล้วในร้านนี้)
 
 function cmpEsc(s) { return escapeHtml(String(s == null ? '' : s)); }
 function cmpFmtDate(d) { if (!d) return '-'; try { const x = new Date(d); if (isNaN(x)) return String(d); return String(x.getDate()).padStart(2, '0') + '/' + String(x.getMonth() + 1).padStart(2, '0') + '/' + x.getFullYear(); } catch (e) { return String(d); } }
@@ -27485,22 +27492,23 @@ function renderCmpPage() {
   const isLao = lang === 'lo';
   let top;
   if (!_cmpStore) {
-    // ── ขั้นที่ 1: พิมพ์ชื่อร้านคู่แข่งก่อนเริ่มเทียบ ──
-    top = '<div style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.04);margin-bottom:8px;">'
-      + '<div style="font-size:13px;font-weight:700;color:var(--slate-700);margin-bottom:7px;">🏬 ' + (isLao ? 'ຈะเทียบกับร้านอะไร?' : 'จะเทียบกับร้านอะไร?') + '</div>'
+    // ── ขั้นที่ 1: เลือก/สร้างร้านคู่แข่ง (เข้าร่วมร้านที่คนอื่นกำลังสำรวจได้) ──
+    top = '<div style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.04);margin-bottom:11px;">'
+      + '<div style="font-size:13px;font-weight:700;color:var(--slate-700);margin-bottom:7px;">🏬 ' + (isLao ? 'ສຳຫຼວດร้านใหม่' : 'สำรวจร้านใหม่') + '</div>'
       + '<input id="cmpStoreInput" placeholder="' + (isLao ? 'ຊື່ຮ້ານຄູ່ແข่ง' : 'ชื่อร้านคู่แข่ง') + '" onkeydown="if(event.key===\'Enter\')cmpStartSession()" style="width:100%;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:15px;margin-bottom:10px;">'
-      + '<button onclick="cmpStartSession()" style="width:100%;background:linear-gradient(135deg,var(--teal-600),var(--teal-500));color:white;border:none;border-radius:11px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;">' + (isLao ? 'ເລີ່ມເทียบราคา →' : 'เริ่มเทียบราคา →') + '</button>'
-      + '</div>';
+      + '<button onclick="cmpStartSession()" style="width:100%;background:linear-gradient(135deg,var(--teal-600),var(--teal-500));color:white;border:none;border-radius:11px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;">' + (isLao ? 'ເລີ່ມเทียบราคา →' : 'เริ่มเทียบราคา →') + '</button>'
+      + '</div>'
+      + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:7px;">👥 ' + (isLao ? 'ຮ້ານที่กำลังสำรวจ — แตะเพื่อเข้าร่วม' : 'ร้านที่กำลังสำรวจ — แตะเพื่อเข้าร่วม') + '</div>'
+      + '<div id="cmpStoreList"><div style="text-align:center;padding:14px;"><div class="loader"></div></div></div>';
   } else {
-    // ── ขั้นที่ 2: กำลังเทียบกับร้านนี้ — สแกน + เทียบได้หลายรายการ ──
+    // ── ขั้นที่ 2: กำลังเทียบกับร้านนี้ ──
     top = '<div style="display:flex;align-items:center;gap:8px;background:var(--teal-50);border:1px solid var(--teal-200);border-radius:11px;padding:11px 13px;margin-bottom:11px;">'
       + '<span style="font-size:18px;">🏬</span>'
       + '<div style="flex:1;min-width:0;"><div style="font-size:9.5px;color:var(--teal-700);">' + (isLao ? 'ກຳລັງเทียบกับ' : 'กำลังเทียบกับ') + '</div><div style="font-size:15px;font-weight:800;color:var(--teal-800);line-height:1.2;">' + cmpEsc(_cmpStore) + '</div></div>'
       + '<button onclick="cmpEndSession()" style="border:none;background:var(--teal-600);color:white;border-radius:9px;padding:9px 13px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;">✓ ' + (isLao ? 'ເສັຈ/ร้านใหม่' : 'เสร็จ/ร้านใหม่') + '</button>'
       + '</div>'
-      // กล่องสแกน
       + '<div style="display:flex;gap:7px;margin-bottom:11px;">'
-      + '<input id="cmpBarcode" inputmode="numeric" placeholder="' + (isLao ? 'ບາໂค้ด / ชื่อสินค้า' : 'บาร์โค้ด / ชื่อสินค้า') + '" onkeydown="if(event.key===\'Enter\')cmpLookup()" style="flex:1;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:14px;font-family:monospace;">'
+      + '<input id="cmpBarcode" inputmode="text" placeholder="' + (isLao ? 'ບາໂค้ด / ชื่อสินค้า' : 'บาร์โค้ด / ชื่อสินค้า') + '" onkeydown="if(event.key===\'Enter\')cmpLookup()" style="flex:1;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:14px;font-family:monospace;">'
       + '<button onclick="cmpStartScan()" style="border:none;background:linear-gradient(135deg,var(--teal-600),var(--teal-500));color:white;border-radius:10px;padding:0 15px;font-size:18px;cursor:pointer;">📷</button>'
       + '<button onclick="cmpLookup()" style="border:none;background:var(--slate-700);color:white;border-radius:10px;padding:0 15px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? 'ຄົ້ນ' : 'ค้นหา') + '</button>'
       + '</div>'
@@ -27511,18 +27519,64 @@ function renderCmpPage() {
     + '<button onclick="goPage(getHomePage())" style="border:1px solid var(--slate-200);background:white;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
     + '</div>'
     + '<h2 style="font-size:19px;font-weight:800;color:var(--slate-800);margin:0 0 3px;">🆚 ' + (isLao ? 'ທຽບລາຄາຄູ່ແข่ง' : 'เทียบราคาคู่แข่ง') + '</h2>'
-    + '<div style="font-size:12px;color:var(--slate-500);margin-bottom:13px;">' + (isLao ? 'ໃສ່ชื่อร้าน → สแกน → ใส่ราคาคู่แข่ง → ถ่ายรูป → บันทึก' : 'ใส่ชื่อร้าน → สแกน → ใส่ราคาคู่แข่ง → ถ่ายรูป → บันทึก') + '</div>'
+    + '<div style="font-size:12px;color:var(--slate-500);margin-bottom:13px;">' + (isLao ? 'ເລືอกร้าน → สแกน → ใส่ราคาคู่แข่ง → บันทึก' : 'เลือกร้าน → สแกน → ใส่ราคาคู่แข่ง → บันทึก') + '</div>'
     + top
     + '<div style="border-top:1px solid var(--slate-200);margin:18px 0 13px;"></div>'
-    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
-    + '<h3 style="font-size:15px;font-weight:800;color:var(--slate-800);margin:0;">📋 ' + (isLao ? 'ລາຍການที่แจ้ง' : 'รายการที่แจ้ง') + '</h3>'
-    + '<button onclick="cmpExport()" style="border:1px solid var(--emerald-300);background:var(--emerald-50);color:var(--emerald-700);border-radius:9px;padding:8px 13px;font-size:12.5px;font-weight:800;cursor:pointer;">⬇️ Excel</button>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;gap:8px;flex-wrap:wrap;">'
+    + '<h3 style="font-size:15px;font-weight:800;color:var(--slate-800);margin:0;">📋 ' + (isLao ? 'ລາຍການ' : 'รายการ') + '</h3>'
+    + '<div style="display:flex;gap:7px;">'
+    + '<button onclick="cmpExport()" style="border:1px solid var(--emerald-300);background:var(--emerald-50);color:var(--emerald-700);border-radius:9px;padding:8px 12px;font-size:12.5px;font-weight:800;cursor:pointer;">⬇️ Excel</button>'
+    + '<button onclick="cmpExportPdf()" style="border:1px solid var(--rose-300);background:var(--rose-50);color:var(--rose-600);border-radius:9px;padding:8px 12px;font-size:12.5px;font-weight:800;cursor:pointer;">📄 PDF</button>'
+    + '</div>'
+    + '</div>'
+    // ตัวจัดเรียง
+    + '<div style="display:flex;align-items:center;gap:7px;margin-bottom:11px;">'
+    + '<span style="font-size:11.5px;color:var(--slate-500);font-weight:700;">↕️ ' + (isLao ? 'ຈัดเรียง' : 'จัดเรียง') + '</span>'
+    + '<select id="cmpSortSel" onchange="cmpSetSort(this.value)" style="flex:1;border:1.5px solid var(--slate-200);border-radius:9px;padding:8px 10px;font-size:12.5px;font-weight:700;color:var(--slate-700);background:white;">'
+    + '<option value="recent"' + (_cmpSort === 'recent' ? ' selected' : '') + '>' + (isLao ? 'ໃໝ່ສຸด' : 'ล่าสุด') + '</option>'
+    + '<option value="category"' + (_cmpSort === 'category' ? ' selected' : '') + '>' + (isLao ? 'ປະເພດສินค้า' : 'ประเภทสินค้า') + '</option>'
+    + '<option value="diff"' + (_cmpSort === 'diff' ? ' selected' : '') + '>' + (isLao ? 'ສ່ວນຕ່າງ (ຫຼາຍ→ໜ້ອຍ)' : 'ส่วนต่าง (มาก→น้อย)') + '</option>'
+    + '<option value="name"' + (_cmpSort === 'name' ? ' selected' : '') + '>' + (isLao ? 'ຊື່ສินค้า' : 'ชื่อสินค้า') + '</option>'
+    + '</select>'
     + '</div>'
     + '<div id="cmpList"><div style="text-align:center;padding:18px;"><div class="loader"></div></div></div>'
     + '</div>';
 }
 
-function cmpRerender() { const c = document.getElementById('appContent'); if (c) { c.innerHTML = renderCmpPage(); cmpLoadList(); } }
+function cmpInit() { if (!_cmpStore) cmpLoadStores(); cmpLoadList(); }
+
+// โหลดรายชื่อร้านที่กำลังสำรวจ (ให้เข้าร่วมได้)
+async function cmpLoadStores() {
+  const isLao = lang === 'lo';
+  const wrap = document.getElementById('cmpStoreList');
+  if (!wrap) return;
+  let rows = [];
+  try {
+    const since = new Date(Date.now() - 7 * 86400000).toISOString();
+    const { data } = await sb.from('competitor_prices').select('competitor_store,created_by_name,created_at').eq('branch_id', branch.id).gte('created_at', since).limit(2000);
+    rows = data || [];
+  } catch (e) {}
+  const map = {};
+  rows.forEach(r => {
+    const s = (r.competitor_store || '').trim(); if (!s) return;
+    if (!map[s]) map[s] = { store: s, count: 0, people: new Set(), last: r.created_at };
+    map[s].count++; if (r.created_by_name) map[s].people.add(r.created_by_name);
+    if (r.created_at > map[s].last) map[s].last = r.created_at;
+  });
+  const stores = Object.values(map).sort((a, b) => (b.last || '').localeCompare(a.last || ''));
+  if (!stores.length) { wrap.innerHTML = '<div style="text-align:center;color:var(--slate-400);font-size:12px;padding:14px;">' + (isLao ? 'ຍັງບໍ່ມีร้านที่สำรวจ' : 'ยังไม่มีร้านที่สำรวจ') + '</div>'; return; }
+  wrap.innerHTML = stores.map(s =>
+    '<button onclick="cmpJoinStore(\'' + cmpEsc(s.store).replace(/'/g, '&#39;') + '\')" style="width:100%;text-align:left;border:1px solid var(--teal-200);background:var(--teal-50);border-radius:10px;padding:11px 13px;margin-bottom:7px;cursor:pointer;display:flex;align-items:center;gap:10px;">'
+    + '<span style="font-size:17px;">🏬</span>'
+    + '<span style="flex:1;min-width:0;"><span style="font-size:14px;font-weight:800;color:var(--teal-800);display:block;line-height:1.3;">' + cmpEsc(s.store) + '</span>'
+    + '<span style="font-size:10.5px;color:var(--teal-700);">' + s.count + (isLao ? ' ລາຍการ · ' : ' รายการ · ') + '👥 ' + Array.from(s.people).map(cmpEsc).join(', ') + '</span></span>'
+    + '<span style="font-size:12px;font-weight:800;color:var(--teal-600);white-space:nowrap;">' + (isLao ? 'ເข้าร่วม →' : 'เข้าร่วม →') + '</span>'
+    + '</button>'
+  ).join('');
+}
+function cmpJoinStore(name) { _cmpStore = name; _cmpProduct = null; _cmpPhotos = []; cmpRerender(); setTimeout(() => { const b = document.getElementById('cmpBarcode'); if (b) b.focus(); }, 60); }
+
+function cmpRerender() { const c = document.getElementById('appContent'); if (c) { c.innerHTML = renderCmpPage(); if (!_cmpStore) cmpLoadStores(); cmpLoadList(); } }
 function cmpStartSession() {
   const isLao = lang === 'lo';
   const v = (document.getElementById('cmpStoreInput').value || '').trim();
@@ -27531,16 +27585,10 @@ function cmpStartSession() {
   cmpRerender();
   setTimeout(() => { const b = document.getElementById('cmpBarcode'); if (b) b.focus(); }, 60);
 }
-function cmpEndSession() {
-  _cmpStore = ''; _cmpProduct = null; _cmpPhotos = [];
-  cmpRerender();
-}
-
-function cmpInit() { cmpLoadList(); }
+function cmpEndSession() { _cmpStore = ''; _cmpProduct = null; _cmpPhotos = []; cmpRerender(); }
 
 async function cmpStartScan() {
   window._scanCallback = (bc) => { const i = document.getElementById('cmpBarcode'); if (i) i.value = bc; cmpLookup(); };
-  // ใช้ตัวสแกนแบบถ่ายรูปบาร์โค้ด (ทำงานได้ทุกหน้า ไม่ต้องใช้ DOM หน้าสแกนสต๊อก)
   if (typeof triggerPhotoScan === 'function') triggerPhotoScan('cmp');
   else showToast(lang === 'lo' ? 'ສแกนไม่ได้' : 'สแกนไม่ได้', 'error');
 }
@@ -27548,107 +27596,110 @@ async function cmpStartScan() {
 async function cmpLookup() {
   const term = (document.getElementById('cmpBarcode').value || '').trim();
   if (!term) return;
-  // ตัวเลขล้วน (≥6 หลัก) = บาร์โค้ด → ค้นตรง | ไม่งั้น = ค้นจากชื่อสินค้า
   if (/^\d{6,}$/.test(term)) return cmpLookupBarcode(term);
   return cmpSearchByName(term);
 }
-// ค้นหาจากชื่อสินค้า → แสดงรายการให้เลือก
+// ค้นหาจากชื่อสินค้า (master_products ทุกสาขา)
 async function cmpSearchByName(term) {
   const isLao = lang === 'lo';
   const info = document.getElementById('cmpInfo');
   if (info) info.innerHTML = '<div style="text-align:center;padding:14px;"><div class="loader"></div></div>';
   let rows = [];
   try {
-    const { data } = await sb.from('master_products').select('barcode,name_th,name_lo,sell_price')
-      .or('name_th.ilike.%' + term + '%,name_lo.ilike.%' + term + '%')
-      .limit(30);
+    const { data } = await sb.from('master_products').select('barcode,name_th,name_lo,sell_price,category')
+      .or('name_th.ilike.%' + term + '%,name_lo.ilike.%' + term + '%').limit(30);
     rows = data || [];
   } catch (e) {}
   if (!info) return;
-  if (!rows.length) { info.innerHTML = '<div style="background:var(--amber-50);border:1.5px solid var(--amber-300);border-radius:11px;padding:14px;text-align:center;color:var(--amber-700);font-size:13px;font-weight:700;">🔍 ' + (isLao ? 'ບໍ່ພบสินค้าชื่อ' : 'ไม่พบสินค้าชื่อ') + ' "' + cmpEsc(term) + '"</div>'; _cmpProduct = null; return; }
-  info.innerHTML = '<div style="font-size:11.5px;color:var(--slate-500);margin-bottom:7px;">' + (isLao ? 'ພบ ' : 'พบ ') + rows.length + (isLao ? ' ລາຍການ — ແຕะเพื่อเลือก' : ' รายการ — แตะเพื่อเลือก') + '</div>'
+  if (!rows.length) { info.innerHTML = '<div style="background:var(--amber-50);border:1.5px solid var(--amber-300);border-radius:11px;padding:14px;text-align:center;color:var(--amber-700);font-size:13px;font-weight:700;">🔍 ' + (isLao ? 'ບໍ່ພບสินค้าชื่อ' : 'ไม่พบสินค้าชื่อ') + ' "' + cmpEsc(term) + '"</div>'; _cmpProduct = null; return; }
+  info.innerHTML = '<div style="font-size:11.5px;color:var(--slate-500);margin-bottom:7px;">' + (isLao ? 'ພบ ' : 'พบ ') + rows.length + (isLao ? ' ລາຍการ — ແຕะเพื่อเลือก' : ' รายการ — แตะเพื่อเลือก') + '</div>'
     + '<div style="display:flex;flex-direction:column;gap:6px;">'
     + rows.map(r => {
         const nm = isLao ? (r.name_lo || r.name_th || '?') : (r.name_th || r.name_lo || '?');
         return '<button onclick="cmpPickProduct(\'' + cmpEsc(r.barcode) + '\')" style="text-align:left;border:1px solid var(--slate-200);background:white;border-radius:10px;padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;">'
-          + '<span style="min-width:0;"><span style="font-size:13px;font-weight:700;color:var(--slate-800);display:block;line-height:1.3;">' + cmpEsc(nm) + '</span><span style="font-size:10px;color:var(--slate-400);font-family:monospace;">' + cmpEsc(r.barcode || '') + '</span></span>'
+          + '<span style="min-width:0;"><span style="font-size:13px;font-weight:700;color:var(--slate-800);display:block;line-height:1.3;">' + cmpEsc(nm) + '</span><span style="font-size:10px;color:var(--slate-400);font-family:monospace;">' + cmpEsc(r.barcode || '') + (r.category ? ' · ' + cmpEsc(r.category) : '') + '</span></span>'
           + '<span style="font-size:13px;font-weight:800;color:var(--teal-700);font-family:\'Space Grotesk\',monospace;white-space:nowrap;">' + cmpNum(r.sell_price || 0) + ' ₭</span>'
           + '</button>';
       }).join('')
     + '</div>';
 }
-function cmpPickProduct(bc) {
-  const el = document.getElementById('cmpBarcode'); if (el) el.value = bc;
-  cmpLookupBarcode(bc);
-}
+function cmpPickProduct(bc) { const el = document.getElementById('cmpBarcode'); if (el) el.value = bc; cmpLookupBarcode(bc); }
+
 async function cmpLookupBarcode(bc) {
   const isLao = lang === 'lo';
   if (!bc) return;
   const info = document.getElementById('cmpInfo');
   info.innerHTML = '<div style="text-align:center;padding:14px;"><div class="loader"></div></div>';
-  let name = '', price = 0, stock = 0, unit = '';
+  let name = '', price = 0, stock = 0, unit = '', category = '';
   try {
     const { data: prod } = await sb.from('products').select('*').eq('barcode', bc).eq('branch_id', branch.id).eq('is_active', true).maybeSingle();
-    if (prod) { name = isLao ? (prod.name_lo || prod.name_th || '?') : (prod.name_th || prod.name_lo || '?'); price = prod.sell_price || 0; stock = prod.pos_qty || 0; unit = prod.unit_label || prod.unit_lo || ''; }
+    if (prod) { name = isLao ? (prod.name_lo || prod.name_th || '?') : (prod.name_th || prod.name_lo || '?'); price = prod.sell_price || 0; stock = prod.pos_qty || 0; unit = prod.unit_label || prod.unit_lo || ''; category = prod.category || ''; }
     else {
-      const { data: mp } = await sb.from('master_products').select('barcode,name_th,name_lo,sell_price').eq('barcode', bc).maybeSingle();
-      if (mp) { name = isLao ? (mp.name_lo || mp.name_th || '?') : (mp.name_th || mp.name_lo || '?'); price = mp.sell_price || 0; }
+      const { data: mp } = await sb.from('master_products').select('barcode,name_th,name_lo,sell_price,category').eq('barcode', bc).maybeSingle();
+      if (mp) { name = isLao ? (mp.name_lo || mp.name_th || '?') : (mp.name_th || mp.name_lo || '?'); price = mp.sell_price || 0; category = mp.category || ''; }
     }
   } catch (e) {}
   let lastBuy = null, lastSale = null;
   try { const { data: ps } = await sb.from('product_status').select('last_buy,last_sale').eq('barcode', bc).maybeSingle(); if (ps) { lastBuy = ps.last_buy; lastSale = ps.last_sale; } } catch (e) {}
   if (!name) { info.innerHTML = '<div style="background:var(--rose-50);border:1.5px solid var(--rose-300);border-radius:11px;padding:14px;text-align:center;color:var(--rose-700);font-size:13px;font-weight:700;">⚠️ ' + (isLao ? 'ບໍ່ພບสินค้า' : 'ไม่พบสินค้า') + ': <code>' + cmpEsc(bc) + '</code></div>'; _cmpProduct = null; return; }
-  _cmpProduct = { barcode: bc, name, fs_price: price, stock, last_buy: lastBuy, last_sale: lastSale };
+  // ⭐ กันซ้ำ: สินค้านี้ถูกเทียบในร้านนี้แล้วหรือยัง (ของใครก็ได้ในทีม)
+  _cmpDup = null;
+  try {
+    const { data: dup } = await sb.from('competitor_prices').select('competitor_price,created_by_name,created_at').eq('branch_id', branch.id).eq('competitor_store', _cmpStore).eq('barcode', bc).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (dup) _cmpDup = dup;
+  } catch (e) {}
+  _cmpProduct = { barcode: bc, name, fs_price: price, stock, last_buy: lastBuy, last_sale: lastSale, category };
   _cmpPhotos = [];
   const cell = (label, val, color) => '<div style="background:var(--slate-50);border-radius:9px;padding:9px 11px;"><div style="font-size:9.5px;color:var(--slate-500);margin-bottom:2px;">' + label + '</div><div style="font-size:14px;font-weight:800;color:' + (color || 'var(--slate-800)') + ';font-family:\'Space Grotesk\',monospace;">' + val + '</div></div>';
-  info.innerHTML = '<div style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,0.04);">'
+  let html = '<div style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,0.04);">'
     + '<div style="font-size:14px;font-weight:800;color:var(--slate-800);line-height:1.3;margin-bottom:2px;">' + cmpEsc(name) + '</div>'
-    + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;margin-bottom:11px;">' + cmpEsc(bc) + '</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:13px;">'
+    + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;margin-bottom:3px;">' + cmpEsc(bc) + '</div>'
+    + (category ? '<div style="display:inline-block;font-size:10px;font-weight:700;color:var(--violet-700);background:var(--violet-50);border-radius:6px;padding:2px 8px;margin-bottom:9px;">🏷️ ' + cmpEsc(category) + '</div>' : '')
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:9px 0 13px;">'
     + cell((isLao ? 'ລາຄາຂາຍ (FS)' : 'ราคาขาย (FS)'), cmpNum(price) + ' ₭', 'var(--teal-700)')
-    + cell((isLao ? 'ສະຕ໋ອກ' : 'สต๊อก'), cmpNum(stock) + (unit ? ' ' + cmpEsc(unit) : ''))
-    + cell((isLao ? 'ຊື້ລ່າສຸด' : 'ซื้อล่าสุด'), cmpFmtDate(lastBuy))
-    + cell((isLao ? 'ຂາຍລ່າສຸด' : 'ขายล่าสุด'), cmpFmtDate(lastSale))
-    + '</div>'
-    // ราคาคู่แข่ง
-    + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:5px;">💰 ' + (isLao ? 'ລາຄາຄູ່ແข่ง' : 'ราคาคู่แข่ง') + '</div>'
-    + '<input id="cmpCompPrice" inputmode="decimal" placeholder="0" oninput="cmpUpdateDiff()" style="width:100%;border:1.5px solid var(--amber-300);border-radius:10px;padding:12px;font-size:16px;font-weight:800;font-family:\'Space Grotesk\',monospace;color:var(--amber-700);margin-bottom:4px;">'
-    + '<div id="cmpDiff" style="font-size:12px;font-weight:700;min-height:16px;margin-bottom:11px;"></div>'
-    // รูป
-    + '<input type="file" id="cmpPhotoFile" accept="image/*" multiple style="display:none;" onchange="cmpOnPhoto(event)">'
-    + '<input type="file" id="cmpPhotoCam" accept="image/*" capture="environment" style="display:none;" onchange="cmpOnPhoto(event)">'
-    + '<div style="display:flex;gap:8px;margin-bottom:7px;">'
-    + '<button type="button" onclick="document.getElementById(\'cmpPhotoFile\').click()" style="flex:1;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:11px;font-size:12.5px;font-weight:700;color:var(--slate-600);cursor:pointer;">📁 ' + (isLao ? 'ເລືອກຮູບ' : 'เลือกรูป') + '</button>'
-    + '<button type="button" onclick="document.getElementById(\'cmpPhotoCam\').click()" style="flex:1;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:11px;font-size:12.5px;font-weight:700;color:var(--slate-600);cursor:pointer;">📷 ' + (isLao ? 'ຖ່າຍຮູບ' : 'ถ่ายรูป') + '</button>'
-    + '</div>'
-    + '<div id="cmpPhotoPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px;"></div>'
-    // หมายเหตุ
-    + '<textarea id="cmpNote" rows="2" placeholder="' + (isLao ? 'ໝາຍເຫດເພີ່ມເຕີມ' : 'หมายเหตุเพิ่มเติม') + '" style="width:100%;border:1.5px solid var(--slate-200);border-radius:10px;padding:11px;font-size:13px;resize:vertical;margin-bottom:12px;"></textarea>'
-    + '<button onclick="cmpSave()" id="cmpSaveBtn" style="width:100%;background:linear-gradient(135deg,var(--teal-600),var(--teal-500));color:white;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;">✓ ' + (isLao ? 'ບັນທຶກ' : 'บันทึก') + '</button>'
+    + cell((isLao ? 'ສະຕ໋ອก' : 'สต๊อก'), cmpNum(stock) + (unit ? ' ' + cmpEsc(unit) : ''))
+    + cell((isLao ? 'ຊื้อล่าสุด' : 'ซื้อล่าสุด'), cmpFmtDate(lastBuy))
+    + cell((isLao ? 'ຂາຍล่าสุด' : 'ขายล่าสุด'), cmpFmtDate(lastSale))
     + '</div>';
+  if (_cmpDup) {
+    // มีคนเทียบแล้ว → กันซ้ำ ไม่ให้บันทึกอีก
+    html += '<div style="background:var(--rose-50);border:1.5px solid var(--rose-300);border-radius:11px;padding:13px;text-align:center;">'
+      + '<div style="font-size:13px;font-weight:800;color:var(--rose-700);margin-bottom:3px;">⚠️ ' + (isLao ? 'ສินค้านี้ถูกเทียบแล้วในร้านนี้' : 'สินค้านี้ถูกเทียบแล้วในร้านนี้') + '</div>'
+      + '<div style="font-size:12px;color:var(--rose-600);">' + (isLao ? 'ໂดย' : 'โดย') + ' ' + cmpEsc(_cmpDup.created_by_name || '?') + ' · ' + (isLao ? 'ຄ่ູแข่ง' : 'คู่แข่ง') + ' ' + cmpNum(_cmpDup.competitor_price) + ' ₭</div>'
+      + '<div style="font-size:11px;color:var(--slate-500);margin-top:6px;">' + (isLao ? 'ກັນຊ້ำ — ບໍ່ต้องเทียบอีก (แก้ที่รายการด้านล่างถ้าผิด)' : 'กันซ้ำ — ไม่ต้องเทียบอีก (แก้ที่รายการด้านล่างถ้าผิด)') + '</div>'
+      + '</div>';
+  } else {
+    html += '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:5px;">💰 ' + (isLao ? 'ລາຄາຄູ່ແข่ง' : 'ราคาคู่แข่ง') + '</div>'
+      + '<input id="cmpCompPrice" inputmode="decimal" placeholder="0" oninput="cmpUpdateDiff()" style="width:100%;border:1.5px solid var(--amber-300);border-radius:10px;padding:12px;font-size:16px;font-weight:800;font-family:\'Space Grotesk\',monospace;color:var(--amber-700);margin-bottom:4px;">'
+      + '<div id="cmpDiff" style="font-size:12px;font-weight:700;min-height:16px;margin-bottom:11px;"></div>'
+      + '<input type="file" id="cmpPhotoFile" accept="image/*" multiple style="display:none;" onchange="cmpOnPhoto(event)">'
+      + '<input type="file" id="cmpPhotoCam" accept="image/*" capture="environment" style="display:none;" onchange="cmpOnPhoto(event)">'
+      + '<div style="display:flex;gap:8px;margin-bottom:7px;">'
+      + '<button type="button" onclick="document.getElementById(\'cmpPhotoFile\').click()" style="flex:1;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:11px;font-size:12.5px;font-weight:700;color:var(--slate-600);cursor:pointer;">📁 ' + (isLao ? 'ເລືອกรูป' : 'เลือกรูป') + '</button>'
+      + '<button type="button" onclick="document.getElementById(\'cmpPhotoCam\').click()" style="flex:1;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:11px;font-size:12.5px;font-weight:700;color:var(--slate-600);cursor:pointer;">📷 ' + (isLao ? 'ຖ່າຍຮูป' : 'ถ่ายรูป') + '</button>'
+      + '</div>'
+      + '<div id="cmpPhotoPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px;"></div>'
+      + '<textarea id="cmpNote" rows="2" placeholder="' + (isLao ? 'ໝາຍເຫด' : 'หมายเหตุเพิ่มเติม') + '" style="width:100%;border:1.5px solid var(--slate-200);border-radius:10px;padding:11px;font-size:13px;resize:vertical;margin-bottom:12px;"></textarea>'
+      + '<button onclick="cmpSave()" id="cmpSaveBtn" style="width:100%;background:linear-gradient(135deg,var(--teal-600),var(--teal-500));color:white;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;">✓ ' + (isLao ? 'ບັນທຶก' : 'บันทึก') + '</button>';
+  }
+  html += '</div>';
+  info.innerHTML = html;
 }
 
 function cmpUpdateDiff() {
   const isLao = lang === 'lo';
-  const el = document.getElementById('cmpDiff');
-  if (!el || !_cmpProduct) return;
+  const el = document.getElementById('cmpDiff'); if (!el || !_cmpProduct) return;
   const comp = parseFloat((document.getElementById('cmpCompPrice').value || '').replace(/,/g, ''));
   if (isNaN(comp) || comp <= 0) { el.textContent = ''; return; }
-  const fs = _cmpProduct.fs_price || 0;
-  const diff = fs - comp;
+  const diff = (_cmpProduct.fs_price || 0) - comp;
   if (diff > 0) el.innerHTML = '<span style="color:var(--rose-600);">▲ ' + (isLao ? 'ເຮົາແพงกว่า' : 'เราแพงกว่า') + ' ' + cmpNum(Math.abs(diff)) + ' ₭</span>';
   else if (diff < 0) el.innerHTML = '<span style="color:var(--emerald-600);">▼ ' + (isLao ? 'ເຮົາຖืกกว่า' : 'เราถูกกว่า') + ' ' + cmpNum(Math.abs(diff)) + ' ₭</span>';
-  else el.innerHTML = '<span style="color:var(--slate-500);">= ' + (isLao ? 'ເທົ່າກັນ' : 'เท่ากัน') + '</span>';
+  else el.innerHTML = '<span style="color:var(--slate-500);">= ' + (isLao ? 'ເທົ່າກัน' : 'เท่ากัน') + '</span>';
 }
 
-function cmpOnPhoto(e) {
-  const files = Array.from(e.target.files || []);
-  e.target.value = '';
-  files.forEach(f => wrCompressImage(f, (blob, dataUrl) => { _cmpPhotos.push({ blob, dataUrl }); cmpRenderPhotos(); }));
-}
+function cmpOnPhoto(e) { const files = Array.from(e.target.files || []); e.target.value = ''; files.forEach(f => wrCompressImage(f, (blob, dataUrl) => { _cmpPhotos.push({ blob, dataUrl }); cmpRenderPhotos(); })); }
 function cmpRenderPhotos() {
-  const pv = document.getElementById('cmpPhotoPreview');
-  if (!pv) return;
+  const pv = document.getElementById('cmpPhotoPreview'); if (!pv) return;
   pv.innerHTML = _cmpPhotos.map((p, i) =>
     '<div style="position:relative;width:74px;height:74px;border-radius:9px;overflow:hidden;border:1px solid var(--slate-200);">'
     + '<img src="' + p.dataUrl + '" style="width:100%;height:100%;object-fit:cover;">'
@@ -27660,70 +27711,89 @@ function cmpRemovePhoto(i) { _cmpPhotos.splice(i, 1); cmpRenderPhotos(); }
 function cmpRotatePhoto(i) {
   const p = _cmpPhotos[i]; if (!p) return;
   const img = new Image();
-  img.onload = () => {
-    const cv = document.createElement('canvas');
-    cv.width = img.naturalHeight; cv.height = img.naturalWidth;
-    const ctx = cv.getContext('2d');
-    ctx.translate(cv.width / 2, cv.height / 2); ctx.rotate(90 * Math.PI / 180);
-    ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
-    cv.toBlob(blob => { _cmpPhotos[i] = { blob, dataUrl: cv.toDataURL('image/jpeg', 0.7) }; cmpRenderPhotos(); }, 'image/jpeg', 0.7);
-  };
+  img.onload = () => { const cv = document.createElement('canvas'); cv.width = img.naturalHeight; cv.height = img.naturalWidth; const ctx = cv.getContext('2d'); ctx.translate(cv.width / 2, cv.height / 2); ctx.rotate(90 * Math.PI / 180); ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2); cv.toBlob(blob => { _cmpPhotos[i] = { blob, dataUrl: cv.toDataURL('image/jpeg', 0.7) }; cmpRenderPhotos(); }, 'image/jpeg', 0.7); };
   img.src = p.dataUrl;
 }
 
 async function cmpSave() {
   const isLao = lang === 'lo';
   if (!_cmpProduct) { showToast(isLao ? 'ສแกนสินค้าก่อน' : 'สแกนสินค้าก่อน', 'error'); return; }
+  // กันซ้ำอีกชั้นตอนบันทึก (เผื่อมีคนบันทึกพร้อมกัน)
+  try {
+    const { data: dup } = await sb.from('competitor_prices').select('id,created_by_name').eq('branch_id', branch.id).eq('competitor_store', _cmpStore).eq('barcode', _cmpProduct.barcode).limit(1).maybeSingle();
+    if (dup) { showToast((isLao ? '⚠️ ຊ້ำ — ' : '⚠️ ซ้ำ — ') + (dup.created_by_name || '') + (isLao ? ' ເທียบแล้ว' : ' เทียบแล้ว'), 'error'); _cmpDup = dup; cmpLookupBarcode(_cmpProduct.barcode); return; }
+  } catch (e) {}
   const comp = parseFloat((document.getElementById('cmpCompPrice').value || '').replace(/,/g, ''));
   if (isNaN(comp) || comp <= 0) { showToast(isLao ? 'ໃສ່ราคาคู่แข่ง' : 'ใส่ราคาคู่แข่ง', 'error'); return; }
   const btn = document.getElementById('cmpSaveBtn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader" style="margin:0 auto;"></div>'; }
-  // อัปโหลดรูป
   const photoUrls = [];
   for (let i = 0; i < _cmpPhotos.length; i++) {
     const path = 'cmp_' + (branch.id || 'x') + '_' + Date.now() + '_' + i + '.jpg';
-    try {
-      const { error } = await sb.storage.from('ticket-photos').upload(path, _cmpPhotos[i].blob, { contentType: 'image/jpeg', upsert: false });
-      if (!error) { const { data } = sb.storage.from('ticket-photos').getPublicUrl(path); if (data && data.publicUrl) photoUrls.push(data.publicUrl); }
-    } catch (e) {}
+    try { const { error } = await sb.storage.from('ticket-photos').upload(path, _cmpPhotos[i].blob, { contentType: 'image/jpeg', upsert: false }); if (!error) { const { data } = sb.storage.from('ticket-photos').getPublicUrl(path); if (data && data.publicUrl) photoUrls.push(data.publicUrl); } } catch (e) {}
   }
   const payload = {
     branch_id: branch.id, competitor_store: _cmpStore || null, barcode: _cmpProduct.barcode, product_name: _cmpProduct.name,
-    fs_price: _cmpProduct.fs_price || 0, competitor_price: comp,
+    category: _cmpProduct.category || null, fs_price: _cmpProduct.fs_price || 0, competitor_price: comp,
     stock_qty: _cmpProduct.stock || 0, last_buy: _cmpProduct.last_buy || null, last_sale: _cmpProduct.last_sale || null,
     photo_urls: photoUrls, note: (document.getElementById('cmpNote').value || '').trim() || null,
     created_by: user.id, created_by_name: user.full_name || user.username || '',
   };
   const { error } = await sb.from('competitor_prices').insert(payload);
-  if (error) { showToast('Error: ' + error.message, 'error'); if (btn) { btn.disabled = false; btn.innerHTML = '✓ ' + (isLao ? 'ບັນທຶກ' : 'บันทึก'); } return; }
-  if (typeof logActivity === 'function') logActivity('cmpprice_create', _cmpProduct.barcode + ' | FS ' + _cmpProduct.fs_price + ' vs ' + comp);
+  if (error) { showToast('Error: ' + error.message, 'error'); if (btn) { btn.disabled = false; btn.innerHTML = '✓ ' + (isLao ? 'ບັນທຶก' : 'บันทึก'); } return; }
+  if (typeof logActivity === 'function') logActivity('cmpprice_create', _cmpProduct.barcode + ' | ' + _cmpStore + ' | FS ' + _cmpProduct.fs_price + ' vs ' + comp);
   showToast(isLao ? '✓ ບັນທຶກແລ້ว' : '✓ บันทึกแล้ว', 'success');
-  _cmpProduct = null; _cmpPhotos = [];
+  _cmpProduct = null; _cmpPhotos = []; _cmpDup = null;
   document.getElementById('cmpInfo').innerHTML = '';
   const bcEl = document.getElementById('cmpBarcode'); if (bcEl) { bcEl.value = ''; bcEl.focus(); }
   cmpLoadList();
 }
 
+function cmpSetSort(v) { _cmpSort = v; cmpRenderList(); }
+
+function cmpSortRows(arr) {
+  const a = arr.slice();
+  if (_cmpSort === 'name') a.sort((x, y) => (x.product_name || '').localeCompare(y.product_name || ''));
+  else if (_cmpSort === 'category') a.sort((x, y) => (x.category || 'zzz').localeCompare(y.category || 'zzz') || (x.product_name || '').localeCompare(y.product_name || ''));
+  else if (_cmpSort === 'diff') a.sort((x, y) => Math.abs((y.fs_price || 0) - (y.competitor_price || 0)) - Math.abs((x.fs_price || 0) - (x.competitor_price || 0)));
+  else a.sort((x, y) => (y.created_at || '').localeCompare(x.created_at || '')); // recent
+  return a;
+}
+
 async function cmpLoadList() {
+  const wrap = document.getElementById('cmpList');
+  if (!wrap) return;
+  try {
+    const { data, error } = await sb.from('competitor_prices').select('*').eq('branch_id', branch.id).order('created_at', { ascending: false }).limit(1000);
+    if (error) throw error;
+    _cmpData = data || [];
+  } catch (e) { wrap.innerHTML = '<div style="text-align:center;color:var(--rose-600);font-size:12px;padding:14px;">Error: ' + cmpEsc(e.message || e) + '</div>'; return; }
+  cmpRenderList();
+}
+
+// แสดงรายการ — แยกตามร้านคู่แข่ง แล้วจัดเรียงตาม _cmpSort
+function cmpRenderList() {
   const isLao = lang === 'lo';
   const wrap = document.getElementById('cmpList');
   if (!wrap) return;
-  let rows = [];
-  try {
-    const { data, error } = await sb.from('competitor_prices').select('*').eq('branch_id', branch.id).order('created_at', { ascending: false }).limit(500);
-    if (error) throw error;
-    rows = data || [];
-  } catch (e) { wrap.innerHTML = '<div style="text-align:center;color:var(--rose-600);font-size:12px;padding:14px;">Error: ' + cmpEsc(e.message || e) + '</div>'; return; }
-  _cmpData = rows;
+  const rows = _cmpData || [];
   if (!rows.length) { wrap.innerHTML = '<div style="text-align:center;color:var(--slate-400);font-size:13px;padding:22px;">' + (isLao ? 'ຍັງບໍ່ມีรายการ' : 'ยังไม่มีรายการ') + '</div>'; return; }
-  // จัดกลุ่มตามวัน
-  const groups = {};
-  rows.forEach(r => { const k = (r.created_at || '').slice(0, 10); (groups[k] = groups[k] || []).push(r); });
   const canDel = (r) => (['admin', 'scc', 'bcs'].includes((user && user.role) || '')) || (r.created_by === user.id);
+  // จัดกลุ่มตามร้าน
+  const groups = {};
+  rows.forEach(r => { const k = (r.competitor_store || '—').trim() || '—'; (groups[k] = groups[k] || []).push(r); });
+  const storeKeys = Object.keys(groups).sort((a, b) => {
+    const la = Math.max.apply(null, groups[a].map(x => +new Date(x.created_at || 0)));
+    const lb = Math.max.apply(null, groups[b].map(x => +new Date(x.created_at || 0)));
+    return lb - la;
+  });
   let html = '';
-  Object.keys(groups).sort().reverse().forEach(day => {
-    html += '<div style="font-size:12px;font-weight:800;color:var(--slate-500);margin:13px 0 7px;">📅 ' + cmpFmtDate(day) + ' <span style="color:var(--slate-400);font-weight:600;">(' + groups[day].length + ')</span></div>';
-    groups[day].forEach(r => {
+  storeKeys.forEach(store => {
+    const items = cmpSortRows(groups[store]);
+    html += '<div style="display:flex;align-items:center;gap:7px;margin:15px 0 8px;padding:8px 11px;background:var(--teal-50);border-radius:9px;">'
+      + '<span style="font-size:15px;">🏬</span><span style="font-size:14px;font-weight:800;color:var(--teal-800);flex:1;">' + cmpEsc(store) + '</span>'
+      + '<span style="font-size:11px;font-weight:700;color:var(--teal-600);">' + items.length + (isLao ? ' ລາຍการ' : ' รายการ') + '</span></div>';
+    items.forEach(r => {
       const diff = (r.fs_price || 0) - (r.competitor_price || 0);
       const diffTxt = diff > 0 ? '<span style="color:var(--rose-600);">▲ ' + cmpNum(Math.abs(diff)) + '</span>' : (diff < 0 ? '<span style="color:var(--emerald-600);">▼ ' + cmpNum(Math.abs(diff)) + '</span>' : '<span style="color:var(--slate-400);">=</span>');
       const photo = (r.photo_urls && r.photo_urls.length) ? '<a href="' + r.photo_urls[0] + '" target="_blank" rel="noopener" style="display:block;width:52px;height:52px;border-radius:8px;overflow:hidden;border:1px solid var(--slate-200);flex-shrink:0;"><img src="' + r.photo_urls[0] + '" style="width:100%;height:100%;object-fit:cover;"></a>' : '';
@@ -27731,10 +27801,10 @@ async function cmpLoadList() {
         + photo
         + '<div style="flex:1;min-width:0;">'
         + '<div style="font-size:13px;font-weight:700;color:var(--slate-800);line-height:1.3;">' + cmpEsc(r.product_name || '') + '</div>'
-        + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;margin-bottom:4px;">' + cmpEsc(r.barcode || '') + '</div>'
+        + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;margin-bottom:3px;">' + cmpEsc(r.barcode || '') + (r.category ? ' · 🏷️ ' + cmpEsc(r.category) : '') + '</div>'
         + '<div style="font-size:12px;color:var(--slate-600);">FS <b style="font-family:\'Space Grotesk\',monospace;">' + cmpNum(r.fs_price) + '</b> · ' + (isLao ? 'ຄູ່ແข่ง' : 'คู่แข่ง') + ' <b style="font-family:\'Space Grotesk\',monospace;color:var(--amber-700);">' + cmpNum(r.competitor_price) + '</b> · ' + diffTxt + '</div>'
         + (r.note ? '<div style="font-size:11px;color:var(--slate-500);margin-top:3px;">📝 ' + cmpEsc(r.note) + '</div>' : '')
-        + '<div style="font-size:10px;color:var(--slate-400);margin-top:3px;">' + (r.competitor_store ? '🏬 ' + cmpEsc(r.competitor_store) + ' · ' : '') + cmpEsc(r.created_by_name || '') + '</div>'
+        + '<div style="font-size:10px;color:var(--slate-400);margin-top:3px;">' + cmpEsc(r.created_by_name || '') + ' · ' + cmpFmtDate(r.created_at) + '</div>'
         + '</div>'
         + (canDel(r) ? '<button onclick="cmpDelete(\'' + r.id + '\')" style="border:none;background:var(--rose-50);color:var(--rose-600);border-radius:7px;width:28px;height:28px;font-size:13px;cursor:pointer;flex-shrink:0;">🗑️</button>' : '')
         + '</div>';
@@ -27745,47 +27815,81 @@ async function cmpLoadList() {
 
 async function cmpDelete(id) {
   const isLao = lang === 'lo';
-  const r = _cmpData.find(x => x.id === id);
-  if (!r) return;
+  const r = _cmpData.find(x => x.id === id); if (!r) return;
   if (!confirm((isLao ? 'ລຶບ?' : 'ลบรายการนี้?') + '\n' + cmpEsc(r.product_name || ''))) return;
   const { error } = await sb.from('competitor_prices').delete().eq('id', id);
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
-  // ลบรูปออกจาก storage
   (r.photo_urls || []).forEach(async u => { const m = u && u.match(/ticket-photos\/(.+)$/); if (m) { try { await sb.storage.from('ticket-photos').remove([m[1]]); } catch (e) {} } });
   showToast(isLao ? '✓ ລຶບແລ້ว' : '✓ ลบแล้ว', 'success');
   cmpLoadList();
 }
 
+// Excel — แยก sheet ตามร้าน
 function cmpExport() {
   const isLao = lang === 'lo';
   if (!_cmpData || !_cmpData.length) { showToast(isLao ? 'ບໍ່ມีข้อมูล' : 'ไม่มีข้อมูล', 'error'); return; }
   if (typeof XLSX === 'undefined') { showToast('XLSX not loaded', 'error'); return; }
-  const rows = _cmpData.map(r => ({
-    'วันที่': cmpFmtDate(r.created_at),
-    'ร้านคู่แข่ง': r.competitor_store || '',
-    'บาร์โค้ด': r.barcode || '',
-    'ชื่อสินค้า': r.product_name || '',
-    'ราคาเฟรนชิพ': r.fs_price || 0,
-    'ราคาคู่แข่ง': r.competitor_price || 0,
-    'ส่วนต่าง (FS-คู่แข่ง)': (r.fs_price || 0) - (r.competitor_price || 0),
-    'หมายเหตุ': r.note || '',
-    'รูป (ลิงก์)': (r.photo_urls && r.photo_urls.length) ? r.photo_urls.join(' , ') : '',
-    'ผู้แจ้ง': r.created_by_name || '',
-  }));
-  const ws = XLSX.utils.json_to_sheet(rows);
-  ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 16 }, { wch: 36 }, { wch: 13 }, { wch: 13 }, { wch: 16 }, { wch: 28 }, { wch: 40 }, { wch: 16 }];
+  const groups = {};
+  _cmpData.forEach(r => { const k = (r.competitor_store || '—').trim() || '—'; (groups[k] = groups[k] || []).push(r); });
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'CompetitorPrice');
+  const cols = [{ wch: 12 }, { wch: 16 }, { wch: 18 }, { wch: 36 }, { wch: 13 }, { wch: 13 }, { wch: 16 }, { wch: 28 }, { wch: 40 }, { wch: 16 }];
+  let n = 0;
+  Object.keys(groups).forEach(store => {
+    const rows = cmpSortRows(groups[store]).map(r => ({
+      'วันที่': cmpFmtDate(r.created_at), 'ประเภท': r.category || '', 'บาร์โค้ด': r.barcode || '',
+      'ชื่อสินค้า': r.product_name || '', 'ราคาเฟรนชิพ': r.fs_price || 0, 'ราคาคู่แข่ง': r.competitor_price || 0,
+      'ส่วนต่าง': (r.fs_price || 0) - (r.competitor_price || 0), 'หมายเหตุ': r.note || '',
+      'รูป (ลิงก์)': (r.photo_urls && r.photo_urls.length) ? r.photo_urls.join(' , ') : '', 'ผู้แจ้ง': r.created_by_name || '',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows); ws['!cols'] = cols;
+    let sheetName = String(store).replace(/[\\\/\?\*\[\]:]/g, ' ').slice(0, 28) || ('ร้าน ' + (++n));
+    try { XLSX.utils.book_append_sheet(wb, ws, sheetName); } catch (e) { XLSX.utils.book_append_sheet(wb, ws, 'store' + (++n)); }
+  });
   const d = new Date();
-  const fname = 'competitor_price_' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0') + '.xlsx';
-  XLSX.writeFile(wb, fname);
+  XLSX.writeFile(wb, 'competitor_price_' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0') + '.xlsx');
+}
+
+// PDF — แยกหน้าตามร้าน
+function cmpExportPdf() {
+  const isLao = lang === 'lo';
+  if (!_cmpData || !_cmpData.length) { showToast(isLao ? 'ບໍ່ມีข้อมูล' : 'ไม่มีข้อมูล', 'error'); return; }
+  const esc = cmpEsc;
+  const groups = {};
+  _cmpData.forEach(r => { const k = (r.competitor_store || '—').trim() || '—'; (groups[k] = groups[k] || []).push(r); });
+  const th = '<tr><th>' + (isLao ? 'วันที่' : 'วันที่') + '</th><th>' + (isLao ? 'ປະເພด' : 'ประเภท') + '</th><th>' + (isLao ? 'ບາໂค้ด' : 'บาร์โค้ด') + '</th><th>' + (isLao ? 'ຊื่อสินค้า' : 'ชื่อสินค้า') + '</th><th>FS</th><th>' + (isLao ? 'ຄ่ູแข่ง' : 'คู่แข่ง') + '</th><th>' + (isLao ? 'ຕ່าง' : 'ส่วนต่าง') + '</th><th>' + (isLao ? 'ໝາຍເຫด' : 'หมายเหตุ') + '</th><th>' + (isLao ? 'ຮูป' : 'รูป') + '</th></tr>';
+  let sections = '';
+  const keys = Object.keys(groups);
+  keys.forEach((store, si) => {
+    const body = cmpSortRows(groups[store]).map(r => {
+      const diff = (r.fs_price || 0) - (r.competitor_price || 0);
+      const dcol = diff > 0 ? '#e11d48' : (diff < 0 ? '#059669' : '#64748b');
+      const dtxt = diff > 0 ? ('+' + cmpNum(diff)) : (diff < 0 ? ('\u2212' + cmpNum(Math.abs(diff))) : '0');
+      const imgs = (r.photo_urls || []).map(u => '<img src="' + u + '" style="height:50px;border-radius:4px;margin:1px;">').join('');
+      return '<tr><td>' + cmpFmtDate(r.created_at) + '</td><td>' + esc(r.category || '') + '</td><td style="font-family:monospace;">' + esc(r.barcode || '') + '</td><td>' + esc(r.product_name || '') + '</td><td style="text-align:right;">' + cmpNum(r.fs_price) + '</td><td style="text-align:right;">' + cmpNum(r.competitor_price) + '</td><td style="text-align:right;color:' + dcol + ';font-weight:700;">' + dtxt + '</td><td>' + esc(r.note || '') + '</td><td>' + imgs + '</td></tr>';
+    }).join('');
+    sections += '<div class="store"' + (si > 0 ? ' style="page-break-before:always;"' : '') + '>'
+      + '<h2>🏬 ' + esc(store) + ' <span style="font-size:11px;color:#64748b;font-weight:400;">(' + groups[store].length + (isLao ? ' ລາຍการ)' : ' รายการ)') + '</span></h2>'
+      + '<table><thead>' + th + '</thead><tbody>' + body + '</tbody></table></div>';
+  });
+  const title = isLao ? 'ລາຍງານທຽບລາຄາຄູ່ແข่ง' : 'รายงานเทียบราคาคู่แข่ง';
+  const sub = (branch ? ((isLao ? 'ສาขา ' : 'สาขา ') + esc(branch.code || branch.name_th || branch.id)) : '') + ' · ' + cmpFmtDate(new Date()) + ' · ' + keys.length + (isLao ? ' ຮ້าน · ' : ' ร้าน · ') + _cmpData.length + (isLao ? ' ລາຍการ' : ' รายการ');
+  const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + title + '</title>'
+    + '<style>*{box-sizing:border-box;} body{font-family:-apple-system,\'Segoe UI\',sans-serif;padding:14px;color:#0f172a;} h1{font-size:17px;margin:0 0 3px;} h2{font-size:14px;margin:14px 0 6px;} .sub{font-size:11px;color:#64748b;margin-bottom:6px;} table{border-collapse:collapse;width:100%;font-size:10.5px;} th,td{border:1px solid #cbd5e1;padding:5px 6px;vertical-align:top;text-align:left;} th{background:#f1f5f9;font-size:10px;} @media print{button{display:none;}}</style></head><body>'
+    + '<h1>\uD83C\uDD9A ' + title + '</h1><div class="sub">' + sub + '</div>'
+    + '<button onclick="window.print()" style="margin-bottom:8px;padding:9px 16px;border:none;background:#0d9488;color:#fff;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">\uD83D\uDDA8\uFE0F ' + (isLao ? 'พิมพ์ / บันทึก PDF' : 'พิมพ์ / บันทึก PDF') + '</button>'
+    + sections
+    + '<scr' + 'ipt>window.onload=function(){setTimeout(function(){try{window.print();}catch(e){}},500);};</scr' + 'ipt></body></html>';
+  const w = window.open('', '_blank');
+  if (!w) { showToast(isLao ? 'ເປີດไม่ได้ · อนุญาตป๊อปอัพแล้วลองใหม่' : 'เปิดไม่ได้ · อนุญาตป๊อปอัพแล้วลองใหม่', 'error'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
 }
 
 window.renderCmpPage = renderCmpPage; window.cmpInit = cmpInit; window.cmpStartScan = cmpStartScan; window.cmpLookup = cmpLookup;
 window.cmpUpdateDiff = cmpUpdateDiff; window.cmpOnPhoto = cmpOnPhoto; window.cmpRemovePhoto = cmpRemovePhoto; window.cmpRotatePhoto = cmpRotatePhoto;
+window.cmpSave = cmpSave; window.cmpLoadList = cmpLoadList; window.cmpDelete = cmpDelete; window.cmpExport = cmpExport; window.cmpExportPdf = cmpExportPdf;
 window.cmpSearchByName = cmpSearchByName; window.cmpPickProduct = cmpPickProduct; window.cmpLookupBarcode = cmpLookupBarcode;
-window.cmpSave = cmpSave; window.cmpLoadList = cmpLoadList; window.cmpDelete = cmpDelete; window.cmpExport = cmpExport;
 window.cmpStartSession = cmpStartSession; window.cmpEndSession = cmpEndSession; window.cmpRerender = cmpRerender;
+window.cmpLoadStores = cmpLoadStores; window.cmpJoinStore = cmpJoinStore; window.cmpSetSort = cmpSetSort; window.cmpRenderList = cmpRenderList;
 
 window.docSigClear = docSigClear; window.docSaveSignature = docSaveSignature; window.docPrint = docPrint;
 window.docSignSetSize = docSignSetSize; window.docResizeSig = docResizeSig; window.docRotateSig = docRotateSig;
