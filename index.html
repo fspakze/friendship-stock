@@ -90,15 +90,18 @@
     --fs-card: #ffffff; --fs-chev: #c7c7cc;
     --fs-1: 4px; --fs-2: 8px; --fs-3: 12px; --fs-4: 16px; --fs-5: 20px; --fs-6: 24px; --fs-7: 32px;
     --fs-r1: 10px; --fs-r2: 12px; --fs-r3: 14px; --fs-r-pill: 999px;
+    /* สถานะสต๊อก (iOS premium tones) — green/orange/red/purple + ink สำหรับตัวอักษร */
+    --fs-green: #34c759; --fs-green-ink: #248a3d; --fs-green-tint: #e8f8ee;
+    --fs-orange: #ff9500; --fs-orange-ink: #c2670a; --fs-orange-tint: #fff2e0;
+    --fs-red-ink: #d70015;
+    --fs-purple: #5856d6; --fs-purple-ink: #4240b5; --fs-purple-tint: #eeeeff;
+    --fs-scan-blue: #0a84ff;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { overflow-x: hidden; }
   body {
     font-family: 'Noto Sans Lao', 'Noto Sans Thai', system-ui, sans-serif;
-    background: var(--bg);
-    background-image: 
-      radial-gradient(at 0% 0%, rgba(20,184,166,0.08) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, rgba(245,158,11,0.06) 0px, transparent 50%);
+    background: var(--fs-fill2);
     min-height: 100vh;
     color: var(--slate-900);
     -webkit-font-smoothing: antialiased;
@@ -113,11 +116,11 @@
   ::-webkit-scrollbar-thumb:hover { background: var(--slate-500); }
   
   /* ========== SELECTION ========== */
-  ::selection { background: var(--teal-100); color: var(--teal-700); }
+  ::selection { background: var(--fs-blue-tint); color: var(--fs-blue-press); }
   
   /* ========== FOCUS VISIBLE (Premium) ========== */
   button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
-    outline: 2px solid var(--teal-500);
+    outline: 2px solid var(--fs-blue);
     outline-offset: 2px;
   }
   button:focus:not(:focus-visible), input:focus:not(:focus-visible) { outline: none; }
@@ -143,7 +146,7 @@
   .form-label { display: block; font-size: 11px; font-weight: 600; color: var(--slate-600); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
   .form-input, .form-select { width: 100%; padding: 12px 14px; border: 1.5px solid var(--slate-200); border-radius: 11px; font-size: 15px; font-family: inherit; background: var(--slate-50); transition: all 0.2s; color: var(--slate-900); }
   .form-input:hover, .form-select:hover { border-color: var(--slate-300); }
-  .form-input:focus, .form-select:focus { outline: none; border-color: var(--teal-500); background: white; box-shadow: 0 0 0 4px rgba(20,184,166,0.12); }
+  .form-input:focus, .form-select:focus { outline: none; border-color: var(--fs-blue); background: white; box-shadow: 0 0 0 4px var(--fs-blue-tint); }
   .form-input::placeholder { color: var(--slate-400); }
   
   .btn { width: 100%; padding: 13px; border: none; border-radius: 11px; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all 0.2s cubic-bezier(0.4,0,0.2,1); display: flex; align-items: center; justify-content: center; gap: 8px; position: relative; overflow: hidden; }
@@ -157,12 +160,12 @@
     pointer-events: none;
   }
   .btn:hover::after { opacity: 1; }
-  .btn-primary { background: linear-gradient(135deg, var(--teal-700), var(--teal-600)); color: white; box-shadow: 0 4px 14px rgba(15,118,110,0.35); }
+  .btn-primary { background: var(--fs-blue); color: white; }
   .btn-primary:active { transform: scale(0.98); }
   .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
   .btn-secondary { background: var(--slate-100); color: var(--slate-700); }
   .btn-secondary:hover { background: var(--slate-200); }
-  .btn-danger { background: linear-gradient(135deg, var(--rose-500), #e11d48); color: white; box-shadow: 0 4px 14px rgba(244,63,94,0.3); }
+  .btn-danger { background: var(--fs-red); color: white; }
   .btn-amber { background: linear-gradient(135deg, var(--amber-500), #d97706); color: white; box-shadow: 0 4px 14px rgba(245,158,11,0.3); }
   .btn-violet { background: linear-gradient(135deg, var(--violet-600), var(--violet-500)); color: white; box-shadow: 0 4px 14px rgba(124,58,237,0.3); }
   
@@ -191,6 +194,17 @@
   .fs-tile:active { background: var(--fs-fill2); }
   .fs-tile svg { width: 22px; height: 22px; color: var(--fs-blue); stroke-width: 1.8; }
   .fs-tile.fs-tile-danger svg { color: var(--fs-red); }
+  /* ช่องสแกนกะทัดรัด (เฉพาะหน้าเช็คสต๊อก) — เตี้ยลง + กรอบมุมฟ้า + เส้นสแกน */
+  .scan-frame.fs-scan { aspect-ratio: 16/10; border-radius: 14px; }
+  .fs-scan-cnr { position: absolute; width: 22px; height: 22px; border: 2.5px solid var(--fs-scan-blue); pointer-events: none; z-index: 2; }
+  .fs-scan-cnr.tl { left: 20px; top: 18px; border-right: none; border-bottom: none; border-radius: 4px 0 0 0; }
+  .fs-scan-cnr.tr { right: 20px; top: 18px; border-left: none; border-bottom: none; border-radius: 0 4px 0 0; }
+  .fs-scan-cnr.bl { left: 20px; bottom: 18px; border-right: none; border-top: none; border-radius: 0 0 0 4px; }
+  .fs-scan-cnr.br { right: 20px; bottom: 18px; border-left: none; border-top: none; border-radius: 0 0 4px 0; }
+  .fs-scan-line { position: absolute; left: 34px; right: 34px; height: 2px; background: var(--fs-scan-blue); box-shadow: 0 0 8px var(--fs-scan-blue); z-index: 2; pointer-events: none; display: none; }
+  .scan-frame.fs-scan.scanning::after { display: none; }
+  .scan-frame.fs-scan.scanning .fs-scan-line { display: block; animation: fs-scan-move 2.4s ease-in-out infinite; }
+  @keyframes fs-scan-move { 0%, 100% { top: 24%; } 50% { top: 76%; } }
 
   /* APP */
   .app { min-height: 100vh; display: none; }
@@ -208,8 +222,8 @@
   .topbar-info .name { font-weight: 700; color: var(--slate-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .topbar-info .meta { font-size: 10px; color: var(--slate-500); text-transform: uppercase; letter-spacing: 0.3px; }
   .topbar-actions { display: flex; gap: 5px; align-items: center; }
-  .icon-btn { width: 32px; height: 32px; border: none; background: var(--slate-100); border-radius: 9px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--slate-600); }
-  .icon-btn:hover { background: var(--slate-200); color: var(--teal-700); }
+  .icon-btn { width: 36px; height: 36px; border: none; background: var(--fs-fill); border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--fs-ink2); }
+  .icon-btn:hover { background: var(--slate-200); color: var(--fs-blue); }
   .icon-btn svg { width: 16px; height: 16px; }
   
   .context-bar { padding: 6px 14px; display: flex; gap: 6px; align-items: center; font-size: 11px; flex-wrap: wrap; }
@@ -232,9 +246,9 @@
   /* 5 tabs layout (when stockcheck is added) */
   .tabs:has(.tab:nth-child(5)) .tab { padding: 7px 2px; font-size: 10px; gap: 1px; }
   .tabs:has(.tab:nth-child(5)) .tab svg { width: 18px; height: 18px; }
-  .tab:hover { color: var(--teal-700); }
+  .tab:hover { color: var(--fs-blue); }
   .tab:hover svg { transform: scale(1.1); }
-  .tab.active { color: var(--teal-700); }
+  .tab.active { color: var(--fs-blue); }
   .tab.active::before {
     content: '';
     position: absolute;
@@ -243,7 +257,7 @@
     transform: translateX(-50%);
     width: 28px;
     height: 3px;
-    background: var(--teal-500);
+    background: var(--fs-blue);
     border-radius: 0 0 3px 3px;
   }
   .tab .tab-badge { position: absolute; top: 4px; right: 50%; transform: translateX(18px); background: var(--rose-500); color: white; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 9px; min-width: 16px; box-shadow: 0 2px 6px rgba(244,63,94,0.3); }
@@ -268,15 +282,15 @@
   .menu-drawer-header {
     padding: 16px; border-bottom: 1px solid var(--slate-200);
     display: flex; align-items: center; justify-content: space-between;
-    background: linear-gradient(135deg, var(--violet-500), var(--sky-500)); color: white;
+    background: var(--fs-card); color: var(--fs-ink);
   }
-  .menu-drawer-header h3 { margin: 0; font-size: 16px; font-weight: 800; }
+  .menu-drawer-header h3 { margin: 0; font-size: 16px; font-weight: 600; }
   .menu-drawer-close {
-    background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 8px;
-    width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    background: var(--fs-fill); color: var(--fs-ink2); border: none; border-radius: 8px;
+    width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center;
     transition: background 0.15s;
   }
-  .menu-drawer-close:hover { background: rgba(255,255,255,0.32); }
+  .menu-drawer-close:hover { background: var(--slate-200); }
   
   .menu-drawer-body { flex: 1; overflow-y: auto; padding: 8px 0; }
   
@@ -296,13 +310,13 @@
     position: relative;
   }
   .menu-item:hover { background: var(--slate-50); }
-  .menu-item.active { background: linear-gradient(90deg, var(--violet-50), var(--sky-50)); color: var(--violet-700); }
+  .menu-item.active { background: var(--fs-blue-tint); color: var(--fs-blue-press); }
   .menu-item.active::before {
     content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px;
-    background: var(--violet-500); border-radius: 0 3px 3px 0;
+    background: var(--fs-blue); border-radius: 0 3px 3px 0;
   }
   .menu-item svg { width: 20px; height: 20px; flex-shrink: 0; opacity: 0.8; }
-  .menu-item.active svg { opacity: 1; color: var(--violet-600); }
+  .menu-item.active svg { opacity: 1; color: var(--fs-blue); }
   .menu-item .menu-badge {
     margin-left: auto; background: var(--rose-500); color: white; font-size: 10px; font-weight: 700;
     padding: 2px 7px; border-radius: 10px; min-width: 18px; text-align: center;
@@ -349,7 +363,7 @@
   #reader__scan_region > div, #locReader__scan_region > div { 
     box-shadow: 0 0 0 9999px rgba(0,0,0,0.35) !important;
     border-radius: 12px !important;
-    border: 2px solid rgba(20,184,166,0.8) !important;
+    border: 2px solid rgba(10,132,255,0.85) !important;
   }
   .scan-placeholder { text-align: center; padding: 24px; }
   .scan-placeholder svg { width: 44px; height: 44px; opacity: 0.5; margin-bottom: 6px; }
@@ -1360,7 +1374,7 @@
   .toast.error { background: var(--rose-500); }
   .toast.warning { background: var(--amber-500); }
   
-  .loader { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
+  .loader { width: 15px; height: 15px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; opacity: 0.55; }
   @keyframes spin { to { transform: rotate(360deg); } }
   
   .step { display: none; }
@@ -3136,7 +3150,7 @@ function renderSelectiveCopyModal() {
     </div>
     
     <!-- Stats Bar -->
-    <div style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));padding:9px 11px;border-radius:9px;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between;gap:9px;">
+    <div style="background:var(--fs-blue-tint);padding:9px 11px;border-radius:9px;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between;gap:9px;">
       <div style="font-size:11px;color:var(--slate-700);">
         ${isLao ? 'ເລືອກແລ້ວ' : 'เลือกแล้ว'}:
       </div>
@@ -3489,7 +3503,7 @@ function showZoneStep() {
   // ถ้าไม่มี zones → แสดงข้อความช่วยเหลือ + ปุ่มจัดการ
   if (!allZones || allZones.length === 0) {
     document.getElementById('zoneGrid').innerHTML = `
-      <div style="grid-column:1/-1;background:linear-gradient(135deg,var(--amber-100),var(--rose-100));border:2px solid var(--amber-500);border-radius:13px;padding:20px;text-align:center;">
+      <div style="grid-column:1/-1;background:var(--fs-orange-tint);border:2px solid var(--amber-500);border-radius:13px;padding:20px;text-align:center;">
         <div style="font-size:48px;margin-bottom:10px;">⚠️</div>
         <div style="font-size:15px;font-weight:800;color:#92400e;margin-bottom:6px;">
           ${isLao ? 'ສາຂານີ້ຍັງບໍ່ມີໂຊນ' : 'สาขานี้ยังไม่มีโซน'}
@@ -4860,7 +4874,7 @@ function renderShell() {
             ${r.toUpperCase()} • 
             ${isAdminRole ? `
               <button onclick="openBranchSwitcher()" 
-                      style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));border:1px solid var(--violet-300);padding:1px 7px;border-radius:5px;font-size:10px;font-weight:700;color:var(--violet-600);cursor:pointer;display:inline-flex;align-items:center;gap:3px;"
+                      style="background:var(--fs-blue-tint);border:1px solid var(--violet-300);padding:1px 7px;border-radius:5px;font-size:10px;font-weight:700;color:var(--violet-600);cursor:pointer;display:inline-flex;align-items:center;gap:3px;"
                       title="${lang === 'lo' ? 'ປ່ຽນສາຂາ' : 'เปลี่ยนสาขา'}">
                 🏪 ${branchName}
                 <span style="font-size:8px;">▾</span>
@@ -5142,7 +5156,7 @@ function renderGapScanPage() {
   const noZones = branch?.use_zones === false;
   
   const locPickerHtml = noZones ? `
-    <div style="background:linear-gradient(135deg,var(--amber-100),var(--rose-100));border:2px solid var(--amber-300);border-radius:11px;padding:11px;margin-bottom:11px;">
+    <div style="background:var(--fs-orange-tint);border:2px solid var(--amber-300);border-radius:11px;padding:11px;margin-bottom:11px;">
       <div style="display:flex;align-items:center;gap:9px;">
         <span style="font-size:18px;">📍</span>
         <div style="flex:1;font-size:11px;color:var(--slate-700);">
@@ -5169,7 +5183,7 @@ function renderGapScanPage() {
   
   return `
     <!-- Header -->
-    <div style="background:linear-gradient(135deg,var(--amber-500),var(--rose-500));color:white;border-radius:13px;padding:13px;margin-bottom:11px;">
+    <div style="background:var(--fs-red);color:white;border-radius:13px;padding:13px;margin-bottom:11px;">
       <div style="font-size:18px;font-weight:800;display:flex;align-items:center;gap:9px;">
         🛒 Gap Scan
       </div>
@@ -5198,12 +5212,12 @@ function renderGapScanPage() {
                onfocus="this.style.borderColor='var(--amber-500)';"
                onblur="this.style.borderColor='var(--slate-200)';">
         <button class="btn" id="gapBarcodeLookupBtn"
-                style="background:linear-gradient(135deg,var(--violet-500),var(--violet-600));color:white;border:none;padding:13px;font-size:14px;font-weight:800;border-radius:11px;width:100%;cursor:pointer;"
+                style="background:var(--fs-purple);color:white;border:none;padding:13px;font-size:14px;font-weight:800;border-radius:11px;width:100%;cursor:pointer;"
                 onclick="onGapBarcodeEnter()">
           🔍 ${isLao ? 'ຄົ້ນຫາ' : 'ค้นหา'}
         </button>
         <button class="btn btn-primary" id="gapScanBtn" 
-                style="background:linear-gradient(135deg,var(--amber-500),var(--rose-500));padding:13px;font-size:14px;font-weight:800;border-radius:11px;width:100%;"
+                style="background:var(--fs-red);padding:13px;font-size:14px;font-weight:800;border-radius:11px;width:100%;"
                 onclick="toggleGapScan()">
           📷 ${isLao ? 'ສະແກນດ້ວຍກ້ອງ' : 'สแกนด้วยกล้อง'}
         </button>
@@ -5392,7 +5406,7 @@ function renderPurchaseRequestCard(barcode) {
       
       <!-- Submit button -->
       <button onclick="submitPurchaseRequest('${barcode.replace(/'/g, "\\'")}')" 
-              style="width:100%;background:linear-gradient(135deg,var(--amber-500),var(--rose-500));color:white;border:none;padding:13px;border-radius:11px;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">
+              style="width:100%;background:var(--fs-red);color:white;border:none;padding:13px;border-radius:11px;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">
         📤 ${T('gp_send_to_buyer')}
       </button>
     </div>
@@ -5494,8 +5508,8 @@ function renderGapProductCard(product, shelfCapacity) {
   const isReplenish = posQty > 0;
   const actionColor = isReplenish ? 'var(--amber-500)' : 'var(--rose-500)';
   const actionBg = isReplenish 
-    ? 'linear-gradient(135deg,var(--amber-100),var(--amber-50))' 
-    : 'linear-gradient(135deg,var(--rose-100),var(--rose-50))';
+    ? 'var(--fs-orange-tint)' 
+    : 'var(--fs-red-tint)';
   const actionIcon = isReplenish ? '📦' : '📤';
   const actionTitle = isReplenish 
     ? (isLao ? 'ມີຢູ່ໃນຄັງ — ສົ່ງເຕີມໜ້າຮ້ານ' : 'มีอยู่ในคลัง — ส่งเติมหน้าร้าน')
@@ -5503,7 +5517,7 @@ function renderGapProductCard(product, shelfCapacity) {
   
   // 🆕 Duplicate Warning HTML
   const duplicateWarning = duplicateInfo ? `
-    <div style="background:linear-gradient(135deg,var(--amber-100),var(--rose-100));border:2px solid var(--amber-500);border-radius:11px;padding:11px;margin-bottom:11px;">
+    <div style="background:var(--fs-orange-tint);border:2px solid var(--amber-500);border-radius:11px;padding:11px;margin-bottom:11px;">
       <div style="font-size:11px;font-weight:800;color:#9f1239;display:flex;align-items:center;gap:5px;margin-bottom:5px;">
         ⚠️ ${isLao ? 'ມີການແຈ້ງຊ້ຳ!' : 'มีการแจ้งซ้ำ!'}
       </div>
@@ -6311,20 +6325,21 @@ function mpEsc(s) {
 function psCalcStatus(stock, avg) {
   stock = Number(stock) || 0;
   avg = Number(avg) || 0;
-  if (stock < 0) return { key: 'stock_minus', th: 'Stock -', color: '#374151', bg: '#f3f4f6' };
-  if (stock === 0 && avg === 0) return { key: 'no_stock', th: 'No Stock', color: '#9ca3af', bg: '#f9fafb' };
-  if (stock === 0 && avg > 0) return { key: 'out', th: 'Out of Stock', color: '#9333ea', bg: '#faf5ff' };
-  if (stock > 0 && avg === 0) return { key: 'nonmove', th: 'Nonmove', color: '#111827', bg: '#f3f4f6' };
+  if (stock < 0) return { key: 'stock_minus', th: 'Stock -', color: '#8e8e93', ink: '#3c3c43', bg: '#f2f2f7' };
+  if (stock === 0 && avg === 0) return { key: 'no_stock', th: 'No Stock', color: '#c7c7cc', ink: '#8e8e93', bg: '#f2f2f7' };
+  if (stock === 0 && avg > 0) return { key: 'out', th: 'Out of Stock', color: '#5856d6', ink: '#4240b5', bg: '#eeeeff' };
+  if (stock > 0 && avg === 0) return { key: 'nonmove', th: 'Nonmove', color: '#8e8e93', ink: '#3c3c43', bg: '#f2f2f7' };
   const doh = stock * 30 / avg;
-  if (doh > 90) return { key: 'over', th: 'Over Stock', color: '#dc2626', bg: '#fef2f2', doh: doh };
-  if (doh < 30) return { key: 'sale_nobal', th: 'Sale No Balance Stock', color: '#ca8a04', bg: '#fefce8', doh: doh };
-  return { key: 'onhand', th: 'Onhand', color: '#16a34a', bg: '#f0fdf4', doh: doh };
+  if (doh > 90) return { key: 'over', th: 'Over Stock', color: '#ff3b30', ink: '#d70015', bg: '#ffeceb', doh: doh };
+  if (doh < 30) return { key: 'sale_nobal', th: 'Sale No Balance Stock', color: '#ff9500', ink: '#c2670a', bg: '#fff2e0', doh: doh };
+  return { key: 'onhand', th: 'Onhand', color: '#34c759', ink: '#248a3d', bg: '#e8f8ee', doh: doh };
 }
 
 function psStatusBadge(st, sub) {
-  return '<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:' + st.color + ';background:' + st.bg + ';border:1px solid ' + st.color + '40;border-radius:20px;padding:4px 12px;">'
+  var ink = st.ink || st.color;
+  return '<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:' + ink + ';background:' + st.bg + ';border-radius:999px;padding:5px 11px;">'
     + '<span style="width:8px;height:8px;border-radius:50%;background:' + st.color + ';"></span>' + st.th
-    + (sub ? '<span style="font-weight:500;color:var(--slate-400);font-size:10px;"> · ' + sub + '</span>' : '') + '</span>';
+    + (sub ? '<span style="font-weight:500;color:' + ink + '99;font-size:10px;"> · ' + sub + '</span>' : '') + '</span>';
 }
 
 
@@ -6371,7 +6386,7 @@ function renderPurchaseUploadPage() {
       <h2 style="font-size:17px;margin:0 0 5px;">🧾 ${isLao ? 'ຂໍ້ມูลการซื้อสินค้า' : 'ข้อมูลการซื้อสินค้า'}</h2>
       <p style="font-size:11px;color:var(--slate-500);margin:0 0 14px;">${isLao ? 'ອัปโหลดไฟล์ Buy (ปี 2019-2026)' : 'อัปโหลดไฟล์ Buy (ปี 2019-2026)'}</p>
       <div id="phCount" style="font-size:12px;color:var(--slate-600);margin-bottom:12px;"></div>
-      <label style="display:block;background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border-radius:12px;padding:16px;text-align:center;font-weight:800;cursor:pointer;font-size:14px;">
+      <label style="display:block;background:var(--fs-blue);color:white;border-radius:12px;padding:16px;text-align:center;font-weight:800;cursor:pointer;font-size:14px;">
         📁 ${isLao ? 'ເລือกไฟล์ Buy (.xlsx)' : 'เลือกไฟล์ Buy (.xlsx)'}
         <input type="file" accept=".xlsx,.xls" style="display:none;" onchange="phHandleFile(event)">
       </label>
@@ -6517,7 +6532,7 @@ async function scShowPurchase(barcode, name) {
 function psBuildStatusCard(ps, posQty) {
   const isLao = lang === 'lo';
   if (!ps) {
-    return '<div style="background:var(--slate-50);border:1px dashed var(--slate-300);border-radius:9px;padding:10px;margin-bottom:11px;text-align:center;font-size:11px;color:var(--slate-400);">'
+    return '<div style="text-align:center;font-size:12px;color:var(--fs-ink3);">'
       + (isLao ? 'ບໍ່ມีข้อมูล Status สินค้า (ยังไม่ได้อัปโหลด หรือไม่พบ barcode นี้)' : 'ไม่มีข้อมูล Status สินค้า (ยังไม่อัปโหลด หรือไม่พบ barcode นี้)') + '</div>';
   }
   // AVG สาขานี้
@@ -6551,7 +6566,7 @@ function psBuildStatusCard(ps, posQty) {
       + '</div>';
   }
 
-  return '<div style="background:linear-gradient(135deg,#f8fafc,#f1f5f9);border:1px solid var(--slate-200);border-radius:11px;padding:13px;margin-bottom:11px;">'
+  return '<div>'
     + (chips ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px;">' + chips + '</div>' : '')
     + dateRow
     // สาขานี้
@@ -7790,10 +7805,10 @@ function renderGapReportPage() {
     
     <!-- Summary Cards -->
     <div id="gapSummary" style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:11px;">
-      <div style="background:linear-gradient(135deg,var(--amber-100),var(--amber-50));padding:11px;border-radius:11px;text-align:center;">
+      <div style="background:var(--fs-orange-tint);padding:11px;border-radius:11px;text-align:center;">
         <div class="loader" style="margin:0 auto;"></div>
       </div>
-      <div style="background:linear-gradient(135deg,var(--rose-100),var(--rose-50));padding:11px;border-radius:11px;text-align:center;">
+      <div style="background:var(--fs-red-tint);padding:11px;border-radius:11px;text-align:center;">
         <div class="loader" style="margin:0 auto;"></div>
       </div>
     </div>
@@ -7825,7 +7840,7 @@ function renderGapReportPage() {
     </div>
     
     <!-- Bulk Actions Bar (จะแสดงเมื่อมีรายการเลือก) -->
-    <div id="gapBulkBar" style="display:none;background:linear-gradient(135deg,var(--violet-500),var(--sky-500));color:white;border-radius:9px;padding:9px 11px;margin-bottom:9px;align-items:center;gap:9px;">
+    <div id="gapBulkBar" style="display:none;background:var(--fs-blue);color:white;border-radius:9px;padding:9px 11px;margin-bottom:9px;align-items:center;gap:9px;">
       <div style="flex:1;font-size:11px;font-weight:700;">
         ✅ <span id="gapBulkCount">0</span> ${isLao ? 'ລາຍການເລືອກໄວ້' : 'รายการที่เลือก'}
       </div>
@@ -7926,7 +7941,7 @@ function renderGapSummary() {
   
   document.getElementById('gapSummary').innerHTML = `
     <div onclick="setGapAction('replenish')" 
-         style="background:linear-gradient(135deg,var(--amber-100),var(--amber-50));padding:11px;border-radius:11px;border:1px solid var(--amber-300);cursor:pointer;">
+         style="background:var(--fs-orange-tint);padding:11px;border-radius:11px;border:1px solid var(--amber-300);cursor:pointer;">
       <div style="font-size:9px;color:var(--amber-700);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
         📦 ${isLao ? 'ເຕີມຈາກຄັງ' : 'เติมจากคลัง'}
       </div>
@@ -7939,7 +7954,7 @@ function renderGapSummary() {
     </div>
     
     <div onclick="setGapAction('purchase')" 
-         style="background:linear-gradient(135deg,var(--rose-100),var(--rose-50));padding:11px;border-radius:11px;border:1px solid var(--rose-300);cursor:pointer;">
+         style="background:var(--fs-red-tint);padding:11px;border-radius:11px;border:1px solid var(--rose-300);cursor:pointer;">
       <div style="font-size:9px;color:var(--rose-700);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
         📤 ${isLao ? 'ສົ່ງຈັດຊື້' : 'ส่งจัดซื้อ'}
       </div>
@@ -8676,7 +8691,9 @@ function renderStockCheckPage() {
     </div>
 
     <div class="fs-card" style="margin-bottom:14px;">
-      <div class="scan-frame" id="scanFrame" style="margin-bottom:12px;">
+      <div class="scan-frame fs-scan" id="scanFrame" style="margin-bottom:12px;">
+        <span class="fs-scan-cnr tl"></span><span class="fs-scan-cnr tr"></span><span class="fs-scan-cnr bl"></span><span class="fs-scan-cnr br"></span>
+        <span class="fs-scan-line"></span>
         <div class="scan-placeholder" id="scanPlaceholder">
           <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5a1 1 0 011-1h2M9 4v16M15 4v16"/></svg>
           <p>${T('press_to_scan')}</p>
@@ -8847,6 +8864,9 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
   const unit = isLao ? (prod.unit_lo || 'pcs') : (prod.unit_th || 'ชิ้น');
   const posQty = prod.pos_qty || 0;
   const sellPrice = prod.sell_price || 0;
+  // สถานะสต๊อกสาขานี้ (ใช้ระบบเดิม psCalcStatus ตาม DOH/ยอดขาย) → ลงสีตัวเลข POS
+  const _bAvg = (ps && ps.branch_avg) ? ps.branch_avg[psBranchKey(ps.branch_avg)] : null;
+  const stPos = ps ? psCalcStatus(posQty, _bAvg || 0) : null;
   
   const locHtml = pog?.location_code ? `
     <div class="fs-row" style="border-top:1px solid var(--fs-hair);">
@@ -8885,8 +8905,9 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
       <div style="display:flex;">
         <div style="flex:1;padding:14px 16px;text-align:center;border-right:1px solid var(--fs-hair);">
           <div style="font-size:11px;color:var(--fs-ink3);margin-bottom:5px;">${T('sc_pos_now')}</div>
-          <div class="fs-stat-num">${posQty}</div>
+          <div class="fs-stat-num" style="color:${stPos ? stPos.ink : 'var(--fs-ink)'};">${posQty}</div>
           <div style="font-size:11px;color:var(--fs-ink3);margin-top:4px;">${unit}</div>
+          ${stPos ? `<div style="display:inline-flex;align-items:center;gap:5px;margin-top:8px;font-size:11px;font-weight:600;color:${stPos.ink};background:${stPos.bg};padding:3px 9px;border-radius:999px;"><span style="width:6px;height:6px;border-radius:50%;background:${stPos.color};"></span>${stPos.th}</div>` : ''}
         </div>
         <div style="flex:1;padding:14px 16px;text-align:center;display:flex;flex-direction:column;justify-content:center;">
           <div style="font-size:11px;color:var(--fs-ink3);margin-bottom:5px;">${T('sc_sell_price')}</div>
@@ -9105,7 +9126,7 @@ function scOpenIssueModal() {
         <button onclick="scCloseIssueModal()" style="flex:1;background:var(--slate-100);color:var(--slate-700);border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;">
           ${isLao ? 'ຍົກເລີກ' : 'ยกเลิก'}
         </button>
-        <button onclick="scSubmitIssue()" style="flex:2;background:linear-gradient(135deg,var(--rose-500),var(--amber-500));color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;">
+        <button onclick="scSubmitIssue()" style="flex:2;background:var(--fs-red);color:white;border:none;padding:13px;border-radius:11px;font-size:13px;font-weight:800;cursor:pointer;">
           ${T('sc_submit_issue')}
         </button>
       </div>
@@ -9295,7 +9316,7 @@ async function scShowBranchStock() {
     
     if (type === 'mine') {
       return `
-        <div style="background:linear-gradient(135deg,var(--violet-50),var(--sky-50));border:2px solid var(--violet-400);border-radius:11px;padding:12px 14px;margin-bottom:11px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <div style="background:var(--fs-blue-tint);border:2px solid var(--violet-400);border-radius:11px;padding:12px 14px;margin-bottom:11px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
           <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
               <span style="background:var(--violet-500);color:white;font-size:9px;font-weight:800;padding:2px 7px;border-radius:9px;">⭐ ${T('sc_my_branch')}</span>
@@ -9389,7 +9410,7 @@ let _irData = [];
 function renderIssueReportPage() {
   const isLao = lang === 'lo';
   return `
-    <div style="background:linear-gradient(135deg,var(--rose-500),var(--amber-500));color:white;padding:13px 15px;border-radius:11px;margin-bottom:11px;">
+    <div style="background:var(--fs-red);color:white;padding:13px 15px;border-radius:11px;margin-bottom:11px;">
       <div style="display:flex;align-items:center;gap:9px;">
         <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <div style="flex:1;">
@@ -9701,7 +9722,7 @@ function renderScanPage() {
   // Location picker เฉพาะเมื่อปิด zones (สาขาเล็ก)
   // Counter ต้องเลือก location ก่อน scan/save
   const locPickerHtml = noZones ? `
-    <div style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));border:2px solid var(--violet-300);border-radius:11px;padding:11px;margin-bottom:11px;">
+    <div style="background:var(--fs-blue-tint);border:2px solid var(--violet-300);border-radius:11px;padding:11px;margin-bottom:11px;">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;">
         <span style="font-size:18px;">📍</span>
         <div style="flex:1;font-size:11px;color:var(--slate-700);">
@@ -9789,7 +9810,7 @@ function renderScanPage() {
                placeholder="${T('enter_barcode')}"
                style="width:100%;">
         <button class="btn" onclick="manualLookup()" 
-                style="background:linear-gradient(135deg,var(--violet-500),var(--violet-600));color:white;border:none;width:100%;padding:13px;font-size:14px;font-weight:800;border-radius:11px;cursor:pointer;">
+                style="background:var(--fs-purple);color:white;border:none;width:100%;padding:13px;font-size:14px;font-weight:800;border-radius:11px;cursor:pointer;">
           🔍 ${lang === 'lo' ? 'ຄົ້ນຫາ' : 'ค้นหา'}
         </button>
       </div>
@@ -11091,7 +11112,7 @@ async function lookupProduct(barcode) {
             ${isLao ? 'ຍົກເລີກ' : 'ยกเลิก'}
           </button>
           <button class="btn btn-primary" onclick="confirmCloneFromOther()" 
-                  style="flex:1.5;padding:11px;font-size:11px;font-weight:800;background:linear-gradient(135deg,var(--amber-500),var(--rose-500));">
+                  style="flex:1.5;padding:11px;font-size:11px;font-weight:800;background:var(--fs-red);">
             ➕ ${isLao ? 'ເພີ່ມເຂົ້າສາຂາ' : 'เพิ่มเข้าสาขา'} (POS=0)
           </button>
         </div>
@@ -11282,7 +11303,7 @@ async function loadPanOGramForProduct(product, locationCode) {
   const isLao = lang === 'lo';
   
   let html = `
-    <div style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));border:1px solid var(--violet-300);border-radius:10px;padding:9px 11px;">
+    <div style="background:var(--fs-blue-tint);border:1px solid var(--violet-300);border-radius:10px;padding:9px 11px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">
         <div style="font-size:11px;font-weight:700;color:var(--violet-600);display:flex;align-items:center;gap:5px;">
           📐 Pan-O-Gram
@@ -11470,7 +11491,7 @@ async function openPanOGramModal(barcode, locationCode, editId = null) {
     </div>
     
     <!-- Position Code Preview -->
-    <div style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));padding:9px 11px;border-radius:8px;margin-bottom:11px;text-align:center;">
+    <div style="background:var(--fs-blue-tint);padding:9px 11px;border-radius:8px;margin-bottom:11px;text-align:center;">
       <div style="font-size:10px;color:var(--slate-600);font-weight:700;margin-bottom:2px;">${isLao ? 'ລະຫັດຕຳແໜ່ງ' : 'รหัสตำแหน่ง'}</div>
       <div id="pogPosCode" style="font-size:18px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;letter-spacing:0.5px;">
         ${locationCode}-${defaultShelf}-${defaultSeq}-${defaultTotal}
@@ -11509,7 +11530,7 @@ async function openPanOGramModal(barcode, locationCode, editId = null) {
     </div>
     
     <!-- Total Qty Preview -->
-    <div style="background:linear-gradient(135deg,var(--emerald-100),var(--teal-100));padding:11px;border-radius:9px;margin-bottom:11px;text-align:center;">
+    <div style="background:var(--fs-green-tint);padding:11px;border-radius:9px;margin-bottom:11px;text-align:center;">
       <div style="font-size:10px;color:var(--emerald-500);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
         ${isLao ? 'ຈຳນວນສິນຄ້າລວມ (ຄວາມຈຸ)' : 'จำนวนสินค้ารวม (ความจุ)'}
       </div>
@@ -12080,7 +12101,7 @@ function renderPogVisualLayout(items) {
     const locTotalQty = locItems.reduce((s, p) => s + (p.total_qty || 0), 0);
     
     let html = `
-      <div style="margin-bottom:11px;text-align:center;background:linear-gradient(135deg,var(--violet-100),var(--sky-100));padding:8px;border-radius:9px;">
+      <div style="margin-bottom:11px;text-align:center;background:var(--fs-blue-tint);padding:8px;border-radius:9px;">
         <div style="font-size:10px;color:var(--slate-600);font-weight:700;">${isLao ? 'ມຸມມອງຊັ້ນວາງ' : 'มุมมองชั้นวาง'}</div>
         <div style="font-size:16px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;">📍 ${locCode}</div>
         <div style="font-size:10px;color:var(--slate-600);">
@@ -12239,7 +12260,7 @@ async function openEditStockLevels(pogId) {
     </div>
     
     <!-- Stock Levels Form -->
-    <div style="background:linear-gradient(135deg,var(--amber-100),var(--rose-100));border-left:4px solid var(--amber-500);padding:11px;border-radius:9px;margin-bottom:11px;">
+    <div style="background:var(--fs-orange-tint);border-left:4px solid var(--amber-500);padding:11px;border-radius:9px;margin-bottom:11px;">
       
       <!-- Min -->
       <div style="margin-bottom:9px;">
@@ -12320,7 +12341,7 @@ async function openEditStockLevels(pogId) {
     <div class="action-row">
       <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;">${T('cancel')}</button>
       <button class="btn btn-primary" onclick="saveStockLevels(${pogId})" 
-              style="flex:1.5;background:linear-gradient(135deg,var(--amber-500),var(--rose-500));font-weight:800;">
+              style="flex:1.5;background:var(--fs-red);font-weight:800;">
         💾 ${isLao ? 'ບັນທຶກ' : 'บันทึก'}
       </button>
     </div>
@@ -12960,7 +12981,7 @@ async function loadPrecountReport() {
     
     let html = `
       <!-- Totals -->
-      <div style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));padding:11px;border-radius:11px;margin-bottom:11px;">
+      <div style="background:var(--fs-blue-tint);padding:11px;border-radius:11px;margin-bottom:11px;">
         <div style="text-align:center;font-size:11px;color:var(--violet-600);font-weight:700;margin-bottom:5px;">
           ${isLao ? 'ສະຫຼຸບລວມ' : 'สรุปรวม'}
         </div>
@@ -13098,7 +13119,7 @@ async function loadBackupManager() {
   
   content.innerHTML = `
     <!-- Stats -->
-    <div style="background:linear-gradient(135deg,var(--emerald-100),var(--teal-100));padding:11px;border-radius:11px;margin-bottom:11px;">
+    <div style="background:var(--fs-green-tint);padding:11px;border-radius:11px;margin-bottom:11px;">
       <div style="text-align:center;font-size:11px;color:var(--emerald-500);font-weight:700;margin-bottom:5px;">
         📊 ${isLao ? 'ສະຖິຕິຂໍ້ມູນ' : 'สถิติข้อมูล'}
       </div>
@@ -13123,13 +13144,13 @@ async function loadBackupManager() {
     <!-- Quick Actions -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:11px;">
       <button class="btn btn-primary" onclick="exportFullBackupJSON()"
-              style="background:linear-gradient(135deg,var(--emerald-500),var(--teal-500));font-size:12px;padding:11px;display:flex;flex-direction:column;align-items:center;gap:3px;">
+              style="background:var(--fs-green-ink);font-size:12px;padding:11px;display:flex;flex-direction:column;align-items:center;gap:3px;">
         <span style="font-size:18px;">💾</span>
         <span>${isLao ? 'Full Backup' : 'Full Backup'}</span>
         <span style="font-size:9px;font-weight:500;opacity:0.9;">JSON</span>
       </button>
       <button class="btn btn-primary" onclick="exportFullBackupExcel()"
-              style="background:linear-gradient(135deg,var(--violet-500),var(--sky-500));font-size:12px;padding:11px;display:flex;flex-direction:column;align-items:center;gap:3px;">
+              style="background:var(--fs-blue);font-size:12px;padding:11px;display:flex;flex-direction:column;align-items:center;gap:3px;">
         <span style="font-size:18px;">📊</span>
         <span>${isLao ? 'Full Backup' : 'Full Backup'}</span>
         <span style="font-size:9px;font-weight:500;opacity:0.9;">Excel</span>
@@ -13139,7 +13160,7 @@ async function loadBackupManager() {
     <!-- Restore + History buttons -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:11px;">
       <button class="btn" onclick="openRestoreModal()" ${user.role !== 'admin' ? 'disabled' : ''}
-              style="background:${user.role === 'admin' ? 'linear-gradient(135deg,var(--amber-500),var(--rose-500))' : 'var(--slate-200)'};color:${user.role === 'admin' ? 'white' : 'var(--slate-400)'};font-size:12px;padding:10px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:700;border:none;cursor:${user.role === 'admin' ? 'pointer' : 'not-allowed'};">
+              style="background:${user.role === 'admin' ? 'var(--fs-red)' : 'var(--slate-200)'};color:${user.role === 'admin' ? 'white' : 'var(--slate-400)'};font-size:12px;padding:10px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:700;border:none;cursor:${user.role === 'admin' ? 'pointer' : 'not-allowed'};">
         🔄 ${isLao ? 'ກູ້ຄືນ' : 'กู้คืน'} ${user.role !== 'admin' ? '🔒' : ''}
       </button>
       <button class="btn btn-secondary" onclick="showBackupHistory()"
@@ -13150,7 +13171,7 @@ async function loadBackupManager() {
     </div>
     
     <!-- Reminder Schedule -->
-    <div style="background:linear-gradient(135deg,var(--sky-100),var(--violet-100));border-radius:9px;padding:9px 11px;margin-bottom:11px;">
+    <div style="background:var(--fs-blue-tint);border-radius:9px;padding:9px 11px;margin-bottom:11px;">
       <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">
         <span style="font-size:18px;">⏰</span>
         <div style="flex:1;">
@@ -13678,7 +13699,7 @@ async function onRestoreFileSelected(event) {
       <div id="restoreErr" style="background:var(--rose-100);color:var(--rose-500);padding:7px 9px;border-radius:6px;font-size:11px;display:none;margin-top:7px;"></div>
       
       <button class="btn btn-danger" onclick="executeRestore()" 
-              style="width:100%;margin-top:11px;padding:12px;font-size:13px;font-weight:800;background:linear-gradient(135deg,var(--rose-500),var(--rose-600));">
+              style="width:100%;margin-top:11px;padding:12px;font-size:13px;font-weight:800;background:var(--fs-red);">
         🔄 ${isLao ? 'ດຳເນີນການກູ້ຄືນ' : 'ดำเนินการกู้คืน'}
       </button>
     `;
@@ -15242,7 +15263,7 @@ function renderHistoryPogList(items) {
     html += `
       <div onclick="openPanOGramModal('${p.barcode}', '${p.location_code}', ${p.id})"
            style="padding:9px 14px;border-bottom:1px solid var(--slate-100);cursor:pointer;display:flex;align-items:center;gap:9px;">
-        <div style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));border:1px solid var(--violet-300);padding:5px 8px;border-radius:6px;font-family:'Space Grotesk',monospace;font-weight:800;font-size:11px;color:var(--violet-600);min-width:90px;text-align:center;flex-shrink:0;">
+        <div style="background:var(--fs-blue-tint);border:1px solid var(--violet-300);padding:5px 8px;border-radius:6px;font-family:'Space Grotesk',monospace;font-weight:800;font-size:11px;color:var(--violet-600);min-width:90px;text-align:center;flex-shrink:0;">
           ${p.position_code}
         </div>
         <div style="flex:1;min-width:0;">
@@ -15529,7 +15550,7 @@ async function openEditCount(countId) {
         ${T('cancel')}
       </button>
       <button class="btn btn-primary" id="saveEditBtn" onclick="saveEditCount()" 
-        style="flex:1.5;padding:16px;font-size:14px;font-weight:800;min-height:54px;background:linear-gradient(135deg,var(--violet-500),var(--sky-500));box-shadow:0 4px 12px rgba(139,92,246,0.3);">
+        style="flex:1.5;padding:16px;font-size:14px;font-weight:800;min-height:54px;background:var(--fs-blue);box-shadow:0 4px 12px rgba(139,92,246,0.3);">
         💾 ${T('save')}
       </button>
     </div>
@@ -16437,10 +16458,10 @@ function renderVariancePage() {
     
     <!-- Summary Cards -->
     <div id="varianceSummary" style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:11px;">
-      <div style="background:linear-gradient(135deg,var(--violet-100),var(--violet-100));padding:11px;border-radius:11px;text-align:center;">
+      <div style="background:var(--fs-purple-tint);padding:11px;border-radius:11px;text-align:center;">
         <div class="loader" style="margin:0 auto;"></div>
       </div>
-      <div style="background:linear-gradient(135deg,var(--violet-100),var(--violet-100));padding:11px;border-radius:11px;text-align:center;">
+      <div style="background:var(--fs-purple-tint);padding:11px;border-radius:11px;text-align:center;">
         <div class="loader" style="margin:0 auto;"></div>
       </div>
     </div>
@@ -16742,7 +16763,7 @@ function renderVarianceSummary() {
   document.getElementById('varianceSummary').innerHTML = `
     <!-- Recount Rate -->
     <div onclick="setVarianceLevel('L3')" 
-         style="background:${recountRate > 5 ? 'linear-gradient(135deg,var(--rose-100),var(--amber-100))' : 'linear-gradient(135deg,var(--emerald-100),var(--teal-100))'};padding:11px;border-radius:11px;border:1px solid ${recountRate > 5 ? 'var(--rose-300)' : 'var(--emerald-300)'};cursor:pointer;">
+         style="background:${recountRate > 5 ? 'var(--fs-orange-tint)' : 'var(--fs-green-tint)'};padding:11px;border-radius:11px;border:1px solid ${recountRate > 5 ? 'var(--rose-300)' : 'var(--emerald-300)'};cursor:pointer;">
       <div style="font-size:9px;color:var(--slate-600);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
         🔁 Recount Rate
       </div>
@@ -16755,7 +16776,7 @@ function renderVarianceSummary() {
     </div>
     
     <!-- Shrinkage % -->
-    <div style="background:${shrinkagePct > 1 ? 'linear-gradient(135deg,var(--rose-100),var(--rose-50))' : 'linear-gradient(135deg,var(--emerald-100),var(--teal-100))'};padding:11px;border-radius:11px;border:1px solid ${shrinkagePct > 1 ? 'var(--rose-300)' : 'var(--emerald-300)'};">
+    <div style="background:${shrinkagePct > 1 ? 'var(--fs-red-tint)' : 'var(--fs-green-tint)'};padding:11px;border-radius:11px;border:1px solid ${shrinkagePct > 1 ? 'var(--rose-300)' : 'var(--emerald-300)'};">
       <div style="font-size:9px;color:var(--slate-600);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
         💸 ${isLao ? 'ການສູນເສຍ' : 'Shrinkage'}
       </div>
@@ -16769,7 +16790,7 @@ function renderVarianceSummary() {
     
     <!-- Match Rate -->
     <div onclick="setVarianceLevel('L1')" 
-         style="background:linear-gradient(135deg,var(--emerald-100),var(--teal-100));padding:11px;border-radius:11px;border:1px solid var(--emerald-300);cursor:pointer;">
+         style="background:var(--fs-green-tint);padding:11px;border-radius:11px;border:1px solid var(--emerald-300);cursor:pointer;">
       <div style="font-size:9px;color:var(--emerald-700);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
         ✅ ${isLao ? 'ສະຕ໋ອກຕົງ' : 'สต๊อกตรง'}
       </div>
@@ -16782,7 +16803,7 @@ function renderVarianceSummary() {
     </div>
     
     <!-- Net Variance -->
-    <div style="background:${netVarianceValue < 0 ? 'linear-gradient(135deg,var(--rose-100),var(--amber-100))' : 'linear-gradient(135deg,var(--sky-100),var(--violet-100))'};padding:11px;border-radius:11px;border:1px solid ${netVarianceValue < 0 ? 'var(--rose-300)' : 'var(--sky-300)'};">
+    <div style="background:${netVarianceValue < 0 ? 'var(--fs-orange-tint)' : 'var(--fs-blue-tint)'};padding:11px;border-radius:11px;border:1px solid ${netVarianceValue < 0 ? 'var(--rose-300)' : 'var(--sky-300)'};">
       <div style="font-size:9px;color:var(--slate-600);font-weight:700;text-transform:uppercase;margin-bottom:3px;">
         ${netVarianceValue < 0 ? '📉' : '📈'} Net Variance
       </div>
@@ -16830,7 +16851,7 @@ function renderOrphanWarning() {
   }).filter(Boolean);
   
   warningEl.innerHTML = `
-    <div style="background:linear-gradient(135deg,var(--amber-100),var(--rose-100));border:2px solid var(--amber-500);border-radius:11px;padding:11px;margin-bottom:11px;">
+    <div style="background:var(--fs-orange-tint);border:2px solid var(--amber-500);border-radius:11px;padding:11px;margin-bottom:11px;">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;">
         <span style="font-size:22px;">⚠️</span>
         <div style="flex:1;">
@@ -17768,7 +17789,7 @@ function renderPerformancePage() {
     ` : ''}
 
     <!-- My Score Card -->
-    <div id="perfMyCard" style="background:linear-gradient(135deg,var(--violet-500),var(--sky-500));color:white;border-radius:13px;padding:15px;margin-bottom:11px;">
+    <div id="perfMyCard" style="background:var(--fs-blue);color:white;border-radius:13px;padding:15px;margin-bottom:11px;">
       <div style="font-size:12px;opacity:0.9;margin-bottom:7px;">
         ${isLao ? '⭐ ຜົນງານຂອງຂ້ອຍ' : '⭐ ผลงานของฉัน'}
       </div>
@@ -18176,11 +18197,11 @@ async function loadHealth() {
     const summary = document.getElementById('healthSummary');
     if (summary) {
       summary.innerHTML = `
-        <div style="background:linear-gradient(135deg,var(--violet-50),var(--sky-50));border:1px solid var(--violet-200);border-radius:9px;padding:11px;text-align:center;">
+        <div style="background:var(--fs-blue-tint);border:1px solid var(--violet-200);border-radius:9px;padding:11px;text-align:center;">
           <div style="font-size:9px;color:var(--violet-700);font-weight:700;text-transform:uppercase;margin-bottom:3px;">${isLao ? 'ທັງໝົດ' : 'ทั้งหมด'}</div>
           <div style="font-size:22px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;line-height:1;">${totalGondolas}</div>
         </div>
-        <div style="background:linear-gradient(135deg,var(--emerald-50),var(--teal-50));border:1px solid var(--emerald-200);border-radius:9px;padding:11px;text-align:center;">
+        <div style="background:var(--fs-green-tint);border:1px solid var(--emerald-200);border-radius:9px;padding:11px;text-align:center;">
           <div style="font-size:9px;color:var(--emerald-700);font-weight:700;text-transform:uppercase;margin-bottom:3px;">${isLao ? 'ດີ (A)' : 'ดี (A)'}</div>
           <div style="font-size:22px;font-weight:800;color:var(--emerald-600);font-family:'Space Grotesk',monospace;line-height:1;">${healthy}</div>
         </div>
@@ -18276,7 +18297,7 @@ function renderBranchManagePage() {
     <div style="padding:14px 13px 90px;max-width:640px;margin:0 auto;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;">
         <h2 style="font-size:18px;font-weight:800;margin:0;">🏪 ${isLao ? 'ຈັດການສາขา' : 'จัดการสาขา'}</h2>
-        <button onclick="bmOpenAdd()" style="background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;border-radius:10px;padding:9px 15px;font-size:13px;font-weight:700;cursor:pointer;">+ ${isLao ? 'ເพิ่มสาขา' : 'เพิ่มสาขา'}</button>
+        <button onclick="bmOpenAdd()" style="background:var(--fs-blue);color:white;border:none;border-radius:10px;padding:9px 15px;font-size:13px;font-weight:700;cursor:pointer;">+ ${isLao ? 'ເพิ่มสาขา' : 'เพิ่มสาขา'}</button>
       </div>
       <p style="font-size:12px;color:var(--slate-500);margin:0 0 14px;">${isLao ? 'ເພີ່ม/ແກ້ໄຂ ສาขาในระบบ' : 'เพิ่ม/แก้ไข สาขาในระบบ'}</p>
       <div id="bmList"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
@@ -18495,7 +18516,7 @@ function renderUsersList() {
     if (b) {
       const name = lang === 'lo' ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo);
       statusBadge = `
-        <div style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));border:1px solid var(--violet-300);padding:8px 11px;border-radius:9px;margin-bottom:10px;display:flex;align-items:center;gap:8px;font-size:11px;">
+        <div style="background:var(--fs-blue-tint);border:1px solid var(--violet-300);padding:8px 11px;border-radius:9px;margin-bottom:10px;display:flex;align-items:center;gap:8px;font-size:11px;">
           <span style="font-size:14px;">🏪</span>
           <span style="flex:1;">
             <strong style="color:var(--violet-600);">${lang === 'lo' ? 'ກຳລັງກັ່ນຕອງ:' : 'กำลังกรอง:'}</strong> ${name}
@@ -18695,7 +18716,7 @@ function renderBranchFilterFAB() {
   const allItem = `
     <button class="qnav-item ${_userBranchFilter === null ? 'qnav-item-active' : ''}" 
             onclick="filterByBranch(null)">
-      <span class="qnav-item-icon" style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));font-size:16px;">🌐</span>
+      <span class="qnav-item-icon" style="background:var(--fs-blue-tint);font-size:16px;">🌐</span>
       <span style="font-weight:700;">${isLao ? 'ທັງໝົດ' : 'ทั้งหมด'}</span>
       <span class="qnav-item-count">${totalUsers}</span>
     </button>
@@ -19273,7 +19294,7 @@ function showImportPreview(products) {
     
     <!-- 🌐 Multi-Branch Mode Toggle (เฉพาะถ้ามี Branch Code ในไฟล์) -->
     ${rowsWithBranchCode > 0 && isAdmin ? `
-      <div style="background:linear-gradient(135deg,var(--sky-100),var(--violet-100));border:2px solid var(--sky-500);border-radius:10px;padding:11px;margin-bottom:11px;">
+      <div style="background:var(--fs-blue-tint);border:2px solid var(--sky-500);border-radius:10px;padding:11px;margin-bottom:11px;">
         <label style="display:flex;align-items:center;gap:9px;cursor:pointer;">
           <input type="checkbox" id="multiBranchMode" 
                  onchange="onMultiBranchToggle()"
@@ -23433,7 +23454,7 @@ function openAddGondolaModal() {
       </p>
       
       <!-- Branch indicator -->
-      <div style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));border:1px solid var(--violet-300);padding:8px 11px;border-radius:8px;margin-bottom:11px;display:flex;align-items:center;gap:8px;">
+      <div style="background:var(--fs-blue-tint);border:1px solid var(--violet-300);padding:8px 11px;border-radius:8px;margin-bottom:11px;display:flex;align-items:center;gap:8px;">
         <span style="font-size:14px;">🏪</span>
         <div style="flex:1;font-size:11px;">
           <span style="color:var(--slate-600);">${isLao ? 'ສາຂາ' : 'สาขา'}:</span>
@@ -23932,7 +23953,7 @@ function renderSettingsPage() {
     <!-- Branch Switcher (Admin Only) -->
     <div style="background:white;border:2px solid var(--violet-300);border-radius:14px;padding:16px;margin-top:14px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
-        <div style="background:linear-gradient(135deg,var(--violet-500),var(--sky-500));color:white;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">
+        <div style="background:var(--fs-blue);color:white;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">
           🏪
         </div>
         <div style="flex:1;min-width:0;">
@@ -23944,7 +23965,7 @@ function renderSettingsPage() {
         </div>
       </div>
       
-      <button class="btn" style="background:linear-gradient(135deg,var(--violet-500),var(--sky-500));color:white;font-size:12px;padding:11px;width:100%;" onclick="openBranchSwitcher()">
+      <button class="btn" style="background:var(--fs-blue);color:white;font-size:12px;padding:11px;width:100%;" onclick="openBranchSwitcher()">
         🔄 ${lang === 'lo' ? 'ປ່ຽນສາຂາ' : 'เปลี่ยนสาขา'}
       </button>
       
@@ -23958,7 +23979,7 @@ function renderSettingsPage() {
     <!-- Backup Manager (Admin Only) -->
     <div style="background:white;border:2px solid var(--emerald-500);border-radius:14px;padding:16px;margin-top:14px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
-        <div style="background:linear-gradient(135deg,var(--emerald-500),var(--teal-500));color:white;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">
+        <div style="background:var(--fs-green-ink);color:white;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">
           💾
         </div>
         <div style="flex:1;min-width:0;">
@@ -23972,7 +23993,7 @@ function renderSettingsPage() {
         </div>
       </div>
       
-      <button class="btn" style="background:linear-gradient(135deg,var(--emerald-500),var(--teal-500));color:white;font-size:12px;padding:11px;width:100%;" onclick="openBackupManager()">
+      <button class="btn" style="background:var(--fs-green-ink);color:white;font-size:12px;padding:11px;width:100%;" onclick="openBackupManager()">
         💾 ${lang === 'lo' ? 'ສຳຮອງຂໍ້ມູນ' : 'สำรองข้อมูล'}
       </button>
       
@@ -23986,7 +24007,7 @@ function renderSettingsPage() {
     <!-- Zone Manager (Admin Only) -->
     <div style="background:white;border:2px solid var(--sky-500);border-radius:14px;padding:16px;margin-top:14px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
-        <div style="background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">
+        <div style="background:var(--fs-blue);color:white;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">
           🎨
         </div>
         <div style="flex:1;min-width:0;">
@@ -24023,7 +24044,7 @@ function renderSettingsPage() {
         </button>
       </div>
       
-      <button class="btn" style="background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;font-size:12px;padding:11px;width:100%;" onclick="openZoneManager()">
+      <button class="btn" style="background:var(--fs-blue);color:white;font-size:12px;padding:11px;width:100%;" onclick="openZoneManager()">
         🎨 ${lang === 'lo' ? 'ຈັດການໂຊນ' : 'จัดการโซน'}
       </button>
       
@@ -24039,7 +24060,7 @@ function renderSettingsPage() {
     <!-- Pan-O-Gram Management -->
     <div style="background:white;border:2px solid var(--violet-500);border-radius:14px;padding:16px;margin-top:14px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
-        <div style="background:linear-gradient(135deg,var(--violet-500),var(--sky-500));color:white;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">
+        <div style="background:var(--fs-blue);color:white;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">
           📐
         </div>
         <div style="flex:1;min-width:0;">
@@ -24053,7 +24074,7 @@ function renderSettingsPage() {
         </div>
       </div>
       
-      <button class="btn" style="background:linear-gradient(135deg,var(--violet-500),var(--sky-500));color:white;font-size:12px;padding:11px;width:100%;margin-bottom:7px;" onclick="openPanOGramManager()">
+      <button class="btn" style="background:var(--fs-blue);color:white;font-size:12px;padding:11px;width:100%;margin-bottom:7px;" onclick="openPanOGramManager()">
         📋 ${lang === 'lo' ? 'ຈັດການ Pan-O-Gram' : 'จัดการ Pan-O-Gram'}
       </button>
       
@@ -24228,7 +24249,7 @@ function renderSettingsPage() {
     </div>
     ` : `
     <!-- SCC/BCS — แสดง info card แทน Danger Zone -->
-    <div style="background:linear-gradient(135deg,var(--violet-100),var(--sky-100));border-radius:14px;padding:14px;margin-top:14px;border-left:4px solid var(--violet-500);">
+    <div style="background:var(--fs-blue-tint);border-radius:14px;padding:14px;margin-top:14px;border-left:4px solid var(--violet-500);">
       <div style="display:flex;align-items:center;gap:9px;">
         <span style="font-size:24px;">🔒</span>
         <div style="flex:1;">
@@ -24484,7 +24505,7 @@ function tcUpdateBtnState() {
   
   if (isDelete && hasSelected) {
     btn.disabled = false;
-    btn.style.background = 'linear-gradient(135deg,var(--rose-500),var(--rose-600))';
+    btn.style.background = 'var(--fs-red)';
     btn.style.cursor = 'pointer';
   } else {
     btn.disabled = true;
@@ -24835,7 +24856,7 @@ function renderExpiryForm(prod) {
              style="width:100%;padding:12px 13px;border:2px solid var(--slate-200);border-radius:11px;font-size:15px;font-family:'Space Grotesk',monospace;font-weight:700;background:white;outline:none;margin-bottom:13px;"
              onfocus="this.style.borderColor='var(--teal-500)';" onblur="this.style.borderColor='var(--slate-200)';">
       <button onclick="if(typeof closeModal==='function')closeModal();" style="width:100%;background:var(--slate-100);color:var(--slate-600);border:none;padding:12px;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px;">✕ ${isLao ? 'ປິດ' : 'ปิด'}</button>
-      <button onclick="saveExpiryBatch()" style="width:100%;background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;padding:14px;border-radius:11px;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">
+      <button onclick="saveExpiryBatch()" style="width:100%;background:var(--fs-blue);color:white;border:none;padding:14px;border-radius:11px;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">
         💾 ${isLao ? 'ບັນທຶກ' : 'บันทึก'}
       </button>
     </div>
@@ -24980,7 +25001,7 @@ function renderDailyBriefPage() {
       <h2 style="font-size:18px;font-weight:800;margin:0 0 3px;">📋 Daily Brief</h2>
       <p style="font-size:12px;color:var(--slate-500);margin:0 0 15px;">${isLao ? 'ບັນທຶກການປະຊຸມເຊົ້າ ກັບพนักงาน' : 'บันทึกการประชุมเช้ากับพนักงาน'}</p>
 
-      <div id="dbAck" style="display:none;background:linear-gradient(135deg,var(--emerald-50),var(--teal-50));border:1px solid var(--emerald-200);border-radius:14px;padding:18px;text-align:center;margin-bottom:14px;">
+      <div id="dbAck" style="display:none;background:var(--fs-green-tint);border:1px solid var(--emerald-200);border-radius:14px;padding:18px;text-align:center;margin-bottom:14px;">
         <div style="font-size:26px;font-weight:800;color:var(--emerald-700);font-family:'Space Grotesk',monospace;" id="dbAckNo">DB-0000</div>
         <div style="font-size:12px;color:var(--slate-600);margin-top:6px;">${isLao ? 'ບันทึกสำเร็จ' : 'บันทึกสำเร็จ'} ✓</div>
         <button onclick="dbReset()" style="margin-top:12px;background:var(--emerald-600);color:white;border:none;border-radius:9px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;">${isLao ? 'ບันทึกใหม่' : 'บันทึกใหม่'}</button>
@@ -25047,7 +25068,7 @@ function renderDailyBriefPage() {
           <button type="button" onclick="dbAddPraise()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:9px;padding:9px;font-size:12px;font-weight:700;color:var(--slate-600);cursor:pointer;">+ ${isLao ? 'ເພີ່ມพนักงาน' : 'เพิ่มพนักงาน'}</button>
         </div>
 
-        <button onclick="dbSubmit()" style="width:100%;background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;margin-top:12px;">${isLao ? 'ບันทึก Brief' : 'บันทึก Brief'} →</button>
+        <button onclick="dbSubmit()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;margin-top:12px;">${isLao ? 'ບันทึก Brief' : 'บันทึก Brief'} →</button>
       </div>
     </div>
     <style>
@@ -25431,7 +25452,7 @@ function renderScDailyPage() {
       <h2 style="font-size:18px;font-weight:800;margin:0 0 3px;">📝 ${isLao ? 'งานรายวัน SC/หัวหน้าสาขา' : 'บันทึกการทำงานรายวัน SC/หัวหน้าสาขา'}</h2>
       <p style="font-size:12px;color:var(--slate-500);margin:0 0 14px;">${isLao ? 'Checklist งานประจำวัน' : 'เช็คลิสต์งานประจำวัน'}</p>
 
-      <div id="scAck" style="display:none;background:linear-gradient(135deg,var(--emerald-50),var(--teal-50));border:1px solid var(--emerald-200);border-radius:14px;padding:18px;text-align:center;margin-bottom:14px;">
+      <div id="scAck" style="display:none;background:var(--fs-green-tint);border:1px solid var(--emerald-200);border-radius:14px;padding:18px;text-align:center;margin-bottom:14px;">
         <div style="font-size:26px;font-weight:800;color:var(--emerald-700);font-family:'Space Grotesk',monospace;" id="scAckNo">SC-0000</div>
         <div style="font-size:12px;color:var(--slate-600);margin-top:6px;">${isLao ? 'ບันทึกสำเร็จ' : 'บันทึกสำเร็จ'} ✓</div>
         <button onclick="scReset()" style="margin-top:12px;background:var(--emerald-600);color:white;border:none;border-radius:9px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;">${isLao ? 'ບันทึกใหม่' : 'บันทึกใหม่'}</button>
@@ -25451,7 +25472,7 @@ function renderScDailyPage() {
         <div class="db-sec"><div class="db-sec-t">${isLao ? 'ໝາຍເຫດເพิ่มเติม' : 'หมายเหตุเพิ่มเติม'}</div>
           <textarea class="form-input" id="scNote" rows="2" placeholder="${isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ'}"></textarea></div>
 
-        <button onclick="scSubmit()" style="width:100%;background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;margin-top:6px;">${isLao ? 'ບันทึก' : 'บันทึก'} →</button>
+        <button onclick="scSubmit()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;margin-top:6px;">${isLao ? 'ບันทึก' : 'บันทึก'} →</button>
       </div>
     </div>
     <style>
@@ -25780,7 +25801,7 @@ function renderWorkReportPage() {
       <h2 style="font-size:18px;font-weight:800;margin:0 0 3px;">📢 ${isLao ? 'ແຈ້ງงาน' : 'แจ้งงาน'}</h2>
       <p style="font-size:12px;color:var(--slate-500);margin:0 0 15px;">${isLao ? 'ສ້າງໃບແຈ້ງงาน ສົ່ງຕໍ່ໄປແผนกที่รับผิดชอบ' : 'สร้างใบแจ้งงาน ส่งต่อไปแผนกที่รับผิดชอบ'}</p>
 
-      <div id="wrAck" style="display:none;background:linear-gradient(135deg,var(--emerald-50),var(--teal-50));border:1px solid var(--emerald-200);border-radius:14px;padding:18px;text-align:center;margin-bottom:14px;">
+      <div id="wrAck" style="display:none;background:var(--fs-green-tint);border:1px solid var(--emerald-200);border-radius:14px;padding:18px;text-align:center;margin-bottom:14px;">
         <div style="font-size:26px;font-weight:800;color:var(--emerald-700);font-family:'Space Grotesk',monospace;" id="wrAckNo">WD-0000</div>
         <div style="font-size:12px;color:var(--slate-600);margin-top:6px;">${isLao ? 'ສົ່ງແຈ້ງงานสำเร็จ' : 'ส่งแจ้งงานสำเร็จ'} ✓</div>
         <div style="font-size:11px;color:var(--slate-500);margin-top:3px;">${isLao ? 'ສົ່ງຕໍ່' : 'ส่งต่อ'}: <b id="wrAckDept">—</b> · ${isLao ? 'ກຳນົດ' : 'กำหนด'}: <b id="wrAckSla">—</b></div>
@@ -25817,7 +25838,7 @@ function renderWorkReportPage() {
           <button type="button" onclick="document.getElementById('wrPhotoInput').click()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:12px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">📷 ${isLao ? 'ຖ່າຍຮูป / ເລືອกรูป' : 'ถ่ายรูป / เลือกรูป'}</button>
           <div id="wrPhotoPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;"></div>
         </div>
-        <button onclick="wrSubmit()" style="width:100%;background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;margin-top:6px;">${isLao ? 'ສົ່ງແຈ້ງงาน' : 'ส่งแจ้งงาน'} →</button>
+        <button onclick="wrSubmit()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:800;cursor:pointer;margin-top:6px;">${isLao ? 'ສົ່ງແຈ້ງงาน' : 'ส่งแจ้งงาน'} →</button>
       </div>
     </div>`;
 }
@@ -26508,8 +26529,8 @@ async function openExpiryAction(id) {
       + noteHtml
       + '<div style="display:flex;gap:6px;margin-bottom:11px;flex-wrap:wrap;">' + stepsHtml + '</div>'
       + '<div style="font-size:9px;color:var(--slate-400);margin:-4px 0 9px;">→ ' + (isLao ? 'Step = ໂອນເປັນ markdown' : 'แตะ Step = โอนเป็นบาร์ markdown') + '</div>'
-      + '<button onclick="expDoTransfer(' + id + ')" style="width:100%;background:linear-gradient(135deg,var(--sky-500),var(--teal-500));color:white;border:none;border-radius:11px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:7px;">\uD83D\uDD04 ' + (isLao ? 'ໂອນສາຂາ' : 'โอนสาขา') + '</button>'
-      + '<button onclick="expDoMarkzero(' + id + ')" style="width:100%;background:linear-gradient(135deg,var(--rose-500),var(--rose-600));color:white;border:none;border-radius:11px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">\uD83D\uDDD1 ' + (isLao ? 'Markzero (ຕັດຖິ້ມ)' : 'Markzero (ตัดทิ้ง)') + '</button>';
+      + '<button onclick="expDoTransfer(' + id + ')" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:11px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:7px;">\uD83D\uDD04 ' + (isLao ? 'ໂອນສາຂາ' : 'โอนสาขา') + '</button>'
+      + '<button onclick="expDoMarkzero(' + id + ')" style="width:100%;background:var(--fs-red);color:white;border:none;border-radius:11px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">\uD83D\uDDD1 ' + (isLao ? 'Markzero (ຕັດຖິ້ມ)' : 'Markzero (ตัดทิ้ง)') + '</button>';
   } else {
     actions = '<div style="font-size:11px;color:var(--slate-500);padding:8px 0;">' + (isLao ? 'ເບິ່ງຢ່າງດຽວ — ສະເພາະຫົວໜ້າເທົ່ານັ້ນ' : 'ดูอย่างเดียว — เฉพาะหัวหน้าทำรายการได้') + '</div>';
   }
@@ -26538,7 +26559,7 @@ async function expDoMarkdown(id, step) {
     + '<p style="font-size:11px;color:var(--slate-500);margin:0 0 11px;">' + (item.product_name || item.barcode) + '<br>' + (isLao ? 'ບາร์ปกติ' : 'บาร์ปกติ') + ': ' + item.barcode + '</p>'
     + '<div class="form-group"><label class="form-label">' + (isLao ? 'ບາร์ Markdown (888...)' : 'บาร์ Markdown (888...)') + '</label>'
     + '<input class="form-input" id="mdBarcodeInput" type="text" value="' + autoMd + '" placeholder="' + (isLao ? 'ສະແກນ ຫຼື ພິມ' : 'สแกน หรือ พิมพ์') + '"></div>'
-    + '<button onclick="startScanForMd()" style="width:100%;background:linear-gradient(135deg,var(--teal-500),var(--sky-500));color:white;border:none;border-radius:11px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:9px;">\uD83D\uDCF7 ' + (isLao ? 'ສະແກนບາร์ Markdown' : 'สแกนบาร์ Markdown') + '</button>'
+    + '<button onclick="startScanForMd()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:11px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:9px;">\uD83D\uDCF7 ' + (isLao ? 'ສະແກนບາร์ Markdown' : 'สแกนบาร์ Markdown') + '</button>'
     + foundHtml
     + '<div class="action-row"><button class="btn btn-secondary" onclick="closeModal()">' + (isLao ? 'ຍົກເລີກ' : 'ยกเลิก') + '</button>'
     + '<button class="btn btn-primary" onclick="expConfirmToMd()">' + (isLao ? 'ຢืนยัน' : 'ยืนยัน') + '</button></div>'
@@ -26782,7 +26803,7 @@ function renderDocSignPage() {
     + '<div><div style="font-size:18px;font-weight:800;color:var(--slate-900);">📄 ' + (isLao ? 'ແຈ້ງເອກະສານ' : 'แจ้งเอกสาร') + '</div>'
     + '<div style="font-size:12px;color:var(--slate-500);">' + (isLao ? 'ຖ່າຍເອກະສານ → ເລືອກຕຳແໜ່ງເຊັນ → ສົ່ງໃຫ້ເຊັນຮັບຮອງ' : 'ถ่ายเอกสาร → เลือกตำแหน่งเซ็น → ส่งให้เซ็นรับรอง') + '</div></div>'
     + '</div>'
-    + '<button onclick="docNewOpen()" style="width:100%;background:linear-gradient(135deg,var(--teal-600),var(--teal-500));color:white;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:11px;">+ ' + (isLao ? 'ແຈ້ງເອກະສານໃໝ່' : 'แจ้งเอกสารใหม่') + '</button>'
+    + '<button onclick="docNewOpen()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:11px;">+ ' + (isLao ? 'ແຈ້ງເອກະສານໃໝ່' : 'แจ้งเอกสารใหม่') + '</button>'
     + '<div id="docUsage" style="background:white;border:1px solid var(--slate-200);border-radius:11px;padding:10px 12px;margin-bottom:11px;"></div>'
     + (docCanDelete() ? '<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;">'
     + '<button onclick="docToggleSelMode()" style="flex:1;border:1px solid ' + (_docSelMode ? 'var(--rose-300)' : 'var(--slate-200)') + ';background:' + (_docSelMode ? 'var(--rose-50)' : 'white') + ';color:' + (_docSelMode ? 'var(--rose-600)' : 'var(--slate-600)') + ';border-radius:9px;padding:9px;font-size:12.5px;font-weight:700;cursor:pointer;">' + (_docSelMode ? '✕ ' + (isLao ? 'ຍົກເລີກເລືອກ' : 'ยกเลิกเลือก') : '☑️ ' + (isLao ? 'ເລືອກລຶບ' : 'เลือกลบ')) + '</button>'
@@ -27566,7 +27587,7 @@ function renderCmpPage() {
     top = '<div style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.04);margin-bottom:11px;">'
       + '<div style="font-size:13px;font-weight:700;color:var(--slate-700);margin-bottom:7px;">🏬 ' + (isLao ? 'ສຳຫຼວດร้านใหม่' : 'สำรวจร้านใหม่') + '</div>'
       + '<input id="cmpStoreInput" placeholder="' + (isLao ? 'ຊື່ຮ້ານຄູ່ແข่ง' : 'ชื่อร้านคู่แข่ง') + '" onkeydown="if(event.key===\'Enter\')cmpStartSession()" style="width:100%;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:15px;margin-bottom:10px;">'
-      + '<button onclick="cmpStartSession()" style="width:100%;background:linear-gradient(135deg,var(--teal-600),var(--teal-500));color:white;border:none;border-radius:11px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;">' + (isLao ? 'ເລີ່ມเทียบราคา →' : 'เริ่มเทียบราคา →') + '</button>'
+      + '<button onclick="cmpStartSession()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:11px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;">' + (isLao ? 'ເລີ່ມเทียบราคา →' : 'เริ่มเทียบราคา →') + '</button>'
       + '</div>'
       + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:7px;">👥 ' + (isLao ? 'ຮ້ານที่กำลังสำรวจ — แตะเพื่อเข้าร่วม' : 'ร้านที่กำลังสำรวจ — แตะเพื่อเข้าร่วม') + '</div>'
       + '<div id="cmpStoreList"><div style="text-align:center;padding:14px;"><div class="loader"></div></div></div>';
@@ -27579,7 +27600,7 @@ function renderCmpPage() {
       + '</div>'
       + '<div style="display:flex;gap:7px;margin-bottom:11px;">'
       + '<input id="cmpBarcode" inputmode="text" placeholder="' + (isLao ? 'ບາໂค้ด / ชื่อสินค้า' : 'บาร์โค้ด / ชื่อสินค้า') + '" onkeydown="if(event.key===\'Enter\')cmpLookup()" style="flex:1;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:14px;font-family:monospace;">'
-      + '<button onclick="cmpStartScan()" style="border:none;background:linear-gradient(135deg,var(--teal-600),var(--teal-500));color:white;border-radius:10px;padding:0 15px;font-size:18px;cursor:pointer;">📷</button>'
+      + '<button onclick="cmpStartScan()" style="border:none;background:var(--fs-blue);color:white;border-radius:10px;padding:0 15px;font-size:18px;cursor:pointer;">📷</button>'
       + '<button onclick="cmpLookup()" style="border:none;background:var(--slate-700);color:white;border-radius:10px;padding:0 15px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? 'ຄົ້ນ' : 'ค้นหา') + '</button>'
       + '</div>'
       + '<div id="cmpInfo"></div>';
@@ -27750,7 +27771,7 @@ async function cmpLookupBarcode(bc) {
       + '</div>'
       + '<div id="cmpPhotoPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px;"></div>'
       + '<textarea id="cmpNote" rows="2" placeholder="' + (isLao ? 'ໝາຍເຫด' : 'หมายเหตุเพิ่มเติม') + '" style="width:100%;border:1.5px solid var(--slate-200);border-radius:10px;padding:11px;font-size:13px;resize:vertical;margin-bottom:12px;"></textarea>'
-      + '<button onclick="cmpSave()" id="cmpSaveBtn" style="width:100%;background:linear-gradient(135deg,var(--teal-600),var(--teal-500));color:white;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;">✓ ' + (isLao ? 'ບັນທຶก' : 'บันทึก') + '</button>';
+      + '<button onclick="cmpSave()" id="cmpSaveBtn" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;">✓ ' + (isLao ? 'ບັນທຶก' : 'บันทึก') + '</button>';
   }
   html += '</div>';
   info.innerHTML = html;
