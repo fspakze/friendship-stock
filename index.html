@@ -1550,7 +1550,7 @@
       <div class="form-group">
         <label class="form-label" data-i18n="select_branch">ສາຂາ / สาขา</label>
         <select class="form-input" id="loginBranch" style="font-family:inherit;cursor:pointer;background:white;">
-          <option value="">-- ${typeof T !== 'undefined' ? '' : 'ກະລຸນາເລືອກສາຂາ'} --</option>
+          <option value="">-- ກະລຸນາເລືອກສາຂາ / กรุณาเลือกสาขา --</option>
         </select>
       </div>
       <div class="form-group">
@@ -4618,7 +4618,7 @@ const PAGE_META = {
   activitylog:{ iconSvg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>', labelTh: 'บันทึกกิจกรรม', labelLo: 'ບັນທຶກກິດຈະກຳ', page: 'activitylog' },
   expirytrack:{ iconSvg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', labelTh: 'ติดตามอายุ', labelLo: 'ຕິດຕາມອາຍຸ', page: 'expirytrack' },
   workreport:{ iconSvg: '<path d="M12 5v14M5 12h14"/>', labelTh: 'แจ้งงาน', labelLo: 'ແຈ້ງງານ', page: 'workreport' },
-  worktrack:{ iconSvg: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', labelTh: 'ติดตามงาน', labelLo: 'ຕິດຕາມງານ', page: 'worktrack' },
+  worktrack:{ iconSvg: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', labelTh: 'ติดตามงาน', labelLo: 'ຕິດຕາມງານ', page: 'worktrack', badge: 'tabWorkBadge' },
   docsign:{ iconSvg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15c1-1.5 2.5-1.5 3 0s2 1.5 3 0"/>', labelTh: 'แจ้งเอกสาร', labelLo: 'ແຈ້ງເອກະສານ', page: 'docsign', badge: 'tabDocBadge' },
   cmpprice:{ iconSvg: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>', labelTh: 'เทียบราคาคู่แข่ง', labelLo: 'ທຽບລາຄາຄູ່ແຂ່ງ', page: 'cmpprice' },
   dailybrief:{ iconSvg: '<path d="M9 11H15M9 15H13M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>', labelTh: 'Daily Brief', labelLo: 'Daily Brief', page: 'dailybrief' },
@@ -5034,6 +5034,9 @@ function goPage(page) {
   
   updateTbBadge();
   updateIssueBadge();
+  updateDocBadge();
+  updateWorkBadge();
+  updateGapBadge();
 }
 
 // ==================== SCAN PAGE ====================
@@ -9513,13 +9516,15 @@ function renderIssueReportList() {
   const list = document.getElementById('irList');
   if (!list) return;
   const isLao = lang === 'lo';
-  
+
   if (!_irData.length) {
     list.innerHTML = `<div style="text-align:center;padding:30px;color:var(--slate-400);font-size:13px;">📭 ${T('ir_no_data')}</div>`;
     return;
   }
-  
-  list.innerHTML = _irData.map(it => {
+  const canDel = ['admin','scc','bcs'].includes(user?.role); // ลบถาวรได้
+
+  // ===== การ์ดรายการเดียว =====
+  const cardHtml = (it) => {
     const prodName = isLao ? (it.products?.name_lo || it.products?.name_th || '?') : (it.products?.name_th || it.products?.name_lo || '?');
     const brName = isLao ? (it.branches?.name_lo || it.branches?.code || '?') : (it.branches?.name_th || it.branches?.code || '?');
     const issueLabel = T('issue_' + it.issue_type);
@@ -9531,7 +9536,7 @@ function renderIssueReportList() {
     };
     const sc = statusColors[it.status] || statusColors.open;
     const ago = timeAgo(it.created_at, isLao);
-    
+
     // Action buttons by status
     let actions = '';
     if (it.status === 'open') {
@@ -9545,8 +9550,13 @@ function renderIssueReportList() {
         <button onclick="irPromptResolve(${it.id})" style="flex:1;background:var(--emerald-500);color:white;border:none;padding:8px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">✓ ${T('ir_resolve')}</button>
         <button onclick="irUpdateStatus(${it.id}, 'cancelled')" style="flex:1;background:var(--slate-400);color:white;border:none;padding:8px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">✕ ${T('ir_cancel')}</button>
       `;
+    } else if (it.status === 'cancelled' && canDel) {
+      // ⭐ admin/scc/bcs ลบรายการที่ยกเลิกแบบถาวรได้
+      actions = `
+        <button onclick="irDelete(${it.id})" style="flex:1;background:var(--rose-600,#e11d48);color:white;border:none;padding:8px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">🗑️ ${isLao ? 'ລຶບຖາວອນ' : 'ลบถาวร'}</button>
+      `;
     }
-    
+
     return `
       <div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ${sc.border};border-radius:11px;padding:13px;margin-bottom:9px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:7px;">
@@ -9570,7 +9580,51 @@ function renderIssueReportList() {
         ${actions ? `<div style="display:flex;gap:5px;">${actions}</div>` : ''}
       </div>
     `;
+  };
+
+  // ===== รวมรายการเป็นวัน (กดหัววันเปิด/ปิดดูรายละเอียด) =====
+  const groups = {};
+  _irData.forEach(it => { const k = localDayKey(it.created_at); (groups[k] = groups[k] || []).push(it); });
+  const dayKeys = Object.keys(groups).sort((a, b) => b.localeCompare(a)); // ใหม่→เก่า
+  if (!window._irExpandedDays) window._irExpandedDays = new Set(dayKeys.length ? [dayKeys[0]] : []); // เปิดวันล่าสุด
+
+  list.innerHTML = dayKeys.map(dk => {
+    const items = groups[dk];
+    const open = window._irExpandedDays.has(dk);
+    const header = `<div onclick="irToggleDay('${dk}')" style="display:flex;align-items:center;gap:8px;background:var(--fs-fill2,#f2f2f7);border:1px solid var(--slate-200);border-radius:9px;padding:10px 12px;margin-bottom:9px;cursor:pointer;font-size:12px;font-weight:800;color:var(--slate-700);">
+      <span style="font-size:10px;color:var(--slate-500);">${open ? '▼' : '▶'}</span>📅 ${irDayLabel(dk, isLao)}
+      <span style="margin-left:auto;background:var(--rose-500);color:white;font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;">${items.length}</span>
+    </div>`;
+    return header + (open ? items.map(cardHtml).join('') : '');
   }).join('');
+}
+
+// แสดงวันแบบอ่านง่าย (วันนี้/เมื่อวาน/dd-mm-yyyy)
+function irDayLabel(dk, isLao) {
+  const today = localDayKey(new Date());
+  const yd = new Date(); yd.setDate(yd.getDate() - 1);
+  if (dk === today) return isLao ? 'ມື້ນີ້' : 'วันนี้';
+  if (dk === localDayKey(yd)) return isLao ? 'ມື້ວານ' : 'เมื่อวาน';
+  const p = dk.split('-'); return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : dk;
+}
+
+// เปิด/ปิดกลุ่มวัน
+function irToggleDay(dk) {
+  if (!window._irExpandedDays) window._irExpandedDays = new Set();
+  if (window._irExpandedDays.has(dk)) window._irExpandedDays.delete(dk);
+  else window._irExpandedDays.add(dk);
+  renderIssueReportList();
+}
+
+// ลบรายงานปัญหาแบบถาวร (เฉพาะ admin/scc/bcs และเฉพาะรายการที่ยกเลิกแล้ว)
+async function irDelete(id) {
+  if (!['admin','scc','bcs'].includes(user?.role)) { showToast(lang === 'lo' ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
+  if (!confirm(lang === 'lo' ? 'ລຶບຖາວອນ? ກູ້ຄືນບໍ່ໄດ້' : 'ลบถาวร? กู้คืนไม่ได้')) return;
+  const { error } = await sb.from('product_issues').delete().eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  showToast('✅ ' + (lang === 'lo' ? 'ລຶບແລ້ວ' : 'ลบแล้ว'), 'success');
+  loadIssueReports();
+  updateIssueBadge();
 }
 
 // แสดง timeline ติดตามปัญหา (ประวัติการเปลี่ยนสถานะ)
@@ -9690,6 +9744,19 @@ async function updateIssueBadge() {
       }
     });
   } catch (e) { log('updateIssueBadge error:', e); }
+}
+
+// Badge update — count of work tickets ที่ยังไม่เสร็จ (status != 'done')
+async function updateWorkBadge() {
+  if (!branch?.id) return;
+  try {
+    const { count } = await sb.from('work_tickets').select('id', { count: 'exact', head: true }).eq('branch_id', branch.id).neq('status', 'done');
+    const n = count || 0;
+    ['tabWorkBadge', 'drawer_tabWorkBadge'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = n; el.style.display = n > 0 ? 'inline-block' : 'none'; }
+    });
+  } catch (e) { log('updateWorkBadge error:', e); }
 }
 
 // Realtime subscription for new issue reports
@@ -26078,6 +26145,7 @@ async function loadWorkTickets() {
   } catch (e) { _wtData = []; }
   renderWtDash();
   renderWtList();
+  updateWorkBadge();
 }
 
 function wtStatusOf(t) {
