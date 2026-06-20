@@ -2780,7 +2780,7 @@ async function loadUpdateReminder() {
     + '<div style="display:flex;gap:10px;align-items:center;">'
     + '<div class="banner-icon">🔔</div>'
     + '<div class="banner-text"><h4>' + (isLao ? 'ເຕືອນ: อัปเดตข้อมูลประจำวัน' : 'เตือน: อัปเดตข้อมูลประจำวัน') + '</h4>'
-    + '<p>' + (isLao ? 'ມີ ' : 'มี ') + pending.length + (isLao ? ' รายการที่ยังไม่อัปเดตวันนี้' : ' รายการที่ยังไม่อัปเดตวันนี้') + '</p></div></div>'
+    + '<p>' + (isLao ? 'ມີ ' : 'มี ') + pending.length + (isLao ? ' ລາຍການທີ່ຍັງບໍ່ໄດ້ອັບເດດມື້ນີ້' : ' รายการที่ยังไม่อัปเดตวันนี้') + '</p></div></div>'
     + items + '</div>';
 }
 
@@ -4517,14 +4517,14 @@ const MENU_CONFIG = {
   counter: {
     bottomTabs: ['stockcheck', 'docsign', 'scan', 'gapscan', 'history'],
     drawerGroups: [
-      { titleTh: 'งาน', titleLo: 'งาน', items: ['workreport'] },
+      { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
   staff: {
     bottomTabs: ['stockcheck', 'scan', 'gapscan', 'history'],
     drawerGroups: [
-      { titleTh: 'งาน', titleLo: 'งาน', items: ['workreport'] },
+      { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -4532,14 +4532,14 @@ const MENU_CONFIG = {
   verifier: {
     bottomTabs: ['stockcheck', 'docsign', 'tiebreaker', 'scan', 'history'],
     drawerGroups: [
-      { titleTh: 'งาน', titleLo: 'งาน', items: ['workreport'] },
+      { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
   audit: {
     bottomTabs: ['stockcheck', 'tiebreaker', 'scan', 'history'],
     drawerGroups: [
-      { titleTh: 'งาน', titleLo: 'งาน', items: ['workreport'] },
+      { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
@@ -4547,7 +4547,7 @@ const MENU_CONFIG = {
     bottomTabs: ['stockcheck', 'docsign', 'gapscan', 'floormap', 'tiebreaker', 'workflow'],
     drawerGroups: [
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'workreport', 'worktrack'] },
-      { titleTh: '📝 งานรายวัน SC', titleLo: '📝 งานรายวัน SC', items: ['scdaily', 'scdailylog'] },
+      { titleTh: '📝 งานรายวัน SC', titleLo: '📝 ງານປະຈຳວັນ SC', items: ['scdaily', 'scdailylog'] },
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport', 'issuereport', 'invmovement'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -4572,7 +4572,7 @@ const MENU_CONFIG = {
       { titleTh: '🛒 งานสต๊อก', titleLo: '🛒 ງານສະຕ໋ອກ', items: ['scan', 'gapscan', 'expirytrack', 'tiebreaker', 'workflow'] },
       { titleTh: '📢 ระบบแจ้งงาน', titleLo: '📢 ລະບົບແຈ້ງງານ', items: ['workreport', 'worktrack', 'docsign'] },
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
-      { titleTh: '📝 งานรายวัน SC', titleLo: '📝 งานรายวัน SC', items: ['scdaily', 'scdailylog'] },
+      { titleTh: '📝 งานรายวัน SC', titleLo: '📝 ງານປະຈຳວັນ SC', items: ['scdaily', 'scdailylog'] },
       { titleTh: '🕘 ประวัติ', titleLo: '🕘 ປະຫວັດ', items: ['history'] },
       { titleTh: 'วิเคราะห์', titleLo: 'ວິເຄາະ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['issuereport', 'invmovement'] },
@@ -4623,10 +4623,10 @@ const PAGE_META = {
   cmpprice:{ iconSvg: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>', labelTh: 'เทียบราคาคู่แข่ง', labelLo: 'ທຽບລາຄາຄູ່ແຂ່ງ', page: 'cmpprice' },
   dailybrief:{ iconSvg: '<path d="M9 11H15M9 15H13M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>', labelTh: 'Daily Brief', labelLo: 'Daily Brief', page: 'dailybrief' },
   brieflog:{ iconSvg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', labelTh: 'ประวัติ Brief', labelLo: 'ປະຫວັດ Brief', page: 'brieflog' },
-  scdaily:{ iconSvg: '<path d="M9 11l3 3 8-8M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0z"/>', labelTh: 'งานรายวัน SC', labelLo: 'งานรายวัน SC', page: 'scdaily' },
+  scdaily:{ iconSvg: '<path d="M9 11l3 3 8-8M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0z"/>', labelTh: 'งานรายวัน SC', labelLo: 'ງານປະຈຳວັນ SC', page: 'scdaily' },
   scdailylog:{ iconSvg: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', labelTh: 'ประวัติงาน SC', labelLo: 'ປະຫວັດງານ SC', page: 'scdailylog' },
   masterproduct: { iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/><path d="M7.5 4.5l9 5.2"/>', labelTh: 'Master Product', labelLo: 'Master Product', page: 'masterproduct' },
-  productstatus: { iconSvg: '<path d="M3 3v18h18"/><path d="M7 16l4-6 4 3 5-7"/>', labelTh: 'Status สินค้า', labelLo: 'Status สินค้า', page: 'productstatus' },
+  productstatus: { iconSvg: '<path d="M3 3v18h18"/><path d="M7 16l4-6 4 3 5-7"/>', labelTh: 'Status สินค้า', labelLo: 'Status ສິນຄ້າ', page: 'productstatus' },
   purchasehistory: { iconSvg: '<path d="M9 2v2M15 2v2M3 8h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>', labelTh: 'ข้อมูลการซื้อ', labelLo: 'ຂໍ້ມູນການຊື້', page: 'purchasehistory' },
   updatehub: { iconSvg: '<path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>', labelTh: '\ud83d\udd04 อัปเดตข้อมูล', labelLo: '\ud83d\udd04 ອັບເດດຂໍ້ມູນ', page: 'updatehub' }
 };
@@ -6551,7 +6551,7 @@ function psBuildStatusCard(ps, posQty) {
     chips += '<span style="font-size:11px;font-weight:800;color:' + (isTop ? '#b45309' : 'var(--slate-500)') + ';background:' + (isTop ? '#fffbeb' : 'var(--slate-100)') + ';border-radius:7px;padding:3px 9px;">⭐ ' + ps.top_2026 + '</span>';
   }
   if (ps.buyer) {
-    chips += '<span style="font-size:11px;font-weight:700;color:var(--sky-700);background:var(--sky-50);border-radius:7px;padding:3px 9px;">🛒 ' + (isLao ? 'จัดซื้อ' : 'จัดซื้อ') + ': ' + ps.buyer + '</span>';
+    chips += '<span style="font-size:11px;font-weight:700;color:var(--sky-700);background:var(--sky-50);border-radius:7px;padding:3px 9px;">🛒 ' + (isLao ? 'ຈັດຊື້' : 'จัดซื้อ') + ': ' + ps.buyer + '</span>';
   }
 
   const fmtAvg = v => v != null ? Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—';
@@ -6611,7 +6611,7 @@ function renderProductStatusPage() {
   const isLao = lang === 'lo';
   return `
     <div style="padding:14px 13px 90px;max-width:620px;margin:0 auto;">
-      <h2 style="font-size:18px;font-weight:800;margin:0 0 3px;">📊 ${isLao ? 'Status สินค้า' : 'Status สินค้า'}</h2>
+      <h2 style="font-size:18px;font-weight:800;margin:0 0 3px;">📊 ${isLao ? 'Status ສິນຄ້າ' : 'Status สินค้า'}</h2>
       <p style="font-size:12px;color:var(--slate-500);margin:0 0 15px;">${isLao ? 'ອັບໂຫຼດໄຟລ໌ Form_Status_Product เพื่อใช้ดู AVG Sale / Status ตอนเช็คสต๊อก' : 'อัปโหลดไฟล์ Form_Status_Product เพื่อใช้ดู AVG Sale / Status ตอนเช็คสต๊อก'}</p>
 
       <div id="psCount" style="margin-bottom:13px;"></div>
@@ -15022,7 +15022,7 @@ function renderHistoryPage() {
       </button>
       <button id="histSubTabWork" onclick="switchHistorySubTab('work')" 
               style="flex:1;padding:9px;border:none;border-radius:8px;background:transparent;color:var(--slate-600);font-weight:700;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all 0.2s;">
-        📢 <span>${isLao ? 'งานที่แจ้ง' : 'งานที่แจ้ง'}</span>
+        📢 <span>${isLao ? 'ງານທີ່ແຈ້ງ' : 'งานที่แจ้ง'}</span>
         <span id="histSubBadgeWork" style="background:var(--slate-300);color:var(--slate-700);padding:1px 7px;border-radius:8px;font-size:10px;">0</span>
       </button>
     </div>
@@ -15068,7 +15068,7 @@ function renderHistoryPage() {
     <div id="histSecWork" style="display:none;">
       <div class="history-card">
         <div class="section-title" style="color:var(--teal-600);">
-          📢 ${isLao ? 'งานที่ฉันแจ้ง' : 'งานที่ฉันแจ้ง'}
+          📢 ${isLao ? 'ງານທີ່ຂ້ອຍແຈ້ງ' : 'งานที่ฉันแจ้ง'}
           <span class="badge" id="histWorkCount" style="background:var(--teal-100);color:var(--teal-700);">0</span>
         </div>
         <div class="history-list" id="histWorkList"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
@@ -25234,7 +25234,7 @@ function dbEditOpen(id) {
     + '<div class="form-group" style="flex:1;"><label class="form-label">Diff %</label><input class="form-input" id="dbeDiff" type="number" value="' + (b.sales_diff_pct != null ? b.sales_diff_pct : '') + '"></div></div>';
   // มาตรฐานร้าน
   html += '<label class="form-label">' + (isLao ? 'ມາດຕະຖານຮ້ານ' : 'มาตรฐานร้าน') + '</label>';
-  [['staff', isLao ? 'พนักงาน' : 'ความเรียบร้อยพนักงาน'], ['clean', isLao ? 'ຄວາມສະອາດ' : 'ความสะอาด'], ['stock', 'สต๊อก'], ['price', isLao ? 'ປ້າຍລາຄາ' : 'ป้ายราคา']].forEach(([k, t]) => {
+  [['staff', isLao ? 'ພະນັກງານ' : 'ความเรียบร้อยพนักงาน'], ['clean', isLao ? 'ຄວາມສະອາດ' : 'ความสะอาด'], ['stock', 'สต๊อก'], ['price', isLao ? 'ປ້າຍລາຄາ' : 'ป้ายราคา']].forEach(([k, t]) => {
     html += '<label style="display:flex;align-items:center;gap:9px;padding:6px 0;font-size:12px;cursor:pointer;"><input type="checkbox" id="dbeChk_' + k + '"' + (sc[k] ? ' checked' : '') + ' style="width:17px;height:17px;accent-color:var(--teal-500);"> ' + t + '</label>';
   });
   // ข้อความ
@@ -25368,7 +25368,7 @@ function dbOpen(id) {
   }
   // 3 มาตรฐานร้าน
   html += sec('3. ' + (isLao ? 'ມາດຕະຖານຮ້ານ' : 'มาตรฐานร้าน'),
-    chk(sc.staff, isLao ? 'พนักงาน' : 'ความเรียบร้อยพนักงาน') + chk(sc.clean, isLao ? 'ຄວາມສະອາດ' : 'ความสะอาด') + chk(sc.stock, isLao ? 'ສະຕ໋ອກ' : 'สต๊อก (TOP20/FEFO)') + chk(sc.price, isLao ? 'ປ້າຍລາຄາ' : 'ป้ายราคา'));
+    chk(sc.staff, isLao ? 'ພະນັກງານ' : 'ความเรียบร้อยพนักงาน') + chk(sc.clean, isLao ? 'ຄວາມສະອາດ' : 'ความสะอาด') + chk(sc.stock, isLao ? 'ສະຕ໋ອກ' : 'สต๊อก (TOP20/FEFO)') + chk(sc.price, isLao ? 'ປ້າຍລາຄາ' : 'ป้ายราคา'));
   // 4-6
   if (b.training_topic) html += sec('4. ' + (isLao ? 'ຫົວຂໍ້ອົບຮົມ' : 'หัวข้ออบรม'), '<div style="font-size:12px;color:var(--slate-700);white-space:pre-wrap;">' + dbEsc(b.training_topic) + '</div>');
   if (b.staff_issues) html += sec('5. ' + (isLao ? 'ບັນຫາ/ຂໍ້ສະເໜີ' : 'ปัญหา/ข้อเสนอแนะ'), '<div style="font-size:12px;color:var(--slate-700);white-space:pre-wrap;">' + dbEsc(b.staff_issues) + '</div>');
@@ -25449,8 +25449,8 @@ function renderScDailyPage() {
   }).join('');
   return `
     <div style="padding:14px 13px 90px;max-width:620px;margin:0 auto;">
-      <h2 style="font-size:18px;font-weight:800;margin:0 0 3px;">📝 ${isLao ? 'งานรายวัน SC/หัวหน้าสาขา' : 'บันทึกการทำงานรายวัน SC/หัวหน้าสาขา'}</h2>
-      <p style="font-size:12px;color:var(--slate-500);margin:0 0 14px;">${isLao ? 'Checklist งานประจำวัน' : 'เช็คลิสต์งานประจำวัน'}</p>
+      <h2 style="font-size:18px;font-weight:800;margin:0 0 3px;">📝 ${isLao ? 'ງານປະຈຳວັນ SC/ຫົວໜ້າສາຂາ' : 'บันทึกการทำงานรายวัน SC/หัวหน้าสาขา'}</h2>
+      <p style="font-size:12px;color:var(--slate-500);margin:0 0 14px;">${isLao ? 'Checklist ງານປະຈຳວັນ' : 'เช็คลิสต์งานประจำวัน'}</p>
 
       <div id="scAck" style="display:none;background:var(--fs-green-tint);border:1px solid var(--emerald-200);border-radius:14px;padding:18px;text-align:center;margin-bottom:14px;">
         <div style="font-size:26px;font-weight:800;color:var(--emerald-700);font-family:'Space Grotesk',monospace;" id="scAckNo">SC-0000</div>
@@ -25823,10 +25823,10 @@ function renderWorkReportPage() {
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;" id="wrPriRow">
             <button type="button" class="wr-pri" data-pri="low" onclick="wrSetPri('low')" style="border:2px solid var(--teal-500);background:var(--teal-50);border-radius:10px;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;color:var(--teal-700);">${isLao ? 'ປົກກະຕິ' : 'ปกติ'}<br><small style="font-weight:400;color:var(--slate-500);">3 ${isLao ? 'ມື້' : 'วัน'}</small></button>
             <button type="button" class="wr-pri" data-pri="mid" onclick="wrSetPri('mid')" style="border:2px solid var(--slate-200);background:white;border-radius:10px;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;color:var(--slate-600);">${isLao ? 'ເຮ່ງດ່ວນ' : 'เร่งด่วน'}<br><small style="font-weight:400;color:var(--slate-400);">1 ${isLao ? 'ມື້' : 'วัน'}</small></button>
-            <button type="button" class="wr-pri" data-pri="high" onclick="wrSetPri('high')" style="border:2px solid var(--slate-200);background:white;border-radius:10px;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;color:var(--slate-600);">${isLao ? 'ด่วนมาก' : 'ด่วนมาก'}<br><small style="font-weight:400;color:var(--slate-400);">${isLao ? 'ມື້ນີ້' : 'วันนี้'}</small></button>
+            <button type="button" class="wr-pri" data-pri="high" onclick="wrSetPri('high')" style="border:2px solid var(--slate-200);background:white;border-radius:10px;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;color:var(--slate-600);">${isLao ? 'ດ່ວນຫຼາຍ' : 'ด่วนมาก'}<br><small style="font-weight:400;color:var(--slate-400);">${isLao ? 'ມື້ນີ້' : 'วันนี้'}</small></button>
           </div>
         </div>
-        <div class="form-group"><label class="form-label">${isLao ? 'แผนกที่รับผิดชอบ' : 'แผนกที่รับผิดชอบ'} *</label>
+        <div class="form-group"><label class="form-label">${isLao ? 'ແຜນກທີ່ຮັບຜິດຊອບ' : 'แผนกที่รับผิดชอบ'} *</label>
           <select class="form-input" id="wrDept">
             <option value="" disabled selected>— ${isLao ? 'ເລືອກແຜນກ' : 'เลือกแผนก'} —</option>
             ${depts}
@@ -26688,7 +26688,7 @@ function renderExpiryDash() {
       + '<td style="padding:6px 4px;text-align:center;color:var(--violet-500);font-weight:700;font-size:11px;">' + (c.md || '') + '</td>'
       + '</tr>';
   }).join('');
-  const hint = _etrkCat ? (isLao ? 'แตะหมวดเดิมเพื่อล้างตัวกรอง' : 'แตะหมวดเดิมเพื่อล้างตัวกรอง') : (isLao ? '(แตะเพื่อกรอง)' : '(แตะเพื่อกรอง)');
+  const hint = _etrkCat ? (isLao ? 'ແຕະໝວດເດີມເພື່ອລ້າງຕົວກອງ' : 'แตะหมวดเดิมเพื่อล้างตัวกรอง') : (isLao ? '(ແຕະເພື່ອກອງ)' : '(แตะเพื่อกรอง)');
   el.innerHTML = ''
     + '<div style="display:flex;gap:6px;margin-bottom:9px;flex-wrap:wrap;">'
     + card(isLao ? 'ໝົດແລ້ວ' : 'หมดแล้ว', eN, eV, '#e11d48')
@@ -27947,7 +27947,7 @@ function cmpExportPdf() {
   const esc = cmpEsc;
   const groups = {};
   _cmpData.forEach(r => { const k = (r.competitor_store || '—').trim() || '—'; (groups[k] = groups[k] || []).push(r); });
-  const th = '<tr><th>' + (isLao ? 'วันที่' : 'วันที่') + '</th><th>' + (isLao ? 'ປະເພດ' : 'ประเภท') + '</th><th>' + (isLao ? 'ບາໂຄ້ດ' : 'บาร์โค้ด') + '</th><th>' + (isLao ? 'ຊື່ສິນຄ້າ' : 'ชื่อสินค้า') + '</th><th>FS</th><th>' + (isLao ? 'ຄູ່ແຂ່ງ' : 'คู่แข่ง') + '</th><th>' + (isLao ? 'ຕ່າງ' : 'ส่วนต่าง') + '</th><th>' + (isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ') + '</th><th>' + (isLao ? 'ຮູບ' : 'รูป') + '</th></tr>';
+  const th = '<tr><th>' + (isLao ? 'ວັນທີ' : 'วันที่') + '</th><th>' + (isLao ? 'ປະເພດ' : 'ประเภท') + '</th><th>' + (isLao ? 'ບາໂຄ້ດ' : 'บาร์โค้ด') + '</th><th>' + (isLao ? 'ຊື່ສິນຄ້າ' : 'ชื่อสินค้า') + '</th><th>FS</th><th>' + (isLao ? 'ຄູ່ແຂ່ງ' : 'คู่แข่ง') + '</th><th>' + (isLao ? 'ຕ່າງ' : 'ส่วนต่าง') + '</th><th>' + (isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ') + '</th><th>' + (isLao ? 'ຮູບ' : 'รูป') + '</th></tr>';
   let sections = '';
   const keys = Object.keys(groups);
   keys.forEach((store, si) => {
@@ -27967,7 +27967,7 @@ function cmpExportPdf() {
   const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + title + '</title>'
     + '<style>*{box-sizing:border-box;} body{font-family:-apple-system,\'Segoe UI\',sans-serif;padding:14px;color:#0f172a;} h1{font-size:17px;margin:0 0 3px;} h2{font-size:14px;margin:14px 0 6px;} .sub{font-size:11px;color:#64748b;margin-bottom:6px;} table{border-collapse:collapse;width:100%;font-size:10.5px;} th,td{border:1px solid #cbd5e1;padding:5px 6px;vertical-align:top;text-align:left;} th{background:#f1f5f9;font-size:10px;} @media print{button{display:none;}}</style></head><body>'
     + '<h1>\uD83C\uDD9A ' + title + '</h1><div class="sub">' + sub + '</div>'
-    + '<button onclick="window.print()" style="margin-bottom:8px;padding:9px 16px;border:none;background:#0d9488;color:#fff;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">\uD83D\uDDA8\uFE0F ' + (isLao ? 'พิมพ์ / บันทึก PDF' : 'พิมพ์ / บันทึก PDF') + '</button>'
+    + '<button onclick="window.print()" style="margin-bottom:8px;padding:9px 16px;border:none;background:#0d9488;color:#fff;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">\uD83D\uDDA8\uFE0F ' + (isLao ? 'ພິມ / ບັນທຶກ PDF' : 'พิมพ์ / บันทึก PDF') + '</button>'
     + sections
     + '<scr' + 'ipt>window.onload=function(){setTimeout(function(){try{window.print();}catch(e){}},500);};</scr' + 'ipt></body></html>';
   const w = window.open('', '_blank');
