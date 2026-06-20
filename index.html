@@ -8589,14 +8589,34 @@ async function exportGapExcel() {
   
   try {
     const wb = XLSX.utils.book_new();
-    
+
     // Sheet 1: Replenishment (เติมจากคลัง)
     const replenish = _gapReportData.filter(g => g.action_type === 'replenish');
     const aggRepl = aggregateGaps(replenish);
+    const purchasePre = _gapReportData.filter(g => g.action_type === 'purchase');
+    const aggPurPre = aggregateGaps(purchasePre);
+
+    // สินค้าที่ไม่มีชื่อ (ไม่มีในตาราง products) → ดึงชื่อจาก master_products มาเติม
+    const mpNameMap = {};
+    const missingBc = [...aggRepl, ...aggPurPre]
+      .filter(a => a.barcode && !(a.product?.name_th) && !(a.product?.name_lo))
+      .map(a => String(a.barcode));
+    if (missingBc.length > 0) {
+      const uniqBc = [...new Set(missingBc)];
+      for (let i = 0; i < uniqBc.length; i += 200) {
+        const chunk = uniqBc.slice(i, i + 200);
+        const { data: mps } = await sb.from('master_products')
+          .select('barcode, name_th, name_lo').in('barcode', chunk);
+        (mps || []).forEach(m => { mpNameMap[String(m.barcode)] = m; });
+      }
+    }
+    const gapNameTh = a => a.product?.name_th || a.product_name || mpNameMap[String(a.barcode)]?.name_th || mpNameMap[String(a.barcode)]?.name_lo || '';
+    const gapNameLo = a => a.product?.name_lo || mpNameMap[String(a.barcode)]?.name_lo || mpNameMap[String(a.barcode)]?.name_th || '';
+
     const replRows = aggRepl.map(a => ({
       Barcode: a.barcode,
-      'ชื่อสินค้า': a.product?.name_th || a.product_name || '',
-      'Name LO': a.product?.name_lo || '',
+      'ชื่อสินค้า': gapNameTh(a),
+      'Name LO': gapNameLo(a),
       'หน่วย': a.product?.unit_th || a.product?.unit_lo || '',
       'ตำแหน่ง': a.gondolas.join(', '),
       'จำนวนที่ต้องเติม': a.total_gap_qty,
@@ -8611,12 +8631,11 @@ async function exportGapExcel() {
     }
     
     // Sheet 2: ส่งจัดซื้อ (forward to purchasing department — buyers issue PO)
-    const purchase = _gapReportData.filter(g => g.action_type === 'purchase');
-    const aggPur = aggregateGaps(purchase);
+    const aggPur = aggPurPre;
     const purRows = aggPur.map(a => ({
       Barcode: a.barcode,
-      'ชื่อสินค้า': a.product?.name_th || a.product_name || '',
-      'Name LO': a.product?.name_lo || '',
+      'ชื่อสินค้า': gapNameTh(a),
+      'Name LO': gapNameLo(a),
       'หน่วย': a.product?.unit_th || a.product?.unit_lo || '',
       'ตำแหน่ง': a.gondolas.join(', '),
       'จำนวนที่ต้องสั่ง': a.total_gap_qty,
