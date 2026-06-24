@@ -27017,8 +27017,12 @@ function docNewOpen() {
     + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:5px;">' + (isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ') + '</div>'
     + '<textarea id="docNewNote" rows="2" placeholder="..." style="width:100%;padding:11px;border:1px solid var(--slate-200);border-radius:10px;font-size:14px;margin-bottom:11px;resize:vertical;"></textarea>'
     + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:5px;">' + (isLao ? 'ຮູບເອກະສານ' : 'รูปเอกสาร') + '</div>'
-    + '<input type="file" id="docNewPhotoInput" accept="image/*" capture="environment" multiple style="display:none;" onchange="docNewOnPhoto(event)">'
-    + '<button type="button" onclick="document.getElementById(\'docNewPhotoInput\').click()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:12px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;margin-bottom:8px;">📷 ' + (isLao ? 'ຖ່າຍ / ເລືອກຮູບ' : 'ถ่าย / เลือกรูป') + '</button>'
+    + '<input type="file" id="docNewPhotoCam" accept="image/*" capture="environment" multiple style="display:none;" onchange="docNewOnPhoto(event)">'
+    + '<input type="file" id="docNewPhotoInput" accept="image/*,application/pdf" multiple style="display:none;" onchange="docNewOnPhoto(event)">'
+    + '<div style="display:flex;gap:8px;margin-bottom:8px;">'
+    + '<button type="button" onclick="document.getElementById(\'docNewPhotoCam\').click()" style="flex:1;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:12px 8px;font-size:12.5px;font-weight:700;color:var(--slate-600);cursor:pointer;">📷 ' + (isLao ? 'ຖ່າຍຮູບ' : 'ถ่ายรูป') + '</button>'
+    + '<button type="button" onclick="document.getElementById(\'docNewPhotoInput\').click()" style="flex:1;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:12px 8px;font-size:12.5px;font-weight:700;color:var(--slate-600);cursor:pointer;">🖼️ ' + (isLao ? 'ເລືອກຮູບ / PDF' : 'เลือกรูป / PDF') + '</button>'
+    + '</div>'
     + '<div id="docNewPhotoPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px;"></div>'
     + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:5px;">📎 ' + (isLao ? 'ເອກະສານປະກອບແນບ (ສຳລັບກວດກ່ອນເຊັນ)' : 'เอกสารประกอบแนบ (สำหรับตรวจก่อนเซ็น)') + '</div>'
     + '<input type="file" id="docNewAttachFile" accept="image/*,application/pdf" multiple style="display:none;" onchange="docNewOnAttach(event)">'
@@ -27035,10 +27039,61 @@ function docNewOpen() {
     + '<button onclick="docSubmitNew()" id="docSubmitBtn" style="flex:2;background:var(--teal-600);color:white;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;">' + (isLao ? 'ສົ່ງເອກະສານ' : 'ส่งเอกสาร') + '</button>'
     + '</div>');
 }
+// โหลด pdf.js แบบ lazy (เฉพาะตอนเลือกไฟล์ PDF ครั้งแรก) — กันถ่วงเวลาเปิดแอป
+let _pdfJsLoading = null;
+function ensurePdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (_pdfJsLoading) return _pdfJsLoading;
+  _pdfJsLoading = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+    s.onload = () => {
+      try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js'; } catch (e) {}
+      resolve(window.pdfjsLib);
+    };
+    s.onerror = () => reject(new Error('pdf.js load failed'));
+    document.head.appendChild(s);
+  });
+  return _pdfJsLoading;
+}
+// แปลง PDF เป็นรูปทีละหน้า แล้วเพิ่มเข้า _docNewPhotos (ให้ลายเซ็น/รวมหน้าใช้งานได้เหมือนรูปถ่าย)
+async function docNewAddPdf(file) {
+  const isLao = lang === 'lo';
+  showToast(isLao ? '⏳ ກຳລັງອ່ານ PDF...' : '⏳ กำลังอ่าน PDF...', 'success');
+  try {
+    const lib = await ensurePdfJs();
+    const buf = await file.arrayBuffer();
+    const pdf = await lib.getDocument({ data: buf }).promise;
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const baseVp = page.getViewport({ scale: 1 });
+      const scale = Math.min(2, 1600 / Math.max(baseVp.width, baseVp.height)); // คุมความละเอียดไม่ให้ใหญ่เกิน
+      const vp = page.getViewport({ scale: scale > 0 ? scale : 1 });
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height);
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      const dataUrl = cv.toDataURL('image/jpeg', 0.75);
+      const blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.75));
+      _docNewPhotos.push({ blob, dataUrl });
+      docNewRenderPhotos();
+    }
+  } catch (err) {
+    log('doc pdf', err);
+    showToast(isLao ? '❌ ອ່ານ PDF ບໍ່ໄດ້' : '❌ อ่านไฟล์ PDF ไม่ได้', 'error');
+  }
+}
 function docNewOnPhoto(e) {
   const files = Array.from(e.target.files || []);
   e.target.value = '';
-  files.forEach(f => wrCompressImage(f, (blob, dataUrl) => { _docNewPhotos.push({ blob, dataUrl }); docNewRenderPhotos(); }));
+  files.forEach(f => {
+    if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) {
+      docNewAddPdf(f);
+    } else {
+      wrCompressImage(f, (blob, dataUrl) => { _docNewPhotos.push({ blob, dataUrl }); docNewRenderPhotos(); });
+    }
+  });
 }
 function docNewRenderPhotos() {
   const pv = document.getElementById('docNewPhotoPreview');
@@ -27196,7 +27251,7 @@ function docOpen(id) {
     + '<div style="font-size:12px;font-weight:800;color:var(--slate-600);margin:9px 0 7px;">' + (isLao ? 'ການເຊັນ' : 'การเซ็น') + '</div>'
     + posRows
     + '<div style="display:flex;gap:8px;margin-top:13px;">'
-    + '<button onclick="docPrint(\'' + d.id + '\')" style="flex:2;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">🖨️ ' + (isLao ? 'พิมพ์ / ບັນທຶກລົງເຄື່ອງ' : 'พิมพ์ / บันทึกลงเครื่อง') + '</button>'
+    + '<button onclick="docSaveFile(\'' + d.id + '\')" style="flex:2;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">💾 ' + (isLao ? 'ບັນທຶກລົງເຄື່ອງ' : 'บันทึกลงเครื่อง') + '</button>'
     + (canDelete ? '<button onclick="docDelete(\'' + d.id + '\')" style="flex:1;background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">🗑️ ' + (isLao ? 'ລຶບ' : 'ลบ') + '</button>' : '')
     + '</div>');
 }
