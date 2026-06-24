@@ -7731,6 +7731,23 @@ function bpMatchLevel(rec, barcode) {
   if (rec.barcode_other && String(rec.barcode_other) === bc) return 'other';
   return 'unit';
 }
+// แปลงจำนวนหน่วย (Unit) เป็น ลัง/แพ๊ค/Unit ตามอัตราของสินค้า
+// units/pack = qty_unit, packs/box = qty_pack, units/box = pcs_per_box หรือ qty_unit*qty_pack
+function bpQtyBreakdown(stock, bp, isLao) {
+  const s = Math.round(Number(stock) || 0);
+  if (!bp || s <= 0) return '';
+  const upp = Number(bp.qty_unit) || 0;            // units per pack
+  const ppb = Number(bp.qty_pack) || 0;            // packs per box
+  let upb = Number(bp.pcs_per_box) || 0;           // units per box (ถ้าระบุตรง)
+  if (!upb && upp && ppb) upb = upp * ppb;
+  const hasBox = (bp.barcode_box || bp.price_box) && upb > 1;
+  const hasPack = (bp.barcode_pack || bp.price_pack) && upp > 1 && (!upb || upp < upb);
+  let rem = s; const parts = [];
+  if (hasBox) { const n = Math.floor(rem / upb); rem -= n * upb; if (n > 0) parts.push(n + ' ' + (isLao ? 'ລັງ' : 'ลัง')); }
+  if (hasPack) { const n = Math.floor(rem / upp); rem -= n * upp; if (n > 0) parts.push(n + ' ' + (isLao ? 'ແພັກ' : 'แพ๊ค')); }
+  if (rem > 0 || !parts.length) parts.push(rem + ' Unit');
+  return parts.join(' · ');
+}
 
 function renderInvMovementPage() {
   const isLao = lang === 'lo';
@@ -9177,9 +9194,13 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
     if (bp.barcode_pack || bp.price_pack) rows.push({ lab: isLao ? 'ແພັກ' : 'แพ๊ค', bc: bp.barcode_pack, price: bp.price_pack, qty: bp.qty_pack, hi: bpLevel === 'pack' });
     if (bp.barcode_box || bp.price_box) rows.push({ lab: isLao ? 'ລັງ' : 'ลัง', bc: bp.barcode_box, price: bp.price_box, qty: bp.qty_box, hi: bpLevel === 'box' });
     if (bp.barcode_other || bp.price_other) rows.push({ lab: isLao ? 'ອື່ນໆ' : 'อื่นๆ', bc: bp.barcode_other, price: bp.price_other, qty: null, hi: bpLevel === 'other' });
+    const bd = bpQtyBreakdown(posQty, bp, isLao);
     if (rows.length) {
       bpHtml = '<div style="padding:11px 16px;border-top:1px solid var(--fs-hair);">'
         + '<div style="font-size:11px;color:var(--fs-ink3);margin-bottom:6px;font-weight:600;">📦 ' + (isLao ? 'ແພັກ / ລັງ' : 'แพ๊ค / ลัง') + '</div>'
+        + (bd ? '<div style="display:flex;align-items:center;gap:8px;padding:7px 9px;margin-bottom:5px;background:var(--fs-fill2);border-radius:8px;">'
+            + '<span style="font-size:11px;color:var(--fs-ink3);">' + (isLao ? 'ຈຳນວນ (ທຸກໜ່ວຍ)' : 'จำนวน (ทุกหน่วย)') + '</span>'
+            + '<span style="flex:1;text-align:right;font-size:13px;font-weight:700;color:var(--fs-ink);">' + bd + '</span></div>' : '')
         + rows.map(r => '<div style="display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:7px;' + (r.hi ? 'background:var(--amber-50);' : '') + '">'
             + '<span style="font-size:12px;font-weight:700;color:var(--fs-ink);min-width:36px;">' + r.lab + '</span>'
             + '<span style="flex:1;min-width:0;font-size:11px;color:var(--fs-ink3);font-family:monospace;overflow:hidden;text-overflow:ellipsis;">' + (r.bc ? escapeHtml(String(r.bc)) : '—') + (r.qty ? ' · ' + fmtv(r.qty) + ' ' + unit : '') + '</span>'
