@@ -5916,13 +5916,16 @@ async function toggleGapScan() {
     // ⭐ โหมดเครื่องเก่า: ลดความละเอียด + fps ให้เครื่องสเปคต่ำสแกนลื่น
     const _gapLite = localStorage.getItem('fs_lite_scan') === '1';
     const _gapIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    // ⚠️ cameraIdOrConfig (arg แรก) ต้องมี key เดียว — resolution ใส่ใน config.videoConstraints (arg 2)
+    const _gapCfg = { fps: _gapLite ? (_gapIOS ? 10 : 5) : 10, qrbox: { width: 250, height: 100 } };
+    if (_gapLite) {
+      _gapCfg.videoConstraints = _gapIOS
+        ? { facingMode: 'environment', width: { ideal: 1024 }, height: { ideal: 768 } } // ⭐ iPhone: เลนส์หลัก
+        : { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } };
+    }
     await window._gapScanner.start(
-      _gapLite
-        ? (_gapIOS
-            ? { facingMode: 'environment', width: { ideal: 1024 }, height: { ideal: 768 } } // ⭐ iPhone: เลนส์หลัก
-            : { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } })
-        : { facingMode: 'environment' },
-      { fps: _gapLite ? (_gapIOS ? 10 : 5) : 10, qrbox: { width: 250, height: 100 } },
+      { facingMode: 'environment' },
+      _gapCfg,
       async (decoded) => {
         stopNativeDetectorLoop(); // ⭐ ตัวใดตัวหนึ่งอ่านได้ก่อน อีกตัวหยุด
         await window._gapScanner.stop();
