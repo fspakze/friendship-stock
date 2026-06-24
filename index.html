@@ -6785,9 +6785,14 @@ function renderMasterProductPage() {
         <p style="font-size:11px;color:var(--slate-500);margin:0;" id="mpSubtitle">${isLao?'ຄາຕາລ໋ອກສິນຄ້າຫຼັກ':'แคตตาล็อกสินค้าหลัก'}</p>
       </div>
       ${user && user.role === 'admin' ? `
-        <button onclick="mpOpenUploadModal()" style="background:var(--emerald-500);color:white;border:none;border-radius:9px;padding:9px 13px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
+        <button onclick="mpOpenUploadModal()" style="background:var(--emerald-500);color:white;border:none;border-radius:9px;padding:9px 13px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
           📤 ${isLao?'ອັບໂຫຼດ':'อัพโหลด'}
         </button>
+        <button onclick="bpOpenUploadModal()" style="background:var(--violet-500);color:white;border:none;border-radius:9px;padding:9px 13px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
+          📦 ${isLao?'ແພັກ/ລັງ':'แพ๊ค/ลัง'}
+        </button>
+        </div>
       ` : ''}
     </div>
     
@@ -7568,6 +7573,164 @@ async function mpExecuteUpload() {
 // ==================== END PHASE 3B UPLOAD ====================
 
 
+// ==================== BARCODE PACK/ลัง (bp*) — upload + lookup ====================
+// ตาราง barcode_packsize : id, internal_code, barcode_unit/pack/box/other, name,
+//   qty_unit/pack/box, pcs_per_box, unit_other, price_unit/pack/box/other, category, product_group, brand, supplier, source
+let _bpUploadRows = null;
+let _bpUploadRunning = false;
+function bpCanUpload() { return ['admin', 'scc'].includes((user && user.role) || ''); }
+
+function bpOpenUploadModal() {
+  const isLao = lang === 'lo';
+  if (!bpCanUpload()) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
+  _bpUploadRows = null;
+  showModal(''
+    + '<div style="font-size:16px;font-weight:800;margin-bottom:5px;">📦 ' + (isLao ? 'ອັບໂຫຼດ Barcode ແພັກ/ລັງ' : 'อัพโหลด Barcode แพ๊ค/ลัง') + '</div>'
+    + '<div style="font-size:11.5px;color:var(--slate-500);margin-bottom:12px;">' + (isLao ? 'ໄຟລ໌ Merged_Barcode_Packsize.xlsx (21 ຖັນ)' : 'ไฟล์ Merged_Barcode_Packsize.xlsx (21 คอลัมน์)') + '</div>'
+    + '<input type="file" id="bpUploadFile" accept=".xlsx,.xls" onchange="bpHandleFileSelected(event)" style="width:100%;padding:11px;border:1.5px dashed var(--slate-300);border-radius:10px;font-size:13px;background:var(--slate-50);box-sizing:border-box;">'
+    + '<div id="bpUploadStatus" style="margin-top:13px;font-size:12px;color:var(--slate-600);"></div>'
+    + '<div style="display:flex;gap:8px;margin-top:14px;">'
+    + '<button onclick="closeModal()" style="flex:1;background:var(--slate-100);color:var(--slate-700);border:none;padding:12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? 'ປິດ' : 'ปิด') + '</button>'
+    + '<button onclick="bpExecuteUpload()" id="bpExecuteBtn" style="flex:2;background:var(--violet-500);color:white;border:none;padding:12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;opacity:0.5;" disabled>🚀 ' + (isLao ? 'ຍຶນຍັນ Upload' : 'ยืนยัน Upload') + '</button>'
+    + '</div>');
+}
+
+async function bpHandleFileSelected(ev) {
+  const isLao = lang === 'lo';
+  const file = ev.target.files && ev.target.files[0];
+  const statusEl = document.getElementById('bpUploadStatus');
+  if (!file) return;
+  if (statusEl) statusEl.innerHTML = '<div class="loader" style="margin:0 auto;"></div>';
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    if (!rows.length) throw new Error(isLao ? 'ໄຟລ໌ວ່າງ' : 'ไฟล์ว่าง');
+    const H = rows[0].map(h => String(h).trim());
+    const col = name => H.indexOf(name);
+    const C = {
+      id: col('ID'), internal_code: col('รหัสสินค้า'),
+      barcode_unit: col('Barcode Unit'), barcode_pack: col('Barcode Pack'), barcode_box: col('Barcode Box'), barcode_other: col('Barcode อื่นๆ'),
+      name: col('ชื่อสินค้า'),
+      qty_unit: col('จำนวน/Unit'), qty_pack: col('จำนวน/Pack'), qty_box: col('จำนวน/Box'), pcs_per_box: col('รวมชิ้นต่อลัง'),
+      unit_other: col('หน่วยอื่นๆ'),
+      price_unit: col('ราคา Unit'), price_pack: col('ราคา Pack'), price_box: col('ราคา Box'), price_other: col('ราคา อื่นๆ'),
+      category: col('ประเภทสินค้า'), product_group: col('กลุ่มสินค้า'), brand: col('Brand'), supplier: col('Supplier'), source: col('ที่มา')
+    };
+    if (C.id < 0 || C.barcode_unit < 0) throw new Error(isLao ? 'ບໍ່ພົບຖັນ ID / Barcode Unit' : 'ไม่พบคอลัมน์ ID / Barcode Unit');
+    const out = []; const seen = new Set(); let dups = 0, noId = 0;
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const id = parseInt(mpCleanNum(r[C.id]), 10);
+      if (!id && id !== 0) { noId++; continue; }
+      if (isNaN(id)) { noId++; continue; }
+      if (seen.has(id)) { dups++; continue; }
+      seen.add(id);
+      out.push({
+        id,
+        internal_code: mpCleanStr(r[C.internal_code]) || null,
+        barcode_unit: mpCleanStr(r[C.barcode_unit]) || null,
+        barcode_pack: C.barcode_pack >= 0 ? (mpCleanStr(r[C.barcode_pack]) || null) : null,
+        barcode_box: C.barcode_box >= 0 ? (mpCleanStr(r[C.barcode_box]) || null) : null,
+        barcode_other: C.barcode_other >= 0 ? (mpCleanStr(r[C.barcode_other]) || null) : null,
+        name: mpCleanStr(r[C.name]) || null,
+        qty_unit: C.qty_unit >= 0 ? bpNum(r[C.qty_unit]) : null,
+        qty_pack: C.qty_pack >= 0 ? bpNum(r[C.qty_pack]) : null,
+        qty_box: C.qty_box >= 0 ? bpNum(r[C.qty_box]) : null,
+        pcs_per_box: C.pcs_per_box >= 0 ? bpNum(r[C.pcs_per_box]) : null,
+        unit_other: C.unit_other >= 0 ? (mpCleanStr(r[C.unit_other]) || null) : null,
+        price_unit: C.price_unit >= 0 ? bpNum(r[C.price_unit]) : null,
+        price_pack: C.price_pack >= 0 ? bpNum(r[C.price_pack]) : null,
+        price_box: C.price_box >= 0 ? bpNum(r[C.price_box]) : null,
+        price_other: C.price_other >= 0 ? bpNum(r[C.price_other]) : null,
+        category: C.category >= 0 ? (mpCleanStr(r[C.category]) || null) : null,
+        product_group: C.product_group >= 0 ? (mpCleanStr(r[C.product_group]) || null) : null,
+        brand: C.brand >= 0 ? (mpCleanStr(r[C.brand]) || null) : null,
+        supplier: C.supplier >= 0 ? (mpCleanStr(r[C.supplier]) || null) : null,
+        source: C.source >= 0 ? (mpCleanStr(r[C.source]) || null) : null
+      });
+    }
+    _bpUploadRows = out;
+    if (statusEl) statusEl.innerHTML = '<div style="background:var(--violet-50);border-radius:9px;padding:11px;">'
+      + '✅ ' + (isLao ? 'ພ້ອມ Upload' : 'พร้อมอัพโหลด') + ': <b>' + out.length.toLocaleString() + '</b> ' + (isLao ? 'ແຖວ' : 'แถว')
+      + (dups ? '<br><span style="color:var(--amber-600);">⚠️ dup ID -' + dups + '</span>' : '')
+      + (noId ? '<br><span style="color:var(--slate-500);">ไม่มี ID -' + noId + '</span>' : '')
+      + '</div>';
+    const btn = document.getElementById('bpExecuteBtn');
+    if (btn && out.length) { btn.disabled = false; btn.style.opacity = '1'; }
+  } catch (e) {
+    if (statusEl) statusEl.innerHTML = '<div style="color:var(--rose-500);font-size:12px;">Error: ' + mpEsc(e.message) + '</div>';
+  }
+}
+function bpNum(v) { const n = mpCleanNum(v); return (n === '' || n === null || isNaN(n)) ? null : Number(n); }
+
+async function bpExecuteUpload() {
+  if (!_bpUploadRows || !_bpUploadRows.length || _bpUploadRunning) return;
+  _bpUploadRunning = true;
+  const isLao = lang === 'lo';
+  const statusEl = document.getElementById('bpUploadStatus');
+  const btn = document.getElementById('bpExecuteBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  const total = _bpUploadRows.length;
+  let done = 0; const errors = [];
+  const BATCH = 500;
+  const prog = () => {
+    const pct = total ? Math.round(100 * done / total) : 100;
+    if (statusEl) statusEl.innerHTML = '<div style="text-align:center;padding:11px;">'
+      + '<div style="font-size:24px;font-weight:800;color:var(--violet-700);">' + pct + '%</div>'
+      + '<div style="font-size:11px;color:var(--slate-500);">' + done.toLocaleString() + ' / ' + total.toLocaleString() + '</div>'
+      + '<div style="background:var(--slate-200);border-radius:5px;height:6px;margin-top:7px;overflow:hidden;"><div style="background:var(--violet-500);height:100%;width:' + pct + '%;transition:width .3s;"></div></div></div>';
+  };
+  prog();
+  const stamp = new Date().toISOString();
+  try {
+    for (let i = 0; i < total; i += BATCH) {
+      const chunk = _bpUploadRows.slice(i, i + BATCH).map(r => ({ ...r, updated_at: stamp }));
+      const { error } = await sb.from('barcode_packsize').upsert(chunk, { onConflict: 'id' });
+      if (error) errors.push('batch ' + i + ': ' + error.message);
+      done += chunk.length; prog();
+      if (errors.length > 8) break; // ถ้าพังเยอะ หยุดก่อน
+    }
+    if (typeof logActivity === 'function') logActivity('packsize_upload', total + ' rows');
+    if (statusEl) statusEl.innerHTML = '<div style="background:' + (errors.length ? 'var(--rose-50)' : 'var(--emerald-50)') + ';border-radius:9px;padding:13px;text-align:center;">'
+      + '<div style="font-size:30px;">' + (errors.length ? '⚠️' : '🎉') + '</div>'
+      + '<div style="font-size:14px;font-weight:800;color:' + (errors.length ? 'var(--rose-700)' : 'var(--emerald-700)') + ';">' + (errors.length ? (isLao ? 'ສຳເລັດບາງສ່ວນ' : 'สำเร็จบางส่วน') : (isLao ? 'ສຳເລັດ!' : 'สำเร็จ!')) + '</div>'
+      + '<div style="font-size:11px;color:var(--slate-600);margin-top:4px;">' + done.toLocaleString() + ' ' + (isLao ? 'ແຖວ' : 'แถว') + '</div>'
+      + (errors.length ? '<div style="background:white;border-radius:5px;padding:7px;margin-top:8px;font-size:10px;color:var(--rose-600);text-align:left;max-height:110px;overflow:auto;">' + errors.slice(0, 5).map(e => mpEsc(e)).join('<br>') + '</div>' : '')
+      + '</div>';
+  } catch (e) {
+    if (statusEl) statusEl.innerHTML = '<div style="color:var(--rose-500);font-size:12px;padding:11px;">Error: ' + mpEsc(e.message) + '</div>';
+  } finally {
+    _bpUploadRunning = false;
+  }
+}
+
+// ── ค้นหา pack/ลัง จาก barcode ใดก็ได้ (unit/pack/box/other) — cache ต่อ barcode ──
+window._bpCache = window._bpCache || {};
+async function bpLookup(barcode) {
+  const bc = String(barcode || '').trim();
+  if (!bc) return null;
+  if (bc in window._bpCache) return window._bpCache[bc];
+  let rec = null;
+  try {
+    const { data } = await sb.from('barcode_packsize').select('*')
+      .or('barcode_unit.eq.' + bc + ',barcode_pack.eq.' + bc + ',barcode_box.eq.' + bc + ',barcode_other.eq.' + bc)
+      .limit(1).maybeSingle();
+    rec = data || null;
+  } catch (e) { rec = null; }
+  window._bpCache[bc] = rec;
+  return rec;
+}
+// barcode ที่สแกนมา เป็นหน่วยไหนในระเบียน pack/ลัง
+function bpMatchLevel(rec, barcode) {
+  if (!rec) return null;
+  const bc = String(barcode || '').trim();
+  if (rec.barcode_box && String(rec.barcode_box) === bc) return 'box';
+  if (rec.barcode_pack && String(rec.barcode_pack) === bc) return 'pack';
+  if (rec.barcode_other && String(rec.barcode_other) === bc) return 'other';
+  return 'unit';
+}
 
 function renderInvMovementPage() {
   const isLao = lang === 'lo';
@@ -8887,12 +9050,18 @@ async function scLookup() {
   
   const card = document.getElementById('scResultCard');
   if (card) card.innerHTML = `<div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>`;
-  
-  // Query product
+
+  // ⭐ pack/ลัง: ถ้าสแกนบาร์โค้ดแพ๊ค/ลัง → หาหน่วย (unit) ของสินค้าเดียวกัน แล้วค้นด้วย unit
+  const bpRec = await bpLookup(barcode);
+  const bpLevel = bpMatchLevel(bpRec, barcode);
+  const searchBc = (bpRec && bpLevel !== 'unit' && bpRec.barcode_unit) ? String(bpRec.barcode_unit) : barcode;
+  window._scBp = bpRec; window._scBpLevel = bpLevel; window._scBpScanned = barcode;
+
+  // Query product (ด้วย unit barcode)
   const { data: prod, error } = await sb
     .from('products')
     .select('*')
-    .eq('barcode', barcode)
+    .eq('barcode', searchBc)
     .eq('branch_id', branch.id)
     .eq('is_active', true)
     .maybeSingle();
@@ -8908,7 +9077,7 @@ async function scLookup() {
     const { data: mp } = await sb
       .from('master_products')
       .select('barcode, name_lo, name_th, unit_lo, sell_price, brand, category')
-      .eq('barcode', barcode)
+      .eq('barcode', searchBc)
       .maybeSingle();
     
     if (mp) {
@@ -8926,7 +9095,7 @@ async function scLookup() {
         _fromMaster: true
       };
       _scCurrentProduct = prodFromMaster;
-      const { data: ps2 } = await sb.from('product_status').select('*').eq('barcode', barcode).maybeSingle();
+      const { data: ps2 } = await sb.from('product_status').select('*').eq('barcode', searchBc).maybeSingle();
       renderStockCheckResult(prodFromMaster, null, null, ps2);
       // แถบแจ้งว่าข้อมูลมาจากดาต้ากลาง — สาขานี้ไม่มีสต๊อค
       const card2 = document.getElementById('scResultCard');
@@ -8951,9 +9120,9 @@ async function scLookup() {
   const [pogRes, countRes, statusRes] = await Promise.all([
     sb.from('pan_o_grams').select('location_code').eq('product_id', prod.id).eq('branch_id', branch.id).limit(1).maybeSingle(),
     sb.from('stock_counts').select('counted_qty, created_at, users!user_id(full_name)').eq('product_id', prod.id).eq('branch_id', branch.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-    sb.from('product_status').select('*').eq('barcode', barcode).maybeSingle()
+    sb.from('product_status').select('*').eq('barcode', searchBc).maybeSingle()
   ]);
-  
+
   renderStockCheckResult(prod, pogRes?.data, countRes?.data, statusRes?.data);
 }
 
@@ -8998,7 +9167,33 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
   
   const statusCard = psBuildStatusCard(ps, posQty);
   const statusHtml = statusCard ? `<div style="padding:12px 16px;border-top:1px solid var(--fs-hair);">${statusCard}</div>` : '';
-  card.innerHTML = `
+
+  // ⭐ ข้อมูล แพ๊ค/ลัง (จาก barcode_packsize) — แสดงบาร์โค้ด + ราคา ถ้ามี
+  const bp = window._scBp; const bpLevel = window._scBpLevel;
+  let bpHtml = '', bpNote = '';
+  if (bp) {
+    const fmtv = v => (v == null || v === '') ? '—' : Number(v).toLocaleString();
+    const rows = [];
+    if (bp.barcode_pack || bp.price_pack) rows.push({ lab: isLao ? 'ແພັກ' : 'แพ๊ค', bc: bp.barcode_pack, price: bp.price_pack, qty: bp.qty_pack, hi: bpLevel === 'pack' });
+    if (bp.barcode_box || bp.price_box) rows.push({ lab: isLao ? 'ລັງ' : 'ลัง', bc: bp.barcode_box, price: bp.price_box, qty: bp.qty_box, hi: bpLevel === 'box' });
+    if (bp.barcode_other || bp.price_other) rows.push({ lab: isLao ? 'ອື່ນໆ' : 'อื่นๆ', bc: bp.barcode_other, price: bp.price_other, qty: null, hi: bpLevel === 'other' });
+    if (rows.length) {
+      bpHtml = '<div style="padding:11px 16px;border-top:1px solid var(--fs-hair);">'
+        + '<div style="font-size:11px;color:var(--fs-ink3);margin-bottom:6px;font-weight:600;">📦 ' + (isLao ? 'ແພັກ / ລັງ' : 'แพ๊ค / ลัง') + '</div>'
+        + rows.map(r => '<div style="display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:7px;' + (r.hi ? 'background:var(--amber-50);' : '') + '">'
+            + '<span style="font-size:12px;font-weight:700;color:var(--fs-ink);min-width:36px;">' + r.lab + '</span>'
+            + '<span style="flex:1;min-width:0;font-size:11px;color:var(--fs-ink3);font-family:monospace;overflow:hidden;text-overflow:ellipsis;">' + (r.bc ? escapeHtml(String(r.bc)) : '—') + (r.qty ? ' · ' + fmtv(r.qty) + ' ' + unit : '') + '</span>'
+            + '<span style="font-size:13px;font-weight:700;color:var(--fs-ink);white-space:nowrap;">' + fmtv(r.price) + ' ₭</span>'
+            + '</div>').join('')
+        + '</div>';
+    }
+    if (bpLevel && bpLevel !== 'unit') {
+      const lvlLabel = bpLevel === 'box' ? (isLao ? 'ລັງ' : 'ลัง') : bpLevel === 'pack' ? (isLao ? 'ແພັກ' : 'แพ๊ค') : (isLao ? 'ອື່ນໆ' : 'อื่นๆ');
+      bpNote = '<div style="background:var(--violet-50);border:1px solid var(--violet-200);border-radius:9px;padding:8px 12px;margin:11px 0 0;font-size:11.5px;color:var(--violet-700);font-weight:700;">📦 ' + (isLao ? 'ສະແກນບາໂຄດ ' : 'สแกนบาร์โค้ด ') + lvlLabel + ' — ' + (isLao ? 'ສະແດງຫຼັກເປັນ Unit' : 'แสดงหลักเป็น Unit') + '</div>';
+    }
+  }
+
+  card.innerHTML = bpNote + `
     <div class="fs-card" style="margin-top:14px;padding:0;overflow:hidden;">
       <div style="padding:14px 16px 12px;border-bottom:1px solid var(--fs-hair);">
         <div style="font-size:16px;font-weight:600;color:var(--fs-ink);line-height:1.35;">${name}</div>
@@ -9018,6 +9213,7 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
         </div>
       </div>
 
+      ${bpHtml}
       ${statusHtml}
       ${locHtml}
       ${lastCountHtml}
@@ -28600,6 +28796,8 @@ window.mpCloseEditModal = mpCloseEditModal;
 window.mpSaveEdit = mpSaveEdit;
 // Session 6: Master Product (Phase 3B — Upload XLSX)
 window.mpOpenUploadModal = mpOpenUploadModal;
+// Barcode Pack/ลัง
+window.bpOpenUploadModal = bpOpenUploadModal; window.bpHandleFileSelected = bpHandleFileSelected; window.bpExecuteUpload = bpExecuteUpload; window.bpLookup = bpLookup;
 window.mpHandleFileSelected = mpHandleFileSelected;
 window.mpBuildDiff = mpBuildDiff;
 window.mpExecuteUpload = mpExecuteUpload;
