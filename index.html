@@ -7800,12 +7800,17 @@ function renderGapReportPage() {
         🛒 Gap Scan Report
       </h2>
       <p style="font-size:11px;color:var(--slate-500);margin:0;">
-        ${isLao 
-          ? 'ສິນຄ້າທີ່ຕ້ອງເຕີມໜ້າຮ້ານ ແລະ ສິນຄ້າທີ່ຕ້ອງສົ່ງຈັດຊື້' 
-          : 'สินค้าที่ต้องเติมหน้าร้าน และ สินค้าที่ต้องส่งจัดซื้อ'}
+        ${gapCanManage()
+          ? (isLao ? 'ສະຫຼຸບການແຈ້ງຈາກທຸກສາຂາ — ເລືອກສາຂາເພື່ອຈັດການເຕີມ/ສົ່ງຈັດຊື້' : 'รวมการแจ้งจากทุกสาขา — เลือกสาขาเพื่อจัดการเติม/ส่งจัดซื้อ')
+          : (isLao
+            ? 'ສິນຄ້າທີ່ຕ້ອງເຕີມໜ້າຮ້ານ ແລະ ສິນຄ້າທີ່ຕ້ອງສົ່ງຈັດຊື້'
+            : 'สินค้าที่ต้องเติมหน้าร้าน และ สินค้าที่ต้องส่งจัดซื้อ')}
       </p>
     </div>
-    
+
+    <!-- Branch tabs (เฉพาะ ผจก. ที่เห็นทุกสาขา) -->
+    <div id="gapBranchTabs" style="display:flex;gap:6px;overflow-x:auto;margin-bottom:9px;padding-bottom:2px;"></div>
+
     <!-- Summary Cards -->
     <div id="gapSummary" style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:11px;">
       <div style="background:var(--fs-orange-tint);padding:11px;border-radius:11px;text-align:center;">
@@ -7881,34 +7886,55 @@ function renderGapReportPage() {
 let _gapReportData = null;
 let _gapReportFilter = { action: 'replenish', status: 'pending' };
 let _gapSelection = new Set();
+let _gapBranchFilter = 'all'; // ⭐ ตัวกรองสาขา (สำหรับ ผจก. ที่เห็นทุกสาขา)
+// ⭐ ผจก.ซุปเปอร์/มินิมาร์ท (bcs) + ผู้ช่วยผู้บริหาร (admin) + scc = เห็นรวมทุกสาขา
+function gapCanManage() { return ['admin', 'scc', 'bcs'].includes((user && user.role) || ''); }
+// ข้อมูลที่มองเห็นตามสาขาที่เลือก (manager เลือก 'all' = ทุกสาขา)
+function gapVisibleData() {
+  if (!_gapReportData) return [];
+  if (!gapCanManage() || _gapBranchFilter === 'all') return _gapReportData;
+  return _gapReportData.filter(g => String(g.branch_id) === String(_gapBranchFilter));
+}
+function gapBranchLabel(bid) {
+  const b = (window._allBranchesCache || []).find(x => String(x.id) === String(bid));
+  if (!b) return '#' + bid;
+  return lang === 'lo' ? (b.name_lo || b.code || ('#' + bid)) : (b.name_th || b.code || ('#' + bid));
+}
 
 async function loadGapReport() {
   const isLao = lang === 'lo';
   try {
     // โหลดทั้ง pending และ resolved (สำหรับนับสถิติ)
-    const statusFilter = _gapReportFilter.status === 'pending' 
-      ? 'pending' 
+    const statusFilter = _gapReportFilter.status === 'pending'
+      ? 'pending'
       : ['replenished', 'ordered', 'cancelled'];
-    
+
+    // ⭐ ผจก. เห็นรวมทุกสาขา — โหลดรายชื่อสาขาไว้แสดงชื่อ
+    const seeAll = gapCanManage();
+    if (seeAll && (!window._allBranchesCache || !window._allBranchesCache.length)) {
+      try { const { data: brs } = await sb.from('branches').select('id, code, name_th, name_lo').order('id'); window._allBranchesCache = brs || []; } catch (e) {}
+    }
+
     let query = sb.from('gap_scans')
-      .select('*, users!user_id(full_name), assigned_user:users!assigned_to(full_name), resolver:users!resolved_by(full_name), products(name_th, name_lo, unit_th, unit_lo, cost_price, sell_price, pos_qty)')
-      .eq('branch_id', branch.id);
-    
+      .select('*, users!user_id(full_name), assigned_user:users!assigned_to(full_name), resolver:users!resolved_by(full_name), products(name_th, name_lo, unit_th, unit_lo, cost_price, sell_price, pos_qty)');
+    if (!seeAll) query = query.eq('branch_id', branch.id);
+
     if (Array.isArray(statusFilter)) {
       query = query.in('status', statusFilter);
     } else {
       query = query.eq('status', statusFilter);
     }
-    
+
     const { data, error } = await query
       .order('created_at', { ascending: false })
-      .limit(500);
-    
+      .limit(seeAll ? 3000 : 500);
+
     if (error) throw error;
-    
+
     _gapReportData = data || [];
     _gapSelection.clear();
     updateGapBulkBar();
+    renderGapBranchTabs();
     
     // โหลด count แยกสำหรับแสดงบน tab
     await loadGapStatusCounts();
@@ -7931,10 +7957,11 @@ function renderGapSummary() {
   if (!_gapReportData) return;
   const isLao = lang === 'lo';
   const fmt = new Intl.NumberFormat('th-TH');
-  
-  const replenish = _gapReportData.filter(g => g.action_type === 'replenish');
-  const purchase = _gapReportData.filter(g => g.action_type === 'purchase');
-  
+
+  const baseData = gapVisibleData();
+  const replenish = baseData.filter(g => g.action_type === 'replenish');
+  const purchase = baseData.filter(g => g.action_type === 'purchase');
+
   // Aggregate by product (rolled up)
   const aggReplenish = aggregateGaps(replenish);
   const aggPurchase = aggregateGaps(purchase);
@@ -7975,12 +8002,14 @@ function renderGapSummary() {
 }
 
 // Aggregate gaps by product (รวมหลาย gap entry ของ product เดียวกัน)
-function aggregateGaps(gaps) {
+function aggregateGaps(gaps, byBranch) {
   const agg = {};
   gaps.forEach(g => {
-    const key = g.product_id || g.barcode;
+    const pkey = g.product_id || g.barcode;
+    const key = byBranch ? (g.branch_id + '|' + pkey) : pkey;
     if (!agg[key]) {
       agg[key] = {
+        branch_id: g.branch_id,
         product_id: g.product_id,
         barcode: g.barcode,
         product_name: g.product_name,
@@ -8013,6 +8042,39 @@ function setGapAction(action) {
   renderGapReportList();
 }
 
+// ==================== BRANCH TABS (manager dashboard) ====================
+function renderGapBranchTabs() {
+  const wrap = document.getElementById('gapBranchTabs');
+  if (!wrap) return;
+  if (!gapCanManage()) { wrap.innerHTML = ''; wrap.style.display = 'none'; return; }
+  const isLao = lang === 'lo';
+  wrap.style.display = 'flex';
+  // สาขาที่มีการแจ้งในชุดข้อมูลปัจจุบัน (เรียงตาม id)
+  const ids = [...new Set((_gapReportData || []).map(g => g.branch_id))].filter(b => b != null)
+    .sort((a, b) => Number(a) - Number(b));
+  // นับจำนวนต่อสาขา (เฉพาะ action ที่กำลังดู เพื่อช่วยตัดสินใจ)
+  const cnt = {};
+  (_gapReportData || []).forEach(g => { cnt[g.branch_id] = (cnt[g.branch_id] || 0) + 1; });
+  const mkTab = (val, label, count) => {
+    const on = String(_gapBranchFilter) === String(val);
+    return '<button onclick="setGapBranchFilter(\'' + val + '\')" style="flex-shrink:0;border:1.5px solid ' + (on ? 'var(--fs-blue)' : 'var(--slate-200)') + ';background:' + (on ? 'var(--fs-blue)' : 'white') + ';color:' + (on ? 'white' : 'var(--slate-600)') + ';border-radius:20px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">'
+      + label + (count != null ? ' <span style="opacity:0.8;font-size:10px;">(' + count + ')</span>' : '') + '</button>';
+  };
+  let html = mkTab('all', '🏪 ' + (isLao ? 'ທຸກສາຂາ' : 'ทุกสาขา'), (_gapReportData || []).length);
+  html += ids.map(id => mkTab(id, escapeHtml(gapBranchLabel(id)), cnt[id])).join('');
+  wrap.innerHTML = html;
+}
+
+function setGapBranchFilter(val) {
+  _gapBranchFilter = val;
+  _gapSelection.clear();
+  updateGapBulkBar();
+  renderGapBranchTabs();
+  renderGapSummary();
+  renderGapReportList();
+  loadGapStatusCounts();
+}
+
 // ==================== STATUS FILTER (Pending vs Resolved) ====================
 function setGapStatus(status) {
   _gapReportFilter.status = status;
@@ -8035,17 +8097,20 @@ function setGapStatus(status) {
 // ==================== STATUS COUNTS ====================
 async function loadGapStatusCounts() {
   try {
+    const seeAll = gapCanManage();
+    // ผจก. ที่เลือกสาขาเจาะจง → นับเฉพาะสาขานั้น | 'all' → ทุกสาขา | ไม่ใช่ ผจก. → สาขาตัวเอง
+    const scopeBranch = seeAll
+      ? (_gapBranchFilter === 'all' ? null : _gapBranchFilter)
+      : branch.id;
     // นับ pending
-    const { count: pendCount } = await sb.from('gap_scans')
-      .select('id', { count: 'exact', head: true })
-      .eq('branch_id', branch.id)
-      .eq('status', 'pending');
-    
+    let pq = sb.from('gap_scans').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+    if (scopeBranch != null) pq = pq.eq('branch_id', scopeBranch);
+    const { count: pendCount } = await pq;
+
     // นับ resolved (replenished + ordered + cancelled)
-    const { count: resCount } = await sb.from('gap_scans')
-      .select('id', { count: 'exact', head: true })
-      .eq('branch_id', branch.id)
-      .in('status', ['replenished', 'ordered', 'cancelled']);
+    let rq = sb.from('gap_scans').select('id', { count: 'exact', head: true }).in('status', ['replenished', 'ordered', 'cancelled']);
+    if (scopeBranch != null) rq = rq.eq('branch_id', scopeBranch);
+    const { count: resCount } = await rq;
     
     const pendEl = document.getElementById('gapPendingCount');
     const resEl = document.getElementById('gapResolvedCount');
@@ -8387,9 +8452,10 @@ function renderGapReportList() {
   const isLao = lang === 'lo';
   const fmt = new Intl.NumberFormat('th-TH');
   
-  const filtered = _gapReportData.filter(g => g.action_type === _gapReportFilter.action);
+  const filtered = gapVisibleData().filter(g => g.action_type === _gapReportFilter.action);
   const isPending = _gapReportFilter.status === 'pending';
-  
+  const showBranch = gapCanManage() && _gapBranchFilter === 'all';
+
   const listEl = document.getElementById('gapReportList');
   if (!listEl) return;
   
@@ -8516,6 +8582,7 @@ function renderGapReportList() {
           </div>
           <div style="font-size:9px;color:var(--slate-500);font-family:monospace;">${g.barcode}</div>
           <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:3px;font-size:9px;">
+            ${showBranch ? `<span style="background:var(--fs-blue);color:white;padding:1px 6px;border-radius:3px;font-weight:700;">🏪 ${escapeHtml(gapBranchLabel(g.branch_id))}</span>` : ''}
             ${g.gondola_code ? `<span style="background:var(--violet-100);color:var(--violet-600);padding:1px 5px;border-radius:3px;font-weight:700;font-family:monospace;">📍 ${g.gondola_code}</span>` : ''}
             <span style="color:var(--slate-500);">⏱ ${time}</span>
             ${g.users?.full_name ? `<span style="color:var(--slate-500);">👤 ${escapeHtml(g.users.full_name)}</span>` : ''}
@@ -8567,7 +8634,7 @@ function renderGapReportList() {
 
 function selectAllGaps() {
   if (!_gapReportData) return;
-  const filtered = _gapReportData.filter(g => g.action_type === _gapReportFilter.action);
+  const filtered = gapVisibleData().filter(g => g.action_type === _gapReportFilter.action);
   if (_gapSelection.size === filtered.length) {
     // unselect all
     _gapSelection.clear();
@@ -8586,15 +8653,24 @@ async function exportGapExcel() {
   }
   
   showToast(isLao ? '⏳ ກຳລັງສ້າງ Excel...' : '⏳ กำลังสร้าง Excel...', 'success');
-  
+
   try {
     const wb = XLSX.utils.book_new();
 
+    // ⭐ ถ้ามีรายการที่เลือกไว้ → export เฉพาะที่เลือก (ผจก. เลือกข้ามสาขาได้), ไม่งั้น export ตามสาขาที่กำลังดู
+    const baseData = (_gapSelection.size > 0)
+      ? _gapReportData.filter(g => _gapSelection.has(g.id))
+      : gapVisibleData();
+    if (!baseData.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
+    // หลายสาขา → แยกแถวตามสาขา + เพิ่มคอลัมน์สาขา
+    const multiBranch = new Set(baseData.map(g => g.branch_id)).size > 1;
+    const brCol = a => multiBranch ? { 'สาขา': gapBranchLabel(a.branch_id) } : {};
+
     // Sheet 1: Replenishment (เติมจากคลัง)
-    const replenish = _gapReportData.filter(g => g.action_type === 'replenish');
-    const aggRepl = aggregateGaps(replenish);
-    const purchasePre = _gapReportData.filter(g => g.action_type === 'purchase');
-    const aggPurPre = aggregateGaps(purchasePre);
+    const replenish = baseData.filter(g => g.action_type === 'replenish');
+    const aggRepl = aggregateGaps(replenish, multiBranch);
+    const purchasePre = baseData.filter(g => g.action_type === 'purchase');
+    const aggPurPre = aggregateGaps(purchasePre, multiBranch);
 
     // สินค้าที่ไม่มีชื่อ (ไม่มีในตาราง products) → ดึงชื่อจาก master_products มาเติม
     const mpNameMap = {};
@@ -8614,6 +8690,7 @@ async function exportGapExcel() {
     const gapNameLo = a => a.product?.name_lo || mpNameMap[String(a.barcode)]?.name_lo || mpNameMap[String(a.barcode)]?.name_th || '';
 
     const replRows = aggRepl.map(a => ({
+      ...brCol(a),
       Barcode: a.barcode,
       'ชื่อสินค้า': gapNameTh(a),
       'Name LO': gapNameLo(a),
@@ -8633,6 +8710,7 @@ async function exportGapExcel() {
     // Sheet 2: ส่งจัดซื้อ (forward to purchasing department — buyers issue PO)
     const aggPur = aggPurPre;
     const purRows = aggPur.map(a => ({
+      ...brCol(a),
       Barcode: a.barcode,
       'ชื่อสินค้า': gapNameTh(a),
       'Name LO': gapNameLo(a),
@@ -8650,7 +8728,8 @@ async function exportGapExcel() {
     }
     
     // Sheet 3: All Detail
-    const allRows = _gapReportData.map(g => ({
+    const allRows = baseData.map(g => ({
+      ...(multiBranch ? { 'สาขา': gapBranchLabel(g.branch_id) } : {}),
       Type: g.action_type === 'replenish' ? 'เติม' : 'ส่งจัดซื้อ',
       Barcode: g.barcode,
       'ชื่อสินค้า': g.product_name || '',
@@ -8666,10 +8745,12 @@ async function exportGapExcel() {
       const ws3 = XLSX.utils.json_to_sheet(allRows);
       XLSX.utils.book_append_sheet(wb, ws3, 'ทั้งหมด');
     }
-    
-    const fileName = `gap-${branch.code}-${new Date().toISOString().slice(0,10)}.xlsx`;
+
+    const tag = (_gapSelection.size > 0) ? 'selected'
+      : (multiBranch ? 'allbranch' : ((gapCanManage() && _gapBranchFilter !== 'all') ? gapBranchLabel(_gapBranchFilter) : (branch.code || 'branch')));
+    const fileName = `gap-${tag}-${new Date().toISOString().slice(0,10)}.xlsx`;
     XLSX.writeFile(wb, fileName);
-    
+
     showToast(`✅ ${aggRepl.length + aggPur.length} ${isLao ? 'ສິນຄ້າ' : 'สินค้า'}`, 'success');
   } catch (e) {
     console.error('[FS] exportGapExcel error:', e);
@@ -28317,6 +28398,8 @@ window.updateGapBulkBar = updateGapBulkBar;
 window.bulkResolveGaps = bulkResolveGaps;
 window.resolveSingleGap = resolveSingleGap;
 window.selectAllGaps = selectAllGaps;
+window.setGapBranchFilter = setGapBranchFilter;
+window.renderGapBranchTabs = renderGapBranchTabs;
 // Session 5: ลบ/แก้ gap_scans
 window.editGapScan = editGapScan;
 window.deleteGapScan = deleteGapScan;
