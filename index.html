@@ -26489,47 +26489,97 @@ async function loadHistoryWork() {
   } catch (e) {}
   const badge = document.getElementById('histWorkCount');
   if (badge) badge.textContent = rows.length + issues.length;
-  if (!rows.length && !issues.length) {
+  window._histWorkData = { issues, rows };
+  renderHistoryWork();
+}
+
+// ชื่อเดือน (ไทย/ลาว) สำหรับหัวกลุ่มรายเดือน
+const HIST_TH_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+const HIST_LO_MONTHS = ['ມັງກອນ', 'ກຸມພາ', 'ມີນາ', 'ເມສາ', 'ພຶດສະພາ', 'ມິຖຸນາ', 'ກໍລະກົດ', 'ສິງຫາ', 'ກັນຍາ', 'ຕຸລາ', 'ພະຈິກ', 'ທັນວາ'];
+function histMonthLabel(mk, isLao) {
+  const p = mk.split('-'); const idx = parseInt(p[1], 10) - 1;
+  return ((isLao ? HIST_LO_MONTHS : HIST_TH_MONTHS)[idx] || p[1]) + ' ' + p[0];
+}
+function histWorkToggleMonth(mk) {
+  if (!window._histWorkExpMonths) window._histWorkExpMonths = new Set();
+  if (window._histWorkExpMonths.has(mk)) window._histWorkExpMonths.delete(mk);
+  else window._histWorkExpMonths.add(mk);
+  renderHistoryWork();
+}
+
+function renderHistoryWork() {
+  const isLao = lang === 'lo';
+  const list = document.getElementById('histWorkList');
+  if (!list) return;
+  const { issues = [], rows = [] } = window._histWorkData || {};
+  if (!issues.length && !rows.length) {
     list.innerHTML = '<div style="text-align:center;padding:36px;color:var(--slate-400);"><div style="font-size:32px;">📭</div>' + (isLao ? 'ຍັງບໍ່ມີງານທີ່ແຈ້ງ' : 'ยังไม่มีงานที่คุณแจ้ง') + '</div>';
     return;
   }
-  // ส่วนแจ้งปัญหาสินค้า (product_issues)
   const issStatus = {
     open: { icon: '📥', label: isLao ? 'ລໍຖ້າ' : 'รอดำเนินการ', color: 'var(--rose-500)', bg: 'var(--rose-50)' },
     in_progress: { icon: '⚙️', label: isLao ? 'ກຳລັງເຮັດ' : 'กำลังดำเนินการ', color: 'var(--amber-600)', bg: 'var(--amber-50)' },
     resolved: { icon: '✅', label: isLao ? 'ແກ້ໄຂແລ້ວ' : 'แก้ไขแล้ว', color: 'var(--emerald-600)', bg: 'var(--emerald-50)' },
     cancelled: { icon: '✕', label: isLao ? 'ຍົກເລີກ' : 'ยกเลิก', color: 'var(--slate-500)', bg: 'var(--slate-100)' }
   };
+  const issueCard = it => {
+    const c = issStatus[it.status] || issStatus.open;
+    const label = (typeof T === 'function') ? T('issue_' + it.issue_type) : it.issue_type;
+    return '<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ' + c.color + ';border-radius:11px;padding:11px 12px;margin:0 14px 8px;">'
+      + '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:4px;"><span style="font-weight:700;font-size:13px;flex:1;min-width:110px;">🚨 ' + (it._pname || it.barcode) + '</span>'
+      + '<span style="background:' + c.bg + ';color:' + c.color + ';padding:2px 9px;border-radius:9px;font-size:10px;font-weight:800;">' + c.icon + ' ' + c.label + '</span></div>'
+      + '<div style="font-size:11px;color:var(--slate-600);margin-bottom:3px;">⚠️ ' + label + (it.note ? ' · ' + it.note : '') + '</div>'
+      + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;">' + it.barcode + ' · ' + getTimeAgo(it.created_at, isLao) + '</div>'
+      + '<button onclick="irShowTimeline(' + it.id + ')" style="margin-top:6px;background:var(--violet-50);color:var(--violet-700);border:1px solid var(--violet-200);border-radius:7px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;">📋 ' + (isLao ? 'ຕິດຕາມສະຖານະ' : 'ติดตามสถานะ') + '</button>'
+      + '</div>';
+  };
+  const ticketCard = t => {
+    const s = wtStatusOf(t);
+    return '<div onclick="wtOpen(' + t.id + ')" style="background:white;border:1px solid var(--slate-200);border-radius:11px;padding:11px 12px;margin:0 14px 8px;cursor:pointer;">'
+      + '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:5px;"><span style="font-weight:700;font-size:13px;flex:1;min-width:110px;">📢 ' + wtEsc(t.title) + '</span>' + wtBadge(s) + '</div>'
+      + '<div style="display:flex;gap:9px;flex-wrap:wrap;font-size:10px;color:var(--slate-500);">'
+      + '<span style="font-family:monospace;font-weight:700;">' + t.ticket_no + '</span>'
+      + '<span>➡️ ' + wtEsc(t.dept) + '</span>'
+      + ((t.photo_urls && t.photo_urls.length) ? '<span>📷 ' + t.photo_urls.length + '</span>' : '')
+      + (t.status === 'done' && t.handled_name ? '<span style="color:var(--emerald-600);">✓ ' + wtEsc(t.handled_name) + '</span>' : '')
+      + '</div></div>';
+  };
+  // รวมทุกการแจ้งเป็น timeline เดียว แล้วจัดกลุ่ม เดือน → วัน
+  const entries = [];
+  issues.forEach(it => entries.push({ ts: it.created_at, html: issueCard(it) }));
+  rows.forEach(t => entries.push({ ts: t.created_at, html: ticketCard(t) }));
+  entries.sort((a, b) => new Date(b.ts) - new Date(a.ts));
+
+  // จัดกลุ่มตามเดือน (คงลำดับใหม่→เก่า)
+  const months = []; const mIndex = {};
+  entries.forEach(e => {
+    const dk = localDayKey(e.ts); const mk = dk.slice(0, 7);
+    if (!(mk in mIndex)) { mIndex[mk] = months.length; months.push({ mk, days: [], dayIndex: {}, count: 0 }); }
+    const mo = months[mIndex[mk]];
+    if (!(dk in mo.dayIndex)) { mo.dayIndex[dk] = mo.days.length; mo.days.push({ dk, items: [] }); }
+    mo.days[mo.dayIndex[dk]].items.push(e.html);
+    mo.count++;
+  });
+
+  // เดือนล่าสุดเปิดอัตโนมัติ (ครั้งแรก)
+  if (!window._histWorkExpMonths) { window._histWorkExpMonths = new Set(); if (months[0]) window._histWorkExpMonths.add(months[0].mk); }
+  const exp = window._histWorkExpMonths;
+
   let html = '';
-  if (issues.length) {
-    html += '<div style="font-size:11px;font-weight:700;color:var(--slate-500);margin:0 14px 6px;">🚨 ' + (isLao ? 'ການແຈ້ງບັນຫາສິນຄ້າ' : 'การแจ้งปัญหาสินค้า') + '</div>';
-    html += issues.map(it => {
-      const c = issStatus[it.status] || issStatus.open;
-      const label = (typeof T === 'function') ? T('issue_' + it.issue_type) : it.issue_type;
-      return '<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ' + c.color + ';border-radius:11px;padding:11px 12px;margin:0 14px 8px;">'
-        + '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:4px;"><span style="font-weight:700;font-size:13px;flex:1;min-width:110px;">' + (it._pname || it.barcode) + '</span>'
-        + '<span style="background:' + c.bg + ';color:' + c.color + ';padding:2px 9px;border-radius:9px;font-size:10px;font-weight:800;">' + c.icon + ' ' + c.label + '</span></div>'
-        + '<div style="font-size:11px;color:var(--slate-600);margin-bottom:3px;">⚠️ ' + label + (it.note ? ' · ' + it.note : '') + '</div>'
-        + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;">' + it.barcode + ' · ' + getTimeAgo(it.created_at, isLao) + '</div>'
-        + '<button onclick="irShowTimeline(' + it.id + ')" style="margin-top:6px;background:var(--violet-50);color:var(--violet-700);border:1px solid var(--violet-200);border-radius:7px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;">📋 ' + (isLao ? 'ຕິດຕາມສະຖານະ' : 'ติดตามสถานะ') + '</button>'
-        + '</div>';
-    }).join('');
-  }
-  // ส่วนงานที่แจ้ง (work_tickets)
-  if (rows.length) {
-    if (issues.length) html += '<div style="font-size:11px;font-weight:700;color:var(--slate-500);margin:10px 14px 6px;">📢 ' + (isLao ? 'ງານທີ່ແຈ້ງ' : 'งานที่แจ้ง') + '</div>';
-    html += rows.map(t => {
-      const s = wtStatusOf(t);
-      return '<div onclick="wtOpen(' + t.id + ')" style="background:white;border:1px solid var(--slate-200);border-radius:11px;padding:11px 12px;margin:0 14px 8px;cursor:pointer;">'
-        + '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:5px;"><span style="font-weight:700;font-size:13px;flex:1;min-width:110px;">' + wtEsc(t.title) + '</span>' + wtBadge(s) + '</div>'
-        + '<div style="display:flex;gap:9px;flex-wrap:wrap;font-size:10px;color:var(--slate-500);">'
-        + '<span style="font-family:monospace;font-weight:700;">' + t.ticket_no + '</span>'
-        + '<span>➡️ ' + wtEsc(t.dept) + '</span>'
-        + ((t.photo_urls && t.photo_urls.length) ? '<span>📷 ' + t.photo_urls.length + '</span>' : '')
-        + (t.status === 'done' && t.handled_name ? '<span style="color:var(--emerald-600);">✓ ' + wtEsc(t.handled_name) + '</span>' : '')
-        + '</div></div>';
-    }).join('');
-  }
+  months.forEach(mo => {
+    const open = exp.has(mo.mk);
+    html += '<div onclick="histWorkToggleMonth(\'' + mo.mk + '\')" style="display:flex;align-items:center;gap:8px;cursor:pointer;background:var(--slate-100);border-radius:9px;padding:9px 12px;margin:0 14px 8px;">'
+      + '<span style="font-size:12px;color:var(--slate-400);transition:transform 0.2s;transform:rotate(' + (open ? '90' : '0') + 'deg);">▶</span>'
+      + '<span style="font-weight:800;font-size:13px;color:var(--slate-700);flex:1;">📅 ' + histMonthLabel(mo.mk, isLao) + '</span>'
+      + '<span style="background:var(--teal-100);color:var(--teal-700);padding:1px 9px;border-radius:9px;font-size:11px;font-weight:800;">' + mo.count + '</span>'
+      + '</div>';
+    if (open) {
+      mo.days.forEach(day => {
+        html += '<div style="font-size:11px;font-weight:700;color:var(--slate-500);margin:6px 16px 5px;border-left:2px solid var(--teal-300);padding-left:8px;">' + irDayLabel(day.dk, isLao) + ' · ' + day.items.length + ' ' + (isLao ? 'ລາຍການ' : 'รายการ') + '</div>';
+        html += day.items.join('');
+      });
+    }
+  });
   list.innerHTML = html;
 }
 
@@ -27300,7 +27350,8 @@ function docOpen(id) {
     }).join('');
     const canRot = docCanManage();
     const rotBtn = canRot ? '<button onclick="docRotatePhoto(\'' + d.id + '\',' + pi + ')" style="position:absolute;top:7px;right:7px;background:rgba(15,23,42,0.62);color:white;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;z-index:2;">🔄 ' + (isLao ? 'ໝຸນ' : 'หมุน') + '</button>' : '';
-    return '<div style="position:relative;margin-bottom:10px;border:1px solid var(--slate-200);border-radius:10px;overflow:hidden;"><img src="' + url + '" style="width:100%;display:block;">' + overlay + rotBtn + '</div>';
+    const zoomBtn = '<button onclick="docZoomImage(\'' + url + '\')" style="position:absolute;top:7px;left:7px;background:rgba(15,23,42,0.62);color:white;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;z-index:2;">🔍 ' + (isLao ? 'ຂະຫຍາຍ' : 'ขยาย') + '</button>';
+    return '<div style="position:relative;margin-bottom:10px;border:1px solid var(--slate-200);border-radius:10px;overflow:hidden;"><img src="' + url + '" style="width:100%;display:block;">' + overlay + zoomBtn + rotBtn + '</div>';
   }).join('');
   // สถานะตำแหน่ง
   const posRows = (d.required_positions || []).map(pk => {
@@ -27335,6 +27386,54 @@ function docOpen(id) {
     + '<button onclick="docSaveFile(\'' + d.id + '\')" style="flex:2;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">💾 ' + (isLao ? 'ບັນທຶກລົງເຄື່ອງ' : 'บันทึกลงเครื่อง') + '</button>'
     + (canDelete ? '<button onclick="docDelete(\'' + d.id + '\')" style="flex:1;background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">🗑️ ' + (isLao ? 'ລຶບ' : 'ลบ') + '</button>' : '')
     + '</div>');
+}
+
+// -------- ขยาย/ซูมรูปเอกสาร (อ่านรายละเอียดก่อนเซ็น) --------
+function docZoomImage(url) {
+  const isLao = lang === 'lo';
+  const old = document.getElementById('docZoomOverlay'); if (old) old.remove();
+  const ov = document.createElement('div'); ov.id = 'docZoomOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,0.93);overflow:hidden;touch-action:none;';
+  const img = document.createElement('img'); img.src = url; img.draggable = false;
+  img.style.cssText = 'position:absolute;top:50%;left:50%;max-width:100vw;max-height:100vh;transform-origin:center center;will-change:transform;user-select:none;-webkit-user-drag:none;';
+  let scale = 1, tx = 0, ty = 0;
+  const apply = () => { img.style.transform = 'translate(-50%,-50%) translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')'; };
+  apply(); ov.appendChild(img);
+  const mkBtn = (txt, cb) => { const b = document.createElement('button'); b.textContent = txt; b.style.cssText = 'width:46px;height:46px;border:none;border-radius:50%;background:rgba(255,255,255,0.2);color:#fff;font-size:22px;font-weight:800;cursor:pointer;line-height:1;'; b.onclick = cb; return b; };
+  const close = mkBtn('✕', () => ov.remove()); close.style.position = 'absolute'; close.style.top = '14px'; close.style.right = '14px';
+  ov.appendChild(close);
+  const hint = document.createElement('div'); hint.textContent = isLao ? 'ຈີບ ຫຼື ກົດ +/− ເພື່ອຂະຫຍາຍ' : 'จีบนิ้ว หรือ กด +/− เพื่อซูม'; hint.style.cssText = 'position:absolute;top:18px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.85);font-size:12px;font-weight:700;'; ov.appendChild(hint);
+  const bar = document.createElement('div'); bar.style.cssText = 'position:absolute;bottom:22px;left:50%;transform:translateX(-50%);display:flex;gap:12px;';
+  bar.appendChild(mkBtn('−', () => { scale = Math.max(1, scale - 0.5); if (scale === 1) { tx = 0; ty = 0; } apply(); }));
+  bar.appendChild(mkBtn('⟳', () => { scale = 1; tx = 0; ty = 0; apply(); }));
+  bar.appendChild(mkBtn('+', () => { scale = Math.min(6, scale + 0.5); apply(); }));
+  ov.appendChild(bar);
+  // pan (1 finger / mouse) + pinch (2 fingers)
+  let dragging = false, lx = 0, ly = 0, pinch = false, startDist = 0, startScale = 1;
+  const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  ov.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) { pinch = true; startDist = dist(e.touches); startScale = scale; }
+    else if (e.touches.length === 1) { dragging = true; lx = e.touches[0].clientX; ly = e.touches[0].clientY; }
+  }, { passive: false });
+  ov.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (pinch && e.touches.length === 2) { const d = dist(e.touches); scale = Math.min(6, Math.max(1, startScale * (d / startDist))); if (scale === 1) { tx = 0; ty = 0; } apply(); }
+    else if (dragging && e.touches.length === 1 && scale > 1) { const x = e.touches[0].clientX, y = e.touches[0].clientY; tx += x - lx; ty += y - ly; lx = x; ly = y; apply(); }
+  }, { passive: false });
+  ov.addEventListener('touchend', e => { if (e.touches.length === 0) { dragging = false; pinch = false; } });
+  ov.addEventListener('mousedown', e => { if (e.target === close || bar.contains(e.target)) return; dragging = true; lx = e.clientX; ly = e.clientY; });
+  ov.addEventListener('mousemove', e => { if (dragging && scale > 1) { tx += e.clientX - lx; ty += e.clientY - ly; lx = e.clientX; ly = e.clientY; apply(); } });
+  ov.addEventListener('mouseup', () => dragging = false);
+  ov.addEventListener('wheel', e => { e.preventDefault(); scale = Math.min(6, Math.max(1, scale + (e.deltaY < 0 ? 0.3 : -0.3))); if (scale === 1) { tx = 0; ty = 0; } apply(); }, { passive: false });
+  let lastTap = 0;
+  ov.addEventListener('click', e => {
+    if (e.target === close || bar.contains(e.target)) return;
+    const now = Date.now();
+    if (now - lastTap < 300) { scale = scale > 1 ? 1 : 2.5; if (scale === 1) { tx = 0; ty = 0; } apply(); lastTap = 0; return; }
+    lastTap = now;
+    if (e.target === ov && scale === 1) ov.remove(); // แตะพื้นหลัง (ยังไม่ซูม) = ปิด
+  });
+  document.body.appendChild(ov);
 }
 
 // -------- เซ็นเอกสาร (เลือกจุด + วาดลายเซ็น) --------
@@ -27788,7 +27887,7 @@ async function updateDocBadge() {
 window.renderDocSignPage = renderDocSignPage; window.loadDocRequests = loadDocRequests;
 window.docSetTypeFilter = docSetTypeFilter; window.docSetBranchFilter = docSetBranchFilter; window.docNewOpen = docNewOpen; window.docNewOnPhoto = docNewOnPhoto;
 window.docNewRemovePhoto = docNewRemovePhoto; window.docNewRotatePhoto = docNewRotatePhoto; window.docNewOnAttach = docNewOnAttach; window.docNewRemoveAttach = docNewRemoveAttach; window.docSubmitNew = docSubmitNew; window.docOpen = docOpen;
-window.docStartSign = docStartSign; window.docSignSetPage = docSignSetPage; window.docSignPlace = docSignPlace; window.docSignRotate = docSignRotate; window.docRotatePhoto = docRotatePhoto;
+window.docStartSign = docStartSign; window.docSignSetPage = docSignSetPage; window.docSignPlace = docSignPlace; window.docSignRotate = docSignRotate; window.docRotatePhoto = docRotatePhoto; window.docZoomImage = docZoomImage;
 
 // ==================== 🆚 เทียบราคาคู่แข่ง (cmpprice) ====================
 let _cmpProduct = null;   // สินค้าที่สแกนล่าสุด
@@ -28220,6 +28319,8 @@ window.wtOpen = wtOpen;
 window.wtSetStatus = wtSetStatus;
 window.wtSetDeptFilter = wtSetDeptFilter;
 window.loadHistoryWork = loadHistoryWork;
+window.renderHistoryWork = renderHistoryWork;
+window.histWorkToggleMonth = histWorkToggleMonth;
 window.wtEditOpen = wtEditOpen;
 window.wtEditSave = wtEditSave;
 window.wtDelete = wtDelete;
