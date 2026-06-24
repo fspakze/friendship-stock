@@ -7711,7 +7711,7 @@ window._bpCache = window._bpCache || {};
 async function bpLookup(barcode) {
   const bc = String(barcode || '').trim();
   if (!bc) return null;
-  if (bc in window._bpCache) return window._bpCache[bc];
+  if (window._bpCache[bc]) return window._bpCache[bc]; // cache เฉพาะที่เจอ (ไม่ cache null กันค่าค้างก่อน import)
   let rec = null;
   try {
     const { data } = await sb.from('barcode_packsize').select('*')
@@ -7719,7 +7719,7 @@ async function bpLookup(barcode) {
       .limit(1).maybeSingle();
     rec = data || null;
   } catch (e) { rec = null; }
-  window._bpCache[bc] = rec;
+  if (rec) window._bpCache[bc] = rec;
   return rec;
 }
 // barcode ที่สแกนมา เป็นหน่วยไหนในระเบียน pack/ลัง
