@@ -9190,9 +9190,13 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
   let bpHtml = '', bpNote = '';
   if (bp) {
     const fmtv = v => (v == null || v === '') ? '—' : Number(v).toLocaleString();
+    // จำนวน Unit ที่แต่ละหน่วยบรรจุ: 1 แพ๊ค = qty_unit Unit, 1 ลัง = pcs_per_box หรือ qty_unit*qty_pack Unit
+    const uPerPack = Number(bp.qty_unit) || null;
+    let uPerBox = Number(bp.pcs_per_box) || 0;
+    if (!uPerBox && (Number(bp.qty_unit) || 0) && (Number(bp.qty_pack) || 0)) uPerBox = (Number(bp.qty_unit) || 0) * (Number(bp.qty_pack) || 0);
     const rows = [];
-    if (bp.barcode_pack || bp.price_pack) rows.push({ lab: isLao ? 'ແພັກ' : 'แพ๊ค', bc: bp.barcode_pack, price: bp.price_pack, qty: bp.qty_pack, hi: bpLevel === 'pack' });
-    if (bp.barcode_box || bp.price_box) rows.push({ lab: isLao ? 'ລັງ' : 'ลัง', bc: bp.barcode_box, price: bp.price_box, qty: bp.qty_box, hi: bpLevel === 'box' });
+    if (bp.barcode_pack || bp.price_pack) rows.push({ lab: isLao ? 'ແພັກ' : 'แพ๊ค', bc: bp.barcode_pack, price: bp.price_pack, qty: uPerPack, hi: bpLevel === 'pack' });
+    if (bp.barcode_box || bp.price_box) rows.push({ lab: isLao ? 'ລັງ' : 'ลัง', bc: bp.barcode_box, price: bp.price_box, qty: uPerBox || null, hi: bpLevel === 'box' });
     if (bp.barcode_other || bp.price_other) rows.push({ lab: isLao ? 'ອື່ນໆ' : 'อื่นๆ', bc: bp.barcode_other, price: bp.price_other, qty: null, hi: bpLevel === 'other' });
     const bd = bpQtyBreakdown(posQty, bp, isLao);
     if (rows.length) {
