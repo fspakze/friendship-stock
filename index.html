@@ -6445,15 +6445,13 @@ async function phHandleFile(ev) {
       if (!barcode) continue;
       const bdate = COL.docDate >= 0 ? phCleanDate(r[COL.docDate]) : null;
       data.push({
+        // เก็บเฉพาะ column ที่ใช้จริง (ตัด name/branch/total_incl ออกเพื่อประหยัดพื้นที่)
         buy_id: COL.buyId >= 0 ? phCleanStr(r[COL.buyId]) : null,
         barcode: barcode,
-        name: COL.name >= 0 ? phCleanStr(r[COL.name]) : null,
         vendor: COL.vendor >= 0 ? phCleanStr(r[COL.vendor]) : null,
         buy_date: bdate,
         qty: COL.qty >= 0 ? phCleanNum(r[COL.qty]) : null,
         unit_price: COL.unitPrice >= 0 ? phCleanNum(r[COL.unitPrice]) : null,
-        total_incl: COL.total >= 0 ? phCleanNum(r[COL.total]) : null,
-        branch: COL.branch >= 0 ? phCleanStr(r[COL.branch]) : null,
         doc_no: COL.docNo >= 0 ? phCleanStr(r[COL.docNo]) : null,
         buy_year: bdate ? Number(bdate.slice(0, 4)) : null,
       });
@@ -6495,7 +6493,7 @@ async function scShowPurchase(barcode, name) {
   try {
     // สรุปทั้งหมด + 10 ครั้งล่าสุด
     const { data, error } = await sb.from('purchase_history')
-      .select('buy_date, vendor, qty, unit_price, total_incl')
+      .select('buy_date, vendor, qty, unit_price')
       .eq('barcode', bc).order('buy_date', { ascending: false, nullsFirst: false }).limit(500);
     if (error) throw error;
     const rows = data || [];
@@ -26548,19 +26546,121 @@ function renderWtDash() {
   const c = { new: 0, prog: 0, done: 0, over: 0 };
   _wtData.forEach(t => { c[wtStatusOf(t)]++; });
   const tot = _wtData.length || 1;
-  const card = (n, label, color) => '<div style="flex:1;min-width:66px;background:' + color + '14;border:1px solid ' + color + '40;border-radius:10px;padding:9px 6px;text-align:center;">'
+  const card = (n, label, color, key) => '<div onclick="wtStatusSummary(\'' + key + '\')" style="flex:1;min-width:66px;background:' + color + '14;border:1px solid ' + color + '40;border-radius:10px;padding:9px 6px;text-align:center;cursor:pointer;">'
     + '<div style="font-size:21px;font-weight:800;color:' + color + ';font-family:\'Space Grotesk\',monospace;line-height:1.1;">' + n + '</div>'
-    + '<div style="font-size:9px;color:var(--slate-500);margin-top:2px;">' + label + '</div></div>';
+    + '<div style="font-size:9px;color:var(--slate-500);margin-top:2px;">' + label + ' ›</div></div>';
   const seg = [['new', '#d97706'], ['prog', '#0d9488'], ['done', '#16a34a'], ['over', '#e11d48']];
   const bar = seg.map(([k, col]) => c[k] ? '<i style="display:block;height:100%;width:' + (c[k] / tot * 100) + '%;background:' + col + ';"></i>' : '').join('');
   el.innerHTML = '<div style="display:flex;gap:6px;margin-bottom:9px;">'
-    + card(c.new, isLao ? 'ລໍຖ້າ' : 'รอรับ', '#d97706')
-    + card(c.prog, isLao ? 'ກຳລັງທຳ' : 'กำลังทำ', '#0d9488')
-    + card(c.done, isLao ? 'ເສັດ' : 'เสร็จ', '#16a34a')
-    + card(c.over, isLao ? 'ເກີນ' : 'เกินกำหนด', '#e11d48')
+    + card(c.new, isLao ? 'ລໍຖ້າ' : 'รอรับ', '#d97706', 'new')
+    + card(c.prog, isLao ? 'ກຳລັງທຳ' : 'กำลังทำ', '#0d9488', 'prog')
+    + card(c.done, isLao ? 'ເສັດ' : 'เสร็จ', '#16a34a', 'done')
+    + card(c.over, isLao ? 'ເກີນ' : 'เกินกำหนด', '#e11d48', 'over')
     + '</div>'
     + '<div style="display:flex;height:7px;border-radius:5px;overflow:hidden;background:var(--slate-100);margin-bottom:13px;">' + bar + '</div>';
   renderWtDeptBar(); // ⭐ อัปเดตแถบแผนกพร้อมกันทุกครั้ง
+}
+
+// ── เวลาแต่ละช่วงของงาน (แจ้ง → รับเรื่อง → ปิดงาน) ──
+function wtTicketTimes(t) {
+  const created = t.created_at ? new Date(t.created_at).getTime() : null;
+  const started = t.started_at ? new Date(t.started_at).getTime() : null;
+  const done = t.done_at ? new Date(t.done_at).getTime() : (t.status === 'done' && t.updated_at ? new Date(t.updated_at).getTime() : null);
+  const due = t.due_at ? new Date(t.due_at).getTime() : null;
+  return { created, started, done, due };
+}
+function wtHumanDur(ms, isLao) {
+  if (ms == null || isNaN(ms) || ms < 0) return '—';
+  const m = Math.round(ms / 60000);
+  if (m < 1) return isLao ? 'ທັນທີ' : 'ทันที';
+  if (m < 60) return m + (isLao ? ' ນທ' : ' นาที');
+  const h = Math.floor(m / 60), mm = m % 60;
+  if (h < 24) return h + (isLao ? ' ຊມ' : ' ชม.') + (mm ? ' ' + mm + (isLao ? ' ນທ' : ' น.') : '');
+  const d = Math.floor(h / 24), hh = h % 24;
+  return d + (isLao ? ' ມື້' : ' วัน') + (hh ? ' ' + hh + (isLao ? ' ຊມ' : ' ชม.') : '');
+}
+function wtAvg(arr) { const v = arr.filter(x => x != null && !isNaN(x)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; }
+
+// สรุป + ประเมินประสิทธิภาพแต่ละแผนก เมื่อคลิกการ์ดสถานะ (รอ/กำลังทำ/เสร็จ/เกิน)
+function wtStatusSummary(key) {
+  const isLao = lang === 'lo';
+  const now = Date.now();
+  const rows = _wtData.filter(t => wtStatusOf(t) === key);
+  const titleMap = { new: isLao ? 'ລໍຖ້າຮັບເລື່ອງ' : 'รอรับเรื่อง', prog: isLao ? 'ກຳລັງທຳ' : 'กำลังทำ', done: isLao ? 'ເສັດ' : 'เสร็จ', over: isLao ? 'ເກີນກຳນົດ' : 'เกินกำหนด' };
+  const colMap = { new: '#d97706', prog: '#0d9488', done: '#16a34a', over: '#e11d48' };
+  const col = colMap[key] || '#0d9488';
+  if (!rows.length) {
+    showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><h3 style="font-size:15px;margin:0;">📊 ' + titleMap[key] + '</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
+      + '<div style="text-align:center;padding:30px;color:var(--slate-400);font-size:13px;">' + (isLao ? 'ບໍ່ມີງານ' : 'ไม่มีงานในสถานะนี้') + '</div>');
+    return;
+  }
+  // group by dept
+  const byDept = {};
+  rows.forEach(t => { (byDept[t.dept] = byDept[t.dept] || []).push(t); });
+  const depts = Object.keys(byDept).sort((a, b) => byDept[b].length - byDept[a].length);
+
+  let body = '';
+  depts.forEach(dept => {
+    const list = byDept[dept];
+    const acks = [], comps = []; let lateCnt = 0, ackedCnt = 0;
+    list.forEach(t => {
+      const tm = wtTicketTimes(t);
+      if (tm.started != null && tm.created != null) { acks.push(tm.started - tm.created); ackedCnt++; }
+      if (key === 'done' && tm.done != null && tm.created != null) comps.push(tm.done - tm.created);
+      // เกินเวลา: งานเสร็จ → ปิดช้ากว่ากำหนด | งานยังไม่เสร็จ → เลยกำหนดแล้ว
+      if (tm.due != null) {
+        if (tm.done != null) { if (tm.done > tm.due) lateCnt++; }
+        else if (now > tm.due) lateCnt++;
+      }
+    });
+    const avgAck = wtAvg(acks), avgComp = wtAvg(comps);
+    // metric chips ตามบริบทสถานะ
+    const chips = [];
+    chips.push('<span style="background:var(--slate-100);color:var(--slate-600);border-radius:7px;padding:2px 8px;font-size:10px;font-weight:700;">' + list.length + ' ' + (isLao ? 'ງານ' : 'งาน') + '</span>');
+    if (avgAck != null) chips.push('<span style="background:#0d948814;color:#0d9488;border-radius:7px;padding:2px 8px;font-size:10px;font-weight:700;">⏱️ ' + (isLao ? 'ຮັບເລື່ອງສະເລ່ຍ' : 'รับเรื่องเฉลี่ย') + ' ' + wtHumanDur(avgAck, isLao) + '</span>');
+    if (key === 'done' && avgComp != null) chips.push('<span style="background:#16a34a14;color:#16a34a;border-radius:7px;padding:2px 8px;font-size:10px;font-weight:700;">✅ ' + (isLao ? 'ປິດງານສະເລ່ຍ' : 'ปิดงานเฉลี่ย') + ' ' + wtHumanDur(avgComp, isLao) + '</span>');
+    if (lateCnt > 0) chips.push('<span style="background:#e11d4814;color:#e11d48;border-radius:7px;padding:2px 8px;font-size:10px;font-weight:700;">🔴 ' + (isLao ? 'ເກີນ' : 'เกิน') + ' ' + lateCnt + '</span>');
+    else if (key === 'done') chips.push('<span style="background:#16a34a14;color:#16a34a;border-radius:7px;padding:2px 8px;font-size:10px;font-weight:700;">🟢 ' + (isLao ? 'ທັນເວລາ' : 'ตรงเวลา') + '</span>');
+
+    // รายการงานในแผนก
+    const items = list.map(t => {
+      const tm = wtTicketTimes(t);
+      const ackTxt = tm.started != null ? wtHumanDur(tm.started - tm.created, isLao) : '<span style="color:var(--rose-500);">' + (isLao ? 'ຍັງບໍ່ຮັບ' : 'ยังไม่รับ') + '</span>';
+      let durLabel, durVal;
+      if (key === 'done') { durLabel = isLao ? 'ໃຊ້ເວລາ' : 'ใช้เวลา'; durVal = tm.done != null ? wtHumanDur(tm.done - tm.created, isLao) : '—'; }
+      else if (key === 'prog') { durLabel = isLao ? 'ທຳມາແລ້ວ' : 'ทำมาแล้ว'; durVal = tm.started != null ? wtHumanDur(now - tm.started, isLao) : wtHumanDur(now - tm.created, isLao); }
+      else { durLabel = isLao ? 'ລໍຖ້າມາ' : 'รอมาแล้ว'; durVal = wtHumanDur(now - tm.created, isLao); }
+      const late = tm.due != null && ((tm.done != null && tm.done > tm.due) || (tm.done == null && now > tm.due));
+      return '<div onclick="closeModal();wtOpen(' + t.id + ')" style="background:white;border:1px solid var(--slate-200);border-radius:9px;padding:8px 10px;margin-bottom:6px;cursor:pointer;">'
+        + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;"><span style="flex:1;min-width:0;font-size:12px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + wtEsc(t.title) + '</span>'
+        + '<span style="font-size:9px;font-family:monospace;color:var(--slate-400);">' + t.ticket_no + '</span>'
+        + (late ? '<span style="font-size:9px;font-weight:800;color:#e11d48;background:#e11d4814;border-radius:6px;padding:1px 6px;">⏰ ' + (isLao ? 'ເກີນ' : 'เกิน') + '</span>' : '')
+        + '</div>'
+        + '<div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;color:var(--slate-500);">'
+        + (t.handled_name ? '<span>👤 ' + wtEsc(t.handled_name) + '</span>' : '')
+        + '<span>⏱️ ' + (isLao ? 'ຮັບເລື່ອງ' : 'รับเรื่อง') + ': ' + ackTxt + '</span>'
+        + '<span>⏳ ' + durLabel + ': ' + durVal + '</span>'
+        + '</div></div>';
+    }).join('');
+
+    body += '<div style="margin-bottom:13px;">'
+      + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;"><span style="font-size:17px;">' + (WT_DEPT_ICONS[dept] || '📋') + '</span><span style="font-size:13px;font-weight:800;color:var(--slate-800);">' + wtEsc(dept) + '</span></div>'
+      + '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px;">' + chips.join('') + '</div>'
+      + items + '</div>';
+  });
+
+  // สรุปรวมบนสุด
+  const allAck = [], allComp = []; let allLate = 0;
+  rows.forEach(t => { const tm = wtTicketTimes(t); if (tm.started != null) allAck.push(tm.started - tm.created); if (tm.done != null) allComp.push(tm.done - tm.created); if (tm.due != null && ((tm.done != null && tm.done > tm.due) || (tm.done == null && now > tm.due))) allLate++; });
+  const headStats = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:13px;">'
+    + '<span style="background:' + col + '14;color:' + col + ';border-radius:8px;padding:4px 10px;font-size:11px;font-weight:800;">' + rows.length + ' ' + (isLao ? 'ງານ' : 'งาน') + ' · ' + depts.length + ' ' + (isLao ? 'ແຜນກ' : 'แผนก') + '</span>'
+    + (wtAvg(allAck) != null ? '<span style="background:var(--slate-100);color:var(--slate-600);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;">⏱️ ' + (isLao ? 'ຮັບເລື່ອງ' : 'รับเรื่อง') + ' ' + wtHumanDur(wtAvg(allAck), isLao) + '</span>' : '')
+    + (key === 'done' && wtAvg(allComp) != null ? '<span style="background:var(--slate-100);color:var(--slate-600);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;">✅ ' + (isLao ? 'ປິດງານ' : 'ปิดงาน') + ' ' + wtHumanDur(wtAvg(allComp), isLao) + '</span>' : '')
+    + (allLate ? '<span style="background:#e11d4814;color:#e11d48;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:800;">🔴 ' + (isLao ? 'ເກີນກຳນົດ' : 'เกินกำหนด') + ' ' + allLate + '</span>' : '')
+    + '</div>';
+
+  showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px;"><h3 style="font-size:15px;margin:0;color:' + col + ';">📊 ' + titleMap[key] + '</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;color:var(--slate-600);">✕</button></div>'
+    + headStats + '<div style="max-height:62vh;overflow-y:auto;">' + body + '</div>');
 }
 
 function wtOpen(id) {
@@ -26605,9 +26705,19 @@ function wtOpen(id) {
 async function wtSetStatus(id, st) {
   const isLao = lang === 'lo';
   if (!wtCanManage()) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
-  const upd = { status: st, updated_at: new Date().toISOString() };
+  const nowIso = new Date().toISOString();
+  const cur = _wtData.find(x => x.id === id);
+  const upd = { status: st, updated_at: nowIso };
   if (st === 'prog' || st === 'done') { upd.handled_by = user.id; upd.handled_name = user.full_name || user.username || ''; }
-  const { error } = await sb.from('work_tickets').update(upd).eq('id', id);
+  // ⭐ เก็บเวลา รับเรื่อง (started_at) + ปิดงาน (done_at) เพื่อวัดประสิทธิภาพ
+  if (st === 'prog' && cur && !cur.started_at) upd.started_at = nowIso;
+  if (st === 'done') { upd.done_at = nowIso; if (cur && !cur.started_at) upd.started_at = nowIso; }
+  let { error } = await sb.from('work_tickets').update(upd).eq('id', id);
+  // เผื่อยังไม่ได้รัน migration เพิ่มคอลัมน์ → ลองใหม่แบบไม่มี started_at/done_at
+  if (error && /started_at|done_at|column/.test(error.message || '')) {
+    delete upd.started_at; delete upd.done_at;
+    ({ error } = await sb.from('work_tickets').update(upd).eq('id', id));
+  }
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   logActivity('work_ticket_status', id + ' -> ' + st);
   showToast(st === 'done' ? (isLao ? 'ປິດງານແລ້ວ ✓' : 'ปิดงานแล้ว ✓') : (isLao ? 'ອັບເດດແລ້ວ' : 'อัปเดตแล้ว'), 'success');
@@ -28539,6 +28649,7 @@ window.wrSetPri = wrSetPri;
 window.wrOnCatChange = wrOnCatChange;
 window.wrReset = wrReset;
 window.wtSetFilter = wtSetFilter;
+window.wtStatusSummary = wtStatusSummary;
 window.wtOpen = wtOpen;
 window.wtSetStatus = wtSetStatus;
 window.wtSetDeptFilter = wtSetDeptFilter;
