@@ -4552,21 +4552,21 @@ const MENU_CONFIG = {
   ctl: {
     bottomTabs: ['stockcheck', 'docsign', 'gapscan', 'floormap', 'tiebreaker', 'workflow'],
     drawerGroups: [
-      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'workreport', 'worktrack'] },
+      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'shrinkage', 'pricecheck', 'checklist', 'templog', 'workreport', 'worktrack'] },
       { titleTh: '📝 งานรายวัน SC', titleLo: '📝 ງານປະຈຳວັນ SC', items: ['scdaily', 'scdailylog'] },
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport', 'issuereport', 'invmovement'] },
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport', 'reorder', 'cyclecount', 'issuereport', 'invmovement'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
   bcs: {
     bottomTabs: ['stockcheck', 'floormap', 'gapreport'],
     drawerGroups: [
-      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'workreport', 'worktrack', 'tiebreaker'] },
+      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'shrinkage', 'pricecheck', 'checklist', 'templog', 'workreport', 'worktrack', 'tiebreaker'] },
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: '📝 ติดตามงาน SC', titleLo: '📝 ຕິດຕາມງານ SC', items: ['scdailylog'] },
       { titleTh: '📄 เอกสาร', titleLo: '📄 ເອກະສານ', items: ['docsign'] },
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['mgrdash', 'reorder', 'cyclecount', 'dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
       { titleTh: '🔄 อัปเดตข้อมูล', titleLo: '🔄 ອັບເດດຂໍ້ມູນ', items: ['updatehub'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -4575,13 +4575,13 @@ const MENU_CONFIG = {
   admin: {
     bottomTabs: ['stockcheck', 'floormap', 'gapreport'],
     drawerGroups: [
-      { titleTh: '🛒 งานสต๊อก', titleLo: '🛒 ງານສະຕ໋ອກ', items: ['scan', 'gapscan', 'expirytrack', 'tiebreaker', 'workflow'] },
+      { titleTh: '🛒 งานสต๊อก', titleLo: '🛒 ງານສະຕ໋ອກ', items: ['scan', 'gapscan', 'expirytrack', 'shrinkage', 'pricecheck', 'checklist', 'templog', 'tiebreaker', 'workflow'] },
       { titleTh: '📢 ระบบแจ้งงาน', titleLo: '📢 ລະບົບແຈ້ງງານ', items: ['workreport', 'worktrack', 'docsign'] },
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: '📝 งานรายวัน SC', titleLo: '📝 ງານປະຈຳວັນ SC', items: ['scdaily', 'scdailylog'] },
       { titleTh: '🕘 ประวัติ', titleLo: '🕘 ປະຫວັດ', items: ['history'] },
-      { titleTh: 'วิเคราะห์', titleLo: 'ວິເຄາະ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance'] },
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['issuereport', 'invmovement'] },
+      { titleTh: 'วิเคราะห์', titleLo: 'ວິເຄາະ', items: ['mgrdash', 'dashboard', 'kpi', 'performance', 'health', 'variance'] },
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['reorder', 'cyclecount', 'issuereport', 'invmovement'] },
       { titleTh: '🔄 อัปเดตข้อมูล', titleLo: '🔄 ອັບເດດຂໍ້ມູນ', items: ['updatehub'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'branchmanage', 'settings', 'activitylog'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -4590,10 +4590,10 @@ const MENU_CONFIG = {
   scc: {
     bottomTabs: ['stockcheck', 'floormap', 'gapreport'],
     drawerGroups: [
-      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'workreport', 'worktrack', 'tiebreaker'] },
+      { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'shrinkage', 'pricecheck', 'checklist', 'templog', 'workreport', 'worktrack', 'tiebreaker'] },
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: '📝 ติดตามงาน SC', titleLo: '📝 ຕິດຕາມງານ SC', items: ['scdailylog'] },
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['mgrdash', 'reorder', 'cyclecount', 'dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
       { titleTh: '🔄 อัปเดตข้อมูล', titleLo: '🔄 ອັບເດດຂໍ້ມູນ', items: ['updatehub'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'settings'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -4634,7 +4634,14 @@ const PAGE_META = {
   masterproduct: { iconSvg: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/><path d="M7.5 4.5l9 5.2"/>', labelTh: 'Master Product', labelLo: 'Master Product', page: 'masterproduct' },
   productstatus: { iconSvg: '<path d="M3 3v18h18"/><path d="M7 16l4-6 4 3 5-7"/>', labelTh: 'Status สินค้า', labelLo: 'Status ສິນຄ້າ', page: 'productstatus' },
   purchasehistory: { iconSvg: '<path d="M9 2v2M15 2v2M3 8h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>', labelTh: 'ข้อมูลการซื้อ', labelLo: 'ຂໍ້ມູນການຊື້', page: 'purchasehistory' },
-  updatehub: { iconSvg: '<path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>', labelTh: '\ud83d\udd04 อัปเดตข้อมูล', labelLo: '\ud83d\udd04 ອັບເດດຂໍ້ມູນ', page: 'updatehub' }
+  updatehub: { iconSvg: '<path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>', labelTh: '\ud83d\udd04 อัปเดตข้อมูล', labelLo: '\ud83d\udd04 ອັບເດດຂໍ້ມູນ', page: 'updatehub' },
+  reorder: { iconSvg: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/><path d="M12 8v4M10 10h4"/>', labelTh: 'แนะนำสั่งซื้อ', labelLo: 'ແນະນຳສັ່ງຊື້', page: 'reorder' },
+  shrinkage: { iconSvg: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>', labelTh: 'ของเสีย/สูญหาย', labelLo: 'ຂອງເສຍ/ສູນຫາຍ', page: 'shrinkage' },
+  mgrdash: { iconSvg: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12v5M12 8v9M16 14v3"/>', labelTh: 'ภาพรวมสาขา', labelLo: 'ພາບລວມສາຂາ', page: 'mgrdash' },
+  cyclecount: { iconSvg: '<path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>', labelTh: 'นับวนรอบ', labelLo: 'ນັບວົນຮອບ', page: 'cyclecount' },
+  pricecheck: { iconSvg: '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>', labelTh: 'เช็คราคาป้าย', labelLo: 'ກວດລາຄາປ້າຍ', page: 'pricecheck' },
+  checklist: { iconSvg: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/><path d="M3 15l3 3"/>', labelTh: 'เช็คลิสต์เปิด-ปิด', labelLo: 'ເຊັກລິສເປີດ-ປິດ', page: 'checklist' },
+  templog: { iconSvg: '<path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>', labelTh: 'อุณหภูมิตู้แช่', labelLo: 'ອຸນຫະພູມຕູ້ແຊ່', page: 'templog' }
 };
 
 /**
@@ -4973,6 +4980,27 @@ function goPage(page) {
   } else if (page === 'gapreport') {
     c.innerHTML = renderGapReportPage();
     loadGapReport();
+  } else if (page === 'reorder') {
+    c.innerHTML = renderReorderPage();
+    setTimeout(() => roInit(), 30);
+  } else if (page === 'shrinkage') {
+    c.innerHTML = renderShrinkagePage();
+    setTimeout(() => loadShrinkage(), 30);
+  } else if (page === 'mgrdash') {
+    c.innerHTML = renderMgrDashPage();
+    setTimeout(() => loadMgrDash(), 30);
+  } else if (page === 'cyclecount') {
+    c.innerHTML = renderCycleCountPage();
+    setTimeout(() => loadCycleCount(), 30);
+  } else if (page === 'pricecheck') {
+    c.innerHTML = renderPriceCheckPage();
+    setTimeout(() => loadPriceChecks(), 30);
+  } else if (page === 'checklist') {
+    c.innerHTML = renderChecklistPage();
+    setTimeout(() => loadChecklist(), 30);
+  } else if (page === 'templog') {
+    c.innerHTML = renderTempLogPage();
+    setTimeout(() => loadTempLogs(), 30);
   } else if (page === 'invmovement') {
     c.innerHTML = renderInvMovementPage();
     loadInvMovements(true);
@@ -7755,6 +7783,1178 @@ function bpQtyBreakdown(stock, bp, isLao) {
   if (rem > 0 || !parts.length) parts.push(rem + ' Unit');
   return parts.join(' · ');
 }
+
+// ==================== REORDER SUGGESTION (ro*) — แนะนำสั่งซื้อ ====================
+// สูตร: daily = branch_avg[สาขา]/30 → DOH = POS/daily → แนะนำ = ceil(targetdays*daily − POS)
+// ปัดขึ้นเป็น ลัง/แพ๊ค ด้วย barcode_packsize | scope เลือกตามผู้จัดซื้อ (product_status.buyer)
+let _roRows = null;          // ผลคำนวณ [{barcode,name,buyer,pos,daily,doh,need,orderUnits,packLabel,cost,bpRec}]
+let _roSel = new Set();      // barcode ที่เลือก export
+let _roBusy = false;
+function roCanUse() { return ['ctl', 'bcs', 'admin', 'scc'].includes((user && user.role) || ''); }
+
+function renderReorderPage() {
+  const isLao = lang === 'lo';
+  if (!roCanUse()) return `<div style="text-align:center;padding:40px;color:var(--rose-500);">${isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์เข้าถึง'}</div>`;
+  const brName = isLao ? (branch?.name_lo || branch?.code || '?') : (branch?.name_th || branch?.code || '?');
+  return `
+    <div style="margin-bottom:11px;">
+      <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">🛒 ${isLao ? 'ແນະນຳສັ່ງຊື້' : 'แนะนำสั่งซื้อ'}</h2>
+      <p style="font-size:11px;color:var(--slate-500);margin:0;">${isLao ? 'ຄຳນວນຈາກ AVG ຂາຍ + POS + ແພັກ/ລັງ' : 'คำนวณจาก AVG ขาย + POS + แพ๊ค/ลัง'} • 🏪 ${brName}</p>
+    </div>
+    <div class="fs-card" style="padding:12px;margin-bottom:10px;">
+      <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:flex-end;">
+        <div style="flex:2;min-width:150px;">
+          <label style="font-size:10px;font-weight:700;color:var(--slate-500);">${isLao ? 'ຜູ້ຈັດຊື້' : 'ผู้จัดซื้อ (buyer)'}</label>
+          <select id="roBuyer" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;background:white;">
+            <option value="">${isLao ? 'ກຳລັງໂຫຼດ...' : 'กำลังโหลด...'}</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:86px;">
+          <label style="font-size:10px;font-weight:700;color:var(--slate-500);">${isLao ? 'ສັ່ງໃຫ້ພໍ (ມື້)' : 'สั่งให้พอ (วัน)'}</label>
+          <input id="roTarget" type="number" value="14" min="1" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;box-sizing:border-box;">
+        </div>
+        <div style="flex:1;min-width:86px;">
+          <label style="font-size:10px;font-weight:700;color:var(--slate-500);">${isLao ? 'ສະແດງ DOH <' : 'แสดง DOH <'}</label>
+          <input id="roShow" type="number" value="7" min="1" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;box-sizing:border-box;">
+        </div>
+      </div>
+      <div style="display:flex;gap:7px;margin-top:9px;align-items:center;">
+        <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--slate-600);font-weight:600;"><input type="checkbox" id="roTopOnly" style="accent-color:var(--fs-blue);">TOP</label>
+        <button onclick="roCalc()" id="roCalcBtn" style="flex:1;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;">🔄 ${isLao ? 'ຄຳນວນ' : 'คำนวณ'}</button>
+        <button onclick="roExport()" style="background:var(--emerald-500);color:white;border:none;border-radius:9px;padding:11px 14px;font-size:13px;font-weight:700;cursor:pointer;">📊 Excel</button>
+      </div>
+    </div>
+    <div id="roSummary" style="margin-bottom:9px;"></div>
+    <div id="roList" style="padding-bottom:90px;">
+      <div style="text-align:center;padding:30px;color:var(--slate-400);font-size:12px;">${isLao ? 'ເລືອກຜູ້ຈັດຊື້ ແລ້ວກົດຄຳນວນ' : 'เลือกผู้จัดซื้อ แล้วกดคำนวณ'}</div>
+    </div>
+  `;
+}
+
+async function roInit() {
+  const isLao = lang === 'lo';
+  const sel = document.getElementById('roBuyer');
+  if (!sel) return;
+  try {
+    // โหลดรายชื่อ buyer ครั้งเดียว (cache ต่อ session)
+    if (!window._roBuyers) {
+      const rows = await fetchAllQuery(() => sb.from('product_status').select('buyer').not('buyer', 'is', null));
+      window._roBuyers = [...new Set((rows || []).map(r => (r.buyer || '').trim()).filter(Boolean))].sort();
+    }
+    sel.innerHTML = '<option value="">🏪 ' + (isLao ? 'ທຸກຜູ້ຈັດຊື້ (ຊ້າ)' : 'ทุกผู้จัดซื้อ (ช้า)') + '</option>'
+      + window._roBuyers.map(b => '<option value="' + escapeHtml(b) + '">' + escapeHtml(b) + '</option>').join('');
+  } catch (e) {
+    sel.innerHTML = '<option value="">Error: ' + escapeHtml((e && e.message) || 'load fail') + '</option>';
+  }
+}
+
+async function roCalc() {
+  const isLao = lang === 'lo';
+  if (_roBusy) return;
+  _roBusy = true;
+  const btn = document.getElementById('roCalcBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loader"></span>'; }
+  const listEl = document.getElementById('roList');
+  const setMsg = m => { if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:25px;color:var(--slate-400);font-size:12px;">' + m + '</div>'; };
+  try {
+    const buyer = (document.getElementById('roBuyer') || {}).value || '';
+    const target = Math.max(1, parseInt((document.getElementById('roTarget') || {}).value, 10) || 14);
+    const showD = Math.max(1, parseInt((document.getElementById('roShow') || {}).value, 10) || 7);
+    const topOnly = !!(document.getElementById('roTopOnly') || {}).checked;
+
+    setMsg(isLao ? '⏳ ໂຫຼດ Status ສິນຄ້າ...' : '⏳ โหลด Status สินค้า...');
+    const statusRows = await fetchAllQuery(() => {
+      let q = sb.from('product_status').select('barcode,name,buyer,branch_avg,top_2026');
+      if (buyer) q = q.eq('buyer', buyer);
+      return q;
+    });
+
+    // กรอง: มี AVG สาขานี้ > 0 (ขายอยู่จริงถึงจะแนะนำสั่งได้)
+    const cand = [];
+    (statusRows || []).forEach(r => {
+      if (topOnly && !String(r.top_2026 || '').toUpperCase().includes('TOP')) return;
+      const bkey = psBranchKey(r.branch_avg);
+      const m = (r.branch_avg && bkey != null) ? Number(r.branch_avg[bkey]) : 0;
+      if (!m || m <= 0) return;
+      cand.push({ barcode: String(r.barcode), name: r.name, buyer: r.buyer || '', monthly: m, daily: m / 30, top: r.top_2026 || '' });
+    });
+    if (!cand.length) { setMsg(isLao ? 'ບໍ່ມີສິນຄ້າທີ່ມີ AVG ຂາຍໃນສາຂານີ້' : 'ไม่มีสินค้าที่มี AVG ขายในสาขานี้'); _roRows = []; roRenderSummary(); return; }
+
+    // ดึง POS จาก products ของสาขานี้ (chunk ละ 200)
+    setMsg((isLao ? '⏳ ໂຫຼດ POS ' : '⏳ โหลด POS ') + cand.length.toLocaleString() + ' SKU...');
+    const posMap = {};
+    const bcs = cand.map(c => c.barcode);
+    for (let i = 0; i < bcs.length; i += 200) {
+      const chunk = bcs.slice(i, i + 200);
+      const { data } = await sb.from('products')
+        .select('barcode,name_th,name_lo,pos_qty,cost_price,unit_th,unit_lo')
+        .eq('branch_id', branch.id).eq('is_active', true).in('barcode', chunk);
+      (data || []).forEach(p => { posMap[String(p.barcode)] = p; });
+    }
+
+    // คำนวณ DOH + จำนวนแนะนำ (เฉพาะที่มีในสาขา และ DOH ต่ำกว่าเกณฑ์)
+    const low = [];
+    cand.forEach(c => {
+      const p = posMap[c.barcode];
+      if (!p) return; // สาขานี้ไม่มีสินค้านี้ — ข้าม
+      const pos = Number(p.pos_qty) || 0;
+      const doh = pos / c.daily;
+      if (doh >= showD) return;
+      const need = Math.max(1, Math.ceil(target * c.daily - pos));
+      low.push({
+        barcode: c.barcode, buyer: c.buyer, top: c.top, monthly: c.monthly, daily: c.daily,
+        name: isLao ? (p.name_lo || p.name_th || c.name || c.barcode) : (p.name_th || p.name_lo || c.name || c.barcode),
+        nameLo: p.name_lo || '', nameTh: p.name_th || '',
+        unit: isLao ? (p.unit_lo || 'Unit') : (p.unit_th || 'Unit'),
+        pos: pos, doh: doh, need: need, cost: Number(p.cost_price) || 0,
+        orderUnits: need, packLabel: '' // เติมหลังดึง packsize
+      });
+    });
+    low.sort((a, b) => a.doh - b.doh);
+
+    // ปัดขึ้นเป็น ลัง/แพ๊ค จาก barcode_packsize
+    setMsg(isLao ? '⏳ ຄຳນວນ ແພັກ/ລັງ...' : '⏳ คำนวณ แพ๊ค/ลัง...');
+    const lowBc = low.map(r => r.barcode);
+    const bpMap = {};
+    for (let i = 0; i < lowBc.length; i += 200) {
+      const chunk = lowBc.slice(i, i + 200);
+      const { data } = await sb.from('barcode_packsize')
+        .select('barcode_unit,barcode_pack,barcode_box,qty_unit,qty_pack,pcs_per_box,price_box,price_pack')
+        .in('barcode_unit', chunk);
+      (data || []).forEach(b => { bpMap[String(b.barcode_unit)] = b; });
+    }
+    low.forEach(r => {
+      const bp = bpMap[r.barcode];
+      if (!bp) return;
+      r.bpRec = bp;
+      const upp = Number(bp.qty_unit) || 0;
+      let upb = Number(bp.pcs_per_box) || 0;
+      if (!upb && upp && (Number(bp.qty_pack) || 0)) upb = upp * Number(bp.qty_pack);
+      if ((bp.barcode_box || bp.price_box) && upb > 1) {
+        const n = Math.ceil(r.need / upb);
+        r.orderUnits = n * upb;
+        r.packLabel = n + ' ' + (lang === 'lo' ? 'ລັງ' : 'ลัง') + ' (' + upb + '/' + (lang === 'lo' ? 'ລັງ' : 'ลัง') + ')';
+      } else if ((bp.barcode_pack || bp.price_pack) && upp > 1) {
+        const n = Math.ceil(r.need / upp);
+        r.orderUnits = n * upp;
+        r.packLabel = n + ' ' + (lang === 'lo' ? 'ແພັກ' : 'แพ๊ค') + ' (' + upp + '/' + (lang === 'lo' ? 'ແພັກ' : 'แพ๊ค') + ')';
+      }
+    });
+
+    _roRows = low;
+    _roSel = new Set(low.map(r => r.barcode)); // default เลือกทั้งหมด
+    roRenderSummary();
+    roRenderList();
+  } catch (e) {
+    console.error('[FS] roCalc error:', e);
+    setMsg('❌ ' + escapeHtml((e && e.message) || 'error'));
+  } finally {
+    _roBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = '🔄 ' + (lang === 'lo' ? 'ຄຳນວນ' : 'คำนวณ'); }
+  }
+}
+
+function roRenderSummary() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('roSummary');
+  if (!el) return;
+  const rows = _roRows || [];
+  const sel = rows.filter(r => _roSel.has(r.barcode));
+  const val = sel.reduce((s, r) => s + r.orderUnits * (r.cost || 0), 0);
+  const outCnt = rows.filter(r => r.pos <= 0).length;
+  el.innerHTML = rows.length ? `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <span style="background:var(--fs-blue);color:white;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">${rows.length} SKU</span>
+      ${outCnt ? `<span style="background:#eeeeff;color:#4240b5;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">Out of Stock ${outCnt}</span>` : ''}
+      <span style="background:var(--emerald-50);color:var(--emerald-700);border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">✓ ${sel.length} ${isLao ? 'ເລືອກ' : 'เลือก'}</span>
+      <span style="background:var(--slate-100);color:var(--slate-600);border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;">₭ ${new Intl.NumberFormat('th-TH').format(Math.round(val))}</span>
+      <button onclick="roToggleAll()" style="background:white;border:1px solid var(--fs-blue);color:var(--fs-blue);border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;">☑ ${isLao ? 'ເລືອກ/ຍົກເລີກທັງໝົດ' : 'เลือก/ยกเลิกทั้งหมด'}</button>
+    </div>` : '';
+}
+
+function roRenderList() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('roList');
+  if (!el) return;
+  const rows = _roRows || [];
+  if (!rows.length) { el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--slate-400);"><div style="font-size:36px;">✅</div>' + (isLao ? 'ບໍ່ມີສິນຄ້າຕ້ອງສັ່ງ' : 'ไม่มีสินค้าต้องสั่งตามเกณฑ์') + '</div>'; return; }
+  const fmt = new Intl.NumberFormat('th-TH');
+  el.innerHTML = rows.map(r => {
+    const st = psCalcStatus(r.pos, r.monthly);
+    const dohTxt = r.pos <= 0 ? (isLao ? 'ໝົດ' : 'หมด') : (Math.round(r.doh * 10) / 10) + ' ' + (isLao ? 'ມື້' : 'วัน');
+    const on = _roSel.has(r.barcode);
+    return `
+      <div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ${st.color};border-radius:10px;padding:9px 11px;margin-bottom:6px;display:flex;align-items:center;gap:9px;">
+        <input type="checkbox" ${on ? 'checked' : ''} onclick="roToggle('${r.barcode}')" style="width:17px;height:17px;accent-color:var(--fs-blue);flex-shrink:0;cursor:pointer;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12.5px;font-weight:700;color:var(--slate-900);line-height:1.35;">${escapeHtml(r.name)}${r.top ? ' <span style="font-size:9px;color:#b45309;background:#fffbeb;border-radius:5px;padding:1px 5px;font-weight:800;">⭐ TOP</span>' : ''}</div>
+          <div style="font-size:9.5px;color:var(--slate-500);font-family:monospace;">${r.barcode}${r.buyer ? ' · 🛒 ' + escapeHtml(r.buyer) : ''}</div>
+          <div style="font-size:10px;color:var(--slate-600);margin-top:2px;">POS <b style="color:${st.ink}">${fmt.format(r.pos)}</b> · AVG ${fmt.format(Math.round(r.daily * 10) / 10)}/${isLao ? 'ມື້' : 'วัน'} · DOH <b style="color:${st.ink}">${dohTxt}</b></div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:17px;font-weight:800;color:var(--fs-blue);font-family:'Space Grotesk',monospace;line-height:1;">${fmt.format(r.orderUnits)}</div>
+          <div style="font-size:9px;color:var(--slate-500);">${r.unit}</div>
+          ${r.packLabel ? `<div style="font-size:10px;color:var(--violet-600);font-weight:700;margin-top:2px;">📦 ${r.packLabel}</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function roToggle(bc) {
+  if (_roSel.has(bc)) _roSel.delete(bc); else _roSel.add(bc);
+  roRenderSummary();
+}
+function roToggleAll() {
+  const rows = _roRows || [];
+  if (_roSel.size === rows.length) _roSel.clear();
+  else _roSel = new Set(rows.map(r => r.barcode));
+  roRenderSummary();
+  roRenderList();
+}
+
+async function roExport() {
+  const isLao = lang === 'lo';
+  const rows = (_roRows || []).filter(r => _roSel.has(r.barcode));
+  if (!rows.length) { showToast(isLao ? 'ບໍ່ມີລາຍການທີ່ເລືອກ' : 'ไม่มีรายการที่เลือก — กดคำนวณก่อน', 'warning'); return; }
+  try {
+    const wb = XLSX.utils.book_new();
+    // แยก sheet ต่อผู้จัดซื้อ (เหมือน pattern cmp export ต่อร้าน)
+    const byBuyer = {};
+    rows.forEach(r => { const k = r.buyer || 'ไม่ระบุ'; (byBuyer[k] = byBuyer[k] || []).push(r); });
+    Object.keys(byBuyer).sort().forEach(bk => {
+      const data = byBuyer[bk].map(r => ({
+        Barcode: r.barcode,
+        'ชื่อสินค้า': r.nameTh || r.name,
+        'Name LO': r.nameLo || '',
+        'หน่วย': r.unit,
+        'POS': r.pos,
+        'AVG/วัน': Math.round(r.daily * 10) / 10,
+        'DOH (วัน)': r.pos <= 0 ? 0 : Math.round(r.doh * 10) / 10,
+        'แนะนำสั่ง (Unit)': r.orderUnits,
+        'สั่งเป็นลัง/แพ๊ค': r.packLabel || '',
+        'บาร์โค้ดลัง': (r.bpRec && (r.bpRec.barcode_box || r.bpRec.barcode_pack)) || '',
+        'ต้นทุน (₭)': r.cost || 0,
+        'มูลค่ารวม (₭)': r.orderUnits * (r.cost || 0),
+        'TOP': r.top || ''
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      // ชื่อ sheet: ตัดอักขระต้องห้าม + จำกัด 31 ตัว
+      const sn = String(bk).replace(/[\\/?*\[\]:]/g, '').slice(0, 31) || 'buyer';
+      XLSX.utils.book_append_sheet(wb, ws, sn);
+    });
+    XLSX.writeFile(wb, `reorder-${branch.code}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    if (typeof logActivity === 'function') logActivity('reorder_export', rows.length + ' SKU');
+    showToast(`✅ ${rows.length} SKU`, 'success');
+  } catch (e) {
+    console.error('[FS] roExport error:', e);
+    showToast('Error: ' + ((e && e.message) || e), 'error');
+  }
+}
+// ==================== END REORDER ====================
+
+
+// ==================== SHRINKAGE (sk*) — บันทึกของเสีย/สูญหาย ====================
+// ตาราง shrinkage_logs — log อย่างเดียว ไม่แตะ pos_qty (POS จริงอยู่ Sabuysoft)
+let _skProduct = null;   // สินค้าที่ค้นเจอ {barcode,name,cost,pos,fromMaster}
+let _skPhoto = null;     // {blob,dataUrl}
+let _skReason = 'expired';
+let _skMonth = null;     // 'YYYY-MM' ที่กำลังดู
+let _skRows = [];
+const SK_REASONS = [
+  { k: 'expired', th: 'หมดอายุ', lo: 'ໝົດອາຍຸ', icon: '📅', color: 'var(--amber-600)' },
+  { k: 'damaged', th: 'แตกหัก/เสียหาย', lo: 'ແຕກຫັກ/ເສຍຫາຍ', icon: '💔', color: 'var(--rose-600)' },
+  { k: 'lost', th: 'สูญหาย', lo: 'ສູນຫາຍ', icon: '❓', color: 'var(--violet-600)' },
+  { k: 'other', th: 'อื่นๆ', lo: 'ອື່ນໆ', icon: '📋', color: 'var(--slate-600)' },
+];
+function skReasonMeta(k) { return SK_REASONS.find(r => r.k === k) || SK_REASONS[3]; }
+function skCanDelete() { return ['admin', 'scc', 'bcs'].includes((user && user.role) || ''); }
+
+function renderShrinkagePage() {
+  const isLao = lang === 'lo';
+  _skProduct = null; _skPhoto = null; _skReason = 'expired';
+  if (!_skMonth) _skMonth = localDayKey(new Date()).slice(0, 7);
+  const chips = SK_REASONS.map(r =>
+    `<button id="skR_${r.k}" onclick="skSetReason('${r.k}')" style="flex:1;min-width:70px;border:1.5px solid ${_skReason === r.k ? r.color : 'var(--slate-200)'};background:${_skReason === r.k ? 'white' : 'var(--slate-50)'};color:${r.color};border-radius:9px;padding:8px 5px;font-size:11px;font-weight:800;cursor:pointer;">${r.icon} ${isLao ? r.lo : r.th}</button>`
+  ).join('');
+  return `
+    <div style="margin-bottom:11px;">
+      <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">🗑️ ${isLao ? 'ບັນທຶກຂອງເສຍ/ສູນຫາຍ' : 'บันทึกของเสีย/สูญหาย'}</h2>
+      <p style="font-size:11px;color:var(--slate-500);margin:0;">${isLao ? 'ຕັດຈຳໜ່າຍ — ບັນທຶກໄວ້ວັດມູນຄ່າຄວາມສູນເສຍ' : 'ตัดจำหน่าย — บันทึกไว้วัดมูลค่าความสูญเสียต่อเดือน'}</p>
+    </div>
+    <div class="fs-card" style="padding:12px;margin-bottom:10px;">
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <input id="skBarcode" type="text" inputmode="numeric" placeholder="${isLao ? 'ໃສ່ Barcode' : 'ใส่ Barcode'}" style="flex:1;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:14px;box-sizing:border-box;" onkeydown="if(event.key==='Enter')skLookup()">
+        <button onclick="skLookup()" style="background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:10px 14px;font-size:13px;font-weight:700;cursor:pointer;">🔍</button>
+        <button onclick="skScan()" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:9px;padding:10px 14px;font-size:13px;font-weight:700;cursor:pointer;">📷</button>
+      </div>
+      <div id="skProduct"></div>
+      <div id="skForm" style="display:none;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin:9px 0;">${chips}</div>
+        <div style="display:flex;gap:7px;margin-bottom:8px;">
+          <div style="flex:1;">
+            <label style="font-size:10px;font-weight:700;color:var(--slate-500);">${isLao ? 'ຈຳນວນ' : 'จำนวน'}</label>
+            <input id="skQty" type="number" min="0.01" step="any" placeholder="0" style="width:100%;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:15px;font-weight:700;box-sizing:border-box;">
+          </div>
+          <div style="flex:2;">
+            <label style="font-size:10px;font-weight:700;color:var(--slate-500);">${isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ'}</label>
+            <input id="skNote" type="text" placeholder="..." style="width:100%;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;box-sizing:border-box;">
+          </div>
+        </div>
+        <input type="file" id="skPhotoInput" accept="image/*" capture="environment" style="display:none;" onchange="skOnPhoto(event)">
+        <div style="display:flex;gap:7px;align-items:center;margin-bottom:9px;">
+          <button onclick="document.getElementById('skPhotoInput').click()" style="border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:9px;padding:9px 13px;font-size:12px;font-weight:700;color:var(--slate-600);cursor:pointer;">📷 ${isLao ? 'ຮູບຫຼັກຖານ' : 'รูปหลักฐาน'}</button>
+          <div id="skPhotoPreview"></div>
+        </div>
+        <button onclick="skSave()" id="skSaveBtn" style="width:100%;background:var(--fs-red);color:white;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;">🗑️ ${isLao ? 'ບັນທຶກຕັດຈຳໜ່າຍ' : 'บันทึกตัดจำหน่าย'}</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;">
+      <input id="skMonthPick" type="month" value="${_skMonth}" onchange="skSetMonth(this.value)" style="padding:8px;border:1px solid var(--slate-300);border-radius:8px;font-size:12px;background:white;">
+      <div style="flex:1;"></div>
+      <button onclick="skExport()" style="background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:8px 13px;font-size:12px;font-weight:700;cursor:pointer;">📊 Excel</button>
+    </div>
+    <div id="skSummary" style="margin-bottom:9px;"></div>
+    <div id="skList" style="padding-bottom:90px;"><div style="text-align:center;padding:25px;"><div class="loader" style="margin:0 auto;"></div></div></div>
+  `;
+}
+
+function skSetReason(k) {
+  _skReason = k;
+  SK_REASONS.forEach(r => {
+    const el = document.getElementById('skR_' + r.k);
+    if (el) { el.style.border = '1.5px solid ' + (k === r.k ? r.color : 'var(--slate-200)'); el.style.background = k === r.k ? 'white' : 'var(--slate-50)'; }
+  });
+}
+function skSetMonth(v) { _skMonth = v || localDayKey(new Date()).slice(0, 7); loadShrinkage(); }
+function skScan() {
+  window._scanCallback = (code) => { const el = document.getElementById('skBarcode'); if (el) { el.value = code; } skLookup(); };
+  triggerPhotoScan('shrink');
+}
+function skOnPhoto(e) {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  wrCompressImage(f, (blob, dataUrl) => {
+    _skPhoto = { blob, dataUrl };
+    const pv = document.getElementById('skPhotoPreview');
+    if (pv) pv.innerHTML = '<div style="position:relative;width:52px;height:52px;border-radius:8px;overflow:hidden;border:1px solid var(--slate-200);"><img src="' + dataUrl + '" style="width:100%;height:100%;object-fit:cover;"><button onclick="_skPhoto=null;this.parentElement.remove();" style="position:absolute;top:1px;right:1px;background:rgba(225,29,72,0.9);color:white;border:none;width:17px;height:17px;border-radius:50%;font-size:10px;line-height:1;cursor:pointer;">✕</button></div>';
+  });
+}
+
+async function skLookup() {
+  const isLao = lang === 'lo';
+  const bc = ((document.getElementById('skBarcode') || {}).value || '').trim();
+  if (!bc) return;
+  const card = document.getElementById('skProduct');
+  if (card) card.innerHTML = '<div style="text-align:center;padding:10px;"><div class="loader" style="margin:0 auto;"></div></div>';
+  let p = null, fromMaster = false;
+  try {
+    const { data } = await sb.from('products').select('barcode,name_th,name_lo,pos_qty,cost_price,sell_price,unit_th,unit_lo')
+      .eq('barcode', bc).eq('branch_id', branch.id).eq('is_active', true).maybeSingle();
+    p = data;
+    if (!p) {
+      const { data: mp } = await sb.from('master_products').select('barcode,name_th,name_lo,sell_price').eq('barcode', bc).maybeSingle();
+      if (mp) { p = { ...mp, pos_qty: null, cost_price: 0 }; fromMaster = true; }
+    }
+  } catch (e) {}
+  if (!p) {
+    _skProduct = null;
+    if (card) card.innerHTML = '<div style="background:var(--rose-50);border:1px solid var(--rose-200);border-radius:9px;padding:10px;font-size:12px;color:var(--rose-600);font-weight:700;">⚠️ ' + (isLao ? 'ບໍ່ພົບສິນຄ້າ' : 'ไม่พบสินค้า') + ': ' + escapeHtml(bc) + '</div>';
+    const f = document.getElementById('skForm'); if (f) f.style.display = 'none';
+    return;
+  }
+  const name = isLao ? (p.name_lo || p.name_th || bc) : (p.name_th || p.name_lo || bc);
+  _skProduct = { barcode: bc, name: name, nameTh: p.name_th || '', cost: Number(p.cost_price) || 0, pos: p.pos_qty, fromMaster };
+  if (card) card.innerHTML = '<div style="background:var(--fs-fill2);border-radius:9px;padding:10px;">'
+    + '<div style="font-size:13px;font-weight:700;color:var(--slate-900);">' + escapeHtml(name) + '</div>'
+    + '<div style="font-size:10px;color:var(--slate-500);font-family:monospace;">' + escapeHtml(bc) + (p.pos_qty != null ? ' · POS ' + p.pos_qty : '') + ' · ' + (isLao ? 'ຕົ້ນທຶນ' : 'ต้นทุน') + ' ' + (Number(p.cost_price) || 0).toLocaleString() + ' ₭' + (fromMaster ? ' · Master' : '') + '</div>'
+    + '</div>';
+  const f = document.getElementById('skForm'); if (f) f.style.display = 'block';
+  const q = document.getElementById('skQty'); if (q) { q.value = ''; q.focus(); }
+}
+
+async function skSave() {
+  const isLao = lang === 'lo';
+  if (!_skProduct) { showToast(isLao ? 'ຄົ້ນຫາສິນຄ້າກ່ອນ' : 'ค้นหาสินค้าก่อน', 'warning'); return; }
+  const qty = parseFloat((document.getElementById('skQty') || {}).value) || 0;
+  if (qty <= 0) { showToast(isLao ? '⚠️ ໃສ່ຈຳນວນ' : '⚠️ กรอกจำนวน', 'warning'); return; }
+  const note = ((document.getElementById('skNote') || {}).value || '').trim();
+  const btn = document.getElementById('skSaveBtn');
+  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.innerHTML = '<span class="loader"></span>'; }
+  let photoUrl = null;
+  if (_skPhoto) {
+    try {
+      const path = 'shrink_' + branch.id + '_' + Date.now() + '.jpg';
+      const { error } = await sb.storage.from('ticket-photos').upload(path, _skPhoto.blob, { contentType: 'image/jpeg', upsert: false });
+      if (!error) { const { data } = sb.storage.from('ticket-photos').getPublicUrl(path); photoUrl = data?.publicUrl || null; }
+    } catch (e) {}
+  }
+  const { error } = await sb.from('shrinkage_logs').insert({
+    branch_id: branch.id, barcode: _skProduct.barcode, product_name: _skProduct.nameTh || _skProduct.name,
+    qty: qty, cost_price: _skProduct.cost, total_value: qty * _skProduct.cost,
+    reason: _skReason, note: note || null, photo_url: photoUrl,
+    created_by: user.id, created_by_name: user.full_name || user.username || ''
+  });
+  if (error) {
+    showToast('Error: ' + error.message, 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '🗑️ ' + (isLao ? 'ບັນທຶກຕັດຈຳໜ່າຍ' : 'บันทึกตัดจำหน่าย'); }
+    return;
+  }
+  if (typeof logActivity === 'function') logActivity('shrinkage_add', _skProduct.barcode + ' x' + qty + ' (' + _skReason + ')');
+  showToast('✓ ' + (isLao ? 'ບັນທຶກແລ້ວ' : 'บันทึกแล้ว'), 'success');
+  _skProduct = null; _skPhoto = null;
+  const bcEl = document.getElementById('skBarcode'); if (bcEl) bcEl.value = '';
+  const pc = document.getElementById('skProduct'); if (pc) pc.innerHTML = '';
+  const f = document.getElementById('skForm'); if (f) f.style.display = 'none';
+  const pv = document.getElementById('skPhotoPreview'); if (pv) pv.innerHTML = '';
+  if (btn) { btn.disabled = false; btn.innerHTML = '🗑️ ' + (isLao ? 'ບັນທຶກຕັດຈຳໜ່າຍ' : 'บันทึกตัดจำหน่าย'); }
+  loadShrinkage();
+}
+
+async function loadShrinkage() {
+  const isLao = lang === 'lo';
+  const listEl = document.getElementById('skList');
+  if (!listEl) return;
+  try {
+    const start = _skMonth + '-01';
+    const endD = new Date(parseInt(_skMonth.slice(0, 4), 10), parseInt(_skMonth.slice(5, 7), 10), 1); // เดือนถัดไปวันที่ 1
+    const end = localDayKey(endD);
+    const { data, error } = await sb.from('shrinkage_logs').select('*')
+      .eq('branch_id', branch.id).gte('created_at', start).lt('created_at', end)
+      .order('created_at', { ascending: false }).limit(1000);
+    if (error) throw error;
+    _skRows = data || [];
+  } catch (e) {
+    listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--rose-500);font-size:11px;">❌ ' + escapeHtml(friendlyError(e)) + '</div>';
+    return;
+  }
+  // สรุปต่อเหตุผล
+  const sum = {};
+  _skRows.forEach(r => { const k = r.reason || 'other'; if (!sum[k]) sum[k] = { n: 0, v: 0 }; sum[k].n += Number(r.qty) || 0; sum[k].v += Number(r.total_value) || 0; });
+  const totalV = _skRows.reduce((s, r) => s + (Number(r.total_value) || 0), 0);
+  const fmt = new Intl.NumberFormat('th-TH');
+  const sEl = document.getElementById('skSummary');
+  if (sEl) sEl.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+    + '<span style="background:var(--fs-red);color:white;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">₭ ' + fmt.format(Math.round(totalV)) + ' · ' + _skRows.length + ' ' + (isLao ? 'ລາຍການ' : 'รายการ') + '</span>'
+    + SK_REASONS.filter(r => sum[r.k]).map(r => '<span style="background:var(--slate-100);color:' + r.color + ';border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;">' + r.icon + ' ' + (isLao ? r.lo : r.th) + ' ' + fmt.format(sum[r.k].n) + ' · ₭' + fmt.format(Math.round(sum[r.k].v)) + '</span>').join('')
+    + '</div>';
+  if (!_skRows.length) {
+    listEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--slate-400);"><div style="font-size:34px;">📭</div>' + (isLao ? 'ບໍ່ມີລາຍການເດືອນນີ້' : 'ไม่มีรายการเดือนนี้') + '</div>';
+    return;
+  }
+  // จัดกลุ่มรายวัน
+  let html = '', lastDay = '';
+  _skRows.forEach(r => {
+    const dk = localDayKey(r.created_at);
+    if (dk !== lastDay) {
+      lastDay = dk;
+      html += '<div style="font-size:11px;font-weight:700;color:var(--slate-500);margin:9px 2px 5px;border-left:2px solid var(--rose-300);padding-left:8px;">' + irDayLabel(dk, isLao) + '</div>';
+    }
+    const rm = skReasonMeta(r.reason);
+    const time = new Date(r.created_at).toLocaleString(isLao ? 'lo-LA' : 'th-TH', { hour: '2-digit', minute: '2-digit' });
+    html += '<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ' + rm.color + ';border-radius:9px;padding:8px 11px;margin-bottom:5px;display:flex;align-items:center;gap:9px;">'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:12px;font-weight:700;color:var(--slate-900);">' + escapeHtml(r.product_name || r.barcode || '?') + '</div>'
+      + '<div style="font-size:9.5px;color:var(--slate-500);">' + rm.icon + ' ' + (isLao ? rm.lo : rm.th) + ' · ' + escapeHtml(r.created_by_name || '') + ' · ' + time + (r.note ? ' · 💬 ' + escapeHtml(r.note) : '') + '</div>'
+      + '</div>'
+      + (r.photo_url ? '<a href="' + r.photo_url + '" target="_blank" rel="noopener" style="width:34px;height:34px;border-radius:7px;overflow:hidden;flex-shrink:0;border:1px solid var(--slate-200);"><img src="' + r.photo_url + '" style="width:100%;height:100%;object-fit:cover;"></a>' : '')
+      + '<div style="text-align:right;flex-shrink:0;">'
+      + '<div style="font-size:15px;font-weight:800;color:' + rm.color + ';font-family:\'Space Grotesk\',monospace;line-height:1;">' + fmt.format(Number(r.qty) || 0) + '</div>'
+      + ((Number(r.total_value) || 0) > 0 ? '<div style="font-size:9px;color:var(--slate-500);">₭' + fmt.format(Math.round(Number(r.total_value))) + '</div>' : '')
+      + '</div>'
+      + (skCanDelete() ? '<button onclick="skDelete(' + r.id + ')" style="background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:6px;width:28px;height:26px;font-size:11px;cursor:pointer;flex-shrink:0;">🗑️</button>' : '')
+      + '</div>';
+  });
+  listEl.innerHTML = html;
+}
+
+async function skDelete(id) {
+  const isLao = lang === 'lo';
+  if (!skCanDelete()) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
+  if (!confirm(isLao ? 'ລຶບລາຍການນີ້?' : 'ลบรายการนี้?')) return;
+  const { error } = await sb.from('shrinkage_logs').delete().eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  showToast('✓ ' + (isLao ? 'ລຶບແລ້ວ' : 'ลบแล้ว'), 'success');
+  loadShrinkage();
+}
+
+function skExport() {
+  const isLao = lang === 'lo';
+  if (!_skRows.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
+  try {
+    const rows = _skRows.map(r => ({
+      'วันที่': localDayKey(r.created_at),
+      Barcode: r.barcode || '',
+      'ชื่อสินค้า': r.product_name || '',
+      'เหตุผล': skReasonMeta(r.reason).th,
+      'จำนวน': Number(r.qty) || 0,
+      'ต้นทุน/หน่วย (₭)': Number(r.cost_price) || 0,
+      'มูลค่ารวม (₭)': Number(r.total_value) || 0,
+      'หมายเหตุ': r.note || '',
+      'ผู้บันทึก': r.created_by_name || ''
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), _skMonth);
+    XLSX.writeFile(wb, `shrinkage-${branch.code}-${_skMonth}.xlsx`);
+    showToast(`✅ ${rows.length}`, 'success');
+  } catch (e) { showToast('Error: ' + ((e && e.message) || e), 'error'); }
+}
+// ==================== END SHRINKAGE ====================
+
+
+// ==================== MANAGER DASHBOARD (mgd*) — ภาพรวมทุกสาขา ====================
+// รวมงานค้างทุกสาขาไว้หน้าเดียว: ติดตามงาน / Gap / ปัญหาสินค้า / เอกสารรอเซ็น / ใกล้หมดอายุ / ของเสียเดือนนี้
+function mgdCanUse() { return ['admin', 'scc', 'bcs'].includes((user && user.role) || ''); }
+
+function renderMgrDashPage() {
+  const isLao = lang === 'lo';
+  if (!mgdCanUse()) return `<div style="text-align:center;padding:40px;color:var(--rose-500);">${isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์เข้าถึง'}</div>`;
+  return `
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:11px;">
+      <div style="flex:1;">
+        <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">📊 ${isLao ? 'ພາບລວມທຸກສາຂາ' : 'ภาพรวมทุกสาขา'}</h2>
+        <p style="font-size:11px;color:var(--slate-500);margin:0;">${isLao ? 'ວຽກຄ້າງ + ຄວາມສ່ຽງ ຂອງແຕ່ລະສາຂາ' : 'งานค้าง + ความเสี่ยง ของแต่ละสาขา'}</p>
+      </div>
+      <button onclick="loadMgrDash()" style="background:var(--violet-100);color:var(--violet-600);border:1px solid var(--violet-300);border-radius:8px;padding:8px 13px;font-size:12px;font-weight:700;cursor:pointer;">🔄</button>
+    </div>
+    <div id="mgdTotal" style="margin-bottom:10px;"></div>
+    <div id="mgdList" style="padding-bottom:90px;"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
+  `;
+}
+
+async function loadMgrDash() {
+  const isLao = lang === 'lo';
+  const listEl = document.getElementById('mgdList');
+  if (!listEl) return;
+  try {
+    // โหลดรายชื่อสาขา
+    if (!window._allBranchesCache || !window._allBranchesCache.length) {
+      const { data: brs } = await sb.from('branches').select('id, code, name_th, name_lo, branch_type').order('id');
+      window._allBranchesCache = brs || [];
+    }
+    const monthStart = localDayKey(new Date()).slice(0, 7) + '-01';
+    const in30 = localDayKey(new Date(Date.now() + 30 * 86400000));
+    // ดึงพร้อมกัน 6 ชุด (เฉพาะ column ที่ใช้ group)
+    const [wt, gap, iss, doc, exp, shr] = await Promise.all([
+      sb.from('work_tickets').select('branch_id,status,due_at').neq('status', 'done').limit(2000),
+      sb.from('gap_scans').select('branch_id,action_type').eq('status', 'pending').limit(3000),
+      sb.from('product_issues').select('branch_id').eq('status', 'open').limit(2000),
+      sb.from('doc_requests').select('branch_id,required_positions,signatures').eq('status', 'pending').limit(1000),
+      sb.from('expiry_batches').select('branch_id,expiry_date').in('status', ['active', 'marked_down']).lte('expiry_date', in30).limit(3000),
+      sb.from('shrinkage_logs').select('branch_id,total_value').gte('created_at', monthStart).limit(3000)
+    ]);
+    const agg = {}; // branch_id → {wt, over, gapRep, gapPur, iss, doc, exp, shrV}
+    const A = id => (agg[id] = agg[id] || { wt: 0, over: 0, gapRep: 0, gapPur: 0, iss: 0, doc: 0, exp: 0, shrV: 0 });
+    const now = Date.now();
+    (wt.data || []).forEach(t => { const a = A(t.branch_id); a.wt++; if (t.due_at && now > new Date(t.due_at).getTime()) a.over++; });
+    (gap.data || []).forEach(g => { const a = A(g.branch_id); if (g.action_type === 'purchase') a.gapPur++; else a.gapRep++; });
+    (iss.data || []).forEach(i => { A(i.branch_id).iss++; });
+    (doc.data || []).forEach(d => {
+      const signed = new Set((d.signatures || []).map(s => s.position));
+      const pend = (d.required_positions || []).filter(p => !signed.has(p)).length;
+      if (pend > 0) A(d.branch_id).doc++;
+    });
+    (exp.data || []).forEach(e => { A(e.branch_id).exp++; });
+    (shr.data || []).forEach(s => { A(s.branch_id).shrV += Number(s.total_value) || 0; });
+
+    const fmt = new Intl.NumberFormat('th-TH');
+    // สรุปรวมบนสุด
+    const tot = Object.values(agg).reduce((s, a) => ({ wt: s.wt + a.wt, over: s.over + a.over, gap: s.gap + a.gapRep + a.gapPur, iss: s.iss + a.iss, doc: s.doc + a.doc, exp: s.exp + a.exp, shrV: s.shrV + a.shrV }), { wt: 0, over: 0, gap: 0, iss: 0, doc: 0, exp: 0, shrV: 0 });
+    const tEl = document.getElementById('mgdTotal');
+    const chip = (label, val, color, bg) => val ? `<span style="background:${bg};color:${color};border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">${label} ${val}</span>` : '';
+    if (tEl) tEl.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+      + chip('📋 ' + (isLao ? 'ວຽກຄ້າງ' : 'งานค้าง'), tot.wt, '#0d9488', '#f0fdfa')
+      + chip('⏰ ' + (isLao ? 'ເກີນກຳນົດ' : 'เกินกำหนด'), tot.over, '#e11d48', '#fff1f2')
+      + chip('🛒 Gap', tot.gap, '#d97706', '#fffbeb')
+      + chip('🚨 ' + (isLao ? 'ບັນຫາ' : 'ปัญหา'), tot.iss, '#e11d48', '#fff1f2')
+      + chip('📄 ' + (isLao ? 'ລໍເຊັນ' : 'รอเซ็น'), tot.doc, '#7c3aed', '#f5f3ff')
+      + chip('📅 ' + (isLao ? 'ໃກ້ໝົດອາຍຸ' : 'ใกล้หมดอายุ'), tot.exp, '#d97706', '#fffbeb')
+      + (tot.shrV ? `<span style="background:#fff1f2;color:#e11d48;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">🗑️ ₭${fmt.format(Math.round(tot.shrV))}</span>` : '')
+      + '</div>';
+
+    // การ์ดต่อสาขา (เรียง: มีงานค้างมาก่อน)
+    const branches = (window._allBranchesCache || []).slice()
+      .sort((a, b) => { const sa = agg[a.id] ? (agg[a.id].wt + agg[a.id].gapRep + agg[a.id].gapPur + agg[a.id].iss) : 0; const sb2 = agg[b.id] ? (agg[b.id].wt + agg[b.id].gapRep + agg[b.id].gapPur + agg[b.id].iss) : 0; return sb2 - sa; });
+    const cell = (icon, label, val, color) => `<div style="flex:1;min-width:74px;text-align:center;padding:7px 3px;background:${val ? color + '14' : 'var(--slate-50)'};border-radius:8px;">
+        <div style="font-size:16px;font-weight:800;color:${val ? color : 'var(--slate-300)'};font-family:'Space Grotesk',monospace;line-height:1.1;">${val || 0}</div>
+        <div style="font-size:8.5px;color:var(--slate-500);margin-top:1px;">${icon} ${label}</div></div>`;
+    listEl.innerHTML = branches.map(b => {
+      const a = agg[b.id] || { wt: 0, over: 0, gapRep: 0, gapPur: 0, iss: 0, doc: 0, exp: 0, shrV: 0 };
+      const name = isLao ? (b.name_lo || b.name_th || b.code) : (b.name_th || b.name_lo || b.code);
+      const clean = !(a.wt || a.gapRep || a.gapPur || a.iss || a.doc || a.exp);
+      return `<div style="background:white;border:1px solid var(--slate-200);border-radius:12px;padding:11px 12px;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:${clean ? '0' : '8px'};">
+          <span style="font-size:13px;font-weight:800;color:var(--slate-900);flex:1;">🏪 ${escapeHtml(name)}</span>
+          ${a.over ? `<span style="background:#fff1f2;color:#e11d48;border-radius:7px;padding:2px 8px;font-size:10px;font-weight:800;">⏰ ${isLao ? 'ເກີນ' : 'เกิน'} ${a.over}</span>` : ''}
+          ${a.shrV ? `<span style="background:var(--slate-100);color:var(--slate-600);border-radius:7px;padding:2px 8px;font-size:10px;font-weight:700;">🗑️ ₭${fmt.format(Math.round(a.shrV))}</span>` : ''}
+          ${clean ? `<span style="background:#e8f8ee;color:#248a3d;border-radius:7px;padding:2px 8px;font-size:10px;font-weight:800;">✓ ${isLao ? 'ບໍ່ມີວຽກຄ້າງ' : 'ไม่มีงานค้าง'}</span>` : ''}
+        </div>
+        ${clean ? '' : `<div style="display:flex;gap:5px;flex-wrap:wrap;">
+          ${cell('📋', isLao ? 'ວຽກ' : 'งาน', a.wt, '#0d9488')}
+          ${cell('📦', isLao ? 'ເຕີມ' : 'เติม', a.gapRep, '#d97706')}
+          ${cell('📤', isLao ? 'ຈັດຊື້' : 'จัดซื้อ', a.gapPur, '#e11d48')}
+          ${cell('🚨', isLao ? 'ບັນຫາ' : 'ปัญหา', a.iss, '#e11d48')}
+          ${cell('📄', isLao ? 'ລໍເຊັນ' : 'รอเซ็น', a.doc, '#7c3aed')}
+          ${cell('📅', isLao ? 'ໃກ້ໝົດ' : 'ใกล้หมด', a.exp, '#d97706')}
+        </div>`}
+      </div>`;
+    }).join('');
+  } catch (e) {
+    console.error('[FS] loadMgrDash error:', e);
+    listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--rose-500);font-size:11px;">❌ ' + escapeHtml((e && e.message) || 'error') + '</div>';
+  }
+}
+// ==================== END MANAGER DASHBOARD ====================
+
+
+// ==================== CYCLE COUNT (cc*) — นับวนรายโซน ====================
+// วัดความครอบคลุมการนับ: โซนไหนนับล่าสุดเมื่อไหร่ / % ตำแหน่งที่นับใน 30 วัน → แนะนำโซนที่ควรนับต่อไป
+function ccCanUse() { return ['ctl', 'bcs', 'admin', 'scc'].includes((user && user.role) || ''); }
+
+function renderCycleCountPage() {
+  const isLao = lang === 'lo';
+  if (!ccCanUse()) return `<div style="text-align:center;padding:40px;color:var(--rose-500);">${isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์เข้าถึง'}</div>`;
+  const brName = isLao ? (branch?.name_lo || branch?.code || '?') : (branch?.name_th || branch?.code || '?');
+  return `
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:11px;">
+      <div style="flex:1;">
+        <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">🔁 ${isLao ? 'ນັບວົນຮອບ (Cycle Count)' : 'นับวนรอบ (Cycle Count)'}</h2>
+        <p style="font-size:11px;color:var(--slate-500);margin:0;">${isLao ? 'ໂຊນໃດຄວນນັບຕໍ່ໄປ — ຈາກປະຫວັດການນັບ 90 ມື້' : 'โซนไหนควรนับต่อไป — จากประวัติการนับ 90 วัน'} • 🏪 ${brName}</p>
+      </div>
+      <button onclick="loadCycleCount()" style="background:var(--violet-100);color:var(--violet-600);border:1px solid var(--violet-300);border-radius:8px;padding:8px 13px;font-size:12px;font-weight:700;cursor:pointer;">🔄</button>
+    </div>
+    <div id="ccSummary" style="margin-bottom:9px;"></div>
+    <div id="ccList" style="padding-bottom:90px;"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
+  `;
+}
+
+async function loadCycleCount() {
+  const isLao = lang === 'lo';
+  const listEl = document.getElementById('ccList');
+  if (!listEl) return;
+  try {
+    const since = new Date(Date.now() - 90 * 86400000).toISOString();
+    const [zRes, locRes, cntRes] = await Promise.all([
+      sb.from('zones').select('id,code,name_th,name_lo,color').eq('branch_id', branch.id).eq('is_active', true).order('sort_order'),
+      sb.from('location_master').select('location_code,zone_id').eq('branch_id', branch.id).eq('is_active', true).limit(5000),
+      sb.from('stock_counts').select('zone_id,location_code,created_at').eq('branch_id', branch.id).gte('created_at', since).order('created_at', { ascending: false }).limit(10000)
+    ]);
+    const zones = zRes.data || [];
+    const locs = locRes.data || [];
+    const counts = cntRes.data || [];
+    if (!zones.length) {
+      listEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--slate-400);">' + (isLao ? 'ສາຂານີ້ບໍ່ມີໂຊນ' : 'สาขานี้ไม่มีโซน — ตั้งค่าโซนก่อน') + '</div>';
+      return;
+    }
+    // ตำแหน่งทั้งหมดต่อโซน
+    const locByZone = {};
+    locs.forEach(l => { if (l.zone_id != null) (locByZone[l.zone_id] = locByZone[l.zone_id] || new Set()).add(l.location_code); });
+    // การนับ: ล่าสุดต่อโซน + ตำแหน่ง distinct ที่นับใน 30 วัน
+    const in30 = Date.now() - 30 * 86400000;
+    const stat = {}; // zone_id → {last, counted30:Set, total90}
+    counts.forEach(c => {
+      if (c.zone_id == null) return;
+      const s = (stat[c.zone_id] = stat[c.zone_id] || { last: null, counted30: new Set(), total90: 0 });
+      s.total90++;
+      const t = new Date(c.created_at).getTime();
+      if (!s.last || t > s.last) s.last = t;
+      if (t >= in30 && c.location_code) s.counted30.add(c.location_code);
+    });
+    // สร้างแถว + จัดอันดับ (นานสุดไม่นับ → ควรนับก่อน)
+    const rows = zones.map(z => {
+      const s = stat[z.id] || { last: null, counted30: new Set(), total90: 0 };
+      const totalLoc = (locByZone[z.id] || new Set()).size;
+      const cov = totalLoc ? Math.round(100 * s.counted30.size / totalLoc) : null;
+      const daysAgo = s.last ? Math.floor((Date.now() - s.last) / 86400000) : null;
+      return { z, totalLoc, counted30: s.counted30.size, cov, daysAgo, total90: s.total90 };
+    });
+    rows.sort((a, b) => (b.daysAgo == null ? 9999 : b.daysAgo) - (a.daysAgo == null ? 9999 : a.daysAgo));
+
+    const fmt = new Intl.NumberFormat('th-TH');
+    const totalCov = rows.filter(r => r.cov != null);
+    const avgCov = totalCov.length ? Math.round(totalCov.reduce((s, r) => s + r.cov, 0) / totalCov.length) : 0;
+    const never = rows.filter(r => r.daysAgo == null).length;
+    const sEl = document.getElementById('ccSummary');
+    if (sEl) sEl.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+      + '<span style="background:var(--fs-blue);color:white;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">' + zones.length + ' ' + (isLao ? 'ໂຊນ' : 'โซน') + '</span>'
+      + '<span style="background:' + (avgCov >= 70 ? '#e8f8ee;color:#248a3d' : avgCov >= 40 ? '#fffbeb;color:#b45309' : '#fff1f2;color:#e11d48') + ';border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">📊 ' + (isLao ? 'ຄວາມຄອບຄຸມ 30 ມື້' : 'ครอบคลุม 30 วัน') + ' ' + avgCov + '%</span>'
+      + (never ? '<span style="background:#fff1f2;color:#e11d48;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">⚠️ ' + (isLao ? 'ບໍ່ເຄີຍນັບ' : 'ไม่เคยนับ (90วัน)') + ' ' + never + '</span>' : '')
+      + '<span style="background:var(--slate-100);color:var(--slate-600);border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;">🔢 ' + fmt.format(counts.length) + ' ' + (isLao ? 'ການນັບ/90ມື້' : 'การนับ/90วัน') + '</span>'
+      + '</div>';
+
+    listEl.innerHTML = rows.map((r, i) => {
+      const zname = isLao ? (r.z.name_lo || r.z.name_th || r.z.code) : (r.z.name_th || r.z.name_lo || r.z.code);
+      const urgent = i < 3 && (r.daysAgo == null || r.daysAgo > 7);
+      const agoTxt = r.daysAgo == null ? (isLao ? 'ບໍ່ເຄີຍນັບໃນ 90 ມື້' : 'ไม่เคยนับใน 90 วัน')
+        : r.daysAgo === 0 ? (isLao ? 'ນັບມື້ນີ້' : 'นับวันนี้')
+        : (isLao ? 'ນັບຫຼ້າສຸດ ' : 'นับล่าสุด ') + r.daysAgo + (isLao ? ' ມື້ກ່ອນ' : ' วันก่อน');
+      const covColor = r.cov == null ? 'var(--slate-400)' : r.cov >= 70 ? '#248a3d' : r.cov >= 40 ? '#b45309' : '#e11d48';
+      return `<div style="background:white;border:1px solid ${urgent ? 'var(--amber-300)' : 'var(--slate-200)'};border-left:4px solid ${r.z.color || 'var(--slate-300)'};border-radius:11px;padding:10px 12px;margin-bottom:7px;${urgent ? 'box-shadow:0 2px 8px rgba(217,119,6,0.12);' : ''}">
+        <div style="display:flex;align-items:center;gap:7px;">
+          <span style="font-size:13px;font-weight:800;color:var(--slate-900);flex:1;">${escapeHtml(r.z.code)} · ${escapeHtml(zname)}</span>
+          ${urgent ? `<span style="background:#fffbeb;color:#b45309;border-radius:7px;padding:2px 8px;font-size:10px;font-weight:800;">👉 ${isLao ? 'ຄວນນັບຕໍ່ໄປ' : 'ควรนับต่อไป'}</span>` : ''}
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:10.5px;color:var(--slate-600);margin-top:4px;">
+          <span>🕐 ${agoTxt}</span>
+          ${r.totalLoc ? `<span>📍 <b style="color:${covColor}">${r.counted30}/${r.totalLoc}</b> ${isLao ? 'ຕຳແໜ່ງ (30ມື້)' : 'ตำแหน่ง (30วัน)'} <b style="color:${covColor}">${r.cov}%</b></span>` : ''}
+          <span>🔢 ${fmt.format(r.total90)} ${isLao ? 'ຄັ້ງ/90ມື້' : 'ครั้ง/90วัน'}</span>
+        </div>
+        ${r.totalLoc ? `<div style="height:5px;background:var(--slate-100);border-radius:4px;margin-top:6px;overflow:hidden;"><div style="height:100%;width:${r.cov}%;background:${covColor};"></div></div>` : ''}
+      </div>`;
+    }).join('');
+  } catch (e) {
+    console.error('[FS] loadCycleCount error:', e);
+    listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--rose-500);font-size:11px;">❌ ' + escapeHtml((e && e.message) || 'error') + '</div>';
+  }
+}
+// ==================== END CYCLE COUNT ====================
+
+
+// ==================== PRICE CHECK (prc*) — เช็คราคาป้าย vs ระบบ ====================
+// สแกนไล่เช็คป้ายราคาหน้าร้าน: ตรง ✓ / ไม่ตรง ✕ (บันทึกราคาป้ายจริง) → รายการรอแก้ป้าย
+let _prcProduct = null;
+let _prcRows = [];
+function prcCanFix() { return ['ctl', 'bcs', 'admin', 'scc'].includes((user && user.role) || ''); }
+
+function renderPriceCheckPage() {
+  const isLao = lang === 'lo';
+  _prcProduct = null;
+  return `
+    <div style="margin-bottom:11px;">
+      <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">🏷️ ${isLao ? 'ກວດລາຄາປ້າຍ' : 'เช็คราคาป้าย'}</h2>
+      <p style="font-size:11px;color:var(--slate-500);margin:0;">${isLao ? 'ສະແກນ → ທຽບປ້າຍໜ້າຮ້ານກັບລະບົບ → ບັນທຶກ' : 'สแกน → เทียบป้ายหน้าร้านกับระบบ → บันทึก'}</p>
+    </div>
+    <div class="fs-card" style="padding:12px;margin-bottom:10px;">
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <input id="prcBarcode" type="text" inputmode="numeric" placeholder="${isLao ? 'ໃສ່ Barcode' : 'ใส่ Barcode'}" style="flex:1;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:14px;box-sizing:border-box;" onkeydown="if(event.key==='Enter')prcLookup()">
+        <button onclick="prcLookup()" style="background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:10px 14px;font-size:13px;font-weight:700;cursor:pointer;">🔍</button>
+        <button onclick="prcScan()" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:9px;padding:10px 14px;font-size:13px;font-weight:700;cursor:pointer;">📷</button>
+      </div>
+      <div id="prcProduct"></div>
+    </div>
+    <div id="prcSummary" style="margin-bottom:9px;"></div>
+    <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;">
+      <span style="font-size:12px;font-weight:800;color:var(--slate-700);flex:1;">❌ ${isLao ? 'ປ້າຍບໍ່ຕົງ — ລໍແກ້' : 'ป้ายไม่ตรง — รอแก้'}</span>
+      <button onclick="prcExport()" style="background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;">📊 Excel</button>
+    </div>
+    <div id="prcList" style="padding-bottom:90px;"><div style="text-align:center;padding:25px;"><div class="loader" style="margin:0 auto;"></div></div></div>
+  `;
+}
+
+function prcScan() {
+  window._scanCallback = (code) => { const el = document.getElementById('prcBarcode'); if (el) el.value = code; prcLookup(); };
+  triggerPhotoScan('pricecheck');
+}
+
+async function prcLookup() {
+  const isLao = lang === 'lo';
+  const bc = ((document.getElementById('prcBarcode') || {}).value || '').trim();
+  if (!bc) return;
+  const card = document.getElementById('prcProduct');
+  if (card) card.innerHTML = '<div style="text-align:center;padding:10px;"><div class="loader" style="margin:0 auto;"></div></div>';
+  let p = null;
+  try {
+    const { data } = await sb.from('products').select('barcode,name_th,name_lo,sell_price')
+      .eq('barcode', bc).eq('branch_id', branch.id).eq('is_active', true).maybeSingle();
+    p = data;
+    if (!p) {
+      const { data: mp } = await sb.from('master_products').select('barcode,name_th,name_lo,sell_price').eq('barcode', bc).maybeSingle();
+      p = mp;
+    }
+  } catch (e) {}
+  if (!p) {
+    _prcProduct = null;
+    if (card) card.innerHTML = '<div style="background:var(--rose-50);border:1px solid var(--rose-200);border-radius:9px;padding:10px;font-size:12px;color:var(--rose-600);font-weight:700;">⚠️ ' + (isLao ? 'ບໍ່ພົບສິນຄ້າ' : 'ไม่พบสินค้า') + ': ' + escapeHtml(bc) + '</div>';
+    return;
+  }
+  const name = isLao ? (p.name_lo || p.name_th || bc) : (p.name_th || p.name_lo || bc);
+  const price = Number(p.sell_price) || 0;
+  _prcProduct = { barcode: bc, name: name, nameTh: p.name_th || '', price: price };
+  if (card) card.innerHTML = `
+    <div style="background:var(--fs-fill2);border-radius:10px;padding:12px;text-align:center;">
+      <div style="font-size:13px;font-weight:700;color:var(--slate-900);">${escapeHtml(name)}</div>
+      <div style="font-size:10px;color:var(--slate-500);font-family:monospace;margin-bottom:6px;">${escapeHtml(bc)}</div>
+      <div style="font-size:11px;color:var(--slate-500);">${isLao ? 'ລາຄາໃນລະບົບ' : 'ราคาในระบบ'}</div>
+      <div style="font-size:30px;font-weight:800;color:var(--fs-blue);font-family:'Space Grotesk',monospace;line-height:1.15;">${price.toLocaleString()} ₭</div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:9px;">
+      <button onclick="prcSave(true)" style="flex:1;background:var(--fs-green);color:white;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;">✓ ${isLao ? 'ປ້າຍຕົງ' : 'ป้ายตรง'}</button>
+      <button onclick="prcMismatch()" style="flex:1;background:var(--fs-red);color:white;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;">✕ ${isLao ? 'ບໍ່ຕົງ' : 'ไม่ตรง'}</button>
+    </div>
+    <div id="prcMismatchForm" style="display:none;margin-top:8px;">
+      <div style="display:flex;gap:7px;">
+        <input id="prcShelfPrice" type="number" inputmode="numeric" placeholder="${isLao ? 'ລາຄາເທິງປ້າຍ (₭)' : 'ราคาบนป้าย (₭)'}" style="flex:1;padding:11px;border:1.5px solid var(--rose-300);border-radius:9px;font-size:15px;font-weight:700;box-sizing:border-box;">
+        <button onclick="prcSave(false)" style="background:var(--fs-red);color:white;border:none;border-radius:9px;padding:11px 16px;font-size:13px;font-weight:800;cursor:pointer;">${isLao ? 'ບັນທຶກ' : 'บันทึก'}</button>
+      </div>
+    </div>`;
+}
+
+function prcMismatch() {
+  const f = document.getElementById('prcMismatchForm');
+  if (f) { f.style.display = 'block'; const inp = document.getElementById('prcShelfPrice'); if (inp) inp.focus(); }
+}
+
+async function prcSave(isMatch) {
+  const isLao = lang === 'lo';
+  if (!_prcProduct) return;
+  let shelfPrice = null;
+  if (!isMatch) {
+    shelfPrice = parseFloat((document.getElementById('prcShelfPrice') || {}).value) || null;
+    if (shelfPrice == null) { showToast(isLao ? '⚠️ ໃສ່ລາຄາເທິງປ້າຍ' : '⚠️ กรอกราคาบนป้าย', 'warning'); return; }
+  }
+  const { error } = await sb.from('price_checks').insert({
+    branch_id: branch.id, barcode: _prcProduct.barcode, product_name: _prcProduct.nameTh || _prcProduct.name,
+    system_price: _prcProduct.price, shelf_price: shelfPrice, is_match: !!isMatch,
+    created_by: user.id, created_by_name: user.full_name || user.username || ''
+  });
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  if (typeof logActivity === 'function') logActivity('price_check', _prcProduct.barcode + (isMatch ? ' ok' : ' mismatch ' + shelfPrice));
+  showToast(isMatch ? '✓' : '✕ ' + (isLao ? 'ບັນທຶກແລ້ວ — ລໍແກ້ປ້າຍ' : 'บันทึกแล้ว — รอแก้ป้าย'), isMatch ? 'success' : 'error');
+  _prcProduct = null;
+  const bcEl = document.getElementById('prcBarcode'); if (bcEl) { bcEl.value = ''; bcEl.focus(); }
+  const card = document.getElementById('prcProduct'); if (card) card.innerHTML = '';
+  loadPriceChecks();
+}
+
+async function loadPriceChecks() {
+  const isLao = lang === 'lo';
+  const listEl = document.getElementById('prcList');
+  if (!listEl) return;
+  try {
+    const since = localDayKey(new Date(Date.now() - 30 * 86400000));
+    const { data, error } = await sb.from('price_checks').select('*')
+      .eq('branch_id', branch.id).gte('created_at', since)
+      .order('created_at', { ascending: false }).limit(1500);
+    if (error) throw error;
+    _prcRows = data || [];
+  } catch (e) {
+    listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--rose-500);font-size:11px;">❌ ' + escapeHtml(friendlyError(e)) + '</div>';
+    return;
+  }
+  const today = localDayKey(new Date());
+  const todayRows = _prcRows.filter(r => localDayKey(r.created_at) === today);
+  const mm = _prcRows.filter(r => !r.is_match && !r.fixed); // รอแก้ป้าย
+  const okPct = todayRows.length ? Math.round(100 * todayRows.filter(r => r.is_match).length / todayRows.length) : null;
+  const sEl = document.getElementById('prcSummary');
+  if (sEl) sEl.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+    + '<span style="background:var(--fs-blue);color:white;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">' + (isLao ? 'ມື້ນີ້' : 'วันนี้') + ' ' + todayRows.length + '</span>'
+    + (okPct != null ? '<span style="background:' + (okPct >= 95 ? '#e8f8ee;color:#248a3d' : '#fffbeb;color:#b45309') + ';border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">✓ ' + (isLao ? 'ຕົງ' : 'ตรง') + ' ' + okPct + '%</span>' : '')
+    + (mm.length ? '<span style="background:#fff1f2;color:#e11d48;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">❌ ' + (isLao ? 'ລໍແກ້ປ້າຍ' : 'รอแก้ป้าย') + ' ' + mm.length + '</span>' : '')
+    + '</div>';
+  if (!mm.length) {
+    listEl.innerHTML = '<div style="text-align:center;padding:25px;color:var(--slate-400);"><div style="font-size:32px;">🎉</div>' + (isLao ? 'ບໍ່ມີປ້າຍລໍແກ້' : 'ไม่มีป้ายรอแก้') + '</div>';
+    return;
+  }
+  const fmt = new Intl.NumberFormat('th-TH');
+  listEl.innerHTML = mm.map(r => {
+    const diff = (Number(r.shelf_price) || 0) - (Number(r.system_price) || 0);
+    return `<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid var(--fs-red);border-radius:9px;padding:9px 11px;margin-bottom:5px;display:flex;align-items:center;gap:9px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:700;color:var(--slate-900);">${escapeHtml(r.product_name || r.barcode || '?')}</div>
+        <div style="font-size:9.5px;color:var(--slate-500);font-family:monospace;">${escapeHtml(r.barcode || '')} · ${escapeHtml(r.created_by_name || '')} · ${irDayLabel(localDayKey(r.created_at), isLao)}</div>
+        <div style="font-size:11px;margin-top:2px;color:var(--slate-700);">${isLao ? 'ປ້າຍ' : 'ป้าย'} <b style="color:var(--fs-red)">${fmt.format(Number(r.shelf_price) || 0)}</b> → ${isLao ? 'ລະບົບ' : 'ระบบ'} <b style="color:var(--fs-blue)">${fmt.format(Number(r.system_price) || 0)}</b> <span style="color:${diff > 0 ? '#e11d48' : '#b45309'};font-weight:700;">(${diff > 0 ? '+' : ''}${fmt.format(diff)})</span></div>
+      </div>
+      ${prcCanFix() ? `<button onclick="prcMarkFixed(${r.id})" style="background:var(--fs-green);color:white;border:none;border-radius:7px;padding:8px 11px;font-size:11px;font-weight:800;cursor:pointer;flex-shrink:0;">✓ ${isLao ? 'ແກ້ແລ້ວ' : 'แก้แล้ว'}</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function prcMarkFixed(id) {
+  const isLao = lang === 'lo';
+  if (!prcCanFix()) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
+  const { error } = await sb.from('price_checks').update({ fixed: true }).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  showToast('✓ ' + (isLao ? 'ແກ້ປ້າຍແລ້ວ' : 'แก้ป้ายแล้ว'), 'success');
+  loadPriceChecks();
+}
+
+function prcExport() {
+  const isLao = lang === 'lo';
+  if (!_prcRows.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
+  try {
+    const rows = _prcRows.map(r => ({
+      'วันที่': localDayKey(r.created_at),
+      Barcode: r.barcode || '',
+      'ชื่อสินค้า': r.product_name || '',
+      'ราคาระบบ (₭)': Number(r.system_price) || 0,
+      'ราคาป้าย (₭)': r.shelf_price != null ? Number(r.shelf_price) : '',
+      'ผล': r.is_match ? 'ตรง' : 'ไม่ตรง',
+      'แก้ป้ายแล้ว': r.fixed ? '✓' : '',
+      'ผู้เช็ค': r.created_by_name || ''
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'price-check');
+    XLSX.writeFile(wb, `pricecheck-${branch.code}-${localDayKey(new Date())}.xlsx`);
+    showToast(`✅ ${rows.length}`, 'success');
+  } catch (e) { showToast('Error: ' + ((e && e.message) || e), 'error'); }
+}
+// ==================== END PRICE CHECK ====================
+
+
+// ==================== DAILY CHECKLIST (ckl*) — เช็คลิสต์เปิด/ปิดร้าน ====================
+// 1 แถว/สาขา/วัน/กะ (upsert) — template แก้ได้ที่ CKL_TEMPLATES
+const CKL_TEMPLATES = {
+  open: [
+    { k: 'lights', th: 'เปิดไฟ/แอร์/อุปกรณ์ครบ', lo: 'ເປີດໄຟ/ແອ/ອຸປະກອນຄົບ' },
+    { k: 'clean', th: 'หน้าร้าน/ทางเข้าสะอาด', lo: 'ໜ້າຮ້ານ/ທາງເຂົ້າສະອາດ' },
+    { k: 'stockfill', th: 'เติมสินค้าหน้าร้าน/ชั้นไม่โล่ง', lo: 'ເຕີມສິນຄ້າໜ້າຮ້ານ/ຊັ້ນບໍ່ຫວ່າງ' },
+    { k: 'price', th: 'ป้ายราคา/โปรโมชั่นครบถูกต้อง', lo: 'ປ້າຍລາຄາ/ໂປຣໂມຊັນຄົບຖືກຕ້ອງ' },
+    { k: 'cash', th: 'เงินทอนแคชเชียร์พร้อม', lo: 'ເງິນທອນແຄັດເຊຍພ້ອມ' },
+    { k: 'fridge', th: 'ตู้แช่/ตู้เย็นอุณหภูมิปกติ', lo: 'ຕູ້ແຊ່/ຕູ້ເຢັນອຸນຫະພູມປົກກະຕິ' },
+    { k: 'pos', th: 'เครื่อง POS/สแกนพร้อมใช้', lo: 'ເຄື່ອງ POS/ສະແກນພ້ອມໃຊ້' }
+  ],
+  close: [
+    { k: 'cashclose', th: 'นับเงิน/ปิดกะแคชเชียร์', lo: 'ນັບເງິນ/ປິດກະແຄັດເຊຍ' },
+    { k: 'stockin', th: 'เก็บสินค้าหน้าร้าน/ของแช่เข้าตู้', lo: 'ເກັບສິນຄ້າໜ້າຮ້ານ/ຂອງແຊ່ເຂົ້າຕູ້' },
+    { k: 'trash', th: 'ทิ้งขยะ/ทำความสะอาด', lo: 'ຖິ້ມຂີ້ເຫຍື້ອ/ທຳຄວາມສະອາດ' },
+    { k: 'fridgeclose', th: 'ตู้แช่ปิดฝา/อุณหภูมิปกติ', lo: 'ຕູ້ແຊ່ປິດຝາ/ອຸນຫະພູມປົກກະຕິ' },
+    { k: 'power', th: 'ปิดไฟ/แอร์/อุปกรณ์ที่ไม่ใช้', lo: 'ປິດໄຟ/ແອ/ອຸປະກອນທີ່ບໍ່ໃຊ້' },
+    { k: 'fire', th: 'ตรวจจุดเสี่ยงไฟ/ปลั๊ก', lo: 'ກວດຈຸດສ່ຽງໄຟ/ປລັກ' },
+    { k: 'lock', th: 'ล็อกตู้/ประตู/ตั้งสัญญาณ', lo: 'ລັອກຕູ້/ປະຕູ/ຕັ້ງສັນຍານ' }
+  ]
+};
+let _cklShift = 'open';
+let _cklState = {};    // k → done
+let _cklHistory = [];
+
+function renderChecklistPage() {
+  const isLao = lang === 'lo';
+  _cklShift = (new Date()).getHours() < 14 ? 'open' : 'close'; // เดากะจากเวลา
+  return `
+    <div style="margin-bottom:11px;">
+      <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">✅ ${isLao ? 'ເຊັກລິສເປີດ-ປິດຮ້ານ' : 'เช็คลิสต์เปิด-ปิดร้าน'}</h2>
+      <p style="font-size:11px;color:var(--slate-500);margin:0;">${isLao ? 'ຕິກທຸກຂໍ້ກ່ອນເປີດ/ຫຼັງປິດຮ້ານ' : 'ติ๊กทุกข้อก่อนเปิด/หลังปิดร้าน'} • ${localDayKey(new Date())}</p>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;background:var(--slate-100);padding:4px;border-radius:11px;">
+      <button id="cklTabOpen" onclick="cklSetShift('open')" style="padding:9px;border:none;border-radius:8px;background:${_cklShift === 'open' ? 'white' : 'transparent'};color:${_cklShift === 'open' ? 'var(--fs-blue)' : 'var(--slate-500)'};font-size:12px;font-weight:800;cursor:pointer;${_cklShift === 'open' ? 'box-shadow:0 1px 3px rgba(0,0,0,0.1);' : ''}">🌅 ${isLao ? 'ເປີດຮ້ານ' : 'เปิดร้าน'}</button>
+      <button id="cklTabClose" onclick="cklSetShift('close')" style="padding:9px;border:none;border-radius:8px;background:${_cklShift === 'close' ? 'white' : 'transparent'};color:${_cklShift === 'close' ? 'var(--fs-blue)' : 'var(--slate-500)'};font-size:12px;font-weight:800;cursor:pointer;${_cklShift === 'close' ? 'box-shadow:0 1px 3px rgba(0,0,0,0.1);' : ''}">🌙 ${isLao ? 'ປິດຮ້ານ' : 'ปิดร้าน'}</button>
+    </div>
+    <div class="fs-card" style="padding:12px;margin-bottom:10px;">
+      <div id="cklItems"></div>
+      <input id="cklNote" type="text" placeholder="${isLao ? 'ໝາຍເຫດ (ຖ້າມີ)' : 'หมายเหตุ (ถ้ามี)'}" style="width:100%;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;box-sizing:border-box;margin:9px 0;">
+      <button onclick="cklSave()" id="cklSaveBtn" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;">💾 ${isLao ? 'ບັນທຶກ' : 'บันทึก'}</button>
+    </div>
+    <div style="font-size:12px;font-weight:800;color:var(--slate-700);margin-bottom:7px;">🕘 ${isLao ? '7 ມື້ຫຼ້າສຸດ' : '7 วันล่าสุด'}</div>
+    <div id="cklHistory" style="padding-bottom:90px;"><div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div></div>
+  `;
+}
+
+function cklSetShift(s) {
+  _cklShift = s;
+  const o = document.getElementById('cklTabOpen'), c = document.getElementById('cklTabClose');
+  if (o) { o.style.background = s === 'open' ? 'white' : 'transparent'; o.style.color = s === 'open' ? 'var(--fs-blue)' : 'var(--slate-500)'; o.style.boxShadow = s === 'open' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'; }
+  if (c) { c.style.background = s === 'close' ? 'white' : 'transparent'; c.style.color = s === 'close' ? 'var(--fs-blue)' : 'var(--slate-500)'; c.style.boxShadow = s === 'close' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'; }
+  loadChecklist();
+}
+
+async function loadChecklist() {
+  const isLao = lang === 'lo';
+  const today = localDayKey(new Date());
+  // โหลดของวันนี้กะนี้ (ถ้าเคยบันทึก) + ประวัติ 7 วัน
+  try {
+    const since = localDayKey(new Date(Date.now() - 7 * 86400000));
+    const { data } = await sb.from('daily_checklists').select('*')
+      .eq('branch_id', branch.id).gte('check_date', since)
+      .order('check_date', { ascending: false });
+    _cklHistory = data || [];
+  } catch (e) { _cklHistory = []; }
+  const cur = _cklHistory.find(r => r.check_date === today && r.shift === _cklShift);
+  _cklState = {};
+  (cur?.items || []).forEach(it => { _cklState[it.k] = !!it.done; });
+  const noteEl = document.getElementById('cklNote');
+  if (noteEl) noteEl.value = cur?.note || '';
+  cklRenderItems();
+  cklRenderHistory();
+}
+
+function cklRenderItems() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('cklItems');
+  if (!el) return;
+  const tpl = CKL_TEMPLATES[_cklShift] || [];
+  el.innerHTML = tpl.map(t => {
+    const on = !!_cklState[t.k];
+    return `<div onclick="cklToggle('${t.k}')" style="display:flex;align-items:center;gap:10px;padding:11px 9px;border-bottom:1px solid var(--fs-hair);cursor:pointer;">
+      <div style="width:24px;height:24px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:2px solid ${on ? 'var(--fs-green)' : 'var(--slate-300)'};background:${on ? 'var(--fs-green)' : 'white'};color:white;font-size:14px;font-weight:800;">${on ? '✓' : ''}</div>
+      <span style="font-size:13px;font-weight:600;color:${on ? 'var(--slate-400)' : 'var(--slate-800)'};${on ? 'text-decoration:line-through;' : ''}">${isLao ? t.lo : t.th}</span>
+    </div>`;
+  }).join('');
+}
+
+function cklToggle(k) {
+  _cklState[k] = !_cklState[k];
+  cklRenderItems();
+}
+
+async function cklSave() {
+  const isLao = lang === 'lo';
+  const tpl = CKL_TEMPLATES[_cklShift] || [];
+  const items = tpl.map(t => ({ k: t.k, done: !!_cklState[t.k] }));
+  const done = items.filter(i => i.done).length;
+  const note = ((document.getElementById('cklNote') || {}).value || '').trim();
+  const btn = document.getElementById('cklSaveBtn');
+  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.innerHTML = '<span class="loader"></span>'; }
+  const payload = {
+    branch_id: branch.id, check_date: localDayKey(new Date()), shift: _cklShift,
+    items: items, done_count: done, total_count: tpl.length, note: note || null,
+    created_by: user.id, created_by_name: user.full_name || user.username || '',
+    updated_at: new Date().toISOString()
+  };
+  const { error } = await sb.from('daily_checklists').upsert(payload, { onConflict: 'branch_id,check_date,shift' });
+  if (btn) { btn.disabled = false; btn.innerHTML = '💾 ' + (isLao ? 'ບັນທຶກ' : 'บันทึก'); }
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  if (typeof logActivity === 'function') logActivity('checklist_save', _cklShift + ' ' + done + '/' + tpl.length);
+  showToast(done === tpl.length ? '🎉 ' + (isLao ? 'ຄົບທຸກຂໍ້!' : 'ครบทุกข้อ!') : '✓ ' + (isLao ? 'ບັນທຶກແລ້ວ' : 'บันทึกแล้ว') + ' ' + done + '/' + tpl.length, 'success');
+  loadChecklist();
+}
+
+function cklRenderHistory() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('cklHistory');
+  if (!el) return;
+  if (!_cklHistory.length) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--slate-400);font-size:12px;">' + (isLao ? 'ຍັງບໍ່ມີປະຫວັດ' : 'ยังไม่มีประวัติ') + '</div>';
+    return;
+  }
+  el.innerHTML = _cklHistory.map(r => {
+    const full = r.done_count === r.total_count;
+    const shiftIcon = r.shift === 'open' ? '🌅' : '🌙';
+    return `<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ${full ? 'var(--fs-green)' : 'var(--amber-500)'};border-radius:9px;padding:8px 11px;margin-bottom:5px;display:flex;align-items:center;gap:9px;">
+      <span style="font-size:16px;">${shiftIcon}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:700;color:var(--slate-800);">${irDayLabel(r.check_date, isLao)} · ${r.shift === 'open' ? (isLao ? 'ເປີດຮ້ານ' : 'เปิดร้าน') : (isLao ? 'ປິດຮ້ານ' : 'ปิดร้าน')}</div>
+        <div style="font-size:9.5px;color:var(--slate-500);">${escapeHtml(r.created_by_name || '')}${r.note ? ' · 💬 ' + escapeHtml(r.note) : ''}</div>
+      </div>
+      <span style="font-size:13px;font-weight:800;color:${full ? '#248a3d' : '#b45309'};font-family:'Space Grotesk',monospace;">${r.done_count}/${r.total_count}</span>
+    </div>`;
+  }).join('');
+}
+// ==================== END DAILY CHECKLIST ====================
+
+
+// ==================== TEMPERATURE LOG (tmp*) — อุณหภูมิตู้แช่ ====================
+// chiller ปกติ 0–8°C | freezer ปกติ ≤ -15°C — นอกช่วง = abnormal (ไฮไลต์แดง)
+let _tmpType = 'chiller';
+let _tmpRows = [];
+function tmpIsAbnormal(type, t) { return type === 'freezer' ? t > -15 : (t < 0 || t > 8); }
+
+function renderTempLogPage() {
+  const isLao = lang === 'lo';
+  _tmpType = 'chiller';
+  return `
+    <div style="margin-bottom:11px;">
+      <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">🌡️ ${isLao ? 'ບັນທຶກອຸນຫະພູມຕູ້ແຊ່' : 'บันทึกอุณหภูมิตู้แช่'}</h2>
+      <p style="font-size:11px;color:var(--slate-500);margin:0;">${isLao ? 'ຕູ້ເຢັນ 0–8°C · ຕູ້ແຊ່ແຂງ ≤ -15°C — ນອກຊ່ວງ = ຜິດປົກກະຕິ' : 'ตู้เย็น 0–8°C · ตู้แช่แข็ง ≤ -15°C — นอกช่วง = ผิดปกติ'}</p>
+    </div>
+    <div class="fs-card" style="padding:12px;margin-bottom:10px;">
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <button id="tmpTypeChiller" onclick="tmpSetType('chiller')" style="flex:1;border:1.5px solid var(--fs-blue);background:white;color:var(--fs-blue);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">🧊 ${isLao ? 'ຕູ້ເຢັນ (0–8°C)' : 'ตู้เย็น (0–8°C)'}</button>
+        <button id="tmpTypeFreezer" onclick="tmpSetType('freezer')" style="flex:1;border:1.5px solid var(--slate-200);background:var(--slate-50);color:var(--slate-600);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">❄️ ${isLao ? 'ແຊ່ແຂງ (≤ -15°C)' : 'แช่แข็ง (≤ -15°C)'}</button>
+      </div>
+      <div style="display:flex;gap:7px;margin-bottom:8px;">
+        <input id="tmpSpot" type="text" list="tmpSpotList" placeholder="${isLao ? 'ຊື່ຕູ້ ເຊັ່ນ ຕູ້ເຄື່ອງດື່ມ 1' : 'ชื่อตู้ เช่น ตู้เครื่องดื่ม 1'}" style="flex:2;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;box-sizing:border-box;">
+        <datalist id="tmpSpotList"></datalist>
+        <input id="tmpTemp" type="number" step="0.1" inputmode="decimal" placeholder="°C" style="flex:1;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:15px;font-weight:700;box-sizing:border-box;">
+      </div>
+      <button onclick="tmpSave()" id="tmpSaveBtn" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;">🌡️ ${isLao ? 'ບັນທຶກ' : 'บันทึก'}</button>
+    </div>
+    <div id="tmpSummary" style="margin-bottom:9px;"></div>
+    <div id="tmpList" style="padding-bottom:90px;"><div style="text-align:center;padding:25px;"><div class="loader" style="margin:0 auto;"></div></div></div>
+  `;
+}
+
+function tmpSetType(t) {
+  _tmpType = t;
+  const c = document.getElementById('tmpTypeChiller'), f = document.getElementById('tmpTypeFreezer');
+  const on = el => { el.style.border = '1.5px solid var(--fs-blue)'; el.style.background = 'white'; el.style.color = 'var(--fs-blue)'; };
+  const off = el => { el.style.border = '1.5px solid var(--slate-200)'; el.style.background = 'var(--slate-50)'; el.style.color = 'var(--slate-600)'; };
+  if (c) (t === 'chiller' ? on : off)(c);
+  if (f) (t === 'freezer' ? on : off)(f);
+}
+
+function tmpPeriodNow() {
+  const h = new Date().getHours();
+  return h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+}
+function tmpPeriodLabel(p, isLao) {
+  return p === 'morning' ? (isLao ? 'ເຊົ້າ' : 'เช้า') : p === 'afternoon' ? (isLao ? 'ບ່າຍ' : 'บ่าย') : (isLao ? 'ແລງ' : 'เย็น');
+}
+
+async function tmpSave() {
+  const isLao = lang === 'lo';
+  const spot = ((document.getElementById('tmpSpot') || {}).value || '').trim();
+  const tv = (document.getElementById('tmpTemp') || {}).value;
+  if (!spot) { showToast(isLao ? '⚠️ ໃສ່ຊື່ຕູ້' : '⚠️ ใส่ชื่อตู้', 'warning'); return; }
+  if (tv === '' || tv == null || isNaN(parseFloat(tv))) { showToast(isLao ? '⚠️ ໃສ່ອຸນຫະພູມ' : '⚠️ กรอกอุณหภูมิ', 'warning'); return; }
+  const temp = parseFloat(tv);
+  const abnormal = tmpIsAbnormal(_tmpType, temp);
+  const btn = document.getElementById('tmpSaveBtn');
+  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.innerHTML = '<span class="loader"></span>'; }
+  const { error } = await sb.from('temp_logs').insert({
+    branch_id: branch.id, spot: spot, fridge_type: _tmpType, temp_c: temp,
+    period: tmpPeriodNow(), abnormal: abnormal,
+    created_by: user.id, created_by_name: user.full_name || user.username || ''
+  });
+  if (btn) { btn.disabled = false; btn.innerHTML = '🌡️ ' + (isLao ? 'ບັນທຶກ' : 'บันทึก'); }
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  if (typeof logActivity === 'function') logActivity('temp_log', spot + ' ' + temp + '°C' + (abnormal ? ' ⚠️' : ''));
+  showToast(abnormal
+    ? '🔴 ' + (isLao ? 'ອຸນຫະພູມຜິດປົກກະຕິ! ແຈ້ງຫົວໜ້າ/ຊ່າງດ່ວນ' : 'อุณหภูมิผิดปกติ! แจ้งหัวหน้า/ช่างด่วน')
+    : '✓ ' + (isLao ? 'ປົກກະຕິ' : 'ปกติ'), abnormal ? 'error' : 'success');
+  const t = document.getElementById('tmpTemp'); if (t) t.value = '';
+  loadTempLogs();
+}
+
+async function loadTempLogs() {
+  const isLao = lang === 'lo';
+  const listEl = document.getElementById('tmpList');
+  if (!listEl) return;
+  try {
+    const since = localDayKey(new Date(Date.now() - 7 * 86400000));
+    const { data, error } = await sb.from('temp_logs').select('*')
+      .eq('branch_id', branch.id).gte('created_at', since)
+      .order('created_at', { ascending: false }).limit(500);
+    if (error) throw error;
+    _tmpRows = data || [];
+  } catch (e) {
+    listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--rose-500);font-size:11px;">❌ ' + escapeHtml(friendlyError(e)) + '</div>';
+    return;
+  }
+  // datalist ชื่อตู้ที่เคยใช้
+  const spots = [...new Set(_tmpRows.map(r => r.spot).filter(Boolean))];
+  const dl = document.getElementById('tmpSpotList');
+  if (dl) dl.innerHTML = spots.map(s => '<option value="' + escapeHtml(s) + '">').join('');
+  const today = localDayKey(new Date());
+  const todayRows = _tmpRows.filter(r => localDayKey(r.created_at) === today);
+  const abn = todayRows.filter(r => r.abnormal);
+  const sEl = document.getElementById('tmpSummary');
+  if (sEl) sEl.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+    + '<span style="background:var(--fs-blue);color:white;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">' + (isLao ? 'ມື້ນີ້' : 'วันนี้') + ' ' + todayRows.length + '</span>'
+    + (abn.length
+      ? '<span style="background:#fff1f2;color:#e11d48;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">🔴 ' + (isLao ? 'ຜິດປົກກະຕິ' : 'ผิดปกติ') + ' ' + abn.length + '</span>'
+      : (todayRows.length ? '<span style="background:#e8f8ee;color:#248a3d;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">🟢 ' + (isLao ? 'ປົກກະຕິທັງໝົດ' : 'ปกติทั้งหมด') + '</span>' : ''))
+    + '</div>';
+  if (!_tmpRows.length) {
+    listEl.innerHTML = '<div style="text-align:center;padding:25px;color:var(--slate-400);"><div style="font-size:32px;">🌡️</div>' + (isLao ? 'ຍັງບໍ່ມີບັນທຶກ' : 'ยังไม่มีบันทึก') + '</div>';
+    return;
+  }
+  let html = '', lastDay = '';
+  _tmpRows.forEach(r => {
+    const dk = localDayKey(r.created_at);
+    if (dk !== lastDay) { lastDay = dk; html += '<div style="font-size:11px;font-weight:700;color:var(--slate-500);margin:9px 2px 5px;border-left:2px solid var(--sky-300);padding-left:8px;">' + irDayLabel(dk, isLao) + '</div>'; }
+    const time = new Date(r.created_at).toLocaleString(isLao ? 'lo-LA' : 'th-TH', { hour: '2-digit', minute: '2-digit' });
+    html += `<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ${r.abnormal ? 'var(--fs-red)' : 'var(--fs-green)'};border-radius:9px;padding:8px 11px;margin-bottom:5px;display:flex;align-items:center;gap:9px;">
+      <span style="font-size:15px;">${r.fridge_type === 'freezer' ? '❄️' : '🧊'}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:700;color:var(--slate-900);">${escapeHtml(r.spot || '?')}</div>
+        <div style="font-size:9.5px;color:var(--slate-500);">${tmpPeriodLabel(r.period, isLao)} ${time} · ${escapeHtml(r.created_by_name || '')}</div>
+      </div>
+      <span style="font-size:16px;font-weight:800;color:${r.abnormal ? '#e11d48' : '#248a3d'};font-family:'Space Grotesk',monospace;">${Number(r.temp_c)}°C${r.abnormal ? ' ⚠️' : ''}</span>
+    </div>`;
+  });
+  listEl.innerHTML = html;
+}
+// ==================== END TEMPERATURE LOG ====================
 
 function renderInvMovementPage() {
   const isLao = lang === 'lo';
@@ -28985,6 +30185,20 @@ window.mpSaveEdit = mpSaveEdit;
 window.mpOpenUploadModal = mpOpenUploadModal;
 // Barcode Pack/ลัง
 window.bpOpenUploadModal = bpOpenUploadModal; window.bpHandleFileSelected = bpHandleFileSelected; window.bpExecuteUpload = bpExecuteUpload; window.bpLookup = bpLookup;
+// Reorder Suggestion
+window.renderReorderPage = renderReorderPage; window.roInit = roInit; window.roCalc = roCalc; window.roToggle = roToggle; window.roToggleAll = roToggleAll; window.roExport = roExport;
+// Shrinkage
+window.renderShrinkagePage = renderShrinkagePage; window.loadShrinkage = loadShrinkage; window.skLookup = skLookup; window.skScan = skScan; window.skSetReason = skSetReason; window.skSetMonth = skSetMonth; window.skOnPhoto = skOnPhoto; window.skSave = skSave; window.skDelete = skDelete; window.skExport = skExport;
+// Manager Dashboard
+window.renderMgrDashPage = renderMgrDashPage; window.loadMgrDash = loadMgrDash;
+// Cycle Count
+window.renderCycleCountPage = renderCycleCountPage; window.loadCycleCount = loadCycleCount;
+// Price Check
+window.renderPriceCheckPage = renderPriceCheckPage; window.loadPriceChecks = loadPriceChecks; window.prcLookup = prcLookup; window.prcScan = prcScan; window.prcMismatch = prcMismatch; window.prcSave = prcSave; window.prcMarkFixed = prcMarkFixed; window.prcExport = prcExport;
+// Daily Checklist
+window.renderChecklistPage = renderChecklistPage; window.loadChecklist = loadChecklist; window.cklSetShift = cklSetShift; window.cklToggle = cklToggle; window.cklSave = cklSave;
+// Temperature Log
+window.renderTempLogPage = renderTempLogPage; window.loadTempLogs = loadTempLogs; window.tmpSetType = tmpSetType; window.tmpSave = tmpSave;
 window.mpHandleFileSelected = mpHandleFileSelected;
 window.mpBuildDiff = mpBuildDiff;
 window.mpExecuteUpload = mpExecuteUpload;
