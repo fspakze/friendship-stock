@@ -7797,6 +7797,13 @@ let _roSel = new Set();      // barcode ที่เลือก export
 let _roBusy = false;
 let _roFilterCat = '';       // กรองประเภทสินค้า ('' = ทั้งหมด)
 let _roFilterGrp = '';       // กรองกลุ่มสินค้า
+// format วันที่ (YYYY-MM-DD หรือ ISO) → dd/mm/yyyy
+function roFmtDate(v) {
+  if (!v) return '—';
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return String(v);
+  return String(d.getUTCDate()).padStart(2, '0') + '/' + String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + d.getUTCFullYear();
+}
 // แถวที่มองเห็นตามตัวกรอง ประเภท/กลุ่ม
 function roVisibleRows() {
   let rows = _roRows || [];
@@ -7883,10 +7890,16 @@ async function roInit() {
   if (!sel) return;
   try {
     // โหลดรายชื่อ buyer ทุกครั้ง (ไม่ cache — สะท้อนข้อมูลล่าสุดหลัง import Status)
-    const rows = await fetchAllQuery(() => sb.from('product_status').select('buyer').not('buyer', 'is', null));
+    const rows = await fetchAllQuery(() => sb.from('product_status').select('buyer,updated_at').not('buyer', 'is', null));
+    // ⭐ กรองแถวเก่าค้าง: เก็บเฉพาะ buyer ที่มีแถวอัปเดตช่วง import ล่าสุด (กันชื่อเก่า เช่น Pop ที่ barcode หลุดไฟล์)
+    let maxTs = 0;
+    (rows || []).forEach(r => { const t = r.updated_at ? new Date(r.updated_at).getTime() : 0; if (t > maxTs) maxTs = t; });
+    const cutoff = maxTs - 3 * 86400000; // ภายใน 3 วันจากอัปเดตล่าสุด
     // รวมชื่อซ้ำแบบไม่สนพิมพ์เล็ก-ใหญ่ (lae + Lae → ตัวเดียว, เก็บตัวที่มีอักษรพิมพ์ใหญ่ไว้)
     const seen = new Map();
     (rows || []).forEach(r => {
+      const t = r.updated_at ? new Date(r.updated_at).getTime() : 0;
+      if (maxTs && t < cutoff) return; // แถวเก่าค้าง — ไม่เอาเข้า dropdown
       const v = (r.buyer || '').trim();
       if (!v) return;
       const k = v.toLowerCase();
@@ -7922,7 +7935,7 @@ async function roCalc() {
 
     setMsg(isLao ? '⏳ ໂຫຼດ Status ສິນຄ້າ...' : '⏳ โหลด Status สินค้า...');
     const statusRows = await fetchAllQuery(() => {
-      let q = sb.from('product_status').select('barcode,name,buyer,branch_avg,top_2026,in_out');
+      let q = sb.from('product_status').select('barcode,name,buyer,branch_avg,top_2026,in_out,last_buy');
       if (buyer) q = q.ilike('buyer', buyer); // ไม่สนพิมพ์เล็ก-ใหญ่ → รวม lae+Lae
       return q;
     });
@@ -7937,7 +7950,7 @@ async function roCalc() {
       const inOut = r.in_out || 'ภายนอก'; // null/ว่าง → ถือเป็นภายนอก
       if (inOutF === 'in' && inOut !== 'ภายใน') return;
       if (inOutF === 'ex' && inOut === 'ภายใน') return;
-      cand.push({ barcode: String(r.barcode), name: r.name, buyer: r.buyer || '', monthly: m, daily: m / 30, top: r.top_2026 || '', inOut: inOut });
+      cand.push({ barcode: String(r.barcode), name: r.name, buyer: r.buyer || '', monthly: m, daily: m / 30, top: r.top_2026 || '', inOut: inOut, lastBuy: r.last_buy || null });
     });
     if (!cand.length) { setMsg(isLao ? 'ບໍ່ມີສິນຄ້າທີ່ມີ AVG ຂາຍໃນສາຂານີ້' : 'ไม่มีสินค้าที่มี AVG ขายในสาขานี้'); _roRows = []; roRenderSummary(); return; }
     const bcs = cand.map(c => c.barcode);
@@ -7976,7 +7989,7 @@ async function roCalc() {
       const doh = pos / c.daily;
       const r = {
         barcode: c.barcode, buyer: c.buyer, top: c.top, monthly: c.monthly, daily: c.daily,
-        cat: cat, grp: grp, supplier: supplier, inOut: c.inOut, lead: lead, cycle: cycle, rule: rule,
+        cat: cat, grp: grp, supplier: supplier, inOut: c.inOut, lead: lead, cycle: cycle, rule: rule, lastBuy: c.lastBuy,
         name: isLao ? (p.name_lo || p.name_th || c.name || c.barcode) : (p.name_th || p.name_lo || c.name || c.barcode),
         nameLo: p.name_lo || '', nameTh: p.name_th || '',
         unit: isLao ? (p.unit_lo || 'Unit') : (p.unit_th || 'Unit'),
@@ -8096,7 +8109,7 @@ function roRenderList() {
           <div style="font-size:9.5px;color:var(--slate-500);font-family:monospace;">${r.barcode}${r.buyer ? ' · 🛒 ' + escapeHtml(r.buyer) : ''}</div>
           ${r.grp ? `<div style="font-size:9px;color:var(--violet-600);">🏷️ ${escapeHtml(r.grp)}</div>` : ''}
           <div style="font-size:10px;color:var(--slate-600);margin-top:2px;">POS <b style="color:${st.ink}">${fmt.format(r.pos)}</b> · AVG ${fmt.format(Math.round(r.daily * 10) / 10)}/${isLao ? 'ມື້' : 'วัน'} · DOH <b style="color:${st.ink}">${dohTxt}</b> · Min <b>${fmt.format(r.minStock || 0)}</b> · Max <b>${fmt.format(r.maxStock || 0)}</b></div>
-          <div style="font-size:9px;color:var(--slate-400);margin-top:1px;">⚙️ Lead ${r.lead} · Cycle ${r.cycle} · ${r.inOut === 'ภายใน' ? (isLao ? 'ພາຍໃນ' : 'ภายใน') : (isLao ? 'ພາຍນອກ' : 'ภายนอก')}${r.rule ? ' · ' + escapeHtml(r.rule) : ''}</div>
+          <div style="font-size:9px;color:var(--slate-400);margin-top:1px;">⚙️ Lead ${r.lead} · Cycle ${r.cycle} · ${r.inOut === 'ภายใน' ? (isLao ? 'ພາຍໃນ' : 'ภายใน') : (isLao ? 'ພາຍນອກ' : 'ภายนอก')}${r.rule ? ' · ' + escapeHtml(r.rule) : ''}${r.lastBuy ? ' · 📥 ' + (isLao ? 'ຊື້ຫຼ້າສຸດ ' : 'ซื้อล่าสุด ') + roFmtDate(r.lastBuy) : ''}</div>
         </div>
         <div style="text-align:right;flex-shrink:0;">
           <div style="font-size:17px;font-weight:800;color:var(--fs-blue);font-family:'Space Grotesk',monospace;line-height:1;">${fmt.format(r.orderUnits)}</div>
@@ -8147,6 +8160,7 @@ async function roExport() {
         'Min Stock': r.minStock || 0,
         'Max Stock': r.maxStock || 0,
         'ต่ำกว่า Min': r.belowMin ? '🔴' : '',
+        'ซื้อล่าสุด': r.lastBuy ? roFmtDate(r.lastBuy) : '',
         'แนะนำสั่ง (Unit)': r.orderUnits,
         'สั่งเป็นลัง/แพ๊ค': r.packLabel || '',
         'บาร์โค้ดลัง': (r.bpRec && (r.bpRec.barcode_box || r.bpRec.barcode_pack)) || '',
