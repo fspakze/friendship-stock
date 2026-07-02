@@ -7842,6 +7842,14 @@ function renderReorderPage() {
             <option value="">${isLao ? 'ກຳລັງໂຫຼດ...' : 'กำลังโหลด...'}</option>
           </select>
         </div>
+        <div style="flex:1;min-width:110px;">
+          <label style="font-size:10px;font-weight:700;color:var(--slate-500);">${isLao ? 'ພາຍໃນ/ນອກ' : 'ภายใน/นอก'}</label>
+          <select id="roInOut" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;background:white;">
+            <option value="">${isLao ? 'ທັງໝົດ' : 'ทั้งหมด'}</option>
+            <option value="in">${isLao ? 'ພາຍໃນ' : 'ภายใน'}</option>
+            <option value="ex">${isLao ? 'ພາຍນອກ' : 'ภายนอก'}</option>
+          </select>
+        </div>
         <div style="flex:1;min-width:80px;">
           <label style="font-size:10px;font-weight:700;color:var(--slate-500);">Lead <span style="color:var(--slate-400);font-weight:500;">(${isLao ? 'ຕາມກฎ' : 'ตามกฎ'})</span></label>
           <input id="roLeadOv" type="number" min="0" placeholder="${isLao ? 'ອັດຕະໂນມັດ' : 'อัตโนมัติ'}" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;box-sizing:border-box;">
@@ -7874,11 +7882,19 @@ async function roInit() {
   const sel = document.getElementById('roBuyer');
   if (!sel) return;
   try {
-    // โหลดรายชื่อ buyer ครั้งเดียว (cache ต่อ session)
-    if (!window._roBuyers) {
-      const rows = await fetchAllQuery(() => sb.from('product_status').select('buyer').not('buyer', 'is', null));
-      window._roBuyers = [...new Set((rows || []).map(r => (r.buyer || '').trim()).filter(Boolean))].sort();
-    }
+    // โหลดรายชื่อ buyer ทุกครั้ง (ไม่ cache — สะท้อนข้อมูลล่าสุดหลัง import Status)
+    const rows = await fetchAllQuery(() => sb.from('product_status').select('buyer').not('buyer', 'is', null));
+    // รวมชื่อซ้ำแบบไม่สนพิมพ์เล็ก-ใหญ่ (lae + Lae → ตัวเดียว, เก็บตัวที่มีอักษรพิมพ์ใหญ่ไว้)
+    const seen = new Map();
+    (rows || []).forEach(r => {
+      const v = (r.buyer || '').trim();
+      if (!v) return;
+      const k = v.toLowerCase();
+      const ex = seen.get(k);
+      if (!ex) seen.set(k, v);
+      else if (/[A-Z]/.test(v) && !/[A-Z]/.test(ex)) seen.set(k, v); // เลือกตัวที่มีพิมพ์ใหญ่
+    });
+    window._roBuyers = [...seen.values()].sort((a, b) => a.localeCompare(b));
     sel.innerHTML = '<option value="">🏪 ' + (isLao ? 'ທຸກຜູ້ຈັດຊື້ (ຊ້າ)' : 'ทุกผู้จัดซื้อ (ช้า)') + '</option>'
       + window._roBuyers.map(b => '<option value="' + escapeHtml(b) + '">' + escapeHtml(b) + '</option>').join('');
   } catch (e) {
@@ -7896,6 +7912,7 @@ async function roCalc() {
   const setMsg = m => { if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:25px;color:var(--slate-400);font-size:12px;">' + m + '</div>'; };
   try {
     const buyer = (document.getElementById('roBuyer') || {}).value || '';
+    const inOutF = (document.getElementById('roInOut') || {}).value || ''; // '' | 'in' | 'ex'
     const topOnly = !!(document.getElementById('roTopOnly') || {}).checked;
     // override Lead/Cycle (เว้นว่าง = ใช้กฎอัตโนมัติต่อ SKU)
     const _lv = ((document.getElementById('roLeadOv') || {}).value || '').trim();
@@ -7906,7 +7923,7 @@ async function roCalc() {
     setMsg(isLao ? '⏳ ໂຫຼດ Status ສິນຄ້າ...' : '⏳ โหลด Status สินค้า...');
     const statusRows = await fetchAllQuery(() => {
       let q = sb.from('product_status').select('barcode,name,buyer,branch_avg,top_2026,in_out');
-      if (buyer) q = q.eq('buyer', buyer);
+      if (buyer) q = q.ilike('buyer', buyer); // ไม่สนพิมพ์เล็ก-ใหญ่ → รวม lae+Lae
       return q;
     });
 
@@ -7917,7 +7934,10 @@ async function roCalc() {
       const bkey = psBranchKey(r.branch_avg);
       const m = (r.branch_avg && bkey != null) ? Number(r.branch_avg[bkey]) : 0;
       if (!m || m <= 0) return;
-      cand.push({ barcode: String(r.barcode), name: r.name, buyer: r.buyer || '', monthly: m, daily: m / 30, top: r.top_2026 || '', inOut: r.in_out || 'ภายนอก' });
+      const inOut = r.in_out || 'ภายนอก'; // null/ว่าง → ถือเป็นภายนอก
+      if (inOutF === 'in' && inOut !== 'ภายใน') return;
+      if (inOutF === 'ex' && inOut === 'ภายใน') return;
+      cand.push({ barcode: String(r.barcode), name: r.name, buyer: r.buyer || '', monthly: m, daily: m / 30, top: r.top_2026 || '', inOut: inOut });
     });
     if (!cand.length) { setMsg(isLao ? 'ບໍ່ມີສິນຄ້າທີ່ມີ AVG ຂາຍໃນສາຂານີ້' : 'ไม่มีสินค้าที่มี AVG ขายในสาขานี้'); _roRows = []; roRenderSummary(); return; }
     const bcs = cand.map(c => c.barcode);
