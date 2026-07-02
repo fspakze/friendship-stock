@@ -7836,13 +7836,22 @@ function renderReorderPage() {
     </div>
     <div class="fs-card" style="padding:12px;margin-bottom:10px;">
       <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:flex-end;">
-        <div style="flex:1;min-width:150px;">
+        <div style="flex:2;min-width:150px;">
           <label style="font-size:10px;font-weight:700;color:var(--slate-500);">${isLao ? 'ຜູ້ຈັດຊື້' : 'ผู้จัดซื้อ (buyer)'}</label>
           <select id="roBuyer" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;background:white;">
             <option value="">${isLao ? 'ກຳລັງໂຫຼດ...' : 'กำลังโหลด...'}</option>
           </select>
         </div>
+        <div style="flex:1;min-width:80px;">
+          <label style="font-size:10px;font-weight:700;color:var(--slate-500);">Lead <span style="color:var(--slate-400);font-weight:500;">(${isLao ? 'ຕາມກฎ' : 'ตามกฎ'})</span></label>
+          <input id="roLeadOv" type="number" min="0" placeholder="${isLao ? 'ອັດຕະໂນມັດ' : 'อัตโนมัติ'}" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;box-sizing:border-box;">
+        </div>
+        <div style="flex:1;min-width:80px;">
+          <label style="font-size:10px;font-weight:700;color:var(--slate-500);">Cycle <span style="color:var(--slate-400);font-weight:500;">(${isLao ? 'ຕາມກฎ' : 'ตามกฎ'})</span></label>
+          <input id="roCycleOv" type="number" min="1" placeholder="${isLao ? 'ອັດຕະໂນມັດ' : 'อัตโนมัติ'}" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;box-sizing:border-box;">
+        </div>
       </div>
+      <div style="font-size:9.5px;color:var(--slate-400);margin-top:6px;">💡 ${isLao ? 'ເວັ້ນວ່າງ = ໃຊ້ Lead/Cycle ຕາມกฎ (ປະเภท/Supplier/ໃນ-ນອກ) · ໃສ່ຄ່າ = ໃຊ້ทับทຸກລາຍการ' : 'เว้นว่าง = ใช้ Lead/Cycle ตามกฎ (ประเภท/Supplier/ใน-นอก) · ใส่ค่า = ใช้ทับทุกรายการ'}</div>
       <div style="display:flex;gap:7px;margin-top:9px;align-items:center;">
         <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--slate-600);font-weight:600;"><input type="checkbox" id="roTopOnly" style="accent-color:var(--fs-blue);">TOP</label>
         <button onclick="roCalc()" id="roCalcBtn" style="flex:1;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;">🔄 ${isLao ? 'ຄຳນວນ' : 'คำนวณ'}</button>
@@ -7888,6 +7897,11 @@ async function roCalc() {
   try {
     const buyer = (document.getElementById('roBuyer') || {}).value || '';
     const topOnly = !!(document.getElementById('roTopOnly') || {}).checked;
+    // override Lead/Cycle (เว้นว่าง = ใช้กฎอัตโนมัติต่อ SKU)
+    const _lv = ((document.getElementById('roLeadOv') || {}).value || '').trim();
+    const _cv = ((document.getElementById('roCycleOv') || {}).value || '').trim();
+    const leadOv = _lv !== '' && !isNaN(parseInt(_lv, 10)) ? Math.max(0, parseInt(_lv, 10)) : null;
+    const cycleOv = _cv !== '' && !isNaN(parseInt(_cv, 10)) ? Math.max(1, parseInt(_cv, 10)) : null;
 
     setMsg(isLao ? '⏳ ໂຫຼດ Status ສິນຄ້າ...' : '⏳ โหลด Status สินค้า...');
     const statusRows = await fetchAllQuery(() => {
@@ -7930,7 +7944,10 @@ async function roCalc() {
       if (!p) return; // สาขานี้ไม่มีสินค้านี้ — ข้าม
       const mp = mpMap[c.barcode] || {};
       const cat = mp.category || '', grp = mp.product_group || '', supplier = mp.supplier || '';
-      const [lead, cycle, rule] = roLeadCycle(cat, supplier, c.inOut);
+      let [lead, cycle, rule] = roLeadCycle(cat, supplier, c.inOut);
+      // override โดยผู้ใช้ (ถ้ากรอก) — ทับทุกรายการ
+      if (leadOv != null) { lead = leadOv; rule = (isLao ? 'ກຳນົດເອງ' : 'กำหนดเอง'); }
+      if (cycleOv != null) { cycle = cycleOv; rule = (isLao ? 'ກຳນົດເອງ' : 'กำหนดเอง'); }
       const pos = Number(p.pos_qty) || 0;
       const minStock = c.daily * lead;
       const maxStock = minStock + c.daily * cycle;
@@ -8055,6 +8072,7 @@ function roRenderList() {
         <input type="checkbox" ${on ? 'checked' : ''} onclick="roToggle('${r.barcode}')" style="width:17px;height:17px;accent-color:var(--fs-blue);flex-shrink:0;cursor:pointer;">
         <div style="flex:1;min-width:0;">
           <div style="font-size:12.5px;font-weight:700;color:var(--slate-900);line-height:1.35;">${escapeHtml(r.name)}${r.top ? ' <span style="font-size:9px;color:#b45309;background:#fffbeb;border-radius:5px;padding:1px 5px;font-weight:800;">⭐ TOP</span>' : ''}${r.belowMin ? ' <span style="font-size:9px;color:#e11d48;background:#fff1f2;border-radius:5px;padding:1px 5px;font-weight:800;">🔴 ' + (isLao ? 'ຕ່ຳກວ່າ Min' : 'ต่ำกว่า Min') + '</span>' : ''}</div>
+          <div style="margin-top:3px;"><span style="display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;color:${st.ink};background:${st.bg};border-radius:20px;padding:2px 8px;"><span style="width:6px;height:6px;border-radius:50%;background:${st.color};"></span>${st.th}</span></div>
           <div style="font-size:9.5px;color:var(--slate-500);font-family:monospace;">${r.barcode}${r.buyer ? ' · 🛒 ' + escapeHtml(r.buyer) : ''}</div>
           ${r.grp ? `<div style="font-size:9px;color:var(--violet-600);">🏷️ ${escapeHtml(r.grp)}</div>` : ''}
           <div style="font-size:10px;color:var(--slate-600);margin-top:2px;">POS <b style="color:${st.ink}">${fmt.format(r.pos)}</b> · AVG ${fmt.format(Math.round(r.daily * 10) / 10)}/${isLao ? 'ມື້' : 'วัน'} · DOH <b style="color:${st.ink}">${dohTxt}</b> · Min <b>${fmt.format(r.minStock || 0)}</b> · Max <b>${fmt.format(r.maxStock || 0)}</b></div>
@@ -8100,6 +8118,7 @@ async function roExport() {
         'กลุ่มสินค้า': r.grp || '',
         'หน่วย': r.unit,
         'POS': r.pos,
+        'Status': psCalcStatus(r.pos, r.monthly).th,
         'AVG/วัน': Math.round(r.daily * 10) / 10,
         'DOH (วัน)': r.pos <= 0 ? 0 : Math.round(r.doh * 10) / 10,
         'ใน/นอก': r.inOut || '',
