@@ -2779,7 +2779,7 @@ async function loadUpdateReminder() {
   host.innerHTML = '<div class="banner amber" style="flex-direction:column;align-items:stretch;">'
     + '<div style="display:flex;gap:10px;align-items:center;">'
     + '<div class="banner-icon">🔔</div>'
-    + '<div class="banner-text"><h4>' + (isLao ? 'ເຕືອນ: อัปเดตข้อมูลประจำวัน' : 'เตือน: อัปเดตข้อมูลประจำวัน') + '</h4>'
+    + '<div class="banner-text"><h4>' + (isLao ? 'ເຕືອນ: ອັບເດດຂໍ້ມູນປະຈຳວັນ' : 'เตือน: อัปเดตข้อมูลประจำวัน') + '</h4>'
     + '<p>' + (isLao ? 'ມີ ' : 'มี ') + pending.length + (isLao ? ' ລາຍການທີ່ຍັງບໍ່ໄດ້ອັບເດດມື້ນີ້' : ' รายการที่ยังไม่อัปเดตวันนี้') + '</p></div></div>'
     + items + '</div>';
 }
@@ -3493,8 +3493,9 @@ async function copyFromSupermart() {
 function showZoneStep() {
   document.getElementById('step-login').classList.remove('active');
   document.getElementById('step-zone').classList.add('active');
-  document.getElementById('zoneStepGreeting').textContent = 
-    `ສະບາຍດີ ${escapeHtml(user.full_name)} (${user.role.toUpperCase()})`;
+  // textContent ไม่ parse HTML — ห้าม escapeHtml ซ้ำ (ชื่อที่มี ' จะโชว์เป็น &#39;)
+  document.getElementById('zoneStepGreeting').textContent =
+    `ສະບາຍດີ ${user.full_name} (${user.role.toUpperCase()})`;
   
   const isLao = lang === 'lo';
   const isAdmin = ['admin', 'scc', 'bcs'].includes(user.role);
@@ -3539,8 +3540,8 @@ function showZoneStep() {
               📞 ${isLao ? 'ກະລຸນາແຈ້ງ Admin' : 'กรุณาแจ้ง Admin'}
             </div>
             <div>
-              ${isLao 
-                ? 'Admin ຕ້ອງຕັ້ງຄ່າໂຊນ ແລະ ຕຳແໜ່ງຂອງສາຂາ ${branchName} ກ່ອນ' 
+              ${isLao
+                ? `Admin ຕ້ອງຕັ້ງຄ່າໂຊນ ແລະ ຕຳແໜ່ງຂອງສາຂາ ${branchName} ກ່ອນ`
                 : `Admin ต้องตั้งค่าโซนและตำแหน่งของสาขา ${branchName} ก่อน`}
             </div>
             <div style="margin-top:7px;padding-top:7px;border-top:1px dashed var(--slate-200);font-size:10px;color:var(--slate-500);">
@@ -3681,7 +3682,7 @@ function onLocInput(value) {
     if (code.length >= 4 && errEl) {
       errEl.className = 'loc-not-found';
       errEl.style.display = 'block';
-      errEl.innerHTML = `⚠️ ${T('loc_not_found')}: <strong>${code}</strong>`;
+      errEl.innerHTML = `⚠️ ${T('loc_not_found')}: <strong>${escapeHtml(code)}</strong>`;
     } else if (errEl) {
       errEl.style.display = 'none';
     }
@@ -4155,11 +4156,16 @@ async function selectQuickZone(zoneId) {
   zone = z;
   loc = null;
   
-  // Update localStorage
-  localStorage.setItem('fs_zone_loc', JSON.stringify({
-    zone: zone.id,
-    location: null
-  }));
+  // Update localStorage — ต้องเขียนคีย์ 'fs_context' (คีย์จริงที่ showZoneStep อ่าน)
+  // และล้าง location เดิม ไม่งั้น showZoneStep จะ restore ตำแหน่งของโซนเก่ากลับมา
+  try {
+    const ctx = JSON.parse(localStorage.getItem('fs_context') || '{}');
+    ctx.zone = zone.id;
+    ctx.location = null;
+    localStorage.setItem('fs_context', JSON.stringify(ctx));
+  } catch (e) {
+    localStorage.setItem('fs_context', JSON.stringify({ zone: zone.id, location: null }));
+  }
   
   closeModal();
   
@@ -5483,7 +5489,7 @@ async function submitPurchaseRequest(barcode) {
     }
     
     // Focus back to barcode input for next scan
-    const inp = document.getElementById('gapBarcode');
+    const inp = document.getElementById('gapBarcodeInput');
     if (inp) { inp.value = ''; inp.focus(); }
   } catch (e) {
     console.error('[FS] submitPurchaseRequest error:', e);
@@ -6390,7 +6396,7 @@ function renderPurchaseUploadPage() {
   return `
     <div style="padding:14px 13px 90px;max-width:640px;margin:0 auto;">
       <h2 style="font-size:17px;margin:0 0 5px;">🧾 ${isLao ? 'ຂໍ້ມູນການຊື້ສິນຄ້າ' : 'ข้อมูลการซื้อสินค้า'}</h2>
-      <p style="font-size:11px;color:var(--slate-500);margin:0 0 14px;">${isLao ? 'ອັບໂຫຼດໄຟລ໌ Buy (ปี 2019-2026)' : 'อัปโหลดไฟล์ Buy (ปี 2019-2026)'}</p>
+      <p style="font-size:11px;color:var(--slate-500);margin:0 0 14px;">${isLao ? 'ອັບໂຫຼດໄຟລ໌ Buy (ປີ 2019-2026)' : 'อัปโหลดไฟล์ Buy (ปี 2019-2026)'}</p>
       <div id="phCount" style="font-size:12px;color:var(--slate-600);margin-bottom:12px;"></div>
       <label style="display:block;background:var(--fs-blue);color:white;border-radius:12px;padding:16px;text-align:center;font-weight:800;cursor:pointer;font-size:14px;">
         📁 ${isLao ? 'ເລືອກໄຟລ໌ Buy (.xlsx)' : 'เลือกไฟล์ Buy (.xlsx)'}
@@ -6398,7 +6404,7 @@ function renderPurchaseUploadPage() {
       </label>
       <div id="phResult" style="margin-top:14px;"></div>
       <div style="margin-top:18px;font-size:11px;color:var(--slate-500);line-height:1.7;">
-        💡 ${isLao ? 'ປີ 2019-2025: อัปโหลดครั้งเดียว · ปี 2026: อัปโหลดซ้ำได้ (กันซ้ำด้วย Buy ID)' : 'ปี 2019-2025: อัปโหลดครั้งเดียว · ปี 2026: อัปโหลดซ้ำได้ (กันซ้ำด้วย Buy ID)'}
+        💡 ${isLao ? 'ປີ 2019-2025: ອັບໂຫຼດຄັ້ງດຽວ · ປີ 2026: ອັບໂຫຼດຊ້ຳໄດ້ (ກັນຊ້ຳດ້ວຍ Buy ID)' : 'ปี 2019-2025: อัปโหลดครั้งเดียว · ปี 2026: อัปโหลดซ้ำได้ (กันซ้ำด้วย Buy ID)'}
       </div>
     </div>`;
 }
@@ -6616,7 +6622,7 @@ function renderProductStatusPage() {
   return `
     <div style="padding:14px 13px 90px;max-width:620px;margin:0 auto;">
       <h2 style="font-size:18px;font-weight:800;margin:0 0 3px;">📊 ${isLao ? 'Status ສິນຄ້າ' : 'Status สินค้า'}</h2>
-      <p style="font-size:12px;color:var(--slate-500);margin:0 0 15px;">${isLao ? 'ອັບໂຫຼດໄຟລ໌ Form_Status_Product เพื่อใช้ดู AVG Sale / Status ตอนเช็คสต๊อก' : 'อัปโหลดไฟล์ Form_Status_Product เพื่อใช้ดู AVG Sale / Status ตอนเช็คสต๊อก'}</p>
+      <p style="font-size:12px;color:var(--slate-500);margin:0 0 15px;">${isLao ? 'ອັບໂຫຼດໄຟລ໌ Form_Status_Product ເພື່ອໃຊ້ເບິ່ງ AVG Sale / Status ຕອນກວດສະຕ໋ອກ' : 'อัปโหลดไฟล์ Form_Status_Product เพื่อใช้ดู AVG Sale / Status ตอนเช็คสต๊อก'}</p>
 
       <div id="psCount" style="margin-bottom:13px;"></div>
 
@@ -9442,7 +9448,7 @@ function scOpenIssueModal() {
         <textarea id="scIssueNote" rows="3" placeholder="${isLao ? 'ລາຍລະອຽດເພີ່ມເຕີມ...' : 'รายละเอียดเพิ่มเติม...'}" style="width:100%;padding:10px;border:1.5px solid var(--slate-200);border-radius:9px;font-size:12px;font-family:inherit;resize:vertical;"></textarea>
       </div>
       <div style="margin-top:11px;">
-        <div style="font-size:11px;font-weight:700;color:var(--slate-700);margin-bottom:6px;">📷 ${isLao ? 'ຮູບປະກອບ (ไม่บังคับ · สูงสุด 3)' : 'รูปประกอบ (ไม่บังคับ · สูงสุด 3)'}:</div>
+        <div style="font-size:11px;font-weight:700;color:var(--slate-700);margin-bottom:6px;">📷 ${isLao ? 'ຮູບປະກອບ (ບໍ່ບັງຄັບ · ສູງສຸດ 3)' : 'รูปประกอบ (ไม่บังคับ · สูงสุด 3)'}:</div>
         <input type="file" id="scIssuePhotoInput" accept="image/*" capture="environment" multiple style="display:none;" onchange="scIssueOnPhoto(event)">
         <button type="button" onclick="document.getElementById('scIssuePhotoInput').click()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:11px;font-size:12px;font-weight:700;color:var(--slate-600);cursor:pointer;">📷 ${isLao ? 'ຖ່າຍຮູບ / ເລືອກຮູບ' : 'ถ่ายรูป / เลือกรูป'}</button>
         <div id="scIssuePhotoPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;"></div>
@@ -9473,7 +9479,7 @@ function scIssueOnPhoto(e) {
   const files = Array.from(e.target.files || []);
   e.target.value = '';
   files.forEach(f => {
-    if (_scIssuePhotos.length >= 3) { showToast(lang === 'lo' ? 'ສູງສຸດ 3 รูป' : 'สูงสุด 3 รูป', 'warning'); return; }
+    if (_scIssuePhotos.length >= 3) { showToast(lang === 'lo' ? 'ສູງສຸດ 3 ຮູບ' : 'สูงสุด 3 รูป', 'warning'); return; }
     wrCompressImage(f, (blob, dataUrl) => {
       _scIssuePhotos.push({ blob, dataUrl });
       scIssueRenderPhotos();
@@ -9964,7 +9970,7 @@ async function irShowTimeline(issueId) {
     const body = document.getElementById('irTlBody');
     if (!body) return;
     if (!logs.length) {
-      body.innerHTML = '<div style="color:var(--slate-400);padding:18px;font-size:12px;">' + (isLao ? 'ຍັງບໍ່ມີປະຫວັດ (รายการเก่าก่อนเปิดฟีเจอร์นี้)' : 'ยังไม่มีประวัติ (รายการเก่าก่อนเปิดฟีเจอร์นี้)') + '</div>';
+      body.innerHTML = '<div style="color:var(--slate-400);padding:18px;font-size:12px;">' + (isLao ? 'ຍັງບໍ່ມີປະຫວັດ (ລາຍການເກົ່າກ່ອນເປີດຟີເຈີນີ້)' : 'ยังไม่มีประวัติ (รายการเก่าก่อนเปิดฟีเจอร์นี้)') + '</div>';
       return;
     }
     const stCfg = {
@@ -9985,8 +9991,8 @@ async function irShowTimeline(issueId) {
         + '</div>'
         + '<div style="flex:1;padding-bottom:' + (isLast ? '0' : '14px') + ';">'
         + '<div style="font-size:13px;font-weight:800;color:' + c.color + ';">' + c.label + '</div>'
-        + '<div style="font-size:10px;color:var(--slate-500);margin-top:1px;">🕐 ' + fmtDT(lg.changed_at) + (lg.changed_by_name ? ' · 👤 ' + lg.changed_by_name : '') + '</div>'
-        + (lg.note ? '<div style="font-size:11px;color:var(--slate-600);margin-top:3px;font-style:italic;background:var(--slate-50);padding:5px 8px;border-radius:6px;">"' + lg.note + '"</div>' : '')
+        + '<div style="font-size:10px;color:var(--slate-500);margin-top:1px;">🕐 ' + fmtDT(lg.changed_at) + (lg.changed_by_name ? ' · 👤 ' + escapeHtml(lg.changed_by_name) : '') + '</div>'
+        + (lg.note ? '<div style="font-size:11px;color:var(--slate-600);margin-top:3px;font-style:italic;background:var(--slate-50);padding:5px 8px;border-radius:6px;">"' + escapeHtml(lg.note) + '"</div>' : '')
         + '</div></div>';
     });
     html += '</div>';
@@ -10674,7 +10680,7 @@ async function decodeBarcodePhoto(file, mode) {
     feedResult(code);
   } catch (err) {
     console.warn('[FS] photo decode:', err);
-    showToast(isLao ? '❌ อ่านบาร์โค้ดจากรูปไม่ได้ · ถ่ายให้บาร์โค้ดใหญ่ เต็ม ชัด ตรง' : '❌ อ่านบาร์โค้ดจากรูปไม่ได้ · ถ่ายให้บาร์โค้ดใหญ่ เต็มเฟรม ชัด ตรง', 'error');
+    showToast(isLao ? '❌ ອ່ານບາໂຄດຈາກຮູບບໍ່ໄດ້ · ຖ່າຍໃຫ້ບາໂຄດໃຫຍ່ ເຕັມເຟຣມ ຊັດເຈນ' : '❌ อ่านบาร์โค้ดจากรูปไม่ได้ · ถ่ายให้บาร์โค้ดใหญ่ เต็มเฟรม ชัด ตรง', 'error');
   }
 }
 
@@ -10683,11 +10689,14 @@ async function decodeBarcodePhoto(file, mode) {
 // iPhone ไม่มี → ใช้ตัวอ่าน EAN-13 ของเราเอง (ทนเบลอ/แสงสะท้อนกว่า ZXing — ตัวเดียวกับโหมดถ่ายรูป)
 // วงนี้รันคู่กับ html5-qrcode: ใครอ่านได้ก่อนชนะ
 let _nativeLoopTimer = null;
+let _nativeLoopGen = 0; // ⭐ กัน tick ที่ค้างอยู่กลาง await ยิง onCode ซ้ำหลังสั่งหยุดแล้ว
 function stopNativeDetectorLoop() {
+  _nativeLoopGen++;
   if (_nativeLoopTimer) { clearTimeout(_nativeLoopTimer); _nativeLoopTimer = null; }
 }
 function startNativeDetectorLoop(containerId, onCode) {
   stopNativeDetectorLoop();
+  const myGen = _nativeLoopGen;
   let det = null;
   if ('BarcodeDetector' in window) {
     try {
@@ -10716,7 +10725,7 @@ function startNativeDetectorLoop(containerId, onCode) {
     return c;
   };
   const tick = async () => {
-    if (fired) return;
+    if (fired || myGen !== _nativeLoopGen) return;
     try {
       const container = document.getElementById(containerId);
       const video = container && container.querySelector('video');
@@ -10748,7 +10757,7 @@ function startNativeDetectorLoop(containerId, onCode) {
             showToast(lang === 'lo' ? '📏 ລອງຖືຫ່າງ ~1 ຄືບ ໃຫ້ພາບຊັດ' : '📏 ลองถือห่าง ~1 คืบ ให้ภาพชัดก่อน', 'info');
           }
         }
-        if (code && !fired) {
+        if (code && !fired && myGen === _nativeLoopGen) {
           fired = true;
           stopNativeDetectorLoop();
           onCode(code);
@@ -10756,7 +10765,7 @@ function startNativeDetectorLoop(containerId, onCode) {
         }
       }
     } catch (e) { /* เฟรมยังไม่พร้อม — ลองรอบหน้า */ }
-    if (!fired) _nativeLoopTimer = setTimeout(tick, det ? 150 : 110); // ⭐ เร่งรอบอ่าน iPhone
+    if (!fired && myGen === _nativeLoopGen) _nativeLoopTimer = setTimeout(tick, det ? 150 : 110); // ⭐ เร่งรอบอ่าน iPhone
   };
   _nativeLoopTimer = setTimeout(tick, 350); // รอกล้องวอร์มก่อนรอบแรก
 }
@@ -11474,7 +11483,7 @@ async function lookupProduct(barcode) {
             🔍 ${isLao ? 'ພົບໃນສາຂາອື່ນ' : 'พบในสาขาอื่น'}: <strong style="color:var(--violet-600);">${sourceName}</strong>
           </div>
           <div style="font-size:13px;font-weight:700;color:var(--slate-900);">${prodName}</div>
-          <div style="font-size:10px;color:var(--slate-500);font-family:monospace;">${barcode} • ${unit}</div>
+          <div style="font-size:10px;color:var(--slate-500);font-family:monospace;">${escapeHtml(barcode)} • ${unit}</div>
           ${otherData.sell_price ? `<div style="font-size:10px;color:var(--slate-500);">${isLao ? 'ລາຄາ' : 'ราคา'}: ₭${Number(otherData.sell_price).toLocaleString()}</div>` : ''}
         </div>
         
@@ -11515,11 +11524,11 @@ async function lookupProduct(barcode) {
   document.getElementById('productCard').innerHTML = `
     <div class="product-card" style="border-left-color: var(--rose-500);">
       <div class="product-name" style="color: var(--rose-500);">⚠️ ${T('product_not_found')}</div>
-      <div class="product-barcode">${barcode}</div>
+      <div class="product-barcode">${escapeHtml(barcode)}</div>
       <div style="font-size:10px;color:var(--slate-500);margin-top:6px;">
         ${isLao ? `ບໍ່ພົບໃນ ${branch.code} ແລະບໍ່ມີໃນສາຂາອື່ນ` : `ไม่พบใน ${branch.code} และไม่มีในสาขาอื่น`}
       </div>
-      <button class="btn btn-amber" onclick="openNewSKUModal('${barcode}')" style="margin-top:8px;">
+      <button class="btn btn-amber" onclick="openNewSKUModal('${escapeHtml(String(barcode)).replace(/'/g, '')}')" style="margin-top:8px;">
         ${T('add_new_sku')}
       </button>
     </div>
@@ -13502,7 +13511,7 @@ async function loadBackupManager() {
   
   // Last backup info
   const lastBackup = localStorage.getItem(`fs_last_backup_${branch.id}`);
-  const lastBackupDate = lastBackup ? new Date(lastBackup).toLocaleString(isLao ? 'lo-LA' : 'th-TH') : null;
+  const lastBackupDate = lastBackup ? new Date(parseInt(lastBackup, 10)).toLocaleString(isLao ? 'lo-LA' : 'th-TH') : null; // เก็บเป็น String(Date.now()) — ต้อง parseInt ก่อน ไม่งั้น Invalid Date
   
   const content = document.getElementById('backupContent');
   
@@ -14188,22 +14197,25 @@ async function executeRestore() {
           .map(r => ({ ...r, [tableMeta.branchField]: branch.id }));
       }
       
-      // Strip id เพื่อ upsert ใหม่ (ป้องกัน conflict)
-      // ✅ ใช้ upsert ตาม unique constraint
-      // เป็น batch ของ 100 records ต่อครั้ง
+      // ⚠️ INSERT อย่างเดียว (ไม่ทับของเดิม) — เหมาะกับกู้คืนลงตารางที่ "ล้างแล้ว/ว่าง"
+      //    ถ้ามีข้อมูลเดิมชน unique key จะหยุดพร้อมข้อความแนะนำให้ล้างก่อน (กันข้อมูลซ้ำ/ครึ่งๆ กลางๆ)
       const BATCH_SIZE = 100;
       for (let i = 0; i < recordsToRestore.length; i += BATCH_SIZE) {
         const batch = recordsToRestore.slice(i, i + BATCH_SIZE);
-        // Strip id field ก่อน upsert (ให้ DB generate ใหม่ หรือ upsert ตาม unique key)
+        // Strip id field ก่อน insert (ให้ DB generate ใหม่)
         const cleaned = batch.map(r => {
           const { id, ...rest } = r;
           return rest;
         });
-        
+
         const { error } = await sb.from(tableKey).insert(cleaned);
         if (error) {
           log('Restore error for', tableKey, error.message);
-          // ลองใหม่แบบ upsert ถ้า insert fail
+          if (error.code === '23505' || /duplicate key/i.test(error.message || '')) {
+            throw new Error(isLao
+              ? 'ມີຂໍ້ມູນເດີມຊ້ຳ — ລ້າງຕາຕະລາງນີ້ກ່ອນ (Test Cleanup) ແລ້ວກູ້ຄືນໃໝ່'
+              : 'มีข้อมูลเดิมซ้ำ — ล้างตารางนี้ก่อน (Test Cleanup) แล้วกู้คืนใหม่');
+          }
           throw error;
         }
         inserted += batch.length;
@@ -15704,8 +15716,11 @@ async function loadHistory() {
   
   const items = data || [];
   log('History loaded:', items.length, 'items');
-  
+
   if (countEl) countEl.textContent = items.length;
+  // ⭐ badge บนแท็บหัวข้อ (เดิมค้าง 0 ตลอด — ไม่มีใครอัปเดต)
+  const tabBadge = document.getElementById('histSubBadgeCounts');
+  if (tabBadge) tabBadge.textContent = items.length;
   
   if (!items.length) {
     list.innerHTML = `<div class="empty-state"><p>${T('no_history')}</p></div>`;
@@ -17455,7 +17470,7 @@ function renderAdvancedKPI() {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
         <!-- KPI 1: Health Score (BIG) -->
         <div style="grid-column:span 2;background:linear-gradient(135deg,${healthScore >= 80 ? 'var(--emerald-100),var(--teal-100)' : healthScore >= 60 ? 'var(--amber-100),var(--amber-50)' : 'var(--rose-100),var(--amber-100)'});padding:11px;border-radius:9px;display:flex;align-items:center;gap:11px;">
-          <div style="background:${healthColor};color:white;width:64px;height:64px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px ${healthColor.replace(')', ',0.3)')};">
+          <div style="background:${healthColor};color:white;width:64px;height:64px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,0.18);">
             <div style="font-size:22px;font-weight:900;line-height:1;font-family:'Space Grotesk',monospace;">${healthGrade}</div>
             <div style="font-size:10px;opacity:0.95;font-weight:700;">${healthScore}%</div>
           </div>
@@ -18415,7 +18430,7 @@ function renderLeaderboard(scored) {
         <div style="width:28px;text-align:center;font-size:16px;flex-shrink:0;">${rankBadge}</div>
         <div style="flex:1;min-width:0;">
           <div style="font-size:12px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-            ${u.userName}${youLabel}
+            ${escapeHtml(u.userName)}${youLabel}
           </div>
           <div style="font-size:9px;color:var(--slate-500);font-family:'Space Grotesk',monospace;">
             ${u.volume} ${isLao ? 'ນັບ' : 'นับ'} · ${u.avgPerDay.toFixed(1)}/${isLao ? 'ວັນ' : 'วัน'} · ${u.accuracyPct.toFixed(1)}%
@@ -19034,7 +19049,7 @@ function renderUserCard(u) {
       <div class="user-avatar r-${u.role}">${initial}</div>
       <div class="user-info">
         <div class="user-name">${escapeHtml(u.full_name)} ${isMe ? '<span style="color:var(--indigo-500);font-size:9px;">(YOU)</span>' : ''}</div>
-        <div class="user-username">@${u.username}</div>
+        <div class="user-username">@${escapeHtml(u.username)}</div>
       </div>
       <div class="user-badge-r ${u.role}">${u.role}</div>
     </div>
@@ -19447,9 +19462,11 @@ async function saveNewSKU() {
   const name = document.getElementById('nName').value.trim();
   const qty = parseInt(document.getElementById('nQty').value) || 0;
   const price = parseFloat(document.getElementById('nPrice').value) || 0;
-  
+
   if (!name) { showToast(T('fill_required'), 'warning'); return; }
-  
+  // ⭐ กัน TypeError ตอนไม่มีรอบนับ (หน้าสแกนเปิดได้โดยไม่มี session)
+  if (!session || !session.id) { showToast(T('no_session') || (lang === 'lo' ? 'ບໍ່ມີຮອບນັບທີ່ເປີດຢູ່' : 'ไม่มีรอบนับที่เปิดอยู่'), 'error'); return; }
+
   const { error } = await sb.from('new_sku_log').insert({
     session_id: session.id,
     branch_id: branch?.id,
@@ -20290,7 +20307,10 @@ async function executeMultiBranchImport() {
     
     <button class="btn btn-primary" onclick="closeModal()" style="width:100%;">${isLao ? 'ປິດ' : 'ปิด'}</button>
   `);
-  
+
+  // ⭐ บันทึกวันอัปเดต POS (เดิมมีเฉพาะ import สาขาเดียว — multi-branch ไม่บันทึก ทำให้ UpdateHub ค้าง)
+  if (typeof markDataUpdated === 'function' && (aggStats.new + aggStats.updated) > 0) markDataUpdated('last_update_pos');
+
   _pendingImport = null;
 }
 
@@ -20525,7 +20545,7 @@ async function showSnapshotHistory() {
       + '<div class="empty-state" style="padding:24px 12px;text-align:center;">'
       + '<div style="font-size:30px;margin-bottom:8px;">📭</div>'
       + '<p style="font-size:13px;color:var(--slate-500);">' + (isLao ? 'ຍັງບໍ່ມີປະຫວັດ Snapshot' : 'ยังไม่มีประวัติ Snapshot') + '</p>'
-      + '<p style="font-size:11px;color:var(--slate-400);margin-top:5px;">' + (isLao ? 'ການນຳເຂົ້າ POS ล่าสุดยังบันทึกข้อมูล products ปกติ' : 'การนำเข้า POS ยังอัปเดตข้อมูล products ตามปกติ') + '</p>'
+      + '<p style="font-size:11px;color:var(--slate-400);margin-top:5px;">' + (isLao ? 'ການນຳເຂົ້າ POS ຍັງອັບເດດຂໍ້ມູນ products ຕາມປົກກະຕິ' : 'การนำเข้า POS ยังอัปเดตข้อมูล products ตามปกติ') + '</p>'
       + '</div>'
       + '<button class="btn btn-secondary" onclick="closeModal()" style="margin-top:10px;width:100%;">' + (isLao ? 'ປິດ' : 'ปิด') + '</button>');
     return;
@@ -20545,7 +20565,7 @@ async function showSnapshotHistory() {
           <div style="background:var(--slate-50);border-radius:9px;padding:10px;margin-bottom:7px;border-left:3px solid var(--sky-500);">
             <div style="display:flex;justify-content:space-between;align-items:start;">
               <div style="flex:1;min-width:0;">
-                <div style="font-size:12px;font-weight:700;color:var(--slate-900);">${s.snapshot_name || ''}</div>
+                <div style="font-size:12px;font-weight:700;color:var(--slate-900);">${escapeHtml(s.snapshot_name || '')}</div>
                 <div style="font-size:10px;color:var(--slate-500);margin-top:1px;">
                   ${new Date(s.snapshot_date).toLocaleString(lang === 'lo' ? 'lo-LA' : 'th-TH')}
                 </div>
@@ -21804,7 +21824,7 @@ function renderFloorMapContent(data) {
     return `
       <div class="fm-cell s-${status} ${hasIssues} ${pogCount > 0 ? 'has-pog' : ''} ${hasGap ? 'has-gap' : ''}" 
            onclick="onFloorMapCellClick('${item.location_code}', '${status}')"
-           title="${item.location_code} - ${T('status_'+status)}${item.counter_name ? ' • Counter: '+item.counter_name : ''}${item.verifier_name ? ' • Verifier: '+item.verifier_name : ''}${issues>0 ? ' • Issues: '+issues : ''}${pogCount>0 ? ' • 📐 Pan-O-Gram: '+pogCount : ''}${hasGap ? ' • 🛒 Gap: '+gapInfo.total : ''}">
+           title="${item.location_code} - ${T('status_'+status)}${item.counter_name ? ' • Counter: '+escapeHtml(item.counter_name) : ''}${item.verifier_name ? ' • Verifier: '+escapeHtml(item.verifier_name) : ''}${issues>0 ? ' • Issues: '+issues : ''}${pogCount>0 ? ' • 📐 Pan-O-Gram: '+pogCount : ''}${hasGap ? ' • 🛒 Gap: '+gapInfo.total : ''}">
         ${pogBadge}
         ${gapBadge}
         <div class="fm-code">${item.location_code}</div>
@@ -22521,12 +22541,19 @@ async function onFloorMapCellClick(locationCode, status) {
 
 async function showGondolaActions(locationCode, status) {
   // Load detail ของ location
-  const { data: gs } = await sb.from('v_gondola_progress')
-    .select('*')
-    .eq('session_id', session?.id || 0)
-    .eq('location_code', locationCode)
-    .maybeSingle();
-  
+  // ⭐ view นี้มีได้หลายแถวต่อ location (เปิดซ้ำ/ยกเลิกแล้วเปิดใหม่) — maybeSingle จะ error PGRST116
+  //    ใช้ order+limit(1) เอาแถวล่าสุดแทน (แบบเดียวกับ loadWorkflowList)
+  let gs = null;
+  if (session && session.id) {
+    const { data: gsRows } = await sb.from('v_gondola_progress')
+      .select('*')
+      .eq('session_id', session.id)
+      .eq('location_code', locationCode)
+      .order('opened_at', { ascending: false })
+      .limit(1);
+    gs = (gsRows && gsRows[0]) || null;
+  }
+
   const info = gs || { status: status, location_code: locationCode };
   const curStatus = info.status || 'closed';
   
@@ -22641,7 +22668,7 @@ async function showGondolaActions(locationCode, status) {
     
     ${(info.counter_name || info.verifier_name || (info.counter_count > 0) || (info.verifier_count > 0)) ? `
     <div style="background:var(--slate-50);border-radius:10px;padding:9px;margin-bottom:11px;font-size:11px;">
-      ${info.counter_name ? `<div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:var(--slate-500);">👤 Counter:</span><strong>${info.counter_name} (${info.counter_count || 0})</strong></div>` : ''}
+      ${info.counter_name ? `<div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:var(--slate-500);">👤 Counter:</span><strong>${escapeHtml(info.counter_name)} (${info.counter_count || 0})</strong></div>` : ''}
       ${info.verifier_name ? `<div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:var(--slate-500);">🔍 Verifier:</span><strong>${info.verifier_name} (${info.verifier_count || 0})</strong></div>` : ''}
       ${info.tb_count > 0 ? `<div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:var(--slate-500);">⚖️ Tiebreaker:</span><strong>${info.tb_count}</strong></div>` : ''}
     </div>` : ''}
@@ -23025,8 +23052,9 @@ async function executeDeleteGondola(locationCode) {
 
 // Reset gondola to any status (สำหรับ CTL แก้ไข)
 async function wfResetTo(locCode, targetStatus) {
+  if (!wfNeedSession()) return;
   log('CTL reset gondola:', locCode, '→', targetStatus);
-  
+
   const { error } = await sb.rpc('reopen_gondola', {
     p_session_id: session.id,
     p_location_code: locCode,
@@ -24125,7 +24153,7 @@ function renderWorkflowList(items) {
     return `
       <div class="fm-cell s-${status}"
            onclick="showGondolaActions('${item.location_code}', '${status}')"
-           title="${item.location_code} - ${T('status_' + status)}${item.counter_name ? ' • Counter: ' + item.counter_name : ''}${item.verifier_name ? ' • Verifier: ' + item.verifier_name : ''}">
+           title="${item.location_code} - ${T('status_' + status)}${item.counter_name ? ' • Counter: ' + escapeHtml(item.counter_name) : ''}${item.verifier_name ? ' • Verifier: ' + escapeHtml(item.verifier_name) : ''}">
         ${mark}
         <div class="fm-code">${item.location_code}</div>
       </div>`;
@@ -24182,9 +24210,17 @@ async function confirmOpenNewGondola() {
   closeModal();
 }
 
+// ⭐ กัน TypeError: หน้าแผนผังเปิดได้โดยไม่มีรอบนับ → session เป็น null
+function wfNeedSession() {
+  if (session && session.id) return true;
+  showToast(lang === 'lo' ? 'ບໍ່ມີຮອບນັບທີ່ເປີດຢູ່' : 'ไม่มีรอบนับที่เปิดอยู่', 'error');
+  return false;
+}
+
 async function wfOpenForCounter(locCode) {
+  if (!wfNeedSession()) return;
   log('CTL opening for counter:', locCode);
-  
+
   const { data, error } = await sb.rpc('open_gondola_for_counter', {
     p_session_id: session.id,
     p_branch_id: branch.id,
@@ -24203,8 +24239,9 @@ async function wfOpenForCounter(locCode) {
 }
 
 async function wfCloseCounter(locCode) {
+  if (!wfNeedSession()) return;
   if (!confirm(`${T('close_counter')} ${locCode}?`)) return;
-  
+
   log('CTL closing counter for:', locCode);
   
   const { error } = await sb.rpc('close_gondola_counter', {
@@ -24223,6 +24260,7 @@ async function wfCloseCounter(locCode) {
 }
 
 async function wfOpenForVerifier(locCode) {
+  if (!wfNeedSession()) return;
   log('CTL opening for verifier:', locCode);
   
   const { error } = await sb.rpc('open_gondola_for_verifier', {
@@ -24242,6 +24280,7 @@ async function wfOpenForVerifier(locCode) {
 }
 
 async function wfCloseVerifier(locCode) {
+  if (!wfNeedSession()) return;
   if (!confirm(`${T('close_verifier')} ${locCode}?`)) return;
   
   log('CTL closing verifier for:', locCode);
@@ -24267,6 +24306,7 @@ async function wfCloseVerifier(locCode) {
 }
 
 async function wfMarkCompleted(locCode) {
+  if (!wfNeedSession()) return;
   if (!confirm(`${T('mark_completed')} ${locCode}?`)) return;
   
   const { error } = await sb.rpc('complete_tiebreaker', {
@@ -24713,7 +24753,7 @@ async function loadSettingsStats() {
   if (bb) {
     const lastBackup = localStorage.getItem(`fs_last_backup_${branch.id}`);
     if (lastBackup) {
-      const t = new Date(lastBackup);
+      const t = new Date(parseInt(lastBackup, 10)); // เก็บเป็น String(Date.now())
       const now = new Date();
       const diffMs = now - t;
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -25498,14 +25538,15 @@ function dbRemovePraise(i) { _dbPraises.splice(i, 1); dbRenderPraises(); }
 function dbRenderPraises() {
   const isLao = lang === 'lo';
   const el = document.getElementById('dbPraiseList'); if (!el) return;
-  const depts = WT_DEPTS.map(d => '<option value="' + d + '">' + d + '</option>').join('');
-  el.innerHTML = _dbPraises.map((p, i) =>
-    '<div style="display:flex;gap:5px;margin-bottom:6px;align-items:center;">'
+  el.innerHTML = _dbPraises.map((p, i) => {
+    // ⭐ ใส่ selected ตามค่าที่เลือกไว้ — ไม่งั้น re-render (กดเพิ่มพนักงาน) แล้วแผนกเด้งกลับ placeholder
+    const depts = WT_DEPTS.map(d => '<option value="' + d + '"' + (p.dept === d ? ' selected' : '') + '>' + d + '</option>').join('');
+    return '<div style="display:flex;gap:5px;margin-bottom:6px;align-items:center;">'
     + '<input class="form-input" style="flex:2;margin:0;" placeholder="' + (isLao ? 'ຊື່ພະນັກງານ' : 'ชื่อพนักงาน') + '" value="' + (p.name || '').replace(/"/g, '&quot;') + '" oninput="_dbPraises[' + i + '].name=this.value">'
     + '<select class="form-input" style="flex:1;margin:0;" onchange="_dbPraises[' + i + '].dept=this.value"><option value="">' + (isLao ? 'ແຜນກ' : 'แผนก') + '</option>' + depts + '</select>'
     + '<button type="button" onclick="dbRemovePraise(' + i + ')" style="background:var(--rose-50);color:var(--rose-600);border:none;width:30px;height:30px;border-radius:7px;cursor:pointer;flex-shrink:0;">✕</button>'
-    + '</div>'
-  ).join('');
+    + '</div>';
+  }).join('');
 }
 
 function dbReset() {
@@ -25707,7 +25748,7 @@ function renderDbList() {
   let _rows = _dbData;
   if (_dbFilterMonth && _dbFilterMonth !== 'all') _rows = _rows.filter(b => (b.brief_date || '').slice(0, 7) === _dbFilterMonth);
   if (_dbFilterReporter && _dbFilterReporter !== 'all') _rows = _rows.filter(b => String(b.reporter_id) === String(_dbFilterReporter));
-  if (!_dbData.length) {
+  if (!_rows.length) {
     el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--slate-400);"><div style="font-size:34px;">📭</div>' + (isLao ? 'ຍັງບໍ່ມີ Brief' : 'ยังไม่มีบันทึก Brief') + '</div>';
     return;
   }
@@ -26205,9 +26246,9 @@ function renderWorkReportPage() {
           </select>
         </div>
         <div class="form-group"><label class="form-label">${isLao ? 'ຫົວຂໍ້' : 'หัวข้อ'} *</label>
-          <input class="form-input" id="wrTitle" type="text" placeholder="${isLao ? 'ສະຫຼຸບສັ້ນໆ ว่าต้องการอะไร' : 'สรุปสั้นๆ ว่าต้องการอะไร'}"></div>
+          <input class="form-input" id="wrTitle" type="text" placeholder="${isLao ? 'ສະຫຼຸບສັ້ນໆ ວ່າຕ້ອງການຫຍັງ' : 'สรุปสั้นๆ ว่าต้องการอะไร'}"></div>
         <div class="form-group"><label class="form-label">${isLao ? 'ລາຍລະອຽດ' : 'รายละเอียด'}</label>
-          <textarea class="form-input" id="wrDesc" rows="3" placeholder="${isLao ? 'ອະທິບາຍເພີ່ມ เช่น จำนวน งบประมาณ กำหนด' : 'อธิบายเพิ่ม เช่น จำนวน งบประมาณ กำหนด'}"></textarea></div>
+          <textarea class="form-input" id="wrDesc" rows="3" placeholder="${isLao ? 'ອະທິບາຍເພີ່ມ ເຊັ່ນ ຈຳນວນ ງົບປະມານ ກຳນົດ' : 'อธิบายเพิ่ม เช่น จำนวน งบประมาณ กำหนด'}"></textarea></div>
         <div class="form-group"><label class="form-label">${isLao ? 'ຄວາມເຮ່ງດ່ວນ' : 'ความเร่งด่วน'} *</label>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;" id="wrPriRow">
             <button type="button" class="wr-pri" data-pri="low" onclick="wrSetPri('low')" style="border:2px solid var(--teal-500);background:var(--teal-50);border-radius:10px;padding:9px 4px;font-size:12px;font-weight:700;cursor:pointer;color:var(--teal-700);">${isLao ? 'ປົກກະຕິ' : 'ปกติ'}<br><small style="font-weight:400;color:var(--slate-500);">3 ${isLao ? 'ມື້' : 'วัน'}</small></button>
@@ -26220,9 +26261,9 @@ function renderWorkReportPage() {
             <option value="" disabled selected>— ${isLao ? 'ເລືອກແຜນກ' : 'เลือกแผนก'} —</option>
             ${depts}
           </select>
-          <div style="font-size:10px;color:var(--slate-400);margin-top:4px;">${isLao ? 'ລະບົບແນະນຳແຜນກໃຫ້ອັດຕະໂນມັດ แก้ได้' : 'ระบบแนะนำแผนกให้อัตโนมัติ แก้ได้'}</div>
+          <div style="font-size:10px;color:var(--slate-400);margin-top:4px;">${isLao ? 'ລະບົບແນະນຳແຜນກໃຫ້ອັດຕະໂນມັດ ແກ້ໄດ້' : 'ระบบแนะนำแผนกให้อัตโนมัติ แก้ได้'}</div>
         </div>
-        <div class="form-group"><label class="form-label">${isLao ? 'ຮູບ (ไม่เกิน 3)' : 'รูปภาพ (ไม่เกิน 3)'}</label>
+        <div class="form-group"><label class="form-label">${isLao ? 'ຮູບ (ບໍ່ເກີນ 3)' : 'รูปภาพ (ไม่เกิน 3)'}</label>
           <input type="file" id="wrPhotoInput" accept="image/*" capture="environment" multiple style="display:none;" onchange="wrOnPhotoSelected(event)">
           <button type="button" onclick="document.getElementById('wrPhotoInput').click()" style="width:100%;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:12px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">📷 ${isLao ? 'ຖ່າຍຮູບ / ເລືອກຮູບ' : 'ถ่ายรูป / เลือกรูป'}</button>
           <div id="wrPhotoPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;"></div>
@@ -26249,7 +26290,7 @@ function wrOnPhotoSelected(e) {
   const files = Array.from(e.target.files || []);
   e.target.value = '';
   files.forEach(f => {
-    if (_wrPhotos.length >= 3) { showToast(lang === 'lo' ? 'ສູງສຸດ 3 รูป' : 'สูงสุด 3 รูป', 'warning'); return; }
+    if (_wrPhotos.length >= 3) { showToast(lang === 'lo' ? 'ສູງສຸດ 3 ຮູບ' : 'สูงสุด 3 รูป', 'warning'); return; }
     wrCompressImage(f, (blob, dataUrl) => {
       _wrPhotos.push({ blob, dataUrl });
       wrRenderPhotoPreview();
@@ -26678,7 +26719,7 @@ function wtOpen(id) {
       + '<button onclick="wtSetStatus(' + id + ',\'done\')" style="flex:1;background:var(--emerald-600);color:white;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? 'ປິດງານ' : 'ปิดงาน (เสร็จ)') + '</button>'
       + '</div>';
   } else {
-    actions = '<div style="background:var(--slate-50);border-radius:9px;padding:10px;text-align:center;font-size:11px;color:var(--slate-400);">' + (isLao ? 'ສະເພາະ manager จัดการสถานะ' : 'เฉพาะ manager จัดการสถานะได้') + '</div>';
+    actions = '<div style="background:var(--slate-50);border-radius:9px;padding:10px;text-align:center;font-size:11px;color:var(--slate-400);">' + (isLao ? 'ສະເພາະ manager ຈັດການສະຖານະໄດ້' : 'เฉพาะ manager จัดการสถานะได้') + '</div>';
   }
   const kv = (k, v, color) => '<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--slate-100);font-size:12px;"><span style="color:var(--slate-500);">' + k + '</span><span style="font-weight:600;text-align:right;' + (color ? 'color:' + color + ';' : '') + '">' + v + '</span></div>';
   showModal(''
@@ -26823,6 +26864,9 @@ async function loadHistoryWork() {
   } catch (e) {}
   const badge = document.getElementById('histWorkCount');
   if (badge) badge.textContent = rows.length + issues.length;
+  // ⭐ badge บนแท็บหัวข้อ (เดิมค้าง 0 ตลอด)
+  const tabBadgeW = document.getElementById('histSubBadgeWork');
+  if (tabBadgeW) tabBadgeW.textContent = rows.length + issues.length;
   window._histWorkData = { issues, rows };
   renderHistoryWork();
 }
@@ -26860,9 +26904,9 @@ function renderHistoryWork() {
     const c = issStatus[it.status] || issStatus.open;
     const label = (typeof T === 'function') ? T('issue_' + it.issue_type) : it.issue_type;
     return '<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ' + c.color + ';border-radius:11px;padding:11px 12px;margin:0 14px 8px;">'
-      + '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:4px;"><span style="font-weight:700;font-size:13px;flex:1;min-width:110px;">🚨 ' + (it._pname || it.barcode) + '</span>'
+      + '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:4px;"><span style="font-weight:700;font-size:13px;flex:1;min-width:110px;">🚨 ' + escapeHtml(it._pname || it.barcode) + '</span>'
       + '<span style="background:' + c.bg + ';color:' + c.color + ';padding:2px 9px;border-radius:9px;font-size:10px;font-weight:800;">' + c.icon + ' ' + c.label + '</span></div>'
-      + '<div style="font-size:11px;color:var(--slate-600);margin-bottom:3px;">⚠️ ' + label + (it.note ? ' · ' + it.note : '') + '</div>'
+      + '<div style="font-size:11px;color:var(--slate-600);margin-bottom:3px;">⚠️ ' + label + (it.note ? ' · ' + escapeHtml(it.note) : '') + '</div>'
       + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;">' + it.barcode + ' · ' + getTimeAgo(it.created_at, isLao) + '</div>'
       + '<button onclick="irShowTimeline(' + it.id + ')" style="margin-top:6px;background:var(--violet-50);color:var(--violet-700);border:1px solid var(--violet-200);border-radius:7px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;">📋 ' + (isLao ? 'ຕິດຕາມສະຖານະ' : 'ติดตามสถานะ') + '</button>'
       + '</div>';
@@ -27098,6 +27142,8 @@ async function expDoMarkdown(id, step) {
   const isLao = lang === 'lo';
   const item = (window._expTrackData || []).find(x => x.id === id);
   if (!item) return;
+  // ⭐ context สำหรับ expConfirmToMd (ก่อนหน้านี้ไม่เคย set → กดยืนยันแล้วไม่บันทึกอะไรเลย)
+  window._expMdContext = { id: id, step: step, origBarcode: item.barcode };
   // คำนวณบาร์ markdown จากบาร์ปกติ: ตัวเลขล้วน -> '888'+barcode ; อื่นๆ (fresh ใช้ชื่อ) -> barcode+'MD'
   let autoMd = '';
   const _bc = String(item.barcode || '').trim();
@@ -27119,11 +27165,13 @@ async function expDoMarkdown(id, step) {
 }
 
 async function startScanForMd() {
+  // ⚠️ startScan() ผูกกับ DOM หน้าสแกนสต๊อกเท่านั้น (#reader ฯลฯ ไม่มีใน modal นี้ → TypeError)
+  // ใช้ triggerPhotoScan แทน — ถ่ายรูปบาร์โค้ดแล้วอ่าน, callback ผ่าน window._scanCallback
   window._scanCallback = (barcode) => {
     const el = document.getElementById('mdBarcodeInput');
     if (el) el.value = barcode;
   };
-  await startScan();
+  triggerPhotoScan('md');
 }
 
 async function expConfirmToMd() {
@@ -28186,7 +28234,7 @@ async function docDeleteSelected() {
   const { error } = await sb.from('doc_requests').delete().in('id', ids);
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   if (typeof logActivity === 'function') logActivity('doc_bulk_delete', ids.length + ' docs');
-  showToast(isLao ? '✓ ລຶບແລ້ວ ' : '✓ ลบแล้ว ' + ids.length, 'success');
+  showToast((isLao ? '✓ ລຶບແລ້ວ ' : '✓ ลบแล้ว ') + ids.length, 'success');
   _docSelected.clear(); _docSelMode = false;
   loadDocRequests();
   renderDocSignPage_chips();
@@ -28245,14 +28293,14 @@ function renderCmpPage() {
       + '<input id="cmpStoreInput" placeholder="' + (isLao ? 'ຊື່ຮ້ານຄູ່ແຂ່ງ' : 'ชื่อร้านคู่แข่ง') + '" onkeydown="if(event.key===\'Enter\')cmpStartSession()" style="width:100%;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:15px;margin-bottom:10px;">'
       + '<button onclick="cmpStartSession()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:11px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;">' + (isLao ? 'ເລີ່ມທຽບລາຄາ →' : 'เริ่มเทียบราคา →') + '</button>'
       + '</div>'
-      + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:7px;">👥 ' + (isLao ? 'ຮ້ານທີ່ກຳລັງສຳຫຼວດ — แตะเพื่อเข้าร่วม' : 'ร้านที่กำลังสำรวจ — แตะเพื่อเข้าร่วม') + '</div>'
+      + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:7px;">👥 ' + (isLao ? 'ຮ້ານທີ່ກຳລັງສຳຫຼວດ — ແຕະເພື່ອເຂົ້າຮ່ວມ' : 'ร้านที่กำลังสำรวจ — แตะเพื่อเข้าร่วม') + '</div>'
       + '<div id="cmpStoreList"><div style="text-align:center;padding:14px;"><div class="loader"></div></div></div>';
   } else {
     // ── ขั้นที่ 2: กำลังเทียบกับร้านนี้ ──
     top = '<div style="display:flex;align-items:center;gap:8px;background:var(--teal-50);border:1px solid var(--teal-200);border-radius:11px;padding:11px 13px;margin-bottom:11px;">'
       + '<span style="font-size:18px;">🏬</span>'
       + '<div style="flex:1;min-width:0;"><div style="font-size:9.5px;color:var(--teal-700);">' + (isLao ? 'ກຳລັງທຽບກັບ' : 'กำลังเทียบกับ') + '</div><div style="font-size:15px;font-weight:800;color:var(--teal-800);line-height:1.2;">' + cmpEsc(_cmpStore) + '</div></div>'
-      + '<button onclick="cmpEndSession()" style="border:none;background:var(--teal-600);color:white;border-radius:9px;padding:9px 13px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;">✓ ' + (isLao ? 'ເສັຈ/ร้านใหม่' : 'เสร็จ/ร้านใหม่') + '</button>'
+      + '<button onclick="cmpEndSession()" style="border:none;background:var(--teal-600);color:white;border-radius:9px;padding:9px 13px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;">✓ ' + (isLao ? 'ເສັດ/ຮ້ານໃໝ່' : 'เสร็จ/ร้านใหม่') + '</button>'
       + '</div>'
       + '<div style="display:flex;gap:7px;margin-bottom:11px;">'
       + '<input id="cmpBarcode" inputmode="text" placeholder="' + (isLao ? 'ບາໂຄ້ດ / ชื่อสินค้า' : 'บาร์โค้ด / ชื่อสินค้า') + '" onkeydown="if(event.key===\'Enter\')cmpLookup()" style="flex:1;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:14px;font-family:monospace;">'
@@ -28266,7 +28314,7 @@ function renderCmpPage() {
     + '<button onclick="goPage(getHomePage())" style="border:1px solid var(--slate-200);background:white;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
     + '</div>'
     + '<h2 style="font-size:19px;font-weight:800;color:var(--slate-800);margin:0 0 3px;">🆚 ' + (isLao ? 'ທຽບລາຄາຄູ່ແຂ່ງ' : 'เทียบราคาคู่แข่ง') + '</h2>'
-    + '<div style="font-size:12px;color:var(--slate-500);margin-bottom:13px;">' + (isLao ? 'ເລືອກຮ້ານ → สแกน → ใส่ราคาคู่แข่ง → บันทึก' : 'เลือกร้าน → สแกน → ใส่ราคาคู่แข่ง → บันทึก') + '</div>'
+    + '<div style="font-size:12px;color:var(--slate-500);margin-bottom:13px;">' + (isLao ? 'ເລືອກຮ້ານ → ສະແກນ → ໃສ່ລາຄາຄູ່ແຂ່ງ → ບັນທຶກ' : 'เลือกร้าน → สแกน → ใส่ราคาคู่แข่ง → บันทึก') + '</div>'
     + top
     + '<div style="border-top:1px solid var(--slate-200);margin:18px 0 13px;"></div>'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;gap:8px;flex-wrap:wrap;">'
@@ -28413,7 +28461,7 @@ async function cmpLookupBarcode(bc) {
     html += '<div style="background:var(--rose-50);border:1.5px solid var(--rose-300);border-radius:11px;padding:13px;text-align:center;">'
       + '<div style="font-size:13px;font-weight:800;color:var(--rose-700);margin-bottom:3px;">⚠️ ' + (isLao ? 'ສິນຄ້ານີ້ຖືກທຽບແລ້ວໃນຮ້ານນີ້' : 'สินค้านี้ถูกเทียบแล้วในร้านนี้') + '</div>'
       + '<div style="font-size:12px;color:var(--rose-600);">' + (isLao ? 'ໂດຍ' : 'โดย') + ' ' + cmpEsc(_cmpDup.created_by_name || '?') + ' · ' + (isLao ? 'ຄູ່ແຂ່ງ' : 'คู่แข่ง') + ' ' + cmpNum(_cmpDup.competitor_price) + ' ₭</div>'
-      + '<div style="font-size:11px;color:var(--slate-500);margin-top:6px;">' + (isLao ? 'ກັນຊ້ຳ — ບໍ່ຕ້ອງທຽບອີກ (แก้ที่รายการด้านล่างถ้าผิด)' : 'กันซ้ำ — ไม่ต้องเทียบอีก (แก้ที่รายการด้านล่างถ้าผิด)') + '</div>'
+      + '<div style="font-size:11px;color:var(--slate-500);margin-top:6px;">' + (isLao ? 'ກັນຊ້ຳ — ບໍ່ຕ້ອງທຽບອີກ (ແກ້ທີ່ລາຍການດ້ານລຸ່ມຖ້າຜິດ)' : 'กันซ้ำ — ไม่ต้องเทียบอีก (แก้ที่รายการด้านล่างถ้าผิด)') + '</div>'
       + '</div>';
   } else {
     html += '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:5px;">💰 ' + (isLao ? 'ລາຄາຄູ່ແຂ່ງ' : 'ราคาคู่แข่ง') + '</div>'
@@ -29099,7 +29147,7 @@ if (typeof isPWAMode === 'function') {
       }
       if (!branch) {
         // Fallback: ลองหา SUPERMART หรือ PAKSE
-        const { data } = await sb.from('branches').select('*').in('code', ['SUPERMART', 'PAKSE']).order('id').maybeSingle();
+        const { data } = await sb.from('branches').select('*').in('code', ['SUPERMART', 'PAKSE']).order('id').limit(1).maybeSingle();
         branch = data;
       }
       
