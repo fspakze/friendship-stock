@@ -9101,6 +9101,7 @@ let _hcSets = ['main'];
 let _hcRows = [];
 let _hcCatFilter = '';
 let _hcFavOnly = false;
+let _hcHiddenOnly = false;
 let _hcScan = null;   // สินค้าที่สแกน/ค้นเจอเตรียมเพิ่ม
 let _hcPhoto = null;  // {blob,dataUrl} รูปที่ถ่ายตอนเพิ่ม
 function hcCanManage() { return ['admin', 'scc', 'bcs'].includes((user && user.role) || ''); }
@@ -9138,6 +9139,7 @@ function renderHorecaPage() {
           <label style="font-size:10px;font-weight:700;color:var(--slate-500);">${isLao ? 'ຊຸດ Catalog' : 'ชุด Catalog'}</label>
           <select id="hcSetSel" onchange="hcSelectSet(this.value)" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;background:white;"></select>
         </div>
+        <button onclick="hcRenameSet()" title="${isLao ? 'ປ່ຽນຊື່ຊຸດ' : 'เปลี่ยนชื่อชุด'}" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:9px 11px;font-size:12px;font-weight:700;cursor:pointer;">✏️</button>
         <button onclick="hcNewSet()" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;">+ ${isLao ? 'ຊຸດ' : 'ชุด'}</button>
         <button onclick="hcDeleteSet()" title="${isLao ? 'ລຶບຊຸດ' : 'ลบชุด'}" style="background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:8px;padding:9px 11px;font-size:12px;font-weight:700;cursor:pointer;">🗑️</button>
       </div>
@@ -9148,6 +9150,7 @@ function renderHorecaPage() {
       </div>
       <div id="hcAddForm"></div>
       <div style="display:flex;gap:6px;margin-top:4px;">
+        <button onclick="hcPasteOpen()" style="flex:1;background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">📋 ${isLao ? 'ວາງ Barcode' : 'วางบาร์โค้ด'}</button>
         <button onclick="hcImportOpen()" style="flex:1;background:var(--violet-100);color:var(--violet-700);border:1px solid var(--violet-300);border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">📥 ${isLao ? 'ນຳເຂົ້າ Excel' : 'นำเข้า Excel'}</button>
         <button onclick="hcExportExcel()" style="flex:1;background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">📊 Export Excel</button>
         <button onclick="hcExportPDF()" style="flex:1;background:var(--fs-red);color:white;border:none;border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">🖨️ PDF A4</button>
@@ -9173,7 +9176,7 @@ async function loadHoreca() {
     const { data, error } = await sb.from('horeca_catalog').select('*').eq('catalog_set', _hcSet).order('category').order('sort_order');
     if (error) throw error;
     _hcRows = data || [];
-    _hcCatFilter = ''; _hcFavOnly = false;
+    _hcCatFilter = ''; _hcFavOnly = false; _hcHiddenOnly = false;
     hcRenderChips();
     hcRenderList();
   } catch (e) {
@@ -9208,6 +9211,26 @@ async function hcDeleteSet() {
   if (typeof logActivity === 'function') logActivity('horeca_delset', _hcSet);
   showToast('✓ ' + (isLao ? 'ລຶບຊຸດແລ້ວ' : 'ลบชุดแล้ว'), 'success');
   _hcSet = 'main';
+  loadHoreca();
+}
+async function hcRenameSet() {
+  const isLao = lang === 'lo';
+  const oldName = _hcSet;
+  const input = prompt(isLao ? 'ຕັ້ງຊື່ໃໝ່ໃຫ້ຊຸດ Catalog:' : 'ตั้งชื่อใหม่ให้ชุด Catalog:', oldName);
+  if (input == null) return;
+  const newName = input.trim();
+  if (!newName || newName === oldName) return;
+  if (_hcSets.includes(newName)) { showToast(isLao ? 'ມີຊື່ນີ້ຢູ່ແລ້ວ ເລືອກຊື່ອື່ນ' : 'มีชื่อนี้อยู่แล้ว เลือกชื่ออื่นนะคะ', 'warning'); return; }
+  if (_hcRows.length) {
+    const { error } = await sb.from('horeca_catalog').update({ catalog_set: newName, updated_at: new Date().toISOString() }).eq('catalog_set', oldName);
+    if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  }
+  const local = hcLoadLocalSets().filter(s => s !== oldName);
+  local.push(newName);
+  hcSaveLocalSets(local);
+  if (typeof logActivity === 'function') logActivity('horeca_renameset', oldName + ' -> ' + newName);
+  _hcSet = newName;
+  showToast('✓ ' + (isLao ? 'ປ່ຽນຊື່ແລ້ວ' : 'เปลี่ยนชื่อแล้ว'), 'success');
   loadHoreca();
 }
 
@@ -9361,19 +9384,24 @@ function hcRenderChips() {
   const isLao = lang === 'lo';
   const el = document.getElementById('hcCatChips');
   if (!el) return;
-  const cats = [...new Set(_hcRows.map(r => r.category || (isLao ? 'ອື່ນໆ' : 'อื่นๆ')))];
+  // หมวดหมู่/จำนวน นับจากขอบเขตปัจจุบัน (ปกติ = ไม่รวมของที่ซ่อน, มุมมองซ่อน = เฉพาะของที่ซ่อน)
+  const baseRows = _hcHiddenOnly ? _hcRows.filter(r => r.is_hidden) : _hcRows.filter(r => !r.is_hidden);
+  const cats = [...new Set(baseRows.map(r => r.category || (isLao ? 'ອື່ນໆ' : 'อื่นๆ')))];
   const chip = (val, label, n) => {
     const on = _hcCatFilter === val;
     return '<button onclick="hcSetCat(\'' + String(val).replace(/'/g, "\\'") + '\')" style="flex-shrink:0;border:1.5px solid ' + (on ? 'var(--fs-blue)' : 'var(--slate-200)') + ';background:' + (on ? 'var(--fs-blue)' : 'white') + ';color:' + (on ? 'white' : 'var(--slate-600)') + ';border-radius:20px;padding:6px 12px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;">' + label + (n != null ? ' (' + n + ')' : '') + '</button>';
   };
-  const favN = _hcRows.filter(r => r.is_favorite).length;
+  const favN = baseRows.filter(r => r.is_favorite).length;
   const favChip = '<button onclick="hcToggleFavFilter()" style="flex-shrink:0;border:1.5px solid ' + (_hcFavOnly ? 'var(--fs-red)' : 'var(--slate-200)') + ';background:' + (_hcFavOnly ? '#fff1f2' : 'white') + ';color:' + (_hcFavOnly ? 'var(--fs-red)' : 'var(--slate-600)') + ';border-radius:20px;padding:6px 12px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;">' + (_hcFavOnly ? '❤️' : '🤍') + ' Favorite (' + favN + ')</button>';
-  el.innerHTML = chip('', (isLao ? 'ທັງໝົດ' : 'ทั้งหมด'), _hcRows.length)
-    + favChip
-    + cats.map(c => chip(c, escapeHtml(c), _hcRows.filter(r => (r.category || (isLao ? 'ອື່ນໆ' : 'อื่นๆ')) === c).length)).join('');
+  const hiddenN = _hcRows.filter(r => r.is_hidden).length;
+  const hiddenChip = '<button onclick="hcToggleHiddenFilter()" style="flex-shrink:0;border:1.5px solid ' + (_hcHiddenOnly ? 'var(--slate-500)' : 'var(--slate-200)') + ';background:' + (_hcHiddenOnly ? 'var(--slate-700)' : 'white') + ';color:' + (_hcHiddenOnly ? 'white' : 'var(--slate-600)') + ';border-radius:20px;padding:6px 12px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;">🙈 ' + (isLao ? 'ເຊື່ອງ' : 'ซ่อน') + ' (' + hiddenN + ')</button>';
+  el.innerHTML = chip('', (isLao ? 'ທັງໝົດ' : 'ทั้งหมด'), baseRows.length)
+    + favChip + hiddenChip
+    + cats.map(c => chip(c, escapeHtml(c), baseRows.filter(r => (r.category || (isLao ? 'ອື່ນໆ' : 'อื่นๆ')) === c).length)).join('');
 }
 function hcSetCat(v) { _hcCatFilter = v; hcRenderChips(); hcRenderList(); }
 function hcToggleFavFilter() { _hcFavOnly = !_hcFavOnly; hcRenderChips(); hcRenderList(); }
+function hcToggleHiddenFilter() { _hcHiddenOnly = !_hcHiddenOnly; _hcCatFilter = ''; hcRenderChips(); hcRenderList(); }
 async function hcToggleFav(id, event) {
   if (event) event.stopPropagation();
   const r = _hcRows.find(x => x.id === id);
@@ -9384,12 +9412,24 @@ async function hcToggleFav(id, event) {
   const { error } = await sb.from('horeca_catalog').update({ is_favorite: nv }).eq('id', id);
   if (error) { r.is_favorite = !nv; hcRenderChips(); hcRenderList(); showToast('Error: ' + error.message, 'error'); }
 }
+async function hcToggleHidden(id, event) {
+  if (event) event.stopPropagation();
+  const isLao = lang === 'lo';
+  const r = _hcRows.find(x => x.id === id);
+  if (!r) return;
+  const nv = !r.is_hidden;
+  r.is_hidden = nv;
+  hcRenderChips(); hcRenderList();
+  const { error } = await sb.from('horeca_catalog').update({ is_hidden: nv }).eq('id', id);
+  if (error) { r.is_hidden = !nv; hcRenderChips(); hcRenderList(); showToast('Error: ' + error.message, 'error'); return; }
+  showToast('✓ ' + (nv ? (isLao ? 'ເຊື່ອງແລ້ວ' : 'ซ่อนแล้ว') : (isLao ? 'ຍົກເລີກເຊື່ອງແລ້ວ' : 'ยกเลิกซ่อนแล้ว')), 'success');
+}
 
 function hcRenderList() {
   const isLao = lang === 'lo';
   const el = document.getElementById('hcList');
   if (!el) return;
-  let rows = _hcRows;
+  let rows = _hcHiddenOnly ? _hcRows.filter(r => r.is_hidden) : _hcRows.filter(r => !r.is_hidden);
   if (_hcFavOnly) rows = rows.filter(r => r.is_favorite);
   if (_hcCatFilter) rows = rows.filter(r => (r.category || (isLao ? 'ອື່ນໆ' : 'อื่นๆ')) === _hcCatFilter);
   const promoCnt = _hcRows.filter(r => r.promo_price != null).length;
@@ -9419,9 +9459,10 @@ function hcRenderList() {
           ? '<span style="color:var(--fs-red);font-weight:700;">' + fmt.format(r.promo_price) + '</span> <s style="color:#aab6ca;">' + fmt.format(r.normal_price) + '</s>'
           : fmt.format(r.normal_price)) + '₭';
       }
-      return `<div onclick="hcEdit(${r.id})" style="background:white;border:1px solid ${r.is_favorite ? 'var(--fs-red)' : 'var(--slate-200)'};border-radius:11px;overflow:hidden;cursor:pointer;position:relative;">
+      return `<div onclick="hcEdit(${r.id})" style="background:white;border:1px solid ${r.is_favorite ? 'var(--fs-red)' : 'var(--slate-200)'};border-radius:11px;overflow:hidden;cursor:pointer;position:relative;${r.is_hidden ? 'opacity:0.55;filter:grayscale(0.4);' : ''}">
         ${disc > 0 ? `<div style="position:absolute;top:0;left:9px;z-index:2;background:var(--fs-red);color:white;padding:5px 8px 13px;text-align:center;line-height:1;clip-path:polygon(0 0,100% 0,100% 100%,50% 80%,0 100%);box-shadow:0 3px 7px rgba(224,35,41,.4);"><div style="font-size:9px;font-weight:700;letter-spacing:1.5px;">SAVE</div><div style="font-size:14px;font-weight:800;margin-top:1px;">${disc}%</div></div>` : ''}
         <button onclick="hcToggleFav(${r.id},event)" title="Favorite" style="position:absolute;top:5px;right:5px;z-index:2;background:rgba(255,255,255,0.92);border:none;width:29px;height:29px;border-radius:50%;font-size:15px;line-height:1;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.15);padding:0;">${r.is_favorite ? '❤️' : '🤍'}</button>
+        <button onclick="hcToggleHidden(${r.id},event)" title="${r.is_hidden ? (isLao ? 'ຍົກເລີກເຊື່ອງ' : 'ยกเลิกซ่อน') : (isLao ? 'ເຊື່ອງ' : 'ซ่อน')}" style="position:absolute;top:38px;right:5px;z-index:2;background:rgba(255,255,255,0.92);border:none;width:29px;height:29px;border-radius:50%;font-size:14px;line-height:1;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.15);padding:0;">${r.is_hidden ? '👁️' : '🙈'}</button>
         <div style="width:100%;aspect-ratio:1.3;background:var(--slate-100);display:flex;align-items:center;justify-content:center;">${r.image_url ? '<img src="' + r.image_url + '" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:30px;color:var(--slate-300);">📦</span>'}</div>
         <div style="padding:8px 10px;">
           <div style="font-size:${F.name}px;font-weight:800;color:var(--slate-900);line-height:1.25;text-shadow:0 1px 2px rgba(21,32,54,0.18);">${escapeHtml(r.product_name)}</div>
@@ -9507,10 +9548,60 @@ async function hcDelete(id) {
 function hcImportOpen() {
   const isLao = lang === 'lo';
   showModal('<h3 style="font-size:15px;margin:0 0 5px;">📥 ' + (isLao ? 'ນຳເຂົ້າ Excel' : 'นำเข้า Excel') + '</h3>'
-    + '<div style="font-size:11px;color:var(--slate-500);margin-bottom:10px;">' + (isLao ? 'ຄໍລຳ: Barcode, ຊື່ສິນຄ້າ, ประเภท, หน่วย, ราคาปกติ, ราคาโปรโม, ต้นทุน — upsert เข้าชุด' : 'คอลัมน์: Barcode, ชื่อสินค้า, ประเภท, หน่วย, ราคาปกติ, ราคาโปรโม, ต้นทุน — upsert เข้าชุด') + ' <b>' + escapeHtml(_hcSet) + '</b></div>'
+    + '<div style="font-size:11px;color:var(--slate-500);margin-bottom:10px;">' + (isLao ? 'ໃສ່ແຕ່ Barcode ກໍ່ພໍ — ລະບົບຈະດຶງຊື່/ราคา/ต้นทุน/ແພັກ-ລັງ ໃຫ້ອັດຕະໂນມັດ (ຫรือใส่ ชื่อสินค้า/ประเภท/หน่วย/ราคา เองก็ได้ ระบบจะเติมเฉพาะช่องที่ว่าง) — upsert เข้าชุด' : 'ใส่แต่ Barcode ก็พอ — ระบบจะดึงชื่อ/ราคา/ต้นทุน/แพ๊ค-ลังให้อัตโนมัติ (หรือใส่ ชื่อสินค้า/ประเภท/หน่วย/ราคา เองก็ได้ ระบบจะเติมเฉพาะช่องที่ว่าง) — upsert เข้าชุด') + ' <b>' + escapeHtml(_hcSet) + '</b></div>'
     + '<input type="file" id="hcImportFile" accept=".xlsx,.xls" onchange="hcHandleImport(event)" style="width:100%;padding:11px;border:1.5px dashed var(--slate-300);border-radius:10px;font-size:13px;background:var(--slate-50);box-sizing:border-box;">'
     + '<div id="hcImportStatus" style="margin-top:11px;font-size:12px;"></div>'
     + '<button onclick="closeModal()" style="width:100%;margin-top:12px;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? 'ປິດ' : 'ปิด') + '</button>');
+}
+
+// ดึงข้อมูลเสริมจาก barcode แบบ batch: products(สาขานี้) → master_products → barcode_packsize, ต้นทุนล่าสุดจาก purchase_history
+async function hcAutoFillMaps(bcList) {
+  const prodMap = {}, mpMap = {}, bpMap = {}, costMap = {};
+  for (let i = 0; i < bcList.length; i += 200) {
+    const chunk = bcList.slice(i, i + 200);
+    const [pr, mr, br, hr] = await Promise.all([
+      sb.from('products').select('barcode,name_th,name_lo,category,unit_th,unit_lo,sell_price,cost_price').eq('branch_id', branch.id).eq('is_active', true).in('barcode', chunk),
+      sb.from('master_products').select('barcode,name_th,name_lo,category,sell_price').in('barcode', chunk),
+      sb.from('barcode_packsize').select('barcode_unit,qty_unit,qty_pack,pcs_per_box,price_unit,price_pack,price_box,barcode_pack,barcode_box').in('barcode_unit', chunk),
+      sb.from('purchase_history').select('barcode,unit_price,buy_date').in('barcode', chunk).order('buy_date', { ascending: false })
+    ]);
+    (pr.data || []).forEach(p => { if (!prodMap[p.barcode]) prodMap[p.barcode] = p; });
+    (mr.data || []).forEach(m => { if (!mpMap[m.barcode]) mpMap[m.barcode] = m; });
+    (br.data || []).forEach(b => { bpMap[b.barcode_unit] = b; });
+    (hr.data || []).forEach(h => { if (!(h.barcode in costMap)) costMap[h.barcode] = Number(h.unit_price) || 0; }); // แถวแรกต่อ barcode = ล่าสุด (order buy_date desc)
+  }
+  return { prodMap, mpMap, bpMap, costMap };
+}
+
+// สร้าง row สำหรับ upsert เข้า horeca_catalog — เติมเฉพาะช่องที่ pr ไม่ได้ระบุมา (null) จาก maps
+function hcBuildCatalogRow(pr, maps, isLao) {
+  const p = pr.barcode ? maps.prodMap[pr.barcode] : null;
+  const mp = pr.barcode ? maps.mpMap[pr.barcode] : null;
+  const bp = pr.barcode ? maps.bpMap[pr.barcode] : null;
+  let name = pr.name, category = pr.category, unit = pr.unit, normal = pr.normal_price, cost = pr.cost_price;
+  if (!name) name = p ? (isLao ? (p.name_lo || p.name_th) : (p.name_th || p.name_lo)) : (mp ? (isLao ? (mp.name_lo || mp.name_th) : (mp.name_th || mp.name_lo)) : null);
+  if (!category) category = (p && p.category) || (mp && mp.category) || null;
+  if (!unit) unit = p ? (isLao ? p.unit_lo : p.unit_th) : null;
+  if (normal == null) normal = (p && Number(p.sell_price)) || (mp && Number(mp.sell_price)) || (bp && Number(bp.price_unit)) || 0;
+  if (cost == null) cost = (pr.barcode && maps.costMap[pr.barcode]) || (p && Number(p.cost_price)) || 0;
+  let packQty = pr.pack_qty, packNormal = pr.pack_normal, packPromo = pr.pack_promo;
+  let boxQty = pr.box_qty, boxNormal = pr.box_normal, boxPromo = pr.box_promo;
+  if (bp) {
+    const upp = Number(bp.qty_unit) || 0;
+    let upb = Number(bp.pcs_per_box) || 0; if (!upb && upp && Number(bp.qty_pack)) upb = upp * Number(bp.qty_pack);
+    if (packQty == null && (bp.barcode_pack || bp.price_pack) && upp > 1) { packQty = upp; if (packNormal == null) packNormal = Number(bp.price_pack) || (normal * upp) || null; }
+    if (boxQty == null && (bp.barcode_box || bp.price_box) && upb > 1) { boxQty = upb; if (boxNormal == null) boxNormal = Number(bp.price_box) || (normal * upb) || null; }
+  }
+  return {
+    catalog_set: _hcSet, barcode: pr.barcode, product_name: name || pr.barcode || (isLao ? 'ບໍ່ຮູ້ชื่อ' : 'ไม่ทราบชื่อ'),
+    category, unit,
+    normal_price: normal || 0,
+    promo_price: pr.promo_price,
+    cost_price: hcSeeCost() ? (cost || 0) : 0,
+    pack_qty: packQty, pack_normal: packNormal, pack_promo: packPromo,
+    box_qty: boxQty, box_normal: boxNormal, box_promo: boxPromo,
+    created_by: user.id, created_by_name: user.full_name || user.username || '', updated_at: new Date().toISOString()
+  };
 }
 
 async function hcHandleImport(ev) {
@@ -9526,25 +9617,29 @@ async function hcHandleImport(ev) {
     const json = XLSX.utils.sheet_to_json(ws, { defval: null });
     const pick = (row, keys) => { for (const k of keys) { for (const rk in row) { if (String(rk).replace(/\s/g, '').toLowerCase() === k.replace(/\s/g, '').toLowerCase()) return row[rk]; } } return null; };
     const numImp = v => (v != null && v !== '' && !isNaN(Number(v))) ? Number(v) : null;
-    const rows = [];
+    const parsed = [];
     json.forEach(r => {
       const bc = pick(r, ['Barcode', 'บาร์โค้ด']);
       const name = pick(r, ['ชื่อสินค้า', 'ชื่อ', 'product_name', 'Name']);
       if (!bc && !name) return;
       const promo = pick(r, ['ราคาโปรโม', 'โปรโม', 'promo']);
-      rows.push({
-        catalog_set: _hcSet, barcode: bc != null ? String(bc).trim() : null, product_name: (name != null ? String(name).trim() : String(bc)),
-        category: (pick(r, ['ประเภท', 'ประเภทสินค้า', 'category']) || null),
-        unit: (pick(r, ['หน่วย', 'unit']) || null),
-        normal_price: Number(pick(r, ['ราคาปกติ', 'ราคาขาย', 'normal'])) || 0,
+      parsed.push({
+        barcode: bc != null ? String(bc).trim() : null,
+        name: name != null ? String(name).trim() : null,
+        category: pick(r, ['ประเภท', 'ประเภทสินค้า', 'category']) || null,
+        unit: pick(r, ['หน่วย', 'unit']) || null,
+        normal_price: numImp(pick(r, ['ราคาปกติ', 'ราคาขาย', 'normal'])),
         promo_price: (promo != null && promo !== '' && !isNaN(Number(promo))) ? Number(promo) : null,
-        cost_price: hcSeeCost() ? (Number(pick(r, ['ต้นทุน', 'cost'])) || 0) : 0,
+        cost_price: numImp(pick(r, ['ต้นทุน', 'cost'])),
         pack_qty: numImp(pick(r, ['แพ๊ค(หน่วย)', 'แพ๊ค', 'pack_qty'])), pack_normal: numImp(pick(r, ['ราคาแพ๊คปกติ', 'pack_normal'])), pack_promo: numImp(pick(r, ['ราคาแพ๊คโปร', 'pack_promo'])),
-        box_qty: numImp(pick(r, ['ลัง(หน่วย)', 'ลัง', 'box_qty'])), box_normal: numImp(pick(r, ['ราคาลังปกติ', 'box_normal'])), box_promo: numImp(pick(r, ['ราคาลังโปร', 'box_promo'])),
-        created_by: user.id, created_by_name: user.full_name || user.username || '', updated_at: new Date().toISOString()
+        box_qty: numImp(pick(r, ['ลัง(หน่วย)', 'ลัง', 'box_qty'])), box_normal: numImp(pick(r, ['ราคาลังปกติ', 'box_normal'])), box_promo: numImp(pick(r, ['ราคาลังโปร', 'box_promo']))
       });
     });
-    if (!rows.length) { if (st) st.innerHTML = '<span style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ພົບຂໍ້ມູນ' : 'ไม่พบข้อมูล') + '</span>'; return; }
+    if (!parsed.length) { if (st) st.innerHTML = '<span style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ພົບຂໍ້ມູນ' : 'ไม่พบข้อมูล') + '</span>'; return; }
+
+    const bcList = [...new Set(parsed.map(r => r.barcode).filter(Boolean))];
+    const maps = await hcAutoFillMaps(bcList);
+    const rows = parsed.map(pr => hcBuildCatalogRow(pr, maps, isLao));
     let done = 0, failed = 0;
     for (let i = 0; i < rows.length; i += 300) {
       const chunk = rows.slice(i, i + 300);
@@ -9559,11 +9654,50 @@ async function hcHandleImport(ev) {
   }
 }
 
+// ---------- วางบาร์โค้ดหลายรายการทีเดียว (ต่อกัน/คนละบรรทัด) ----------
+function hcPasteOpen() {
+  const isLao = lang === 'lo';
+  showModal('<h3 style="font-size:15px;margin:0 0 5px;">📋 ' + (isLao ? 'ວາງ Barcode ຫລາຍລາຍການ' : 'วางบาร์โค้ดหลายรายการ') + '</h3>'
+    + '<div style="font-size:11px;color:var(--slate-500);margin-bottom:8px;">' + (isLao ? 'ພິມ/ວາງ Barcode ແຍກແຕ່ລະບັນທັດ (ຫรือถ้ามีขอ ช่องว่าง/คอมม่าก็ได้) — ระบบจะดึงชื่อ/ราคา/ต้นทุน/แพ๊ค-ลัง ให้อัตโนมัติ' : 'พิมพ์/วาง Barcode แยกแต่ละบรรทัด (หรือคั่นด้วยช่องว่าง/คอมม่าก็ได้) — ระบบจะดึงชื่อ/ราคา/ต้นทุน/แพ๊ค-ลัง ให้อัตโนมัติ') + ' เข้าชุด <b>' + escapeHtml(_hcSet) + '</b></div>'
+    + '<textarea id="hcPasteBox" rows="8" placeholder="8859313500200&#10;8859313500194&#10;9506000038728" style="width:100%;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;font-family:monospace;box-sizing:border-box;resize:vertical;"></textarea>'
+    + '<div id="hcPasteStatus" style="margin-top:9px;font-size:12px;"></div>'
+    + '<div style="display:flex;gap:7px;margin-top:11px;">'
+    + '<button onclick="closeModal()" style="flex:1;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? 'ປິດ' : 'ปิด') + '</button>'
+    + '<button onclick="hcPasteBarcodes()" style="flex:2;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;">+ ' + (isLao ? 'ເພີ່ມເຂົ້າ Catalog' : 'เพิ่มเข้า Catalog') + '</button>'
+    + '</div>');
+}
+
+async function hcPasteBarcodes() {
+  const isLao = lang === 'lo';
+  const box = document.getElementById('hcPasteBox');
+  const st = document.getElementById('hcPasteStatus');
+  const raw = (box && box.value) || '';
+  const list = [...new Set(raw.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean))];
+  if (!list.length) { if (st) st.innerHTML = '<span style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ພົບ Barcode' : 'ไม่พบ Barcode') + '</span>'; return; }
+  if (st) st.innerHTML = '<div class="loader" style="margin:0 auto;"></div>';
+  try {
+    const maps = await hcAutoFillMaps(list);
+    const rows = list.map(bc => hcBuildCatalogRow({ barcode: bc, name: null, category: null, unit: null, normal_price: null, promo_price: null, cost_price: null, pack_qty: null, pack_normal: null, pack_promo: null, box_qty: null, box_normal: null, box_promo: null }, maps, isLao));
+    let done = 0, failed = 0;
+    for (let i = 0; i < rows.length; i += 300) {
+      const chunk = rows.slice(i, i + 300);
+      const { error } = await sb.from('horeca_catalog').upsert(chunk, { onConflict: 'catalog_set,barcode' });
+      if (error) failed += chunk.length; else done += chunk.length;
+    }
+    if (st) st.innerHTML = '<div style="background:var(--emerald-50);border-radius:8px;padding:9px;color:var(--emerald-700);font-weight:700;">✓ ' + done.toLocaleString() + (isLao ? ' ລາຍການ' : ' รายการ') + (failed ? ' · ' + (isLao ? 'ພລาด' : 'พลาด') + ' ' + failed : '') + '</div>';
+    if (typeof logActivity === 'function') logActivity('horeca_paste', _hcSet + ' ' + done + ' barcodes');
+    setTimeout(() => { closeModal(); loadHoreca(); }, 900);
+  } catch (e) {
+    if (st) st.innerHTML = '<span style="color:var(--rose-500);">Error: ' + escapeHtml(e.message) + '</span>';
+  }
+}
+
 function hcExportExcel() {
   const isLao = lang === 'lo';
-  if (!_hcRows.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
+  const rows = _hcRows.filter(r => !r.is_hidden); // ไม่รวมสินค้าที่ซ่อนไว้ (ยกเลิกโปร/สินค้าชั่วคราว)
+  if (!rows.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
   try {
-    const data = _hcRows.map(r => {
+    const data = rows.map(r => {
       const o = {
         Barcode: r.barcode || '', 'ชื่อสินค้า': r.product_name, 'ประเภท': r.category || '', 'หน่วย': r.unit || '',
         'ราคาปกติ': r.normal_price || 0, 'ราคาโปรโม': r.promo_price != null ? r.promo_price : '',
@@ -9586,19 +9720,20 @@ function hcExportExcel() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), String(_hcSet).replace(/[\\/?*\[\]:]/g, '').slice(0, 31) || 'catalog');
     XLSX.writeFile(wb, `horeca-${String(_hcSet).replace(/[^a-zA-Z0-9ก-๙เ-ໝ_-]/g, '_')}-${localDayKey(new Date())}.xlsx`);
-    showToast(`✅ ${_hcRows.length}`, 'success');
+    showToast(`✅ ${rows.length}`, 'success');
   } catch (e) { showToast('Error: ' + ((e && e.message) || e), 'error'); }
 }
 
 // ---------- PDF A4 catalog ----------
 function hcExportPDF() {
   const isLao = lang === 'lo';
-  if (!_hcRows.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
+  const pdfRows = _hcRows.filter(r => !r.is_hidden); // ไม่รวมสินค้าที่ซ่อนไว้ (ยกเลิกโปร/สินค้าชั่วคราว)
+  if (!pdfRows.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
   const fmt = new Intl.NumberFormat('th-TH');
   const brand = 'Friendship SuperMart';
   const F = hcFont();
   const byCat = {};
-  _hcRows.forEach(r => { const k = r.category || (isLao ? 'ອື່ນໆ' : 'อื่นๆ'); (byCat[k] = byCat[k] || []).push(r); });
+  pdfRows.forEach(r => { const k = r.category || (isLao ? 'ອື່ນໆ' : 'อื่นๆ'); (byCat[k] = byCat[k] || []).push(r); });
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   let body = '';
   Object.keys(byCat).sort().forEach(ck => {
