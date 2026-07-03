@@ -49,6 +49,7 @@
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js" defer></script>
 <style>
   :root {
     --teal-700: #0f766e; --teal-600: #0d9488; --teal-500: #14b8a6;
@@ -5043,7 +5044,7 @@ function goPage(page) {
     loadFloorMap();
   } else if (page === 'stockcheck') {
     c.innerHTML = renderStockCheckPage();
-    setTimeout(() => { if (typeof updateLiteBtn === 'function') updateLiteBtn(); }, 30);
+    setTimeout(() => { if (typeof updateLiteBtn === 'function') updateLiteBtn(); if (typeof scRenderVoiceChips === 'function') scRenderVoiceChips(); }, 30);
   } else if (page === 'issuereport') {
     c.innerHTML = renderIssueReportPage();
     loadIssueReports();
@@ -9102,6 +9103,7 @@ let _hcRows = [];
 let _hcCatFilter = '';
 let _hcFavOnly = false;
 let _hcHiddenOnly = false;
+let _hcPromoOnly = false;    // กรองเฉพาะสินค้าที่จัดโปร (กดจากป้าย "โปร n")
 let _hcShowGroups = false;   // แสดงแถบย่อยกลุ่มสินค้า (product_group) ในแต่ละประเภท
 let _hcReorder = false;      // โหมดจัดเรียงเอง (แสดงปุ่ม ↑↓ ต่อการ์ด)
 let _hcStock = {};           // { barcode: pos_qty } สต๊อคสาขานี้ (โชว์บนการ์ด เฉพาะในแอป)
@@ -9140,7 +9142,15 @@ function hcRenderPromoBanner() {
   let bg, bd, col, tag;
   if (st === 'expired') { bg = '#f1f5f9'; bd = 'var(--slate-300)'; col = 'var(--slate-500)'; tag = (isLao ? '⏱️ ໝົດແລ້ວ' : '⏱️ หมดโปรแล้ว'); }
   else if (st === 'upcoming') { bg = '#fffbeb'; bd = 'var(--amber-200)'; col = '#b45309'; tag = (isLao ? '🗓️ ຍັງບໍ່ເລີ່ມ' : '🗓️ ยังไม่เริ่ม'); }
-  else { bg = 'linear-gradient(135deg,#fff1f2,#ffe4e6)'; bd = 'var(--rose-200)'; col = '#e11d48'; tag = (isLao ? '🏷️ ໃຊ້ໄດ້' : '🏷️ ใช้ได้'); }
+  else {
+    bg = 'linear-gradient(135deg,#fff1f2,#ffe4e6)'; bd = 'var(--rose-200)'; col = '#e11d48'; tag = (isLao ? '🏷️ ໃຊ້ໄດ້' : '🏷️ ใช้ได้');
+    // เตือนโปรใกล้หมด (เหลือ ≤3 วัน) — เปลี่ยนเป็นโทนส้มพร้อมนับถอยหลัง
+    if (_hcPromo.to) {
+      const t = (typeof localDayKey === 'function') ? localDayKey(new Date()) : new Date().toISOString().slice(0, 10);
+      const days = Math.round((new Date(_hcPromo.to + 'T00:00:00') - new Date(t + 'T00:00:00')) / 86400000);
+      if (days >= 0 && days <= 3) { bg = '#fffbeb'; bd = 'var(--amber-300)'; col = '#b45309'; tag = '⏳ ' + (days === 0 ? (isLao ? 'ໝົດມື້ນີ້!' : 'หมดวันนี้!') : (isLao ? 'ເຫຼືອ ' : 'เหลือ ') + days + (isLao ? ' ມື້' : ' วัน')); }
+    }
+  }
   el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;background:' + bg + ';border:1px solid ' + bd + ';border-radius:10px;padding:8px 12px;">'
     + '<span style="font-size:12px;font-weight:800;color:' + col + ';flex:1;min-width:0;">' + (isLao ? 'ໂປຣໂມຊັນ' : 'โปรโมชั่น') + ': ' + t + '</span>'
     + '<span style="font-size:10px;font-weight:800;color:' + col + ';background:white;border-radius:8px;padding:2px 8px;white-space:nowrap;">' + tag + '</span></div>';
@@ -9217,6 +9227,16 @@ function hcOpenFontSettings() {
 }
 function hcSetGpMin(v) { const n = parseFloat(v); try { localStorage.setItem('fs_hc_gp_min', isNaN(n) ? '5' : String(n)); } catch (e) {} }
 function hcContact() { try { return localStorage.getItem('fs_hc_contact') || ''; } catch (e) { return ''; } }
+// สร้าง QR เป็น data URI ด้วย lib qrcode-generator (ทำงานในเครื่อง ไม่ต้องต่อเว็บนอก) — คืน null ถ้า lib ยังไม่โหลด
+function hcQrDataUri(text) {
+  try {
+    if (typeof qrcode !== 'function') return null;
+    const qr = qrcode(0, 'M');   // type 0 = auto-size
+    qr.addData(String(text));
+    qr.make();
+    return qr.createDataURL(6, 2);
+  } catch (e) { return null; }
+}
 function hcSaveContact() { const v = ((document.getElementById('hcContactInput') || {}).value || '').trim(); try { localStorage.setItem('fs_hc_contact', v); } catch (e) {} showToast('✓', 'success'); }
 function hcSetFont(k, v) { const f = hcFont(); f[k] = parseInt(v, 10) || f[k]; localStorage.setItem('fs_hc_font', JSON.stringify(f)); const el = document.getElementById('hcFv_' + k); if (el) el.textContent = f[k] + 'px'; hcRenderList(); }
 function hcResetFont() { localStorage.removeItem('fs_hc_font'); closeModal(); hcRenderList(); showToast(lang === 'lo' ? 'ຄືນຄ່າເລີ່ມຕົ້ນແລ້ວ' : 'คืนค่าเริ่มต้นแล้ว', 'success'); }
@@ -9272,6 +9292,7 @@ function renderHorecaPage() {
       <div style="display:flex;gap:7px;">
         <button onclick="hqOpen()" style="flex:1;background:var(--violet-600);color:white;border:none;border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">🧾 ${isLao ? 'ໃບສະເໜີລາຄາ' : 'ใบเสนอราคา'}</button>
         <button onclick="hcuOpen()" style="flex:1;background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">👥 ${isLao ? 'ລູກຄ້າ' : 'ลูกค้า'}</button>
+        <button onclick="hqDash()" style="flex:1;background:var(--fs-fill2);color:var(--slate-700);border:1px solid var(--slate-300);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">📊 ${isLao ? 'ສະຫຼຸບ' : 'สรุปยอด'}</button>
       </div>
     </div>
     <div class="fs-card" style="padding:12px;margin-bottom:10px;">
@@ -9322,7 +9343,7 @@ async function loadHoreca() {
     const { data, error } = await sb.from('horeca_catalog').select('*').eq('catalog_set', _hcSet).order('category').order('sort_order');
     if (error) throw error;
     _hcRows = data || [];
-    _hcCatFilter = ''; _hcFavOnly = false; _hcHiddenOnly = false;
+    _hcCatFilter = ''; _hcFavOnly = false; _hcHiddenOnly = false; _hcPromoOnly = false;
     // โหลดช่วงวันโปรของชุดนี้ (ตั้งครั้งเดียว ใช้ทุกสินค้า)
     try { _hcShowGroups = localStorage.getItem('fs_hc_groups') === '1'; } catch (e) {}
     try {
@@ -9335,6 +9356,18 @@ async function loadHoreca() {
     hcRenderChips();
     hcRenderList();
     hcLoadStock();
+    // เด้งไปที่การ์ดสินค้า (มาจากป้ายโปรหน้าตรวจสต๊อค) + ไฮไลต์ชั่วคราว
+    if (window._hcJumpBarcode) {
+      const bc = String(window._hcJumpBarcode);
+      window._hcJumpBarcode = null;
+      setTimeout(() => {
+        const card = document.querySelector('#hcList [data-bc="' + bc.replace(/"/g, '') + '"]');
+        if (!card) return;
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.style.boxShadow = '0 0 0 3px var(--fs-red)';
+        setTimeout(() => { card.style.boxShadow = ''; }, 2400);
+      }, 150);
+    }
   } catch (e) {
     const el = document.getElementById('hcList');
     if (el) el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--rose-500);font-size:11px;">❌ ' + escapeHtml(friendlyError(e)) + '</div>';
@@ -9411,6 +9444,14 @@ async function hcCopySet() {
   _hcSet = newName;
   showToast('✓ ' + (isLao ? 'ສຳເນົາແລ້ວ ' : 'คัดลอกแล้ว ') + ok + (failed ? ' · ' + (isLao ? 'ຜິດພາດ ' : 'พลาด ') + failed : ''), 'success');
   loadHoreca();
+}
+// เด้งจากป้ายโปร (หน้าตรวจสต๊อค) มาที่การ์ดสินค้าตัวนั้นในแคตตาล็อก
+function hcJumpFromBadge() {
+  const j = window._scPromoJump;
+  if (!j) { goPage('horeca'); return; }
+  if (j.set) _hcSet = j.set;
+  window._hcJumpBarcode = j.bc;
+  goPage('horeca');
 }
 function hcSelectSet(v) { _hcSet = v; loadHoreca(); }
 function hcLoadLocalSets() { try { return JSON.parse(localStorage.getItem('fs_hc_sets') || '[]'); } catch (e) { return []; } }
@@ -9691,6 +9732,7 @@ function hcSetCat(v) { _hcCatFilter = v; hcRenderChips(); hcRenderList(); }
 function hcToggleFavFilter() { _hcFavOnly = !_hcFavOnly; hcRenderChips(); hcRenderList(); }
 function hcToggleHiddenFilter() { _hcHiddenOnly = !_hcHiddenOnly; _hcCatFilter = ''; hcRenderChips(); hcRenderList(); }
 function hcToggleGroups() { _hcShowGroups = !_hcShowGroups; try { localStorage.setItem('fs_hc_groups', _hcShowGroups ? '1' : '0'); } catch (e) {} hcRenderChips(); hcRenderList(); }
+function hcTogglePromoFilter() { _hcPromoOnly = !_hcPromoOnly; hcRenderList(); }
 // ปุ่มลอยเลือกประเภทสินค้า (bottom sheet)
 function hcOpenCatPicker() {
   const isLao = lang === 'lo';
@@ -9736,13 +9778,15 @@ function hcRenderList() {
   const isLao = lang === 'lo';
   const el = document.getElementById('hcList');
   if (!el) return;
+  const isPromoRow = r => r.promo_price != null || r.pack_promo != null || r.box_promo != null;
   let rows = _hcHiddenOnly ? _hcRows.filter(r => r.is_hidden) : _hcRows.filter(r => !r.is_hidden);
   if (_hcFavOnly) rows = rows.filter(r => r.is_favorite);
+  if (_hcPromoOnly) rows = rows.filter(isPromoRow);   // กดจากป้ายโปร → เฉพาะสินค้าจัดโปร
   if (_hcCatFilter) rows = rows.filter(r => (r.category || (isLao ? 'ອື່ນໆ' : 'อื่นๆ')) === _hcCatFilter);
-  const promoCnt = hcPromoActive() ? _hcRows.filter(r => r.promo_price != null || r.pack_promo != null || r.box_promo != null).length : 0;
+  const promoCnt = hcPromoActive() ? _hcRows.filter(isPromoRow).length : 0;
   const sEl = document.getElementById('hcSummary');
   if (sEl) sEl.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;"><span style="background:var(--fs-blue);color:white;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">' + _hcRows.length + ' ' + (isLao ? 'ລາຍການ' : 'รายการ') + '</span>'
-    + (promoCnt ? '<span style="background:#fff1f2;color:#e11d48;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">🏷️ ' + (isLao ? 'ໂປຣ' : 'โปรโม') + ' ' + promoCnt + '</span>' : '') + '</div>';
+    + (promoCnt ? '<button onclick="hcTogglePromoFilter()" style="background:' + (_hcPromoOnly ? 'var(--fs-red)' : '#fff1f2') + ';color:' + (_hcPromoOnly ? 'white' : '#e11d48') + ';border:1.5px solid ' + (_hcPromoOnly ? 'var(--fs-red)' : 'var(--rose-200)') + ';border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;cursor:pointer;">🏷️ ' + (isLao ? 'ໂປຣ' : 'โปรโม') + ' ' + promoCnt + (_hcPromoOnly ? ' ✕' : '') + '</button>' : '') + '</div>';
   if (!rows.length) { el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--slate-400);"><div style="font-size:34px;">🍽️</div>' + (isLao ? 'ຍັງບໍ່ມີສິນຄ້າ — ສະແກນ/import ເພື່ອເພີ່ມ' : 'ยังไม่มีสินค้า — สแกน/import เพื่อเพิ่ม') + '</div>'; return; }
   const fmt = new Intl.NumberFormat('th-TH');
   const F = hcFont();
@@ -9775,15 +9819,15 @@ function hcRenderList() {
         ? '<span style="color:var(--fs-red);font-weight:700;">' + fmt.format(r.promo_price) + '</span> <s style="color:#aab6ca;">' + fmt.format(r.normal_price) + '</s>'
         : fmt.format(r.normal_price)) + '₭';
     }
-    return `<div onclick="hcEdit(${r.id})" style="background:white;border:1px solid ${r.is_favorite ? 'var(--fs-red)' : 'var(--slate-200)'};border-radius:11px;overflow:hidden;cursor:pointer;position:relative;${r.is_hidden ? 'opacity:0.55;filter:grayscale(0.4);' : ''}">
+    return `<div onclick="hcEdit(${r.id})" data-bc="${String(r.barcode || '').replace(/"/g, '')}" style="background:white;border:1px solid ${r.is_favorite ? 'var(--fs-red)' : 'var(--slate-200)'};border-radius:11px;overflow:hidden;cursor:pointer;position:relative;display:flex;flex-direction:column;${r.is_hidden ? 'opacity:0.55;filter:grayscale(0.4);' : ''}">
         ${disc > 0 ? `<div style="position:absolute;top:0;left:9px;z-index:2;background:var(--fs-red);color:white;padding:5px 8px 13px;text-align:center;line-height:1;clip-path:polygon(0 0,100% 0,100% 100%,50% 80%,0 100%);box-shadow:0 3px 7px rgba(224,35,41,.4);"><div style="font-size:9px;font-weight:700;letter-spacing:1.5px;">SAVE</div><div style="font-size:14px;font-weight:800;margin-top:1px;">${disc}%</div></div>` : ''}
         <button onclick="hcToggleFav(${r.id},event)" title="Favorite" style="position:absolute;top:5px;right:5px;z-index:2;background:rgba(255,255,255,0.92);border:none;width:29px;height:29px;border-radius:50%;font-size:15px;line-height:1;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.15);padding:0;">${r.is_favorite ? '❤️' : '🤍'}</button>
         <button onclick="hcToggleHidden(${r.id},event)" title="${r.is_hidden ? (isLao ? 'ຍົກເລີກເຊື່ອງ' : 'ยกเลิกซ่อน') : (isLao ? 'ເຊື່ອງ' : 'ซ่อน')}" style="position:absolute;top:38px;right:5px;z-index:2;background:rgba(255,255,255,0.92);border:none;width:29px;height:29px;border-radius:50%;font-size:14px;line-height:1;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.15);padding:0;">${r.is_hidden ? '👁️' : '🙈'}</button>
         <div style="position:relative;width:100%;aspect-ratio:1.3;background:var(--slate-100);display:flex;align-items:center;justify-content:center;">${r.image_url ? '<img src="' + r.image_url + '" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:30px;color:var(--slate-300);">📦</span>'}${stkPill}${reBtns}</div>
-        <div style="padding:8px 10px;">
+        <div style="padding:8px 10px;flex:1;display:flex;flex-direction:column;">
           <div style="font-size:${F.name}px;font-weight:800;color:var(--slate-900);line-height:1.25;text-shadow:0 1px 2px rgba(21,32,54,0.18);">${escapeHtml(r.product_name)}</div>
           <div style="font-size:${F.barcode}px;color:var(--slate-400);font-family:monospace;margin-top:1px;">${escapeHtml(r.barcode || '')}</div>
-          <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:6px;margin-top:6px;">
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:6px;margin-top:auto;padding-top:6px;">
             <div style="font-size:${F.sub}px;color:var(--slate-500);font-weight:600;min-width:0;">${secondary}</div>
             <div style="text-align:right;flex-shrink:0;">
               <div style="font-size:${Math.round(F.sub * 1.05)}px;font-weight:800;color:var(--violet-700);line-height:1;">${featIcon}${escapeHtml(feat.label)}</div>
@@ -10152,19 +10196,23 @@ function hcExportPDF() {
   const w = window.open('', '_blank');
   if (!w) { showToast(isLao ? 'ບລັອກ popup' : 'เบราว์เซอร์บล็อก popup', 'error'); return; }
   // ดีไซน์เน้น "ตัวอักษร/เส้นขอบ" ที่พิมพ์ออกเสมอ (ไม่พึ่งพื้นสี เผื่อ Chrome ปิด Background graphics)
-  const css = '@page{size:A4;margin:9mm;}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
+  // @page margin:0 → เบราว์เซอร์ไม่พิมพ์ วันเวลา/ชื่อไฟล์/about:blank | หัวแบรนด์อยู่ใน thead → พิมพ์ซ้ำหัวทุกหน้า
+  const css = '@page{size:A4;margin:0;}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
     + 'body{font-family:"Leelawadee UI",Tahoma,sans-serif;margin:0;color:#1d1d1f;}'
-    + '.hdr{border-bottom:3px solid #e11d48;padding:0 2px 8px;margin-bottom:12px;display:flex;align-items:flex-end;justify-content:space-between;gap:10px;}'
+    + 'table.doc{width:100%;border-collapse:collapse;}thead{display:table-header-group;}'
+    + 'td.hcell{padding:7mm 9mm 0;}td.bcell{padding:3mm 9mm 8mm;}'
+    + '.hdr{border-bottom:3px solid #e11d48;padding:0 2px 8px;display:flex;align-items:flex-end;justify-content:space-between;gap:10px;}'
     + '.hdr h1{margin:0;font-size:22px;color:#e11d48;letter-spacing:.3px;}.hdr .sub{font-size:11px;color:#555;margin-top:3px;}'
     + '.hdr .set{border:1.5px solid #e11d48;color:#e11d48;font-weight:800;padding:3px 12px;border-radius:20px;font-size:12px;white-space:nowrap;}'
     + '.cat{margin-bottom:11px;page-break-inside:avoid;}'
     + '.cathead{font-weight:800;font-size:14px;padding:6px 12px;border-radius:7px;margin-bottom:8px;}'
     + '.grid{display:grid;grid-template-columns:repeat(' + pdfCols + ',1fr);gap:8px;}'
-    + '.card{border:1px solid #d7dbe3;border-radius:9px;overflow:hidden;position:relative;page-break-inside:avoid;background:#fff;}'
+    + '.card{border:1px solid #d7dbe3;border-radius:9px;overflow:hidden;position:relative;page-break-inside:avoid;background:#fff;display:flex;flex-direction:column;}'
     + '.flag{position:absolute;top:5px;left:5px;z-index:2;background:#e02329;color:#fff;border:1.5px solid #e02329;border-radius:6px;padding:2px 6px;font-size:9px;font-weight:800;letter-spacing:.4px;}'
     + '.img{height:' + imgH + 'px;background:#f2f2f7;display:flex;align-items:center;justify-content:center;overflow:hidden;}'
     + '.img img{width:100%;height:100%;object-fit:cover;}.img .ph{font-size:26px;}'
-    + '.in{padding:6px 8px 8px;}'
+    + '.in{padding:6px 8px 8px;flex:1;display:flex;flex-direction:column;}'
+    + '.lb{margin-top:auto;}'   // ดันกลุ่มราคา (ป้าย+ราคา+หน่วยย่อย) ชิดล่างเสมอ
     + '.nm{font-size:' + pdfName + 'px;font-weight:800;line-height:1.2;color:#152036;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.4em;word-break:break-word;}'
     + '.bc{font-size:' + pdfBc + 'px;color:#9aa6bb;font-family:monospace;margin:1px 0 3px;}'
     + '.lb{font-size:' + pdfSub + 'px;font-weight:800;color:#5b3ea8;}'
@@ -10175,18 +10223,21 @@ function hcExportPDF() {
     + '.sec{font-size:' + pdfSub + 'px;color:#6c7a93;font-weight:600;margin-top:2px;}.sec b{color:#e02329;}.sec s{color:#aab6ca;}'
     + '.ft{margin-top:14px;text-align:center;font-size:10px;color:#8e8e93;border-top:1px solid #e5e5ea;padding-top:8px;}';
   const today = localDayKey(new Date());
-  // C2: QR ติดต่อ (WhatsApp/ลิงก์) ที่มุมหัวกระดาษ ถ้าตั้งเบอร์/ลิงก์ไว้
+  // C2: QR ติดต่อ (WhatsApp/ลิงก์) ที่มุมหัวกระดาษ ถ้าตั้งเบอร์/ลิงก์ไว้ — สร้างในเครื่อง (offline) ก่อน, ไม่ได้ค่อย fallback เว็บ
   const contact = hcContact();
   let qrHtml = '';
   if (contact) {
     const digits = String(contact).replace(/[^0-9]/g, '');
     const target = /^https?:\/\//i.test(contact) ? contact : (digits.length >= 8 ? 'https://wa.me/' + digits : contact);
-    qrHtml = '<img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&margin=0&data=' + encodeURIComponent(target) + '" style="width:62px;height:62px;display:block;" alt="QR">';
+    const src = hcQrDataUri(target) || ('https://api.qrserver.com/v1/create-qr-code/?size=120x120&margin=0&data=' + encodeURIComponent(target));
+    qrHtml = '<img src="' + src + '" style="width:62px;height:62px;display:block;" alt="QR">';
   }
+  const hdrHtml = '<div class="hdr"><div><h1>🍽️ ' + brand + '</h1><div class="sub">HORECA Catalog · ' + today + ((hcPromoActive() && hcPeriodText(isLao)) ? ' · 🏷️ ' + (isLao ? 'ໂປຣ' : 'โปร') + ' ' + esc(hcPeriodText(isLao)) : '') + '</div></div><div style="display:flex;align-items:center;gap:10px;">' + qrHtml + '<div class="set">' + esc(_hcSet) + '</div></div></div>';
   w.document.write('<html><head><meta charset="utf-8"><title>' + esc(brand) + ' HORECA ' + esc(_hcSet) + '</title><style>' + css + '</style></head><body>'
-    + '<div class="hdr"><div><h1>🍽️ ' + brand + '</h1><div class="sub">HORECA Catalog · ' + today + ((hcPromoActive() && hcPeriodText(isLao)) ? ' · 🏷️ ' + (isLao ? 'ໂປຣ' : 'โปร') + ' ' + esc(hcPeriodText(isLao)) : '') + '</div></div><div style="display:flex;align-items:center;gap:10px;">' + qrHtml + '<div class="set">' + esc(_hcSet) + '</div></div></div>'
-    + body
+    + '<table class="doc"><thead><tr><td class="hcell">' + hdrHtml + '</td></tr></thead>'
+    + '<tbody><tr><td class="bcell">' + body
     + '<div class="ft">' + brand + ' · ' + (isLao ? 'ຕິດຕໍ່ທີມຂາຍ HORECA' : 'ติดต่อทีมขาย HORECA') + (contact ? ' · ' + esc(contact) : '') + '</div>'
+    + '</td></tr></tbody></table>'
     + '<scr' + 'ipt>window.onload=function(){setTimeout(function(){try{window.print();}catch(e){}},600);};</scr' + 'ipt></body></html>');
   w.document.close();
 }
@@ -10223,43 +10274,110 @@ async function hcShareText() {
   catch (e) { showToast(isLao ? 'ແບ່ງປັນ/ສຳເນົາບໍ່ໄດ້' : 'แชร์/คัดลอกไม่ได้', 'error'); }
 }
 // ==================== HORECA CRM: ลูกค้า (hcu*) ====================
+let _hcuTypes = null;   // ประเภทลูกค้า (แชร์ทั้งบริษัทผ่าน app_settings key hc_cust_types)
+const HCU_DEFAULT_TYPES = ['AFLP (ในเครือ)', 'WSP (นอกเครือ)', 'REP (Tele sales)'];
+async function hcuLoadTypes() {
+  if (_hcuTypes) return _hcuTypes;
+  try {
+    const { data } = await sb.from('app_settings').select('value').eq('key', 'hc_cust_types').maybeSingle();
+    const arr = data && data.value ? JSON.parse(data.value) : null;
+    _hcuTypes = (Array.isArray(arr) && arr.length) ? arr : HCU_DEFAULT_TYPES.slice();
+  } catch (e) { _hcuTypes = HCU_DEFAULT_TYPES.slice(); }
+  return _hcuTypes;
+}
 async function hcuLoad() {
   try { const { data } = await sb.from('horeca_customers').select('*').order('name'); _hcCustomers = data || []; }
   catch (e) { _hcCustomers = []; }
+  await hcuLoadTypes();
   return _hcCustomers;
 }
 async function hcuOpen() {
   const isLao = lang === 'lo';
   showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><h3 style="font-size:15px;margin:0;">👥 ' + (isLao ? 'ລູກຄ້າ HORECA' : 'ลูกค้า HORECA') + '</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
+    + '<input id="hcuSearch" oninput="hcuRenderList(this.value)" placeholder="🔍 ' + (isLao ? 'ຄົ້ນຈາກຊື່ ຫຼື ເບີໂທ' : 'ค้นจากชื่อ หรือ เบอร์โทร') + '" style="width:100%;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;box-sizing:border-box;margin-bottom:8px;">'
     + '<button onclick="hcuEdit(0)" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:10px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:10px;">+ ' + (isLao ? 'ເພີ່ມລູກຄ້າ' : 'เพิ่มลูกค้า') + '</button>'
-    + '<div id="hcuList" style="max-height:52vh;overflow-y:auto;"><div class="loader" style="margin:10px auto;"></div></div>');
+    + '<div id="hcuList" style="max-height:48vh;overflow-y:auto;"><div class="loader" style="margin:10px auto;"></div></div>');
   await hcuLoad();
   hcuRenderList();
 }
-function hcuRenderList() {
+function hcuRenderList(q) {
   const isLao = lang === 'lo';
   const el = document.getElementById('hcuList');
   if (!el) return;
-  if (!_hcCustomers.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--slate-400);font-size:12px;">' + (isLao ? 'ຍັງບໍ່ມີລູກຄ້າ' : 'ยังไม่มีลูกค้า') + '</div>'; return; }
-  el.innerHTML = _hcCustomers.map(c => '<div onclick="hcuEdit(' + c.id + ')" style="border:1px solid var(--slate-200);border-radius:9px;padding:10px 12px;margin-bottom:7px;cursor:pointer;">'
+  let list = _hcCustomers;
+  // ค้นจาก ชื่อ / เบอร์โทร / ผู้ติดต่อ
+  q = (q == null ? ((document.getElementById('hcuSearch') || {}).value || '') : q).trim().toLowerCase();
+  if (q) list = list.filter(c => ((c.name || '') + ' ' + (c.phone || '') + ' ' + (c.contact_person || '')).toLowerCase().includes(q));
+  if (!list.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--slate-400);font-size:12px;">' + (q ? (isLao ? 'ບໍ່ພົບ' : 'ไม่พบ') : (isLao ? 'ຍັງບໍ່ມີລູກຄ້າ' : 'ยังไม่มีลูกค้า')) + '</div>'; return; }
+  el.innerHTML = list.map(c => '<div onclick="hcuEdit(' + c.id + ')" style="border:1px solid var(--slate-200);border-radius:9px;padding:10px 12px;margin-bottom:7px;cursor:pointer;">'
     + '<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:13px;font-weight:800;color:var(--slate-800);flex:1;min-width:0;">' + escapeHtml(c.name) + '</span>' + (c.type ? '<span style="font-size:10px;font-weight:700;color:var(--violet-700);background:var(--violet-100);border-radius:7px;padding:2px 8px;">' + escapeHtml(c.type) + '</span>' : '') + '</div>'
     + ((c.contact_person || c.phone) ? '<div style="font-size:11px;color:var(--slate-500);margin-top:3px;">' + escapeHtml(c.contact_person || '') + (c.phone ? ' · 📞 ' + escapeHtml(c.phone) : '') + '</div>' : '') + '</div>').join('');
 }
 function hcuEdit(id) {
   const isLao = lang === 'lo';
   const c = _hcCustomers.find(x => x.id === id) || {};
-  const types = ['ร้านอาหาร', 'โรงแรม', 'คาเฟ่', 'ร้านค้า', 'โรงงาน', 'อื่นๆ'];
+  const types = (_hcuTypes && _hcuTypes.length) ? _hcuTypes : HCU_DEFAULT_TYPES;
+  const opts = types.slice();
+  if (c.type && !opts.includes(c.type)) opts.push(c.type); // ประเภทเก่าที่ถูกลบไปแล้ว ยังโชว์ค่าเดิมได้
   const inp = (id2, val, ph) => '<input id="' + id2 + '" value="' + escapeHtml(val || '') + '" placeholder="' + ph + '" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:7px;">';
   showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><h3 style="font-size:15px;margin:0;">' + (id ? '✏️ ' + (isLao ? 'ແກ້ໄຂລູກຄ້າ' : 'แก้ไขลูกค้า') : '+ ' + (isLao ? 'ເພີ່ມລູກຄ້າ' : 'เพิ่มลูกค้า')) + '</h3><button onclick="hcuOpen()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
     + inp('hcuName', c.name, (isLao ? 'ຊື່ຮ້ານ/ລູກຄ້າ *' : 'ชื่อร้าน/ลูกค้า *'))
-    + '<select id="hcuType" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:7px;background:white;"><option value="">' + (isLao ? '— ປະເພດ —' : '— ประเภท —') + '</option>' + types.map(t => '<option' + (c.type === t ? ' selected' : '') + '>' + t + '</option>').join('') + '</select>'
+    + '<div style="display:flex;gap:6px;margin-bottom:7px;">'
+    + '<select id="hcuType" style="flex:1;min-width:0;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;box-sizing:border-box;background:white;"><option value="">' + (isLao ? '— ປະເພດ —' : '— ประเภท —') + '</option>' + opts.map(t => '<option' + (c.type === t ? ' selected' : '') + '>' + escapeHtml(t) + '</option>').join('') + '</select>'
+    + '<button onclick="hcuAddType()" title="' + (isLao ? 'ເພີ່ມປະເພດ' : 'เพิ่มประเภท') + '" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0;">＋</button>'
+    + '</div>'
     + inp('hcuContact', c.contact_person, (isLao ? 'ຜູ້ຕິດຕໍ່' : 'ผู้ติดต่อ'))
     + inp('hcuPhone', c.phone, (isLao ? 'ເບີໂທ' : 'เบอร์โทร'))
     + inp('hcuAddr', c.address, (isLao ? 'ທີ່ຢູ່' : 'ที่อยู่'))
     + inp('hcuNote', c.note, (isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ'))
+    + (id ? '<div style="font-size:11px;font-weight:800;color:var(--slate-500);margin:4px 0 5px;">🧾 ' + (isLao ? 'ປະຫວັດໃບສະເໜີລາຄາ' : 'ประวัติใบเสนอราคา') + '</div><div id="hcuQtHist" style="max-height:26vh;overflow-y:auto;margin-bottom:8px;"><div class="loader" style="margin:6px auto;"></div></div>' : '')
     + '<div style="display:flex;gap:7px;margin-top:4px;">'
     + (id ? '<button onclick="hcuDelete(' + id + ')" style="background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:9px;padding:11px 14px;font-size:13px;font-weight:700;cursor:pointer;">🗑️</button>' : '')
     + '<button onclick="hcuSave(' + id + ')" style="flex:1;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;">💾 ' + (isLao ? 'ບັນທຶກ' : 'บันทึก') + '</button></div>');
+  if (id) hcuLoadQtHist(id);
+}
+// เพิ่มประเภทลูกค้าใหม่ (แชร์ทั้งบริษัท) — อัปเดต select ตรงๆ ไม่ re-render กันค่าที่กรอกไว้หาย
+async function hcuAddType() {
+  const isLao = lang === 'lo';
+  const input = prompt(isLao ? 'ຊື່ປະເພດລູກຄ້າໃໝ່:' : 'ชื่อประเภทลูกค้าใหม่:', '');
+  if (input == null) return;
+  const t = input.trim();
+  if (!t) return;
+  await hcuLoadTypes();
+  if (!_hcuTypes.includes(t)) {
+    _hcuTypes.push(t);
+    try {
+      const { error } = await sb.from('app_settings').upsert({ key: 'hc_cust_types', value: JSON.stringify(_hcuTypes), updated_at: new Date().toISOString(), updated_by: (user && user.id) || null }, { onConflict: 'key' });
+      if (error) { showToast('Error: ' + error.message, 'error'); return; }
+    } catch (e) {}
+  }
+  const sel = document.getElementById('hcuType');
+  if (sel) {
+    if (![...sel.options].some(o => o.value === t)) { const o = document.createElement('option'); o.textContent = t; o.value = t; sel.appendChild(o); }
+    sel.value = t;
+  }
+  showToast('✓ ' + t, 'success');
+}
+// ประวัติใบเสนอราคาของลูกค้าคนนี้ (ดูราคาที่เคยเสนอได้ทันที)
+async function hcuLoadQtHist(custId) {
+  const isLao = lang === 'lo';
+  const el0 = document.getElementById('hcuQtHist');
+  if (!el0) return;
+  try {
+    const { data } = await sb.from('horeca_quotations').select('id,quote_no,total,created_at,status').eq('customer_id', custId).order('id', { ascending: false }).limit(20);
+    const el = document.getElementById('hcuQtHist');
+    if (!el) return;
+    const fmt = new Intl.NumberFormat('th-TH');
+    if (!data || !data.length) { el.innerHTML = '<div style="font-size:11px;color:var(--slate-400);padding:4px 2px;">' + (isLao ? 'ຍັງບໍ່ມີ' : 'ยังไม่มี') + '</div>'; return; }
+    el.innerHTML = data.map(q => {
+      const st = hqStatusMeta(q.status);
+      return '<div onclick="hqPDF(' + q.id + ')" style="display:flex;align-items:center;gap:7px;border:1px solid var(--slate-200);border-radius:8px;padding:7px 10px;margin-bottom:5px;cursor:pointer;">'
+        + '<span style="font-size:12px;font-weight:800;color:var(--slate-800);">' + escapeHtml(q.quote_no || '-') + '</span>'
+        + '<span style="font-size:10.5px;color:var(--slate-400);flex:1;">' + (q.created_at ? String(q.created_at).slice(0, 10) : '') + '</span>'
+        + '<span style="font-size:12px;font-weight:800;color:var(--slate-700);">' + fmt.format(q.total || 0) + '₭</span>'
+        + '<span style="font-size:9.5px;font-weight:800;color:' + st.col + ';background:' + st.bg + ';border-radius:7px;padding:2px 7px;white-space:nowrap;">' + st.label(isLao) + '</span></div>';
+    }).join('');
+  } catch (e) { const el = document.getElementById('hcuQtHist'); if (el) el.innerHTML = ''; }
 }
 async function hcuSave(id) {
   const isLao = lang === 'lo';
@@ -10290,21 +10408,50 @@ async function hqOpen() {
     + '<button onclick="hqNew()" style="width:100%;background:var(--violet-600);color:white;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:10px;">+ ' + (isLao ? 'ສ້າງໃໝ່' : 'สร้างใหม่') + '</button>'
     + '<div id="hqList" style="max-height:50vh;overflow-y:auto;"><div class="loader" style="margin:10px auto;"></div></div>');
   try {
-    const { data } = await sb.from('horeca_quotations').select('id,quote_no,customer_name,total,created_at,valid_until').order('id', { ascending: false }).limit(50);
+    const { data } = await sb.from('horeca_quotations').select('id,quote_no,customer_name,total,created_at,valid_until,status').order('id', { ascending: false }).limit(50);
     const el = document.getElementById('hqList');
     if (!el) return;
     const fmt = new Intl.NumberFormat('th-TH');
     if (!data || !data.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--slate-400);font-size:12px;">' + (isLao ? 'ຍັງບໍ່ມີໃບສະເໜີລາຄາ' : 'ยังไม่มีใบเสนอราคา') + '</div>'; return; }
-    el.innerHTML = data.map(q => '<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--slate-200);border-radius:9px;padding:10px 12px;margin-bottom:7px;">'
-      + '<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:800;color:var(--slate-800);">' + escapeHtml(q.quote_no || '-') + ' · ' + escapeHtml(q.customer_name || '-') + '</div>'
-      + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + fmt.format(q.total || 0) + '₭ · ' + (q.created_at ? String(q.created_at).slice(0, 10) : '') + '</div></div>'
-      + '<button onclick="hqPDF(' + q.id + ')" style="background:var(--fs-red);color:white;border:none;border-radius:8px;padding:8px 11px;font-size:12px;font-weight:700;cursor:pointer;">🖨️</button></div>').join('');
+    el.innerHTML = data.map(q => {
+      const st = hqStatusMeta(q.status);
+      return '<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--slate-200);border-radius:9px;padding:10px 12px;margin-bottom:7px;">'
+        + '<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:800;color:var(--slate-800);">' + escapeHtml(q.quote_no || '-') + ' · ' + escapeHtml(q.customer_name || '-') + '</div>'
+        + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + fmt.format(q.total || 0) + '₭ · ' + (q.created_at ? String(q.created_at).slice(0, 10) : '') + '</div></div>'
+        + '<button onclick="hqStatusPick(' + q.id + ')" style="background:' + st.bg + ';color:' + st.col + ';border:none;border-radius:999px;padding:5px 10px;font-size:10.5px;font-weight:800;cursor:pointer;white-space:nowrap;">' + st.label(isLao) + '</button>'
+        + '<button onclick="hqPDF(' + q.id + ')" style="background:var(--fs-red);color:white;border:none;border-radius:8px;padding:8px 11px;font-size:12px;font-weight:700;cursor:pointer;">🖨️</button></div>';
+    }).join('');
   } catch (e) {
     const el = document.getElementById('hqList'); if (el) el.innerHTML = '<div style="color:var(--rose-500);font-size:11px;padding:10px;">❌ ' + escapeHtml(friendlyError(e)) + '</div>';
   }
 }
+// สถานะใบเสนอราคา: draft(ร่าง) → sent(เสนอแล้ว) → won(ปิดดีล) / lost(ไม่สำเร็จ)
+function hqStatusMeta(s) {
+  const M = {
+    draft: { bg: 'var(--slate-100)', col: 'var(--slate-600)', label: l => l ? '📝 ຮ່າງ' : '📝 ร่าง' },
+    sent: { bg: '#eff6ff', col: '#1d4ed8', label: l => l ? '📨 ສະເໜີແລ້ວ' : '📨 เสนอแล้ว' },
+    won: { bg: '#ecfdf5', col: '#047857', label: l => l ? '✅ ປິດດີລ' : '✅ ปิดดีล' },
+    lost: { bg: '#fff1f2', col: '#e11d48', label: l => l ? '❌ ບໍ່ສຳເລັດ' : '❌ ไม่สำเร็จ' }
+  };
+  return M[s] || M.draft;
+}
+function hqStatusPick(id) {
+  const isLao = lang === 'lo';
+  const btn = (s, extra) => { const m = hqStatusMeta(s); return '<button onclick="hqSetStatus(' + id + ',\'' + s + '\')" style="width:100%;background:' + m.bg + ';color:' + m.col + ';border:1.5px solid ' + m.col + '22;border-radius:10px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:7px;text-align:left;">' + m.label(isLao) + (extra ? ' <span style="font-weight:600;font-size:11px;color:var(--slate-400);">' + extra + '</span>' : '') + '</button>'; };
+  showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><h3 style="font-size:15px;margin:0;">' + (isLao ? 'ປ່ຽນສະຖານະ' : 'เปลี่ยนสถานะ') + '</h3><button onclick="hqOpen()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
+    + btn('draft') + btn('sent', isLao ? 'ສົ່ງໃຫ້ລູກຄ້າແລ້ວ' : 'ส่งให้ลูกค้าแล้ว') + btn('won', isLao ? 'ລູກຄ້າຕົກລົງຊື້' : 'ลูกค้าตกลงซื้อ') + btn('lost'));
+}
+async function hqSetStatus(id, s) {
+  const isLao = lang === 'lo';
+  const { error } = await sb.from('horeca_quotations').update({ status: s }).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  if (typeof logActivity === 'function') logActivity('horeca_quote_status', id + ' -> ' + s);
+  showToast('✓ ' + hqStatusMeta(s).label(isLao), 'success');
+  hqOpen();
+}
 async function hqNew() {
   _hqCart = [];
+  _hqMasterHits = {};
   await hcuLoad();
   hqBuilder();
 }
@@ -10335,36 +10482,76 @@ function hqBuilder() {
     + '<input id="hqNote" placeholder="' + (isLao ? 'ໝາຍເຫດ (ຖ້າມີ)' : 'หมายเหตุ (ถ้ามี)') + '" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:10px;">'
     + '<button onclick="hqSave()" style="width:100%;background:var(--violet-600);color:white;border:none;border-radius:9px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">💾 ' + (isLao ? 'ບັນທຶກ + ອອກ PDF' : 'บันทึก + ออก PDF') + '</button>');
 }
-function hqSearchItems(q) {
+let _hqMasterHits = {};   // cache ผลค้นจาก master_products (สินค้านอก catalog) → ใช้ตอน hqAdd
+let _hqSearchSeq = 0;     // กันผลค้นช้าทับผลใหม่
+async function hqSearchItems(q) {
   const isLao = lang === 'lo';
   const el = document.getElementById('hqSearchRes');
   if (!el) return;
   q = (q || '').trim().toLowerCase();
   if (!q) { el.innerHTML = ''; return; }
+  const seq = ++_hqSearchSeq;
   const active = hcPromoActive();
+  const rowLine = (bc, name, lab, price, tag) => '<div onclick="hqAdd(\'' + String(bc || '').replace(/[^0-9A-Za-z_-]/g, '') + '\')" style="display:flex;align-items:center;gap:8px;border:1px solid var(--slate-200);border-radius:8px;padding:8px 10px;margin-bottom:5px;cursor:pointer;">'
+    + '<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(name) + '</div><div style="font-size:10px;color:var(--slate-400);">' + lab + ' · ' + Number(price || 0).toLocaleString() + '₭' + (tag ? ' · <span style="color:var(--amber-600,#b45309);font-weight:800;">' + tag + '</span>' : '') + '</div></div><span style="color:var(--fs-blue);font-size:18px;font-weight:800;">+</span></div>';
+  // 1) จาก catalog ชุดนี้ก่อน
   const matches = _hcRows.filter(r => !r.is_hidden && ((r.product_name || '').toLowerCase().includes(q) || String(r.barcode || '').includes(q))).slice(0, 12);
-  el.innerHTML = matches.length ? matches.map(r => {
+  let html = matches.map(r => {
     // ราคาเริ่มต้น = ลัง(ถ้ามี) > แพ๊ค > หน่วย (ใช้โปรถ้ายังไม่หมด)
     let lab, price;
     if (r.box_normal != null || r.box_promo != null) { lab = (isLao ? 'ລັງ' : 'ลัง') + (r.box_qty ? ' ' + r.box_qty : ''); price = (active && r.box_promo != null) ? r.box_promo : r.box_normal; }
     else if (r.pack_normal != null || r.pack_promo != null) { lab = (isLao ? 'ແພັກ' : 'แพ๊ค') + (r.pack_qty ? ' ' + r.pack_qty : ''); price = (active && r.pack_promo != null) ? r.pack_promo : r.pack_normal; }
     else { lab = r.unit || 'Unit'; price = (active && r.promo_price != null) ? r.promo_price : r.normal_price; }
-    return '<div onclick="hqAdd(\'' + String(r.barcode || '').replace(/'/g, '') + '\')" style="display:flex;align-items:center;gap:8px;border:1px solid var(--slate-200);border-radius:8px;padding:8px 10px;margin-bottom:5px;cursor:pointer;">'
-      + '<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(r.product_name) + '</div><div style="font-size:10px;color:var(--slate-400);">' + lab + ' · ' + Number(price || 0).toLocaleString() + '₭</div></div><span style="color:var(--fs-blue);font-size:18px;font-weight:800;">+</span></div>';
-  }).join('') : '<div style="text-align:center;padding:8px;color:var(--slate-400);font-size:11px;">' + (isLao ? 'ບໍ່ພົບ' : 'ไม่พบ') + '</div>';
+    return rowLine(r.barcode, r.product_name, lab, price, null);
+  }).join('');
+  el.innerHTML = html || '<div class="loader" style="margin:6px auto;"></div>';
+  // 2) เติมจาก master_products (สินค้าที่ไม่มีใน catalog) — คำยาวสุดยิง server, คำที่เหลือกรองในเครื่อง
+  try {
+    const toks = q.split(/\s+/).map(t => t.replace(/[,()%]/g, '')).filter(Boolean);
+    const main = toks.slice().sort((a, b) => b.length - a.length)[0] || q;
+    const { data } = await sb.from('master_products')
+      .select('barcode,name_th,name_lo,sell_price')
+      .or('name_th.ilike.%' + main + '%,name_lo.ilike.%' + main + '%,barcode.ilike.%' + main + '%')
+      .limit(100);
+    if (seq !== _hqSearchSeq) return;
+    const inCat = new Set(_hcRows.map(r => String(r.barcode || '')));
+    const masters = (data || []).filter(m => {
+      if (inCat.has(String(m.barcode))) return false;
+      const hay = ((m.name_th || '') + ' ' + (m.name_lo || '') + ' ' + (m.barcode || '')).toLowerCase();
+      return toks.every(t => hay.includes(t.toLowerCase()));
+    }).slice(0, 10);
+    masters.forEach(m => { _hqMasterHits[String(m.barcode)] = m; });
+    if (masters.length) {
+      html += '<div style="font-size:10px;font-weight:800;color:var(--slate-400);margin:7px 0 4px;">📦 ' + (isLao ? 'ຈາກ Master (ບໍ່ຢູ່ໃນ catalog)' : 'จาก Master (ไม่อยู่ใน catalog)') + '</div>'
+        + masters.map(m => rowLine(m.barcode, isLao ? (m.name_lo || m.name_th || '') : (m.name_th || m.name_lo || ''), 'Unit', m.sell_price, 'Master')).join('');
+    }
+    el.innerHTML = html || '<div style="text-align:center;padding:8px;color:var(--slate-400);font-size:11px;">' + (isLao ? 'ບໍ່ພົບ' : 'ไม่พบ') + '</div>';
+  } catch (e) {
+    if (seq === _hqSearchSeq) el.innerHTML = html || '<div style="text-align:center;padding:8px;color:var(--slate-400);font-size:11px;">' + (isLao ? 'ບໍ່ພົບ' : 'ไม่พบ') + '</div>';
+  }
 }
 function hqAdd(barcode) {
   const isLao = lang === 'lo';
-  const r = _hcRows.find(x => String(x.barcode || '') === String(barcode));
-  if (!r) return;
+  const bcKey = String(barcode);
+  const r = _hcRows.find(x => String(x.barcode || '') === bcKey);
   const active = hcPromoActive();
-  let lab, price;
-  if (r.box_normal != null || r.box_promo != null) { lab = (isLao ? 'ລັງ' : 'ลัง') + (r.box_qty ? ' ' + r.box_qty : ''); price = (active && r.box_promo != null) ? r.box_promo : r.box_normal; }
-  else if (r.pack_normal != null || r.pack_promo != null) { lab = (isLao ? 'ແພັກ' : 'แพ๊ค') + (r.pack_qty ? ' ' + r.pack_qty : ''); price = (active && r.pack_promo != null) ? r.pack_promo : r.pack_normal; }
-  else { lab = r.unit || 'Unit'; price = (active && r.promo_price != null) ? r.promo_price : r.normal_price; }
-  const ex = _hqCart.find(it => it.barcode === String(barcode) && it.unit_label === lab);
+  let lab, price, name;
+  if (r) {
+    name = r.product_name;
+    if (r.box_normal != null || r.box_promo != null) { lab = (isLao ? 'ລັງ' : 'ลัง') + (r.box_qty ? ' ' + r.box_qty : ''); price = (active && r.box_promo != null) ? r.box_promo : r.box_normal; }
+    else if (r.pack_normal != null || r.pack_promo != null) { lab = (isLao ? 'ແພັກ' : 'แพ๊ค') + (r.pack_qty ? ' ' + r.pack_qty : ''); price = (active && r.pack_promo != null) ? r.pack_promo : r.pack_normal; }
+    else { lab = r.unit || 'Unit'; price = (active && r.promo_price != null) ? r.promo_price : r.normal_price; }
+  } else {
+    // สินค้านอก catalog — ดึงจากผลค้น master_products
+    const m = _hqMasterHits[bcKey];
+    if (!m) return;
+    name = isLao ? (m.name_lo || m.name_th || bcKey) : (m.name_th || m.name_lo || bcKey);
+    lab = 'Unit';
+    price = Number(m.sell_price) || 0;
+  }
+  const ex = _hqCart.find(it => it.barcode === bcKey && it.unit_label === lab);
   if (ex) ex.qty = (Number(ex.qty) || 0) + 1;
-  else _hqCart.push({ barcode: String(barcode), name: r.product_name, unit_label: lab, qty: 1, price: Number(price) || 0 });
+  else _hqCart.push({ barcode: bcKey, name: name, unit_label: lab, qty: 1, price: Number(price) || 0 });
   const sv = (document.getElementById('hqSearch') || {}).value || '';
   hqBuilder();
   const se = document.getElementById('hqSearch'); if (se) { se.value = sv; hqSearchItems(sv); }
@@ -10430,9 +10617,11 @@ function hqRenderPDF(q) {
   const w = window.open('', '_blank');
   if (!w) { showToast(isLao ? 'ບລັອກ popup' : 'เบราว์เซอร์บล็อก popup', 'error'); return; }
   const contact = hcContact();
-  const css = '@page{size:A4;margin:12mm;}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
+  const css = '@page{size:A4;margin:0;}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
     + 'body{font-family:"Leelawadee UI",Tahoma,sans-serif;margin:0;color:#1d1d1f;font-size:12px;}'
-    + '.hd{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #7c3aed;padding-bottom:10px;margin-bottom:14px;}'
+    + 'table.doc{width:100%;border-collapse:collapse;}thead{display:table-header-group;}'
+    + 'td.hcell{padding:9mm 12mm 0;border:none;}td.bcell{padding:4mm 12mm 10mm;border:none;}'
+    + '.hd{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #7c3aed;padding-bottom:10px;}'
     + '.hd h1{margin:0;font-size:20px;color:#7c3aed;}.hd .s{font-size:11px;color:#555;margin-top:2px;}'
     + '.qt{text-align:right;}.qt .no{font-size:18px;font-weight:800;color:#7c3aed;}.qt .d{font-size:11px;color:#555;}'
     + '.box{background:#f6f5ff;border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:12px;}'
@@ -10445,9 +10634,10 @@ function hqRenderPDF(q) {
     + '.ft{margin-top:24px;font-size:11px;color:#555;display:flex;justify-content:space-between;align-items:flex-end;}'
     + '.sign{text-align:center;}.sign .l{border-top:1px solid #999;width:150px;margin-top:34px;padding-top:4px;}';
   const today = (typeof localDayKey === 'function') ? localDayKey(new Date()) : String(q.created_at || '').slice(0, 10);
+  const qhd = '<div class="hd"><div><h1>🍽️ ' + brand + '</h1><div class="s">HORECA · ' + (isLao ? 'ໃບສະເໜີລາຄາ' : 'ใบเสนอราคา') + (contact ? ' · ' + esc(contact) : '') + '</div></div>'
+    + '<div class="qt"><div class="no">' + esc(q.quote_no || '') + '</div><div class="d">' + (isLao ? 'ວັນທີ' : 'วันที่') + ' ' + esc(String(q.created_at || today).slice(0, 10)) + (q.valid_until ? '<br>' + (isLao ? 'ยืนราคาถึง ' : 'ยืนราคาถึง ') + esc(q.valid_until) : '') + '</div></div></div>';
   w.document.write('<html><head><meta charset="utf-8"><title>' + esc(q.quote_no || 'Quotation') + '</title><style>' + css + '</style></head><body>'
-    + '<div class="hd"><div><h1>🍽️ ' + brand + '</h1><div class="s">HORECA · ' + (isLao ? 'ໃບສະເໜີລາຄາ' : 'ใบเสนอราคา') + (contact ? ' · ' + esc(contact) : '') + '</div></div>'
-    + '<div class="qt"><div class="no">' + esc(q.quote_no || '') + '</div><div class="d">' + (isLao ? 'ວັນທີ' : 'วันที่') + ' ' + esc(String(q.created_at || today).slice(0, 10)) + (q.valid_until ? '<br>' + (isLao ? 'ยืนราคาถึง ' : 'ยืนราคาถึง ') + esc(q.valid_until) : '') + '</div></div></div>'
+    + '<table class="doc"><thead><tr><td class="hcell">' + qhd + '</td></tr></thead><tbody><tr><td class="bcell">'
     + '<div class="box"><b>' + (isLao ? 'ລູກຄ້າ' : 'ลูกค้า') + ':</b> ' + esc(q.customer_name || '-') + (q.customer_phone ? ' · 📞 ' + esc(q.customer_phone) : '') + '</div>'
     + '<table><thead><tr><th class="c">#</th><th>' + (isLao ? 'ລາຍການ' : 'รายการ') + '</th><th class="c">' + (isLao ? 'ໜ່ວຍ' : 'หน่วย') + '</th><th class="r">' + (isLao ? 'ຈຳນວນ' : 'จำนวน') + '</th><th class="r">' + (isLao ? 'ລາຄາ' : 'ราคา') + '</th><th class="r">' + (isLao ? 'ລວມ' : 'รวม') + '</th></tr></thead><tbody>' + rows + '</tbody></table>'
     + '<div class="tot"><div><span>' + (isLao ? 'ຍອດລວມ' : 'ยอดรวม') + '</span><span>' + fmt.format(q.subtotal || 0) + ' ₭</span></div>'
@@ -10455,10 +10645,51 @@ function hqRenderPDF(q) {
     + '<div class="g"><span>' + (isLao ? 'ຍອດສຸດທິ' : 'ยอดสุทธิ') + '</span><span>' + fmt.format(q.total || 0) + ' ₭</span></div></div>'
     + (q.note ? '<div style="clear:both;font-size:11px;color:#555;margin-top:10px;">📝 ' + esc(q.note) + '</div>' : '')
     + '<div class="ft"><div>' + brand + '<br>' + (isLao ? 'ຂອບໃຈທີ່ໃຊ້ບໍລິການ' : 'ขอบคุณที่ใช้บริการ') + '</div><div class="sign"><div class="l">' + (isLao ? 'ຜູ້ສະເໜີລາຄາ' : 'ผู้เสนอราคา') + '</div></div></div>'
+    + '</td></tr></tbody></table>'
     + '<scr' + 'ipt>window.onload=function(){setTimeout(function(){try{window.print();}catch(e){}},500);};</scr' + 'ipt></body></html>');
   w.document.close();
 }
 
+// ==================== HORECA DASHBOARD (สรุปยอดทีมขาย) ====================
+async function hqDash() {
+  const isLao = lang === 'lo';
+  showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><h3 style="font-size:15px;margin:0;">📊 ' + (isLao ? 'ສະຫຼຸບ HORECA' : 'สรุปยอด HORECA') + '</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
+    + '<div id="hqDashBody"><div class="loader" style="margin:14px auto;"></div></div>');
+  try {
+    const since = new Date(); since.setMonth(since.getMonth() - 3); since.setDate(1);
+    const [qr, cr] = await Promise.all([
+      sb.from('horeca_quotations').select('quote_no,customer_name,total,status,created_at').gte('created_at', since.toISOString()).order('id', { ascending: false }).limit(1000),
+      sb.from('horeca_customers').select('id,created_at').limit(1000)
+    ]);
+    const el = document.getElementById('hqDashBody');
+    if (!el) return;
+    const quotes = qr.data || [], custs = cr.data || [];
+    const fmt = new Intl.NumberFormat('th-TH');
+    const ym = d => String(d).slice(0, 7);
+    const thisMonth = ym(new Date().toISOString());
+    // สรุปต่อเดือน (3 เดือนล่าสุด)
+    const byM = {};
+    quotes.forEach(q => { const m = ym(q.created_at || ''); if (!m) return; (byM[m] = byM[m] || { n: 0, sent: 0, won: 0, lost: 0, wonVal: 0 }); byM[m].n++; if (q.status === 'sent') byM[m].sent++; if (q.status === 'won') { byM[m].won++; byM[m].wonVal += Number(q.total) || 0; } if (q.status === 'lost') byM[m].lost++; });
+    const cur = byM[thisMonth] || { n: 0, sent: 0, won: 0, lost: 0, wonVal: 0 };
+    const newCust = custs.filter(c => ym(c.created_at || '') === thisMonth).length;
+    const winRate = (cur.won + cur.lost) ? Math.round(cur.won / (cur.won + cur.lost) * 100) : null;
+    const stat = (label, val, col) => '<div style="flex:1;min-width:0;background:var(--fs-fill2);border-radius:10px;padding:10px 6px;text-align:center;"><div style="font-size:17px;font-weight:800;color:' + (col || 'var(--slate-800)') + ';">' + val + '</div><div style="font-size:10px;color:var(--slate-500);font-weight:700;margin-top:2px;">' + label + '</div></div>';
+    // top ลูกค้าที่ปิดดีล (3 เดือน)
+    const byCust = {};
+    quotes.filter(q => q.status === 'won').forEach(q => { const k = q.customer_name || '-'; byCust[k] = (byCust[k] || 0) + (Number(q.total) || 0); });
+    const top = Object.entries(byCust).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const months = Object.keys(byM).sort().reverse().slice(0, 3);
+    el.innerHTML = '<div style="font-size:11px;font-weight:800;color:var(--slate-500);margin-bottom:6px;">📅 ' + (isLao ? 'ເດືອນນີ້' : 'เดือนนี้') + ' (' + thisMonth + ')</div>'
+      + '<div style="display:flex;gap:6px;margin-bottom:6px;">' + stat(isLao ? 'ໃບສະເໜີ' : 'ใบเสนอ', cur.n) + stat(isLao ? 'ສະເໜີແລ້ວ' : 'เสนอแล้ว', cur.sent, '#1d4ed8') + stat(isLao ? 'ປິດດີລ' : 'ปิดดีล', cur.won, '#047857') + stat(isLao ? 'ບໍ່ສຳເລັດ' : 'ไม่สำเร็จ', cur.lost, '#e11d48') + '</div>'
+      + '<div style="display:flex;gap:6px;margin-bottom:12px;">' + stat(isLao ? 'ມູນຄ່າປິດດີລ' : 'มูลค่าปิดดีล (₭)', fmt.format(cur.wonVal), '#047857') + stat(isLao ? 'ອັດຕາປິດດີລ' : 'อัตราปิดดีล', winRate == null ? '—' : winRate + '%') + stat(isLao ? 'ລູກຄ້າໃໝ່' : 'ลูกค้าใหม่', newCust, 'var(--violet-700)') + '</div>'
+      + (months.length ? '<div style="font-size:11px;font-weight:800;color:var(--slate-500);margin-bottom:5px;">🗓️ ' + (isLao ? 'ຍ້ອນຫຼັງ 3 ເດືອນ' : 'ย้อนหลัง 3 เดือน') + '</div>'
+        + months.map(m => { const x = byM[m]; return '<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:6px 2px;border-bottom:1px solid var(--slate-100);"><span style="font-weight:800;color:var(--slate-700);min-width:64px;">' + m + '</span><span style="flex:1;color:var(--slate-500);">' + x.n + (isLao ? ' ໃບ' : ' ใบ') + ' · ✅ ' + x.won + '</span><span style="font-weight:800;color:#047857;">' + fmt.format(x.wonVal) + '₭</span></div>'; }).join('') : '')
+      + (top.length ? '<div style="font-size:11px;font-weight:800;color:var(--slate-500);margin:12px 0 5px;">🏆 ' + (isLao ? 'ລູກຄ້າ Top 5 (ປິດດີລ)' : 'ลูกค้า Top 5 (ปิดดีล)') + '</div>'
+        + top.map((t, i) => '<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 2px;"><span style="font-weight:800;color:var(--slate-400);">' + (i + 1) + '.</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:var(--slate-800);">' + escapeHtml(t[0]) + '</span><span style="font-weight:800;color:#047857;">' + fmt.format(t[1]) + '₭</span></div>').join('') : '');
+  } catch (e) {
+    const el = document.getElementById('hqDashBody'); if (el) el.innerHTML = '<div style="color:var(--rose-500);font-size:11px;">❌ ' + escapeHtml(friendlyError(e)) + '</div>';
+  }
+}
 // ==================== END HORECA CATALOG ====================
 
 function renderInvMovementPage() {
@@ -11738,6 +11969,21 @@ function renderStockCheckPage() {
           <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.3-4.3"/></svg>
           ${isLao ? 'ຄົ້ນຫາ' : 'ค้นหา'}
         </button>
+        <!-- ⭐ ค้นหาจากชื่อสินค้า (บางส่วน) + พูดค้นหา ไทย/ลาว/อังกฤษ -->
+        <div style="border-top:1px dashed var(--slate-200);padding-top:10px;">
+          <div style="display:flex;gap:7px;">
+            <input id="scNameSearch" class="fs-input" type="text" style="flex:1;min-width:0;"
+                   oninput="scNameSearchDebounce()" onkeypress="if(event.key==='Enter')scSearchName()"
+                   placeholder="${isLao ? '🔎 ຄົ້ນຈາກຊື່ ເຊັ່ນ ນ້ຳມັນ 500' : '🔎 ค้นจากชื่อ เช่น น้ำมัน 500'}">
+            <button id="scMicBtn" onclick="scVoiceSearch()" title="${isLao ? 'ເວົ້າຄົ້ນຫາ' : 'พูดค้นหา'}"
+                    style="width:48px;border:1.5px solid var(--slate-300);background:white;border-radius:12px;font-size:19px;cursor:pointer;flex-shrink:0;">🎤</button>
+          </div>
+          <div style="display:flex;gap:5px;margin-top:7px;align-items:center;">
+            <span style="font-size:10px;color:var(--slate-400);font-weight:700;">${isLao ? 'ພາສາເວົ້າ:' : 'ภาษาพูด:'}</span>
+            <span id="scVoiceLangChips"></span>
+          </div>
+          <div id="scNameResults" style="margin-top:8px;"></div>
+        </div>
       </div>
     </div>
     
@@ -11761,6 +12007,87 @@ async function startScanForStockCheck() {
     scLookup();
   };
   await startScan();
+}
+
+// ==================== ค้นหาสินค้าจากชื่อ (บางส่วน) + พูดค้นหา — master_products ====================
+let _scNameT = null;      // debounce timer
+let _scNameSeq = 0;       // กันผลค้นช้าทับผลใหม่
+function scNameSearchDebounce() { clearTimeout(_scNameT); _scNameT = setTimeout(scSearchName, 350); }
+async function scSearchName() {
+  const isLao = lang === 'lo';
+  const box = document.getElementById('scNameSearch');
+  const res = document.getElementById('scNameResults');
+  if (!box || !res) return;
+  const q = box.value.trim();
+  if (q.length < 2) { res.innerHTML = ''; return; }
+  const seq = ++_scNameSeq;
+  res.innerHTML = '<div class="loader" style="margin:6px auto;"></div>';
+  // แยกคำ — คำที่ยาวสุดยิง server (ilike ชื่อไทย/ลาว/บาร์โค้ด), คำที่เหลือกรองซ้ำในเครื่อง (ทุกคำต้องเจอ)
+  const toks = q.split(/\s+/).map(t => t.replace(/[,()%]/g, '')).filter(Boolean);
+  if (!toks.length) { res.innerHTML = ''; return; }
+  const main = toks.slice().sort((a, b) => b.length - a.length)[0];
+  try {
+    const { data } = await sb.from('master_products')
+      .select('barcode,name_th,name_lo,sell_price,category')
+      .or('name_th.ilike.%' + main + '%,name_lo.ilike.%' + main + '%,barcode.ilike.%' + main + '%')
+      .limit(200);
+    if (seq !== _scNameSeq) return; // มีคำค้นใหม่กว่าแล้ว
+    const rows = (data || []).filter(r => {
+      const hay = ((r.name_th || '') + ' ' + (r.name_lo || '') + ' ' + (r.barcode || '')).toLowerCase();
+      return toks.every(t => hay.includes(t.toLowerCase()));
+    }).slice(0, 30);
+    if (!rows.length) { res.innerHTML = '<div style="text-align:center;padding:10px;color:var(--slate-400);font-size:12px;">' + (isLao ? 'ບໍ່ພົບ "' : 'ไม่พบ "') + escapeHtml(q) + '"</div>'; return; }
+    const fmt = new Intl.NumberFormat('th-TH');
+    res.innerHTML = '<div style="font-size:10px;color:var(--slate-400);font-weight:700;margin-bottom:5px;">' + rows.length + ' ' + (isLao ? 'ລາຍການ — ແຕະເພື່ອເບິ່ງ' : 'รายการ — แตะเพื่อดู') + '</div>'
+      + rows.map(r => {
+        const nm = isLao ? (r.name_lo || r.name_th || '') : (r.name_th || r.name_lo || '');
+        return '<div onclick="scPickSearch(\'' + String(r.barcode || '').replace(/[^0-9A-Za-z_-]/g, '') + '\')" style="display:flex;align-items:center;gap:8px;border:1px solid var(--slate-200);border-radius:9px;padding:8px 11px;margin-bottom:5px;cursor:pointer;background:white;">'
+          + '<div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:700;color:var(--slate-800);line-height:1.3;">' + escapeHtml(nm) + '</div>'
+          + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;">' + escapeHtml(r.barcode || '') + (r.category ? ' · ' + escapeHtml(r.category) : '') + '</div></div>'
+          + (r.sell_price ? '<span style="font-size:12px;font-weight:800;color:var(--slate-700);white-space:nowrap;">' + fmt.format(r.sell_price) + '₭</span>' : '')
+          + '<span style="color:var(--fs-blue);font-size:16px;">›</span></div>';
+      }).join('');
+  } catch (e) {
+    if (seq === _scNameSeq) res.innerHTML = '<div style="color:var(--rose-500);font-size:11px;padding:6px;">❌ ' + escapeHtml((e && e.message) || String(e)) + '</div>';
+  }
+}
+function scPickSearch(bc) {
+  const input = document.getElementById('scBarcode');
+  if (input) input.value = bc;
+  const res = document.getElementById('scNameResults'); if (res) res.innerHTML = '';
+  scLookup();
+}
+// ---- พูดค้นหา (Web Speech API) — เลือกภาษา ไทย/ลาว/อังกฤษ ----
+function scVoiceLang() { try { return localStorage.getItem('fs_voice_lang') || 'th-TH'; } catch (e) { return 'th-TH'; } }
+function scSetVoiceLang(v) { try { localStorage.setItem('fs_voice_lang', v); } catch (e) {} scRenderVoiceChips(); }
+function scRenderVoiceChips() {
+  const el = document.getElementById('scVoiceLangChips');
+  if (!el) return;
+  const cur = scVoiceLang();
+  const opts = [['th-TH', 'ไทย'], ['lo-LA', 'ລາວ'], ['en-US', 'EN']];
+  el.innerHTML = opts.map(([v, l]) => '<button onclick="scSetVoiceLang(\'' + v + '\')" style="border:1.5px solid ' + (cur === v ? 'var(--fs-blue)' : 'var(--slate-200)') + ';background:' + (cur === v ? 'var(--fs-blue)' : 'white') + ';color:' + (cur === v ? 'white' : 'var(--slate-500)') + ';border-radius:12px;padding:3px 10px;font-size:10.5px;font-weight:800;cursor:pointer;margin-right:4px;">' + l + '</button>').join('');
+}
+function scVoiceSearch() {
+  const isLao = lang === 'lo';
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { showToast(isLao ? 'ບຣາວເຊີບໍ່ຮອງຮັບການເວົ້າ — ພິມຄົ້ນແທນ' : 'เบราว์เซอร์ไม่รองรับการพูด — พิมพ์ค้นแทนนะคะ', 'warning'); return; }
+  const btn = document.getElementById('scMicBtn');
+  let rec;
+  try { rec = new SR(); } catch (e) { showToast('Error: ' + e.message, 'error'); return; }
+  rec.lang = scVoiceLang();
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+  if (btn) { btn.textContent = '🔴'; btn.disabled = true; }
+  const done = () => { if (btn) { btn.textContent = '🎤'; btn.disabled = false; } };
+  rec.onresult = (ev) => {
+    done();
+    const said = (ev.results && ev.results[0] && ev.results[0][0] && ev.results[0][0].transcript) || '';
+    const box = document.getElementById('scNameSearch');
+    if (box && said) { box.value = said.trim(); scSearchName(); }
+  };
+  rec.onerror = (ev) => { done(); showToast((isLao ? 'ຟັງບໍ່ໄດ້ຍິນ ລອງໃໝ່' : 'ฟังไม่ชัด ลองใหม่นะคะ') + (ev.error ? ' (' + ev.error + ')' : ''), 'warning'); };
+  rec.onend = done;
+  try { rec.start(); } catch (e) { done(); }
 }
 
 async function scLookup() {
@@ -12013,8 +12340,10 @@ async function scLoadPromoBadge(barcode) {
     else if (row.pack_promo != null) { promo = row.pack_promo; lab = (isLao ? 'ແພັກ ' : 'แพ๊ค '); }
     else { promo = row.promo_price; }
     const can = (typeof hcCanManage === 'function') && hcCanManage();
+    // กดแล้วเด้งไปที่การ์ดสินค้าตัวนี้ในแคตตาล็อก (สลับชุดให้ด้วย)
+    window._scPromoJump = { set: row.catalog_set, bc: String(barcode) };
     const inner = '🏷️ ' + (isLao ? 'ໂປຣ' : 'โปร') + ' ' + lab + Number(promo).toLocaleString() + '₭' + (can ? ' ›' : '');
-    el.innerHTML = '<span ' + (can ? 'onclick="goPage(\'horeca\')" ' : '') + 'title="' + (isLao ? 'ສິນຄ້າໂປຣโมชั่น' : 'สินค้าโปรโมชั่น') + '" style="display:inline-flex;align-items:center;gap:4px;background:#fff1f2;color:#e11d48;border:1px solid var(--rose-200);border-radius:999px;padding:3px 10px;font-size:11px;font-weight:800;white-space:nowrap;' + (can ? 'cursor:pointer;' : '') + '">' + inner + '</span>';
+    el.innerHTML = '<span ' + (can ? 'onclick="hcJumpFromBadge()" ' : '') + 'title="' + (isLao ? 'ສິນຄ້າໂປຣໂມຊັນ' : 'สินค้าโปรโมชั่น') + '" style="display:inline-flex;align-items:center;gap:4px;background:#fff1f2;color:#e11d48;border:1px solid var(--rose-200);border-radius:999px;padding:3px 10px;font-size:11px;font-weight:800;white-space:nowrap;' + (can ? 'cursor:pointer;' : '') + '">' + inner + '</span>';
   } catch (e) {}
 }
 
@@ -31754,6 +32083,9 @@ window.hcToggleGroups = hcToggleGroups; window.hcOpenCatPicker = hcOpenCatPicker
 window.hcToggleReorder = hcToggleReorder; window.hcMoveItem = hcMoveItem; window.hcCopySet = hcCopySet; window.hcExportGuard = hcExportGuard; window.hcSetGpMin = hcSetGpMin; window.hcSaveContact = hcSaveContact; window.hcShareText = hcShareText;
 window.hcuOpen = hcuOpen; window.hcuEdit = hcuEdit; window.hcuSave = hcuSave; window.hcuDelete = hcuDelete;
 window.hqOpen = hqOpen; window.hqNew = hqNew; window.hqSearchItems = hqSearchItems; window.hqAdd = hqAdd; window.hqSetQty = hqSetQty; window.hqSetPrice = hqSetPrice; window.hqRemove = hqRemove; window.hqQuickCust = hqQuickCust; window.hqSave = hqSave; window.hqPDF = hqPDF;
+window.hqStatusPick = hqStatusPick; window.hqSetStatus = hqSetStatus; window.hqDash = hqDash;
+window.hcJumpFromBadge = hcJumpFromBadge; window.hcTogglePromoFilter = hcTogglePromoFilter; window.hcuAddType = hcuAddType;
+window.scSearchName = scSearchName; window.scNameSearchDebounce = scNameSearchDebounce; window.scPickSearch = scPickSearch; window.scVoiceSearch = scVoiceSearch; window.scSetVoiceLang = scSetVoiceLang; window.scRenderVoiceChips = scRenderVoiceChips;
 window.mpHandleFileSelected = mpHandleFileSelected;
 window.mpBuildDiff = mpBuildDiff;
 window.mpExecuteUpload = mpExecuteUpload;
@@ -31969,4 +32301,3 @@ if (typeof isPWAMode === 'function') {
 </script>
 </body>
 </html>
- 
