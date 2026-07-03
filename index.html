@@ -9217,10 +9217,12 @@ async function hcLookup() {
     try { const { data: ph } = await sb.from('purchase_history').select('unit_price').eq('barcode', bc).order('buy_date', { ascending: false }).limit(1).maybeSingle(); if (ph && ph.unit_price) cost = Number(ph.unit_price) || cost; } catch (e) {}
   } catch (e) {}
   _hcScan = { barcode: bc, name: name || bc, category: cat, unit: unit, normal: sell, cost: cost, pack: null, box: null };
-  // ดึงแพ๊ค/ลัง จาก barcode_packsize (สำหรับตั้งราคาโปรแพ๊ค/ลัง)
+  // ดึงแพ๊ค/ลัง + ราคาต่อหน่วย จาก barcode_packsize (สำหรับตั้งราคาโปรแพ๊ค/ลัง)
   try {
-    const { data: bp } = await sb.from('barcode_packsize').select('qty_unit,qty_pack,pcs_per_box,price_pack,price_box,barcode_pack,barcode_box').eq('barcode_unit', bc).maybeSingle();
+    const { data: bp } = await sb.from('barcode_packsize').select('qty_unit,qty_pack,pcs_per_box,price_unit,price_pack,price_box,barcode_pack,barcode_box').eq('barcode_unit', bc).maybeSingle();
     if (bp) {
+      // ราคาปกติต่อหน่วย: ถ้าสาขาไม่มี (sell=0) ใช้ price_unit จาก packsize
+      if (!_hcScan.normal && bp.price_unit) { _hcScan.normal = Number(bp.price_unit) || 0; sell = _hcScan.normal; }
       const upp = Number(bp.qty_unit) || 0;
       let upb = Number(bp.pcs_per_box) || 0; if (!upb && upp && (Number(bp.qty_pack) || 0)) upb = upp * Number(bp.qty_pack);
       if ((bp.barcode_pack || bp.price_pack) && upp > 1) _hcScan.pack = { qty: upp, normal: Number(bp.price_pack) || (sell * upp) || 0 };
