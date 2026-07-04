@@ -16444,18 +16444,19 @@ async function loadPanoGram() {
 async function pogLoadBoard() {
   const body = document.getElementById('pogBody');
   try {
-    const [locRes, pogRes] = await Promise.all([
-      sb.from('location_master').select('location_code, location_type').eq('branch_id', branch.id).eq('is_active', true).order('location_code'),
-      sb.from('pan_o_grams').select('location_code').eq('branch_id', branch.id)
+    // ดึงให้ครบ (fetchAllQuery กัน limit 1000 แถวของ Supabase — สาขาใหญ่มีตำแหน่ง > 1000)
+    const [locAll, pogAll] = await Promise.all([
+      fetchAllQuery(() => sb.from('location_master').select('location_code, location_type').eq('branch_id', branch.id).eq('is_active', true).order('id')),
+      fetchAllQuery(() => sb.from('pan_o_grams').select('location_code').eq('branch_id', branch.id).order('id'))
     ]);
     const counts = {};
-    (pogRes.data || []).forEach(p => { counts[p.location_code] = (counts[p.location_code] || 0) + 1; });
+    pogAll.forEach(p => { counts[p.location_code] = (counts[p.location_code] || 0) + 1; });
     let done = {};
     try {
-      const { data: dr } = await sb.from('pog_progress').select('location_code, done_by_name').eq('branch_id', branch.id).eq('status', 'done');
-      (dr || []).forEach(d => { done[d.location_code] = d; });
+      const dr = await fetchAllQuery(() => sb.from('pog_progress').select('location_code, done_by_name').eq('branch_id', branch.id).eq('status', 'done').order('id'));
+      dr.forEach(d => { done[d.location_code] = d; });
     } catch (e) { done = {}; }
-    _pogBoardData = { locs: locRes.data || [], counts, done };
+    _pogBoardData = { locs: locAll || [], counts, done };
     pogRenderBoard();
   } catch (e) {
     if (body) body.innerHTML = '<div style="text-align:center;padding:20px;color:var(--rose-500);font-size:11px;">❌ ' + escapeHtml(friendlyError(e)) + '</div>';
@@ -16631,26 +16632,36 @@ async function pogOpenSummary() {
   showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><h3 style="font-size:15px;margin:0;">📊 ' + (isLao ? 'ສະຫຼຸບ Pan-O-Gram ລາຍສາຂາ' : 'สรุป Pan-O-Gram รายสาขา') + '</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
     + '<div id="pogSumBody"><div class="loader" style="margin:14px auto;"></div></div>');
   try {
-    const [brRes, locRes] = await Promise.all([
+    // ดึงให้ครบทุกแถว (กัน limit 1000 — location_master ทุกสาขารวมกันเกิน 1000)
+    const [brRes, locAll] = await Promise.all([
       sb.from('branches').select('id, code, name_th, name_lo').order('id'),
-      sb.from('location_master').select('branch_id').eq('is_active', true)
+      fetchAllQuery(() => sb.from('location_master').select('branch_id').eq('is_active', true).order('id'))
     ]);
     let doneRows = [];
-    try { const { data: dr } = await sb.from('pog_progress').select('branch_id').eq('status', 'done'); doneRows = dr || []; } catch (e) { doneRows = []; }
+    try { doneRows = await fetchAllQuery(() => sb.from('pog_progress').select('branch_id').eq('status', 'done').order('id')); } catch (e) { doneRows = []; }
     const totalByB = {}, doneByB = {};
-    (locRes.data || []).forEach(l => { totalByB[l.branch_id] = (totalByB[l.branch_id] || 0) + 1; });
+    (locAll || []).forEach(l => { totalByB[l.branch_id] = (totalByB[l.branch_id] || 0) + 1; });
     doneRows.forEach(d => { doneByB[d.branch_id] = (doneByB[d.branch_id] || 0) + 1; });
-    const rows = (brRes.data || []).map(b => { const t = totalByB[b.id] || 0; const dn = doneByB[b.id] || 0; return { b: b, t: t, dn: dn, pct: t ? Math.round(dn / t * 100) : 0 }; }).filter(r => r.t > 0).sort((a, b) => a.pct - b.pct);
+    // แสดงทุกสาขา — สาขาที่ตั้งค่าตำแหน่งแล้วขึ้นก่อน (เรียงตาม %), สาขาที่ยังไม่ตั้งค่าต่อท้าย
+    const rows = (brRes.data || []).map(b => { const t = totalByB[b.id] || 0; const dn = doneByB[b.id] || 0; return { b: b, t: t, dn: dn, pct: t ? Math.round(dn / t * 100) : 0 }; })
+      .sort((a, b) => (a.t > 0 ? 0 : 1) - (b.t > 0 ? 0 : 1) || a.pct - b.pct);
     const el = document.getElementById('pogSumBody');
     if (!el) return;
     if (!rows.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--slate-400);font-size:12px;">' + (isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล') + '</div>'; return; }
-    el.innerHTML = rows.map(r => {
-      const nm = isLao ? (r.b.name_lo || r.b.name_th || r.b.code) : (r.b.name_th || r.b.name_lo || r.b.code);
-      const col = r.pct >= 100 ? 'var(--fs-green)' : r.pct >= 50 ? 'var(--fs-orange)' : 'var(--fs-red)';
-      return '<div style="background:white;border:1px solid var(--slate-200);border-radius:10px;padding:10px 12px;margin-bottom:7px;">'
-        + '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:700;margin-bottom:5px;"><span style="min-width:0;">' + escapeHtml(nm) + '</span><span style="color:' + col + ';font-weight:800;white-space:nowrap;">' + r.dn + '/' + r.t + ' · ' + r.pct + '%</span></div>'
-        + '<div style="height:8px;background:var(--slate-100);border-radius:99px;overflow:hidden;"><div style="height:100%;width:' + r.pct + '%;background:' + col + ';border-radius:99px;"></div></div></div>';
-    }).join('');
+    const notSet = rows.filter(r => r.t === 0).length;
+    el.innerHTML = (notSet ? '<div style="font-size:10.5px;color:var(--slate-500);margin-bottom:8px;">📍 ' + (isLao ? 'ທັງໝົດ ' : 'ทั้งหมด ') + rows.length + ' ' + (isLao ? 'ສາຂາ · ' : 'สาขา · ') + notSet + ' ' + (isLao ? 'ສາຂາຍັງບໍ່ຕັ້ງຄ່າຕຳແໜ່ງ' : 'สาขายังไม่ตั้งค่าตำแหน่ง') + '</div>' : '')
+      + rows.map(r => {
+        const nm = isLao ? (r.b.name_lo || r.b.name_th || r.b.code) : (r.b.name_th || r.b.name_lo || r.b.code);
+        if (r.t === 0) {
+          return '<div style="background:var(--slate-50);border:1px dashed var(--slate-300);border-radius:10px;padding:10px 12px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;">'
+            + '<span style="font-size:12.5px;font-weight:700;color:var(--slate-500);min-width:0;">' + escapeHtml(nm) + '</span>'
+            + '<span style="font-size:10.5px;color:var(--slate-400);font-weight:700;white-space:nowrap;">⚙️ ' + (isLao ? 'ຍັງບໍ່ຕັ້ງຄ່າຕຳແໜ່ງ' : 'ยังไม่ตั้งค่าตำแหน่ง') + '</span></div>';
+        }
+        const col = r.pct >= 100 ? 'var(--fs-green)' : r.pct >= 50 ? 'var(--fs-orange)' : 'var(--fs-red)';
+        return '<div style="background:white;border:1px solid var(--slate-200);border-radius:10px;padding:10px 12px;margin-bottom:7px;">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:700;margin-bottom:5px;"><span style="min-width:0;">' + escapeHtml(nm) + '</span><span style="color:' + col + ';font-weight:800;white-space:nowrap;">' + r.dn + '/' + r.t + ' · ' + r.pct + '%</span></div>'
+          + '<div style="height:8px;background:var(--slate-100);border-radius:99px;overflow:hidden;"><div style="height:100%;width:' + r.pct + '%;background:' + col + ';border-radius:99px;"></div></div></div>';
+      }).join('');
   } catch (e) {
     const el = document.getElementById('pogSumBody'); if (el) el.innerHTML = '<div style="color:var(--rose-500);font-size:11px;padding:10px;">❌ ' + escapeHtml(friendlyError(e)) + '</div>';
   }
@@ -16664,7 +16675,7 @@ async function pogOpenShortReport() {
     + '<div id="pogShortBody"><div class="loader" style="margin:16px auto;"></div></div>');
   try {
     // 1) ความจุ Panogram รวมต่อ (barcode, สาขา)
-    const pogRows = await fetchAllQuery(() => sb.from('pan_o_grams').select('barcode, branch_id, total_qty'));
+    const pogRows = await fetchAllQuery(() => sb.from('pan_o_grams').select('barcode, branch_id, total_qty').order('id'));
     const capBB = {}; const bcSet = new Set();
     pogRows.forEach(p => { if (!p.barcode) return; const k = p.barcode + '|' + p.branch_id; capBB[k] = (capBB[k] || 0) + (Number(p.total_qty) || 0); bcSet.add(String(p.barcode)); });
     const bcArr = [...bcSet];
@@ -33861,4 +33872,3 @@ if (typeof isPWAMode === 'function') {
 </script>
 </body>
 </html>
- 
