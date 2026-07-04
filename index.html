@@ -16834,28 +16834,45 @@ async function pogOpenGondolaShort() {
       const chunk = bcArr.slice(i, i + 300);
       try { const { data } = await sb.from('products').select('barcode, branch_id, pos_qty').in('barcode', chunk); (data || []).forEach(p => { posBB[p.barcode + '␟' + p.branch_id] = Number(p.pos_qty) || 0; }); } catch (e) {}
     }
-    // 3) POS-short ต่อ (สาขา, gondola)
-    const cell = {};
-    Object.keys(capK).forEach(k => { const parts = k.split('␟'); const br = parts[0], loc = parts[1], bc = parts[2]; if ((posBB[bc + '␟' + br] || 0) < capK[k]) { const kk = br + '␟' + loc; (cell[kk] = cell[kk] || { pos: 0, gap: 0, gapQty: 0 }).pos++; } });
-    // 4) Gap Scan pending ทุกสาขา
+    // 3) รายละเอียดสินค้าขาดต่อ (สาขา, gondola) — เก็บ per-barcode ไว้ drill-down
+    // detailMap[br␟loc] = { bc: { posShort, cap, pos, gapQty } }
+    const detailMap = {};
+    Object.keys(capK).forEach(k => {
+      const parts = k.split('␟'); const br = parts[0], loc = parts[1], bc = parts[2];
+      const cap = capK[k]; const pos = posBB[bc + '␟' + br] || 0;
+      if (pos < cap) { const kk = br + '␟' + loc; const d = detailMap[kk] || (detailMap[kk] = {}); const it = d[bc] || (d[bc] = { posShort: 0, cap: 0, pos: 0, gapQty: 0 }); it.posShort = cap - pos; it.cap = cap; it.pos = pos; }
+    });
+    // 4) Gap Scan pending ทุกสาขา → เติมเข้า detailMap
     try {
       const gaps = await fetchAllQuery(() => sb.from('gap_scans').select('branch_id, location_code, barcode, gap_qty, status').eq('status', 'pending').order('id'));
-      gaps.forEach(g => { if (!g.location_code) return; const kk = g.branch_id + '␟' + g.location_code; const o = cell[kk] || (cell[kk] = { pos: 0, gap: 0, gapQty: 0 }); (o._set = o._set || new Set()).add(String(g.barcode)); o.gapQty += Number(g.gap_qty) || 0; });
-      Object.keys(cell).forEach(kk => { const o = cell[kk]; if (o._set) { o.gap = o._set.size; delete o._set; } });
+      gaps.forEach(g => { if (!g.location_code) return; const kk = g.branch_id + '␟' + g.location_code; const d = detailMap[kk] || (detailMap[kk] = {}); const bc = String(g.barcode); const it = d[bc] || (d[bc] = { posShort: 0, cap: 0, pos: 0, gapQty: 0 }); it.gapQty += Number(g.gap_qty) || 0; });
     } catch (e) {}
     // 5) ชื่อสาขา
     const brName = {};
     try { const { data: brs } = await sb.from('branches').select('id, code, name_th, name_lo').in('id', [...brSet]); (brs || []).forEach(b => { brName[b.id] = isLao ? (b.name_lo || b.name_th || b.code) : (b.name_th || b.name_lo || b.code); }); } catch (e) {}
-    // 6) จัดกลุ่มตามสาขา (เฉพาะ gondola ที่ขาด)
+    // 6) สรุปนับต่อ gondola + จัดกลุ่มตามสาขา (เฉพาะที่ขาด)
     const byBranch = {};
-    Object.keys(cell).forEach(kk => { const o = cell[kk]; if (o.gap > 0 || o.pos > 0) { const idx = kk.indexOf('␟'); const br = kk.slice(0, idx); const loc = kk.slice(idx + 1); (byBranch[br] = byBranch[br] || []).push({ loc, pos: o.pos, gap: o.gap, gapQty: o.gapQty }); } });
+    Object.keys(detailMap).forEach(kk => {
+      const items = detailMap[kk]; let gap = 0, pos = 0, gapQty = 0;
+      Object.keys(items).forEach(bc => { const it = items[bc]; if (it.gapQty > 0) { gap++; gapQty += it.gapQty; } if (it.posShort > 0) pos++; });
+      if (gap > 0 || pos > 0) { const idx = kk.indexOf('␟'); const br = kk.slice(0, idx); const loc = kk.slice(idx + 1); (byBranch[br] = byBranch[br] || []).push({ loc, br, pos, gap, gapQty }); }
+    });
     Object.keys(byBranch).forEach(br => byBranch[br].sort((a, b) => b.gap - a.gap || b.pos - a.pos));
-    _pogGhData = { byBranch, brName };
+    _pogGhData = { byBranch, brName, detail: detailMap };
     pogRenderGondolaShort();
   } catch (e) {
     const el = document.getElementById('pogGhBody'); if (el) el.innerHTML = '<div style="color:var(--rose-500);font-size:11px;padding:10px;">❌ ' + escapeHtml(friendlyError(e)) + '</div>';
   }
 }
+// shell ของ modal รายงาน (ใช้ตอนเปิด + ตอนกดกลับจากรายละเอียด)
+function pogGhShell(bodyHtml) {
+  const isLao = lang === 'lo';
+  showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;"><h3 style="font-size:15px;margin:0;">🩺 ' + (isLao ? 'ສິນຄ້າຂາດ ຕໍ່ Gondola' : 'สินค้าขาด ต่อ Gondola') + '</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
+    + '<div style="font-size:10.5px;color:var(--slate-400);margin-bottom:9px;">🔴 Gap Scan (' + (isLao ? 'ຂອງຈິງ' : 'ของจริง') + ') · 🟠 POS < ' + (isLao ? 'ຄວາມຈຸ (ຄຳນວນ)' : 'ความจุ (คำนวณ)') + ' · ' + (isLao ? 'ແຕະເພື່ອເບິ່ງລາຍລະອຽດ' : 'แตะเพื่อดูรายละเอียด') + '</div>'
+    + '<div id="pogGhBody">' + (bodyHtml || '') + '</div>');
+}
+// กลับมาหน้ารายงาน (ใช้ cache ไม่ต้องคำนวณใหม่)
+function pogGhShowReport() { pogGhShell(''); pogRenderGondolaShort(); }
 function pogRenderGondolaShort() {
   const isLao = lang === 'lo';
   const el = document.getElementById('pogGhBody');
@@ -16865,15 +16882,40 @@ function pogRenderGondolaShort() {
   if (!brKeys.length) { el.innerHTML = '<div style="text-align:center;padding:22px;color:var(--fs-green);font-size:13px;font-weight:700;">✅ ' + (isLao ? 'ບໍ່ມີ Gondola ທີ່ຂາດ' : 'ไม่มี Gondola ที่ขาด') + '</div>'; return; }
   el.innerHTML = '<div style="max-height:60vh;overflow-y:auto;">' + brKeys.map(br => {
     const arr = byBranch[br];
-    const rows = arr.map(x => '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--slate-100);">'
+    const rows = arr.map(x => '<div onclick="pogGhDetail(\'' + br + '\',\'' + String(x.loc).replace(/'/g, '') + '\')" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--slate-100);cursor:pointer;">'
       + '<span style="flex:1;min-width:0;font-size:12.5px;font-weight:800;color:var(--slate-800);font-family:monospace;">' + escapeHtml(x.loc) + '</span>'
       + (x.gap > 0 ? '<span style="font-size:11px;font-weight:800;color:var(--fs-red);white-space:nowrap;">🔴 ' + x.gap + ' Gap' + (x.gapQty ? ' (' + x.gapQty + ')' : '') + '</span>' : '')
       + (x.pos > 0 ? '<span style="font-size:11px;font-weight:800;color:var(--fs-orange);white-space:nowrap;">🟠 ' + x.pos + '</span>' : '')
+      + '<span style="color:var(--slate-300);font-size:14px;">›</span>'
       + '</div>').join('');
     return '<div style="border:1px solid var(--slate-200);border-radius:11px;overflow:hidden;margin-bottom:9px;">'
       + '<div style="background:var(--fs-fill2);padding:8px 11px;font-size:12.5px;font-weight:800;color:var(--slate-800);display:flex;justify-content:space-between;">🏪 ' + escapeHtml(brName[br] || ('#' + br)) + '<span style="color:var(--fs-red);">' + arr.length + ' ' + (isLao ? 'Gondola ຂາດ' : 'Gondola ขาด') + '</span></div>'
       + rows + '</div>';
   }).join('') + '</div>';
+}
+// รายละเอียด: สินค้าอะไรขาดใน gondola นี้ (ดึงชื่อสินค้าตอนกด)
+async function pogGhDetail(br, loc) {
+  const isLao = lang === 'lo';
+  const items = ((_pogGhData && _pogGhData.detail) || {})[br + '␟' + loc] || {};
+  const brNm = ((_pogGhData && _pogGhData.brName) || {})[br] || ('#' + br);
+  const bcs = Object.keys(items);
+  const rows = bcs.map(bc => Object.assign({ bc }, items[bc])).sort((a, b) => (b.gapQty > 0 ? 1 : 0) - (a.gapQty > 0 ? 1 : 0) || b.posShort - a.posShort);
+  showModal('<div style="display:flex;align-items:center;gap:9px;margin-bottom:4px;"><button onclick="pogGhShowReport()" style="background:var(--slate-100);border:none;border-radius:8px;padding:7px 10px;font-size:13px;font-weight:700;cursor:pointer;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button><h3 style="font-size:15px;margin:0;flex:1;font-family:monospace;">' + escapeHtml(loc) + '</h3></div>'
+    + '<div style="font-size:10.5px;color:var(--slate-500);margin-bottom:9px;">🏪 ' + escapeHtml(brNm) + ' · ' + bcs.length + ' ' + (isLao ? 'ລາຍການຂາດ' : 'รายการขาด') + '</div>'
+    + '<div id="pogGhDetBody"><div class="loader" style="margin:14px auto;"></div></div>');
+  const nameMap = {};
+  if (bcs.length) { try { const { data } = await sb.from('master_products').select('barcode, name_th, name_lo').in('barcode', bcs); (data || []).forEach(m => { nameMap[m.barcode] = (isLao ? (m.name_lo || m.name_th) : (m.name_th || m.name_lo)) || m.barcode; }); } catch (e) {} }
+  const el = document.getElementById('pogGhDetBody');
+  if (!el) return;
+  const fmt = new Intl.NumberFormat('th-TH');
+  el.innerHTML = '<div style="max-height:58vh;overflow-y:auto;">' + rows.map(x =>
+    '<div style="display:flex;align-items:center;gap:9px;border:1px solid var(--slate-200);border-radius:9px;padding:9px 11px;margin-bottom:6px;">'
+    + '<div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(nameMap[x.bc] || x.bc) + '</div>'
+    + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;">' + escapeHtml(x.bc) + (x.cap ? ' · ' + (isLao ? 'ຄວາມຈຸ ' : 'ความจุ ') + x.cap + ' / POS ' + x.pos : '') + '</div></div>'
+    + '<div style="text-align:right;flex-shrink:0;">'
+    + (x.gapQty > 0 ? '<div style="font-size:12px;font-weight:800;color:var(--fs-red);">🔴 Gap ' + fmt.format(x.gapQty) + '</div>' : '')
+    + (x.posShort > 0 ? '<div style="font-size:11px;font-weight:800;color:var(--fs-orange);">🟠 -' + fmt.format(x.posShort) + '</div>' : '')
+    + '</div></div>').join('') + '</div>';
 }
 
 // ==================== PAN-O-GRAM MANAGER (Settings) ====================
