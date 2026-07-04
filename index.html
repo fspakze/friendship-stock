@@ -16971,11 +16971,14 @@ async function openPanOGramManager() {
     <div class="action-row" style="margin-top:11px;">
       <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;">${T('cancel')}</button>
       <button class="btn btn-primary" onclick="exportPanOGramExcel()" style="background:var(--emerald-500);flex:1;">
-        📥 Export
+        📥 Excel
+      </button>
+      <button class="btn btn-primary" onclick="exportPogImage()" style="background:var(--violet-500);flex:1;">
+        🖼️ ${isLao ? 'ຮູບ' : 'รูป'}
       </button>
     </div>
   `);
-  
+
   await loadPanOGramManager();
 }
 
@@ -17348,8 +17351,116 @@ function renderPogVisualLayout(items) {
       <br><span style="font-size:8px;color:var(--slate-400);">↔️ ${isLao ? 'ເລື່ອນຊ້າຍ-ຂວາ ຖ້າມີຫລາຍຕຳແໜ່ງ' : 'เลื่อนซ้าย-ขวา ถ้ามีหลายตำแหน่ง'}</span>
     </div>
   `;
-  
+
   return html;
+}
+
+// ---------- Export รูป Pan-O-Gram (Canvas PNG เลียนแบบภาพในแอป แยกตาม Gondola) ----------
+function pogMgrFilteredItems() {
+  let f = _pogManagerData || [];
+  const fl = _pogManagerFilter || {};
+  if (fl.location) f = f.filter(p => p.location_code === fl.location);
+  if (fl.shelf !== null && fl.shelf !== undefined) f = f.filter(p => p.shelf === fl.shelf);
+  if (fl.search) { const s = fl.search.toLowerCase(); f = f.filter(p => (p.barcode || '').toLowerCase().includes(s) || (p.products && (p.products.name_lo || '').toLowerCase().includes(s)) || (p.products && (p.products.name_th || '').toLowerCase().includes(s)) || (p.location_code || '').toLowerCase().includes(s)); }
+  return f;
+}
+function pogRoundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  if (ctx.roundRect) { ctx.roundRect(x, y, w, h, r); return; }
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+async function exportPogImage() {
+  const isLao = lang === 'lo';
+  const items = pogMgrFilteredItems();
+  if (!items.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
+  const byLoc = {};
+  items.forEach(p => { (byLoc[p.location_code] = byLoc[p.location_code] || []).push(p); });
+  const locCodes = Object.keys(byLoc).sort();
+  if (locCodes.length > 30) { showToast(isLao ? 'ຫຼາຍເກີນ — ກັ່ນຕອງໃຫ້ ≤30 Gondola ກ່ອນ' : 'มากเกิน — กรองให้เหลือ ≤30 Gondola ก่อน', 'warning'); return; }
+  const S = 2;
+  const tileW = 112 * S, tileH = 86 * S, gap = 8 * S, sPadX = 10 * S, sPadY = 8 * S, sHeadH = 26 * S, framePad = 14 * S, titleH = 66 * S, gGap = 18 * S, outer = 22 * S, shBetween = 8 * S;
+  const bgs = ['#10b981', '#0ea5e9', '#8b5cf6', '#f59e0b', '#ef4444'];
+  const font = (px, bold) => (bold ? '700 ' : '') + px + 'px "Leelawadee UI", Tahoma, sans-serif';
+  const trunc = (s, max) => { s = String(s || ''); return s.length > max ? s.slice(0, max - 1) + '…' : s; };
+  // สร้างโมเดล layout ต่อ gondola
+  const gonds = locCodes.map(code => {
+    const li = byLoc[code];
+    const byShelf = {};
+    li.forEach(p => { (byShelf[p.shelf] = byShelf[p.shelf] || []).push(p); });
+    const shelves = Object.keys(byShelf).sort((a, b) => parseInt(a) - parseInt(b)).map(sh => {
+      const arr = byShelf[sh].sort((a, b) => a.seq_in_shelf - b.seq_in_shelf);
+      const total = (arr[0] && arr[0].total_in_shelf) || arr.length;
+      const slots = [];
+      for (let i = 1; i <= total; i++) slots.push(arr.find(x => x.seq_in_shelf === i) || null);
+      return { shelf: sh, slots, total, filled: arr.length, qty: arr.reduce((s, p) => s + (p.total_qty || 0), 0) };
+    });
+    const maxSlots = shelves.reduce((m, s) => Math.max(m, s.total), 1);
+    const contentW = sPadX * 2 + maxSlots * tileW + (maxSlots - 1) * gap;
+    const g = { code, li, shelves, contentW, qty: li.reduce((s, p) => s + (p.total_qty || 0), 0) };
+    g.height = titleH + framePad * 2 + shelves.reduce((s) => s + (sPadY * 2 + sHeadH + tileH + shBetween), 0);
+    return g;
+  });
+  const maxContentW = Math.max.apply(null, gonds.map(g => g.contentW));
+  const canvasW = outer * 2 + framePad * 2 + maxContentW;
+  const canvasH = outer * 2 + gonds.reduce((s, g) => s + g.height + gGap, 0);
+  const cv = document.createElement('canvas');
+  cv.width = Math.ceil(canvasW); cv.height = Math.ceil(canvasH);
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#f1f5f9'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.textBaseline = 'middle';
+  let y = outer;
+  gonds.forEach(g => {
+    const gx = outer, gw = framePad * 2 + maxContentW;
+    // หัว Gondola
+    ctx.fillStyle = '#eef4ff'; pogRoundRect(ctx, gx, y, gw, titleH, 10 * S); ctx.fill();
+    ctx.textAlign = 'center'; ctx.fillStyle = '#7c3aed'; ctx.font = font(22 * S, true);
+    ctx.fillText('📍 ' + g.code, gx + gw / 2, y + titleH * 0.42);
+    ctx.fillStyle = '#475569'; ctx.font = font(13 * S, false);
+    ctx.fillText(g.li.length + ' ' + (isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง') + ' • ' + g.qty + ' ' + (isLao ? 'ຊິ້ນ' : 'ชิ้น'), gx + gw / 2, y + titleH * 0.75);
+    // เฟรมมืด
+    const fy = y + titleH;
+    ctx.fillStyle = '#1e293b'; pogRoundRect(ctx, gx, fy, gw, g.height - titleH, 12 * S); ctx.fill();
+    let sy = fy + framePad;
+    g.shelves.forEach(sh => {
+      const shH = sPadY * 2 + sHeadH + tileH, shX = gx + framePad, shW = gw - framePad * 2;
+      ctx.fillStyle = '#334155'; pogRoundRect(ctx, shX, sy, shW, shH, 8 * S); ctx.fill();
+      ctx.textAlign = 'left'; ctx.fillStyle = '#fbbf24'; ctx.font = font(13 * S, true);
+      ctx.fillText((isLao ? 'ຊັ້ນ ' : 'ชั้น ') + sh.shelf, shX + sPadX, sy + sPadY + sHeadH * 0.42);
+      ctx.textAlign = 'right'; ctx.fillStyle = '#94a3b8'; ctx.font = font(11 * S, false);
+      ctx.fillText(sh.filled + '/' + sh.total + ' • ' + sh.qty + ' ' + (isLao ? 'ຊິ້ນ' : 'ชิ้น'), shX + shW - sPadX, sy + sPadY + sHeadH * 0.42);
+      let tx = shX + sPadX; const ty = sy + sPadY + sHeadH;
+      sh.slots.forEach((slot, i) => {
+        if (slot) {
+          ctx.fillStyle = bgs[Math.min(slot.stack || 1, 5) - 1] || '#64748b'; pogRoundRect(ctx, tx, ty, tileW, tileH, 6 * S); ctx.fill();
+          const nm = isLao ? ((slot.products && slot.products.name_lo) || slot.barcode) : ((slot.products && slot.products.name_th) || slot.barcode);
+          ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.font = font(11 * S, true);
+          ctx.fillText(trunc(nm, 13), tx + tileW / 2, ty + tileH * 0.27);
+          ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.font = font(10 * S, false);
+          ctx.fillText((slot.facial || 1) + '×' + (slot.depth || 1) + '×' + (slot.stack || 1), tx + tileW / 2, ty + tileH * 0.54);
+          ctx.fillStyle = '#fff'; ctx.font = font(15 * S, true);
+          ctx.fillText(String(slot.total_qty || 0), tx + tileW / 2, ty + tileH * 0.8);
+        } else {
+          ctx.strokeStyle = '#475569'; ctx.lineWidth = 1 * S; ctx.setLineDash([4 * S, 3 * S]);
+          pogRoundRect(ctx, tx, ty, tileW, tileH, 6 * S); ctx.stroke(); ctx.setLineDash([]);
+          ctx.fillStyle = '#475569'; ctx.textAlign = 'center'; ctx.font = font(18 * S, false);
+          ctx.fillText('⊘', tx + tileW / 2, ty + tileH * 0.4);
+          ctx.font = font(10 * S, false); ctx.fillText(String(i + 1), tx + tileW / 2, ty + tileH * 0.72);
+        }
+        tx += tileW + gap;
+      });
+      sy += shH + shBetween;
+    });
+    y += g.height + gGap;
+  });
+  cv.toBlob(function (blob) {
+    if (!blob) { showToast('Error', 'error'); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'panogram_' + (locCodes.length === 1 ? String(locCodes[0]).replace(/[^0-9A-Za-z_-]/g, '') : 'gondolas') + '_' + (typeof localDayKey === 'function' ? localDayKey(new Date()) : 'img') + '.png';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    showToast(isLao ? '✅ ສ້າງຮູບແລ້ວ' : '✅ สร้างรูปแล้ว', 'success');
+  }, 'image/png');
 }
 
 function onPogFilterChange() {
