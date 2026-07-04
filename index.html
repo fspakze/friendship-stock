@@ -16667,17 +16667,20 @@ async function pogOpenSummary() {
   }
 }
 
-// รายงานสินค้าขาดสำหรับ Panogram (รวมทุกสาขา + ปัดเป็นลังตาม packsize)
+// รายงานสินค้าขาดสำหรับ Panogram (รวมสาขา/แยกสาขา + ปัดเป็นลังตาม packsize)
+let _pogShortData = null;      // { sum:[...], byBranch:[...] }
+let _pogShortMode = 'sum';     // 'sum' รวมสาขา | 'byBranch' แยกสาขา
 async function pogOpenShortReport() {
   const isLao = lang === 'lo';
+  _pogShortMode = 'sum'; _pogShortData = null;
   showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;"><h3 style="font-size:15px;margin:0;">📦 ' + (isLao ? 'ສິນຄ້າຂາດ ສຳລັບ Panogram' : 'สินค้าขาด สำหรับ Panogram') + '</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
-    + '<div style="font-size:10.5px;color:var(--slate-400);margin-bottom:9px;">' + (isLao ? 'ຄວາມຈຸ Panogram > ສະຕ໋ອກ = ຂາດ · ລວມທຸກສາຂາ · ປັດຂຶ້ນເປັນລັງ' : 'ความจุ Panogram > สต๊อก = ขาด · รวมทุกสาขา · ปัดขึ้นเป็นลัง') + '</div>'
+    + '<div style="font-size:10.5px;color:var(--slate-400);margin-bottom:9px;">' + (isLao ? 'ຄວາມຈຸ Panogram > ສະຕ໋ອກ = ຂາດ · ປັດຂຶ້ນເປັນລັງ' : 'ความจุ Panogram > สต๊อก = ขาด · ปัดขึ้นเป็นลัง') + '</div>'
     + '<div id="pogShortBody"><div class="loader" style="margin:16px auto;"></div></div>');
   try {
     // 1) ความจุ Panogram รวมต่อ (barcode, สาขา)
     const pogRows = await fetchAllQuery(() => sb.from('pan_o_grams').select('barcode, branch_id, total_qty').order('id'));
-    const capBB = {}; const bcSet = new Set();
-    pogRows.forEach(p => { if (!p.barcode) return; const k = p.barcode + '|' + p.branch_id; capBB[k] = (capBB[k] || 0) + (Number(p.total_qty) || 0); bcSet.add(String(p.barcode)); });
+    const capBB = {}; const bcSet = new Set(); const brSet = new Set();
+    pogRows.forEach(p => { if (!p.barcode) return; const k = p.barcode + '|' + p.branch_id; capBB[k] = (capBB[k] || 0) + (Number(p.total_qty) || 0); bcSet.add(String(p.barcode)); brSet.add(p.branch_id); });
     const bcArr = [...bcSet];
     // 2) สต๊อก POS ต่อ (barcode, สาขา)
     const posBB = {};
@@ -16685,14 +16688,14 @@ async function pogOpenShortReport() {
       const chunk = bcArr.slice(i, i + 300);
       try { const { data } = await sb.from('products').select('barcode, branch_id, pos_qty').in('barcode', chunk); (data || []).forEach(p => { posBB[p.barcode + '|' + p.branch_id] = Number(p.pos_qty) || 0; }); } catch (e) {}
     }
-    // 3) ขาด (capacity - pos) ต่อ barcode รวมทุกสาขา
-    const shortByBc = {};
+    // 3) ขาด (capacity - pos) ต่อ barcode → เก็บ per-branch ด้วย
+    const detail = {};
     Object.keys(capBB).forEach(k => {
-      const idx = k.lastIndexOf('|'); const bc = k.slice(0, idx);
+      const idx = k.lastIndexOf('|'); const bc = k.slice(0, idx); const br = Number(k.slice(idx + 1));
       const sh = Math.max(0, capBB[k] - (posBB[k] || 0));
-      if (sh > 0) { const o = shortByBc[bc] || (shortByBc[bc] = { short: 0, brs: 0 }); o.short += sh; o.brs++; }
+      if (sh > 0) { const o = detail[bc] || (detail[bc] = { short: 0, brs: [] }); o.short += sh; o.brs.push({ br: br, short: sh }); }
     });
-    const shortBcs = Object.keys(shortByBc);
+    const shortBcs = Object.keys(detail);
     const el = document.getElementById('pogShortBody');
     if (!el) return;
     if (!shortBcs.length) { el.innerHTML = '<div style="text-align:center;padding:22px;color:var(--fs-green);font-size:13px;font-weight:700;">✅ ' + (isLao ? 'ບໍ່ມີສິນຄ້າຂາດ' : 'ไม่มีสินค้าขาด') + '</div>'; return; }
@@ -16703,40 +16706,82 @@ async function pogOpenShortReport() {
       try { const { data } = await sb.from('barcode_packsize').select('barcode_unit, qty_unit, qty_pack, pcs_per_box').in('barcode_unit', chunk); (data || []).forEach(b => { let upb = Number(b.pcs_per_box) || 0; if (!upb && Number(b.qty_unit) && Number(b.qty_pack)) upb = Number(b.qty_unit) * Number(b.qty_pack); packMap[b.barcode_unit] = upb; }); } catch (e) {}
       try { const { data } = await sb.from('master_products').select('barcode, name_th, name_lo').in('barcode', chunk); (data || []).forEach(m => { nameMap[m.barcode] = (lang === 'lo' ? (m.name_lo || m.name_th) : (m.name_th || m.name_lo)) || m.barcode; }); } catch (e) {}
     }
-    const fmt = new Intl.NumberFormat('th-TH');
-    const rows = shortBcs.map(bc => {
-      const s = shortByBc[bc]; const carton = packMap[bc] || 0;
+    // 5) ชื่อสาขา
+    const branchName = {};
+    try { const { data: brs } = await sb.from('branches').select('id, code, name_th, name_lo').in('id', [...brSet]); (brs || []).forEach(b => { branchName[b.id] = isLao ? (b.name_lo || b.name_th || b.code) : (b.name_th || b.name_lo || b.code); }); } catch (e) {}
+    // รวมสาขา: 1 แถว/สินค้า (ปัดลังจากยอดรวม)
+    const sumRows = shortBcs.map(bc => {
+      const s = detail[bc]; const carton = packMap[bc] || 0;
       const cartons = carton > 1 ? Math.ceil(s.short / carton) : null;
       const orderUnits = cartons != null ? cartons * carton : s.short;
-      return { bc, name: nameMap[bc] || bc, short: s.short, brs: s.brs, carton, cartons, orderUnits };
+      const brNames = s.brs.map(x => branchName[x.br] || ('#' + x.br));
+      return { bc, name: nameMap[bc] || bc, short: s.short, brCount: s.brs.length, brNames, carton, cartons, orderUnits, brs: s.brs };
     }).sort((a, b) => b.short - a.short);
-    const totShort = rows.reduce((a, r) => a + r.short, 0);
-    const totOrder = rows.reduce((a, r) => a + r.orderUnits, 0);
-    _pogShortRows = rows;
-    el.innerHTML = '<div style="display:flex;gap:6px;margin-bottom:9px;">'
-      + '<div style="flex:1;background:#fff1f2;border-radius:9px;padding:8px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ຂາດລວມ' : 'ขาดรวม') + '</div><div style="font-size:17px;font-weight:800;color:var(--fs-red);">-' + fmt.format(totShort) + '</div></div>'
-      + '<div style="flex:1;background:#eff6ff;border-radius:9px;padding:8px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ຕ້ອງສັ່ງ' : 'ต้องสั่ง') + '</div><div style="font-size:17px;font-weight:800;color:var(--fs-blue);">' + fmt.format(totOrder) + '</div></div>'
-      + '<div style="flex:1;background:var(--fs-fill2);border-radius:9px;padding:8px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ລາຍການ' : 'รายการ') + '</div><div style="font-size:17px;font-weight:800;color:var(--slate-700);">' + rows.length + '</div></div></div>'
-      + '<button onclick="pogExportShort()" style="width:100%;background:var(--emerald-500);color:white;border:none;border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;margin-bottom:9px;">📊 Export Excel</button>'
-      + '<div style="max-height:52vh;overflow-y:auto;">' + rows.map(r => '<div style="display:flex;align-items:center;gap:9px;border:1px solid var(--slate-200);border-radius:9px;padding:9px 11px;margin-bottom:6px;">'
-        + '<div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(r.name) + '</div>'
-        + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;">' + escapeHtml(r.bc) + ' · ' + r.brs + ' ' + (isLao ? 'ສາຂາ' : 'สาขา') + '</div></div>'
-        + '<div style="text-align:right;flex-shrink:0;"><div style="font-size:14px;font-weight:800;color:var(--fs-red);">-' + fmt.format(r.short) + '</div>'
-        + '<div style="font-size:10px;color:var(--fs-blue);font-weight:700;">' + (isLao ? 'ສັ່ງ ' : 'สั่ง ') + (r.cartons != null ? r.cartons + (isLao ? ' ລັງ (' : ' ลัง (') + fmt.format(r.orderUnits) + ')' : fmt.format(r.orderUnits) + (isLao ? ' ຊິ້ນ' : ' ชิ้น')) + '</div></div></div>').join('') + '</div>';
+    // แยกสาขา: 1 แถว/(สินค้า×สาขา) (ปัดลังต่อสาขา)
+    const byBranchRows = [];
+    sumRows.forEach(r => { r.brs.forEach(x => { const carton = r.carton; const cartons = carton > 1 ? Math.ceil(x.short / carton) : null; const orderUnits = cartons != null ? cartons * carton : x.short; byBranchRows.push({ bc: r.bc, name: r.name, br: x.br, brName: branchName[x.br] || ('#' + x.br), short: x.short, carton, cartons, orderUnits }); }); });
+    byBranchRows.sort((a, b) => b.short - a.short);
+    _pogShortData = { sum: sumRows, byBranch: byBranchRows };
+    pogRenderShort();
   } catch (e) {
     const el = document.getElementById('pogShortBody'); if (el) el.innerHTML = '<div style="color:var(--rose-500);font-size:11px;padding:10px;">❌ ' + escapeHtml(friendlyError(e)) + '</div>';
   }
 }
-let _pogShortRows = [];
+function pogSetShortMode(m) { _pogShortMode = m; pogRenderShort(); }
+function pogRenderShort() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('pogShortBody');
+  if (!el || !_pogShortData) return;
+  const fmt = new Intl.NumberFormat('th-TH');
+  const mode = _pogShortMode;
+  const tabBtn = (m, label) => '<button onclick="pogSetShortMode(\'' + m + '\')" style="flex:1;border:2px solid ' + (mode === m ? 'var(--fs-blue)' : 'var(--slate-200)') + ';background:' + (mode === m ? 'var(--fs-blue)' : 'white') + ';color:' + (mode === m ? 'white' : 'var(--slate-600)') + ';border-radius:9px;padding:8px;font-size:11.5px;font-weight:800;cursor:pointer;">' + label + '</button>';
+  const toggle = '<div style="display:flex;gap:5px;margin-bottom:9px;">' + tabBtn('sum', '🏬 ' + (isLao ? 'ລວມສາຂາ' : 'รวมสาขา')) + tabBtn('byBranch', '🏪 ' + (isLao ? 'ແຍກສາຂາ' : 'แยกสาขา')) + '</div>';
+  const orderTxt = r => (isLao ? 'ສັ່ງ ' : 'สั่ง ') + (r.cartons != null ? r.cartons + (isLao ? ' ລັງ (' : ' ลัง (') + fmt.format(r.orderUnits) + ')' : fmt.format(r.orderUnits) + (isLao ? ' ຊິ້ນ' : ' ชิ้น'));
+  let rows, listHtml;
+  if (mode === 'sum') {
+    rows = _pogShortData.sum;
+    listHtml = rows.map(r => {
+      const brLabel = r.brNames.length <= 3 ? r.brNames.join(', ') : (r.brNames.slice(0, 3).join(', ') + ' +' + (r.brNames.length - 3));
+      return '<div style="border:1px solid var(--slate-200);border-radius:9px;padding:9px 11px;margin-bottom:6px;">'
+        + '<div style="display:flex;align-items:center;gap:9px;"><div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(r.name) + '</div>'
+        + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;">' + escapeHtml(r.bc) + ' · ' + r.brCount + ' ' + (isLao ? 'ສາຂາ' : 'สาขา') + '</div></div>'
+        + '<div style="text-align:right;flex-shrink:0;"><div style="font-size:14px;font-weight:800;color:var(--fs-red);">-' + fmt.format(r.short) + '</div><div style="font-size:10px;color:var(--fs-blue);font-weight:700;">' + orderTxt(r) + '</div></div></div>'
+        + '<div style="font-size:9.5px;color:var(--slate-500);margin-top:4px;">🏪 ' + escapeHtml(brLabel) + '</div></div>';
+    }).join('');
+  } else {
+    rows = _pogShortData.byBranch;
+    listHtml = rows.map(r => '<div style="display:flex;align-items:center;gap:9px;border:1px solid var(--slate-200);border-radius:9px;padding:9px 11px;margin-bottom:6px;">'
+      + '<div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(r.name) + '</div>'
+      + '<div style="font-size:10px;color:var(--slate-400);">' + escapeHtml(r.bc) + ' · 🏪 <span style="color:var(--fs-blue);font-weight:700;">' + escapeHtml(r.brName) + '</span></div></div>'
+      + '<div style="text-align:right;flex-shrink:0;"><div style="font-size:14px;font-weight:800;color:var(--fs-red);">-' + fmt.format(r.short) + '</div><div style="font-size:10px;color:var(--fs-blue);font-weight:700;">' + orderTxt(r) + '</div></div></div>').join('');
+  }
+  const totShort = rows.reduce((a, r) => a + r.short, 0);
+  const totOrder = rows.reduce((a, r) => a + r.orderUnits, 0);
+  el.innerHTML = toggle
+    + '<div style="display:flex;gap:6px;margin-bottom:9px;">'
+    + '<div style="flex:1;background:#fff1f2;border-radius:9px;padding:8px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ຂາດລວມ' : 'ขาดรวม') + '</div><div style="font-size:17px;font-weight:800;color:var(--fs-red);">-' + fmt.format(totShort) + '</div></div>'
+    + '<div style="flex:1;background:#eff6ff;border-radius:9px;padding:8px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ຕ້ອງສັ່ງ' : 'ต้องสั่ง') + '</div><div style="font-size:17px;font-weight:800;color:var(--fs-blue);">' + fmt.format(totOrder) + '</div></div>'
+    + '<div style="flex:1;background:var(--fs-fill2);border-radius:9px;padding:8px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ລາຍການ' : 'รายการ') + '</div><div style="font-size:17px;font-weight:800;color:var(--slate-700);">' + rows.length + '</div></div></div>'
+    + '<button onclick="pogExportShort()" style="width:100%;background:var(--emerald-500);color:white;border:none;border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;margin-bottom:9px;">📊 Export Excel</button>'
+    + '<div style="max-height:50vh;overflow-y:auto;">' + listHtml + '</div>';
+}
 function pogExportShort() {
   const isLao = lang === 'lo';
-  if (!_pogShortRows.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
+  if (!_pogShortData) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
   if (typeof XLSX === 'undefined') { showToast('XLSX not loaded', 'error'); return; }
-  const aoa = [['Barcode', 'ชื่อสินค้า', 'ขาดรวม (ทุกสาขา)', 'จำนวนสาขาที่ขาด', 'ลัง/หน่วย', 'สั่ง (ลัง)', 'สั่งรวม (ชิ้น)']];
-  _pogShortRows.forEach(r => aoa.push([r.bc, r.name, r.short, r.brs, r.carton || '', r.cartons != null ? r.cartons : '', r.orderUnits]));
+  let aoa, sheet;
+  if (_pogShortMode === 'byBranch') {
+    aoa = [['Barcode', 'ชื่อสินค้า', 'สาขา', 'ขาด', 'ลัง/หน่วย', 'สั่ง (ลัง)', 'สั่ง (ชิ้น)']];
+    _pogShortData.byBranch.forEach(r => aoa.push([r.bc, r.name, r.brName, r.short, r.carton || '', r.cartons != null ? r.cartons : '', r.orderUnits]));
+    sheet = 'ByBranch';
+  } else {
+    aoa = [['Barcode', 'ชื่อสินค้า', 'ขาดรวม (ทุกสาขา)', 'จำนวนสาขาที่ขาด', 'สาขาที่ขาด', 'ลัง/หน่วย', 'สั่ง (ลัง)', 'สั่งรวม (ชิ้น)']];
+    _pogShortData.sum.forEach(r => aoa.push([r.bc, r.name, r.short, r.brCount, r.brNames.join(', '), r.carton || '', r.cartons != null ? r.cartons : '', r.orderUnits]));
+    sheet = 'Combined';
+  }
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'PanogramShort');
-  XLSX.writeFile(wb, 'panogram_short_' + (typeof localDayKey === 'function' ? localDayKey(new Date()) : 'report') + '.xlsx');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), sheet);
+  XLSX.writeFile(wb, 'panogram_short_' + _pogShortMode + '_' + (typeof localDayKey === 'function' ? localDayKey(new Date()) : 'report') + '.xlsx');
 }
 
 // ==================== PAN-O-GRAM MANAGER (Settings) ====================
@@ -27267,11 +27312,11 @@ async function showGondolaActions(locationCode, status) {
       </button>
     </div>
     
-    ${(user.role === 'admin' || user.role === 'scc' || user.role === 'bcs') ? `
-    <!-- Admin/SCC/BCS: Edit + Delete -->
+    ${gondolaEditAllowed() ? `
+    <!-- Admin/SCC/BCS + username ที่อนุญาต: Edit + Delete -->
     <div style="border-top:1px dashed var(--slate-200);margin-top:11px;padding-top:9px;">
       <div style="font-size:9px;color:var(--slate-400);text-transform:uppercase;font-weight:700;margin-bottom:6px;text-align:center;">
-        🔒 ${lang === 'lo' ? 'ສຳລັບ Admin' : 'สำหรับ Admin'}
+        🔒 ${lang === 'lo' ? 'ຈັດການ Gondola' : 'จัดการ Gondola'}
       </div>
       <div style="display:flex;gap:6px;">
         <button class="btn" onclick="closeModal();openEditGondolaModal('${locationCode}');" 
@@ -27288,11 +27333,17 @@ async function showGondolaActions(locationCode, status) {
   `);
 }
 
-// ==================== EDIT / DELETE GONDOLA (Admin) ====================
+// ==================== EDIT / DELETE GONDOLA (Admin/BCS + username ที่อนุญาต) ====================
+// username พิเศษที่อนุญาตให้ แก้ไข/ลบ Gondola ได้ (นอกเหนือจาก role admin/scc/bcs)
+const GONDOLA_EDIT_USERS = ['bcs1-suea'];
+function gondolaEditAllowed() {
+  if (['admin', 'scc', 'bcs'].includes((user && user.role) || '')) return true;
+  return GONDOLA_EDIT_USERS.includes(((user && user.username) || '').toLowerCase());
+}
 async function openEditGondolaModal(locationCode) {
   const isLao = lang === 'lo';
-  
-  if (!['admin', 'scc', 'bcs'].includes(user.role)) {
+
+  if (!gondolaEditAllowed()) {
     showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error');
     return;
   }
@@ -27412,6 +27463,7 @@ async function openEditGondolaModal(locationCode) {
 
 async function saveEditGondola() {
   const isLao = lang === 'lo';
+  if (!gondolaEditAllowed()) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
   const errEl = document.getElementById('editGonErr');
   const btn = document.getElementById('editGonSaveBtn');
   
@@ -27497,8 +27549,8 @@ async function saveEditGondola() {
 
 async function confirmDeleteGondola(locationCode) {
   const isLao = lang === 'lo';
-  
-  if (!['admin', 'scc', 'bcs'].includes(user.role)) {
+
+  if (!gondolaEditAllowed()) {
     showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error');
     return;
   }
@@ -27576,9 +27628,10 @@ async function confirmDeleteGondola(locationCode) {
 
 async function executeDeleteGondola(locationCode) {
   const isLao = lang === 'lo';
+  if (!gondolaEditAllowed()) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
   const inputEl = document.getElementById('deleteConfirmInput');
   const btn = document.getElementById('confirmDeleteBtn');
-  
+
   if (!inputEl) return;
   const typed = inputEl.value.trim().toUpperCase();
   
