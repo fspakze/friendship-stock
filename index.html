@@ -16880,7 +16880,8 @@ function pogRenderGondolaShort() {
   const { byBranch, brName } = _pogGhData;
   const brKeys = Object.keys(byBranch).sort((a, b) => byBranch[b].length - byBranch[a].length);
   if (!brKeys.length) { el.innerHTML = '<div style="text-align:center;padding:22px;color:var(--fs-green);font-size:13px;font-weight:700;">✅ ' + (isLao ? 'ບໍ່ມີ Gondola ທີ່ຂາດ' : 'ไม่มี Gondola ที่ขาด') + '</div>'; return; }
-  el.innerHTML = '<div style="max-height:60vh;overflow-y:auto;">' + brKeys.map(br => {
+  el.innerHTML = '<button onclick="pogGhExport()" style="width:100%;background:var(--emerald-500);color:white;border:none;border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;margin-bottom:9px;">📊 Export Excel</button>'
+    + '<div style="max-height:56vh;overflow-y:auto;">' + brKeys.map(br => {
     const arr = byBranch[br];
     const rows = arr.map(x => '<div onclick="pogGhDetail(\'' + br + '\',\'' + String(x.loc).replace(/'/g, '') + '\')" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--slate-100);cursor:pointer;">'
       + '<span style="flex:1;min-width:0;font-size:12.5px;font-weight:800;color:var(--slate-800);font-family:monospace;">' + escapeHtml(x.loc) + '</span>'
@@ -16916,6 +16917,32 @@ async function pogGhDetail(br, loc) {
     + (x.gapQty > 0 ? '<div style="font-size:12px;font-weight:800;color:var(--fs-red);">🔴 Gap ' + fmt.format(x.gapQty) + '</div>' : '')
     + (x.posShort > 0 ? '<div style="font-size:11px;font-weight:800;color:var(--fs-orange);">🟠 -' + fmt.format(x.posShort) + '</div>' : '')
     + '</div></div>').join('') + '</div>';
+}
+// Export .xlsx: 1 แถว/(สาขา×gondola×สินค้า) — ความจุ / POS / ขาด(POS) / Gap
+async function pogGhExport() {
+  const isLao = lang === 'lo';
+  if (!_pogGhData || !_pogGhData.detail) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
+  if (typeof XLSX === 'undefined') { showToast('XLSX not loaded', 'error'); return; }
+  const detail = _pogGhData.detail, brName = _pogGhData.brName || {};
+  const flat = []; const bcSet = new Set();
+  Object.keys(detail).forEach(kk => { const idx = kk.indexOf('␟'); const br = kk.slice(0, idx); const loc = kk.slice(idx + 1); const items = detail[kk]; Object.keys(items).forEach(bc => { const it = items[bc]; flat.push({ br, loc, bc, cap: it.cap, pos: it.pos, posShort: it.posShort, gapQty: it.gapQty }); bcSet.add(bc); }); });
+  if (!flat.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
+  // ชื่อสินค้า
+  const nameMap = {}; const bcArr = [...bcSet];
+  for (let i = 0; i < bcArr.length; i += 200) {
+    const chunk = bcArr.slice(i, i + 200);
+    try { const { data } = await sb.from('master_products').select('barcode, name_th, name_lo').in('barcode', chunk); (data || []).forEach(m => { nameMap[m.barcode] = (isLao ? (m.name_lo || m.name_th) : (m.name_th || m.name_lo)) || m.barcode; }); } catch (e) {}
+  }
+  flat.sort((a, b) => String(brName[a.br] || a.br).localeCompare(String(brName[b.br] || b.br)) || String(a.loc).localeCompare(String(b.loc)) || (b.gapQty - a.gapQty) || (b.posShort - a.posShort));
+  const aoa = [['สาขา', 'Gondola', 'Barcode', 'ชื่อสินค้า', 'ความจุ Panogram', 'POS', 'ขาด (POS)', 'Gap ขาด']];
+  flat.forEach(x => aoa.push([
+    brName[x.br] || ('#' + x.br), x.loc, x.bc, nameMap[x.bc] || x.bc,
+    x.cap > 0 ? x.cap : '', x.cap > 0 ? x.pos : '', x.posShort > 0 ? x.posShort : '', x.gapQty > 0 ? x.gapQty : ''
+  ]));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'GondolaShort');
+  XLSX.writeFile(wb, 'panogram_gondola_short_' + (typeof localDayKey === 'function' ? localDayKey(new Date()) : 'report') + '.xlsx');
+  showToast(isLao ? '✅ ສົ່ງອອກແລ້ວ' : '✅ ส่งออกแล้ว', 'success');
 }
 
 // ==================== PAN-O-GRAM MANAGER (Settings) ====================
