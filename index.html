@@ -9227,7 +9227,8 @@ function hcOpenFontSettings() {
   const curCols = hcColsRaw();
   const colBtn = (v, label) => { const on = curCols === v; return '<button onclick="hcSetCols(\'' + v + '\')" style="flex:1;min-width:44px;border:1.5px solid ' + (on ? 'var(--fs-blue)' : 'var(--slate-200)') + ';background:' + (on ? 'var(--fs-blue)' : 'white') + ';color:' + (on ? 'white' : 'var(--slate-600)') + ';border-radius:8px;padding:8px 4px;font-size:12px;font-weight:800;cursor:pointer;">' + label + '</button>'; };
   showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;"><h3 style="font-size:15px;margin:0;">⚙️ ' + (isLao ? 'ຕັ້ງຄ່າການສະແດງຜົນ' : 'ตั้งค่าการแสดงผล') + '</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
-    + '<div style="font-size:11px;color:var(--slate-500);margin-bottom:12px;">' + (isLao ? 'ໃຊ້ກັບທຸກສິນຄ້າ (ຈໍ + PDF)' : 'ใช้กับทุกสินค้า (จอ + PDF)') + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-500);margin-bottom:6px;">' + (isLao ? 'ໃຊ້ກັບທຸກສິນຄ້າ (ຈໍ + PDF)' : 'ใช้กับทุกสินค้า (จอ + PDF)') + '</div>'
+    + '<div style="font-size:11px;font-weight:700;color:#0369a1;background:#e0f2fe;border-radius:8px;padding:7px 10px;margin-bottom:12px;">📱 ' + (isLao ? 'ຈື່ສະເພາະເຄື່ອງນີ້ — ແຕ່ລະເຄື່ອງຕັ້ງເອງໄດ້' : 'จำเฉพาะเครื่องนี้ — แต่ละมือถือ/คอมพิวเตอร์ ตั้งเองได้') + '</div>'
     + '<div style="font-size:12px;font-weight:700;color:var(--slate-700);margin-bottom:6px;">📐 ' + (isLao ? 'ຈຳນວນ/ແຖວ' : 'จำนวนต่อแถว') + '</div>'
     + '<div style="display:flex;gap:5px;margin-bottom:6px;">' + colBtn('auto', (isLao ? 'ອັດຕະໂນມັດ' : 'อัตโนมัติ')) + '</div>'
     + '<div style="display:flex;gap:5px;margin-bottom:16px;">' + [1, 2, 3, 4, 5, 6].map(n => colBtn(String(n), String(n))).join('') + '</div>'
@@ -9237,7 +9238,7 @@ function hcOpenFontSettings() {
     + row('barcode', (isLao ? 'ບາໂຄດ' : 'บาร์โค้ด'), 8, 18)
     + row('price', (isLao ? 'ລາຄາ (ໃຫຍ່)' : 'ราคา (ใหญ่)'), 14, 44)
     + row('sub', (isLao ? 'ລາຄາຍ່ອຍ/ປົກກະຕິ' : 'ราคาย่อย/ปกติ'), 8, 20)
-    + '<button onclick="hcResetFont()" style="width:100%;background:var(--slate-100);color:var(--slate-600);border:none;border-radius:9px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin:4px 0 14px;">↺ ' + (isLao ? 'ຄ່າເລີ່ມຕົ້ນ' : 'ค่าเริ่มต้น') + '</button>'
+    + '<button onclick="hcResetDisplay()" style="width:100%;background:var(--slate-100);color:var(--slate-600);border:none;border-radius:9px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin:4px 0 14px;">↺ ' + (isLao ? 'ກັບຄ່າມາຕຕະຖານ (ຈໍນີ້)' : 'กลับค่ามาตรฐาน (จอนี้)') + '</button>'
     + (hcSeeCost() ? '<div style="height:1px;background:var(--slate-200);margin-bottom:14px;"></div>'
       + '<div style="font-size:12px;font-weight:700;color:var(--slate-700);margin-bottom:6px;">⚠️ ' + (isLao ? 'ເຕືອນ GP ຕໍ່າກວ່າ (%)' : 'เตือน GP ต่ำกว่า (%)') + '</div>'
       + '<input type="number" value="' + hcGpMin() + '" onchange="hcSetGpMin(this.value)" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:14px;">'
@@ -9260,6 +9261,8 @@ function hcQrDataUri(text) {
 function hcSaveContact() { const v = ((document.getElementById('hcContactInput') || {}).value || '').trim(); try { localStorage.setItem('fs_hc_contact', v); } catch (e) {} showToast('✓', 'success'); }
 function hcSetFont(k, v) { const f = hcFont(); f[k] = parseInt(v, 10) || f[k]; localStorage.setItem('fs_hc_font', JSON.stringify(f)); const el = document.getElementById('hcFv_' + k); if (el) el.textContent = f[k] + 'px'; hcRenderList(); }
 function hcResetFont() { localStorage.removeItem('fs_hc_font'); closeModal(); hcRenderList(); showToast(lang === 'lo' ? 'ຄືນຄ່າເລີ່ມຕົ້ນແລ້ວ' : 'คืนค่าเริ่มต้นแล้ว', 'success'); }
+// กลับค่าขนาดมาตรฐาน (ฟอนต์ + จำนวนต่อแถว) ของเครื่องนี้ — ลบเฉพาะค่า localStorage เครื่องนี้
+function hcResetDisplay() { try { localStorage.removeItem('fs_hc_font'); localStorage.removeItem('fs_hc_cols'); } catch (e) {} hcRenderList(); hcOpenFontSettings(); showToast(lang === 'lo' ? 'ຄືນຄ່າມາຕຕະຖານແລ້ວ (ຈໍນີ້)' : 'คืนค่ามาตรฐานแล้ว (จอนี้)', 'success'); }
 function hcSetCols(v) { try { if (v === 'auto') localStorage.removeItem('fs_hc_cols'); else localStorage.setItem('fs_hc_cols', String(v)); } catch (e) {} hcRenderList(); hcOpenFontSettings(); }
 
 // ---------- ช่วงวันโปรโมชั่นทั้งชุด: ตั้งครั้งเดียว ใช้กับทุกสินค้า (เก็บใน app_settings) ----------
@@ -9307,6 +9310,7 @@ async function hcClearPromo() {
 function renderHorecaPage() {
   const isLao = lang === 'lo';
   const canEdit = hcCanEdit();
+  const isAdmin = (user && user.role) === 'admin';   // ลบชุด catalog = admin เท่านั้น
   return `
     <div style="margin-bottom:11px;">
       <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">🍽️ HORECA Catalog</h2>
@@ -9326,8 +9330,8 @@ function renderHorecaPage() {
         </div>
         ${canEdit ? `<button onclick="hcRenameSet()" title="${isLao ? 'ປ່ຽນຊື່ຊຸດ' : 'เปลี่ยนชื่อชุด'}" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:9px 11px;font-size:12px;font-weight:700;cursor:pointer;">✏️</button>
         <button onclick="hcCopySet()" title="${isLao ? 'ສຳເນົາຊຸດ' : 'คัดลอกชุด'}" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:9px 11px;font-size:12px;font-weight:700;cursor:pointer;">📑</button>
-        <button onclick="hcNewSet()" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;">+ ${isLao ? 'ຊຸດ' : 'ชุด'}</button>
-        <button onclick="hcDeleteSet()" title="${isLao ? 'ລຶບຊຸດ' : 'ลบชุด'}" style="background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:8px;padding:9px 11px;font-size:12px;font-weight:700;cursor:pointer;">🗑️</button>` : ''}
+        <button onclick="hcNewSet()" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;">+ ${isLao ? 'ຊຸດ' : 'ชุด'}</button>` : ''}
+        ${isAdmin ? `<button onclick="hcDeleteSet()" title="${isLao ? 'ລຶບຊຸດ (admin)' : 'ลบชุด (admin)'}" style="background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:8px;padding:9px 11px;font-size:12px;font-weight:700;cursor:pointer;">🗑️</button>` : ''}
       </div>
       ${canEdit ? `<div style="display:flex;gap:6px;margin-bottom:8px;">
         <input id="hcBarcode" type="text" inputmode="numeric" placeholder="${isLao ? 'ໃສ່/ສະແກນ Barcode ເພື່ອເພີ່ມ' : 'ใส่/สแกน Barcode เพื่อเพิ่ม'}" style="flex:1;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:14px;box-sizing:border-box;" onkeydown="if(event.key==='Enter')hcLookup()">
@@ -9525,8 +9529,8 @@ async function hcNewSet() {
   showToast((isLao ? 'ຊຸດໃໝ່: ' : 'ชุดใหม่: ') + _hcSet + (isLao ? ' — ເພີ່ມສິນຄ້າໄດ້ເລີຍ' : ' — เพิ่มสินค้าได้เลย'), 'success');
 }
 async function hcDeleteSet() {
-  if (!hcRequireEdit()) return;
   const isLao = lang === 'lo';
+  if ((user && user.role) !== 'admin') { showToast(isLao ? 'ລຶບຊຸດໄດ້ສະເພາະ admin' : 'ลบชุดได้เฉพาะ admin', 'warning'); return; }
   if (_hcSet === 'main') { showToast(isLao ? 'ລຶບຊຸດ main ບໍ່ໄດ້' : 'ลบชุด main ไม่ได้', 'warning'); return; }
   const n = _hcRows.length;
   if (!confirm((isLao ? 'ລຶບຊຸດ "' : 'ลบชุด "') + _hcSet + '"' + (n ? (isLao ? ' ພ້ອມສິນຄ້າ ' : ' พร้อมสินค้า ') + n + (isLao ? ' ລາຍການ?' : ' รายการ?') : '?'))) return;
@@ -9608,6 +9612,11 @@ async function hcLookup() {
       if ((bp.barcode_box || bp.price_box) && upb > 1) _hcScan.box = { qty: upb, normal: Number(bp.price_box) || (sell * upb) || 0 };
     }
   } catch (e) {}
+  // รูปเดิมของสินค้านี้จาก catalog ชุดอื่น (เคยอัปโหลดไว้แล้ว) — ดึงมาใส่ให้อัตโนมัติ
+  try {
+    const { data: img } = await sb.from('horeca_catalog').select('image_url').eq('barcode', bc).not('image_url', 'is', null).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+    if (img && img.image_url) _hcScan.image = img.image_url;
+  } catch (e) {}
   hcRenderAddForm();
 }
 
@@ -9618,7 +9627,8 @@ function hcRenderAddForm() {
   const s = _hcScan;
   form.innerHTML = `
     <div style="background:var(--fs-fill2);border-radius:10px;padding:10px;margin-top:4px;">
-      ${hcPhotoBoxHtml(null, 'f')}
+      ${hcPhotoBoxHtml(s.image || null, 'f')}
+      ${s.image && !_hcPhoto ? `<div style="font-size:10px;color:#0369a1;font-weight:700;margin:5px 0 0;">🖼️ ${isLao ? 'ໃຊ້ຮູບເດີມ ຈາກ catalog ອື່ນ (ຖ່າຍ/ອັບໂຫລດໃໝ່ເພື່ອປ່ຽນ)' : 'ใช้รูปเดิมจาก catalog อื่น (ถ่าย/อัปโหลดใหม่เพื่อเปลี่ยน)'}</div>` : ''}
       <input id="hcfName" value="${escapeHtml(s.name)}" placeholder="${isLao ? 'ຊື່ສິນຄ້າ' : 'ชื่อสินค้า'}" style="width:100%;padding:7px;border:1px solid var(--slate-300);border-radius:7px;font-size:12.5px;font-weight:700;box-sizing:border-box;margin:8px 0 5px;">
       <div style="display:flex;gap:5px;">
         <input id="hcfCat" value="${escapeHtml(s.category)}" placeholder="${isLao ? 'ປະເພດ' : 'ประเภท'}" style="flex:2;padding:7px;border:1px solid var(--slate-300);border-radius:7px;font-size:11px;box-sizing:border-box;">
@@ -9756,6 +9766,7 @@ async function hcSaveItem() {
     box_qty: _hcScan.box ? _hcScan.box.qty : null, box_normal: _hcScan.box ? numOrNull(g('hcfBoxNormal')) : null, box_promo: _hcScan.box ? numOrNull(g('hcfBoxPromo')) : null, box_cost: (_hcScan.box && hcSeeCost()) ? numOrNull(g('hcfBoxCost')) : null,
     created_by: user.id, created_by_name: user.full_name || user.username || '', updated_at: new Date().toISOString()
   };
+  if (!imageUrl && _hcScan.image) imageUrl = _hcScan.image;   // ไม่ได้ถ่าย/อัปโหลดใหม่ → ใช้รูปเดิมจาก catalog อื่น
   if (imageUrl) payload.image_url = imageUrl;
   const { error } = await sb.from('horeca_catalog').upsert(payload, { onConflict: 'catalog_set,barcode' });
   if (btn) { btn.disabled = false; btn.innerHTML = '+ ' + (isLao ? 'ເພີ່ມເຂົ້າ Catalog' : 'เพิ่มเข้า Catalog'); }
@@ -10025,23 +10036,25 @@ function hcImportOpen() {
     + '<button onclick="closeModal()" style="width:100%;margin-top:12px;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? 'ປິດ' : 'ปิด') + '</button>');
 }
 
-// ดึงข้อมูลเสริมจาก barcode แบบ batch: products(สาขานี้) → master_products → barcode_packsize, ต้นทุนล่าสุดจาก purchase_history
+// ดึงข้อมูลเสริมจาก barcode แบบ batch: products(สาขานี้) → master_products → barcode_packsize, ต้นทุนล่าสุดจาก purchase_history + รูปเดิมจาก catalog อื่น
 async function hcAutoFillMaps(bcList) {
-  const prodMap = {}, mpMap = {}, bpMap = {}, costMap = {};
+  const prodMap = {}, mpMap = {}, bpMap = {}, costMap = {}, imgMap = {};
   for (let i = 0; i < bcList.length; i += 200) {
     const chunk = bcList.slice(i, i + 200);
-    const [pr, mr, br, hr] = await Promise.all([
+    const [pr, mr, br, hr, ir] = await Promise.all([
       sb.from('products').select('barcode,name_th,name_lo,category,unit_th,unit_lo,sell_price,cost_price').eq('branch_id', branch.id).eq('is_active', true).in('barcode', chunk),
       sb.from('master_products').select('barcode,name_th,name_lo,category,product_group,sell_price').in('barcode', chunk),
       sb.from('barcode_packsize').select('barcode_unit,qty_unit,qty_pack,pcs_per_box,price_unit,price_pack,price_box,barcode_pack,barcode_box').in('barcode_unit', chunk),
-      sb.from('purchase_history').select('barcode,unit_price,buy_date').in('barcode', chunk).order('buy_date', { ascending: false })
+      sb.from('purchase_history').select('barcode,unit_price,buy_date').in('barcode', chunk).order('buy_date', { ascending: false }),
+      sb.from('horeca_catalog').select('barcode,image_url,updated_at').in('barcode', chunk).not('image_url', 'is', null).order('updated_at', { ascending: false })
     ]);
     (pr.data || []).forEach(p => { if (!prodMap[p.barcode]) prodMap[p.barcode] = p; });
     (mr.data || []).forEach(m => { if (!mpMap[m.barcode]) mpMap[m.barcode] = m; });
     (br.data || []).forEach(b => { bpMap[b.barcode_unit] = b; });
     (hr.data || []).forEach(h => { if (!(h.barcode in costMap)) costMap[h.barcode] = Number(h.unit_price) || 0; }); // แถวแรกต่อ barcode = ล่าสุด (order buy_date desc)
+    (ir.data || []).forEach(im => { if (im.barcode && !imgMap[im.barcode]) imgMap[im.barcode] = im.image_url; }); // รูปล่าสุดต่อ barcode
   }
-  return { prodMap, mpMap, bpMap, costMap };
+  return { prodMap, mpMap, bpMap, costMap, imgMap };
 }
 
 // สร้าง row สำหรับ upsert เข้า horeca_catalog — เติมเฉพาะช่องที่ pr ไม่ได้ระบุมา (null) จาก maps
@@ -10065,7 +10078,8 @@ function hcBuildCatalogRow(pr, maps, isLao) {
     if (packQty == null && (bp.barcode_pack || bp.price_pack) && upp > 1) { packQty = upp; if (packNormal == null) packNormal = Number(bp.price_pack) || (normal * upp) || null; }
     if (boxQty == null && (bp.barcode_box || bp.price_box) && upb > 1) { boxQty = upb; if (boxNormal == null) boxNormal = Number(bp.price_box) || (normal * upb) || null; }
   }
-  return {
+  const existImg = pr.barcode ? maps.imgMap[pr.barcode] : null;   // รูปเดิมจาก catalog อื่น
+  const row = {
     catalog_set: _hcSet, barcode: pr.barcode, product_name: name || pr.barcode || (isLao ? 'ບໍ່ຮູ້ຊື່' : 'ไม่ทราบชื่อ'),
     category, product_group: group, unit,
     normal_price: normal || 0,
@@ -10075,6 +10089,8 @@ function hcBuildCatalogRow(pr, maps, isLao) {
     box_qty: boxQty, box_normal: boxNormal, box_promo: boxPromo,
     created_by: user.id, created_by_name: user.full_name || user.username || '', updated_at: new Date().toISOString()
   };
+  if (existImg) row.image_url = existImg;
+  return row;
 }
 
 async function hcHandleImport(ev) {
@@ -32602,7 +32618,7 @@ window.renderChecklistPage = renderChecklistPage; window.loadChecklist = loadChe
 // Temperature Log
 window.renderTempLogPage = renderTempLogPage; window.loadTempLogs = loadTempLogs; window.tmpSetType = tmpSetType; window.tmpSave = tmpSave;
 // HORECA Catalog
-window.renderHorecaPage = renderHorecaPage; window.loadHoreca = loadHoreca; window.hcSelectSet = hcSelectSet; window.hcNewSet = hcNewSet; window.hcDeleteSet = hcDeleteSet; window.hcScanBtn = hcScanBtn; window.hcLookup = hcLookup; window.hcOnPhoto = hcOnPhoto; window.hcSaveItem = hcSaveItem; window.hcUpdGP = hcUpdGP; window.hcSetCat = hcSetCat; window.hcToggleFavFilter = hcToggleFavFilter; window.hcToggleFav = hcToggleFav; window.hcEdit = hcEdit; window.hcSaveEdit = hcSaveEdit; window.hcDelete = hcDelete; window.hcImportOpen = hcImportOpen; window.hcHandleImport = hcHandleImport; window.hcExportExcel = hcExportExcel; window.hcExportPDF = hcExportPDF; window.hcOpenFontSettings = hcOpenFontSettings; window.hcSetFont = hcSetFont; window.hcResetFont = hcResetFont;
+window.renderHorecaPage = renderHorecaPage; window.loadHoreca = loadHoreca; window.hcSelectSet = hcSelectSet; window.hcNewSet = hcNewSet; window.hcDeleteSet = hcDeleteSet; window.hcScanBtn = hcScanBtn; window.hcLookup = hcLookup; window.hcOnPhoto = hcOnPhoto; window.hcSaveItem = hcSaveItem; window.hcUpdGP = hcUpdGP; window.hcSetCat = hcSetCat; window.hcToggleFavFilter = hcToggleFavFilter; window.hcToggleFav = hcToggleFav; window.hcEdit = hcEdit; window.hcSaveEdit = hcSaveEdit; window.hcDelete = hcDelete; window.hcImportOpen = hcImportOpen; window.hcHandleImport = hcHandleImport; window.hcExportExcel = hcExportExcel; window.hcExportPDF = hcExportPDF; window.hcOpenFontSettings = hcOpenFontSettings; window.hcSetFont = hcSetFont; window.hcResetFont = hcResetFont; window.hcResetDisplay = hcResetDisplay;
 window.hcRenameSet = hcRenameSet; window.hcPasteOpen = hcPasteOpen; window.hcPasteBarcodes = hcPasteBarcodes; window.hcToggleHidden = hcToggleHidden; window.hcToggleHiddenFilter = hcToggleHiddenFilter; window.hcSetCols = hcSetCols; window.hcOpenPromo = hcOpenPromo; window.hcApplyPromo = hcApplyPromo; window.hcClearPromo = hcClearPromo;
 window.hcToggleGroups = hcToggleGroups; window.hcOpenCatPicker = hcOpenCatPicker; window.hcPickCat = hcPickCat; window.hcPickFav = hcPickFav;
 window.hcToggleReorder = hcToggleReorder; window.hcMoveItem = hcMoveItem; window.hcCopySet = hcCopySet; window.hcExportGuard = hcExportGuard; window.hcSetGpMin = hcSetGpMin; window.hcSaveContact = hcSaveContact; window.hcShareText = hcShareText;
