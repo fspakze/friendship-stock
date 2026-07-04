@@ -16713,11 +16713,11 @@ async function pogOpenShortReport() {
     const capBB = {}; const bcSet = new Set(); const brSet = new Set();
     pogRows.forEach(p => { if (!p.barcode) return; const k = p.barcode + '|' + p.branch_id; capBB[k] = (capBB[k] || 0) + (Number(p.total_qty) || 0); bcSet.add(String(p.barcode)); brSet.add(p.branch_id); });
     const bcArr = [...bcSet];
-    // 2) สต๊อก POS ต่อ (barcode, สาขา)
+    // 2) สต๊อก POS ต่อ (barcode, สาขา) — fetchAllQuery กัน limit 1000 (chunk × หลายสาขา อาจเกิน)
     const posBB = {};
     for (let i = 0; i < bcArr.length; i += 300) {
       const chunk = bcArr.slice(i, i + 300);
-      try { const { data } = await sb.from('products').select('barcode, branch_id, pos_qty').in('barcode', chunk); (data || []).forEach(p => { posBB[p.barcode + '|' + p.branch_id] = Number(p.pos_qty) || 0; }); } catch (e) {}
+      try { const data = await fetchAllQuery(() => sb.from('products').select('barcode, branch_id, pos_qty').in('barcode', chunk).order('id')); (data || []).forEach(p => { posBB[p.barcode + '|' + p.branch_id] = Number(p.pos_qty) || 0; }); } catch (e) {}
     }
     // 3) ขาด (capacity - pos) ต่อ barcode → เก็บ per-branch ด้วย
     const detail = {};
@@ -16828,11 +16828,11 @@ async function pogOpenGondolaShort() {
     const pogRows = await fetchAllQuery(() => sb.from('pan_o_grams').select('barcode, branch_id, location_code, total_qty').order('id'));
     const capK = {}; const bcSet = new Set(); const brSet = new Set();
     pogRows.forEach(p => { if (!p.barcode || !p.location_code) return; const k = p.branch_id + '␟' + p.location_code + '␟' + p.barcode; capK[k] = (capK[k] || 0) + (Number(p.total_qty) || 0); bcSet.add(String(p.barcode)); brSet.add(p.branch_id); });
-    // 2) POS ต่อ (barcode, สาขา)
+    // 2) POS ต่อ (barcode, สาขา) — fetchAllQuery กัน limit 1000 (chunk × หลายสาขา อาจเกิน)
     const posBB = {}; const bcArr = [...bcSet];
     for (let i = 0; i < bcArr.length; i += 300) {
       const chunk = bcArr.slice(i, i + 300);
-      try { const { data } = await sb.from('products').select('barcode, branch_id, pos_qty').in('barcode', chunk); (data || []).forEach(p => { posBB[p.barcode + '␟' + p.branch_id] = Number(p.pos_qty) || 0; }); } catch (e) {}
+      try { const data = await fetchAllQuery(() => sb.from('products').select('barcode, branch_id, pos_qty').in('barcode', chunk).order('id')); (data || []).forEach(p => { posBB[p.barcode + '␟' + p.branch_id] = Number(p.pos_qty) || 0; }); } catch (e) {}
     }
     // 3) รายละเอียดสินค้าขาดต่อ (สาขา, gondola) — เก็บ per-barcode ไว้ drill-down
     // detailMap[br␟loc] = { bc: { posShort, cap, pos, gapQty } }
@@ -16845,7 +16845,7 @@ async function pogOpenGondolaShort() {
     // 4) Gap Scan pending ทุกสาขา → เติมเข้า detailMap
     try {
       const gaps = await fetchAllQuery(() => sb.from('gap_scans').select('branch_id, location_code, barcode, gap_qty, status').eq('status', 'pending').order('id'));
-      gaps.forEach(g => { if (!g.location_code) return; const kk = g.branch_id + '␟' + g.location_code; const d = detailMap[kk] || (detailMap[kk] = {}); const bc = String(g.barcode); const it = d[bc] || (d[bc] = { posShort: 0, cap: 0, pos: 0, gapQty: 0 }); it.gapQty += Number(g.gap_qty) || 0; });
+      gaps.forEach(g => { if (!g.location_code) return; const kk = g.branch_id + '␟' + g.location_code; const d = detailMap[kk] || (detailMap[kk] = {}); const bc = String(g.barcode); const it = d[bc] || (d[bc] = { posShort: 0, cap: capK[g.branch_id + '␟' + g.location_code + '␟' + bc] || 0, pos: posBB[bc + '␟' + g.branch_id] || 0, gapQty: 0 }); it.gapQty += Number(g.gap_qty) || 0; });
     } catch (e) {}
     // 5) ชื่อสาขา
     const brName = {};
@@ -34197,4 +34197,3 @@ if (typeof isPWAMode === 'function') {
 </script>
 </body>
 </html>
- 
