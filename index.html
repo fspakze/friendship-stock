@@ -6276,6 +6276,8 @@ const AL_ACTION_META = {
   toggle_count_menu:{ emoji: '🔀', color: 'var(--slate-500)',  th: 'สลับเมนูนับสต๊อก', lo: 'ສະລັບເມນູນັບສະຕ໊ອກ', grp: 'other' },
   menu_config:      { emoji: '🔧', color: 'var(--slate-600)',  th: 'จัดการเมนู', lo: 'ຈັດການເມນູ', grp: 'other' },
   pog_done:         { emoji: '📐', color: 'var(--emerald-600)',th: 'Pan-O-Gram เสร็จ', lo: 'Pan-O-Gram ສຳເລັດ', grp: 'other' },
+  pog_swap:         { emoji: '🔄', color: 'var(--amber-500)',  th: 'Pan-O-Gram เปลี่ยนสินค้า', lo: 'Pan-O-Gram ປ່ຽນສິນຄ້າ', grp: 'other' },
+  pog_move:         { emoji: '➡️', color: 'var(--fs-blue)',    th: 'Pan-O-Gram ย้ายตำแหน่ง', lo: 'Pan-O-Gram ຍ້າຍຕຳແໜ່ງ', grp: 'other' },
   test_cleanup:     { emoji: '🧹', color: 'var(--violet-600)', th: 'ล้างข้อมูลทดสอบ', lo: 'ລ້າງຂໍ້ມູນທົດສອບ', grp: 'other' }
 };
 // หัวข้อ (กลุ่ม) สำหรับ chip กรอง — ครบทุก action
@@ -15947,8 +15949,9 @@ async function openPanOGramModal(barcode, locationCode, editId = null, presetShe
   const defaultShelf = existing?.shelf || presetShelf || (existingAtLoc?.length ? existingAtLoc[existingAtLoc.length - 1].shelf : 1);
   const defaultSeq = existing?.seq_in_shelf || 
     ((window._pogShelfBarcodesCache[defaultShelf] || []).length + 1);
-  const defaultTotal = existing?.total_in_shelf || 
-    window._pogShelfTotalsCache[defaultShelf] || 1;
+  // เพิ่มสินค้าใหม่: total อย่างน้อยต้อง = ลำดับล่าสุด (เพิ่มตัวที่ 8 → total=8 อัตโนมัติ)
+  const defaultTotal = existing?.total_in_shelf ||
+    Math.max(window._pogShelfTotalsCache[defaultShelf] || 1, defaultSeq);
   
   showModal(`
     <h3 style="display:flex;align-items:center;gap:7px;">
@@ -16066,7 +16069,11 @@ async function openPanOGramModal(barcode, locationCode, editId = null, presetShe
       <label class="form-label" style="font-size:10px;">${isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ'}</label>
       <textarea id="pogNotes" rows="2" class="form-input" style="font-size:11px;resize:vertical;">${escapeHtml(existing?.notes || '')}</textarea>
     </div>
-    
+    ${isEdit ? `<div style="display:flex;gap:6px;margin-bottom:9px;">
+      <button onclick="pogSwapProduct(${editId}, '${barcode}', '${locationCode}')" style="flex:1;background:var(--amber-500);color:white;border:none;border-radius:9px;padding:10px;font-size:12px;font-weight:800;cursor:pointer;">🔄 ${isLao ? 'ປ່ຽນສິນຄ້າ' : 'เปลี่ยนสินค้า'}</button>
+      <button onclick="pogMoveItem(${editId}, '${locationCode}')" style="flex:1;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:10px;font-size:12px;font-weight:800;cursor:pointer;">➡️ ${isLao ? 'ຍ້າຍຕຳແໜ່ງ' : 'ย้ายตำแหน่ง'}</button>
+    </div>` : ''}
+
     <div class="action-row">
       ${isEdit ? `<button class="btn btn-danger" onclick="deletePanOGram(${editId})" style="background:var(--rose-500);">${isLao ? 'ລົບ' : 'ลบ'}</button>` : ''}
       <button class="btn btn-secondary" onclick="dismissPogModal('${barcode}', '${locationCode}', false)">${T('cancel')}</button>
@@ -16146,8 +16153,14 @@ function onPogShelfChange() {
   // Auto-suggest seq เป็น next available ของชั้นนี้ (เฉพาะ create mode)
   if (seqEl && !window._pogIsEditMode) {
     const existingInShelf = (seqCache[newShelf] || []).length;
-    seqEl.value = existingInShelf + 1;
+    const nextSeq = existingInShelf + 1;
+    seqEl.value = nextSeq;
+    // total อย่างน้อยต้อง >= ลำดับใหม่ (เพิ่มตัวที่ 8 → total=8) ถ้ายังไม่แก้เอง
+    if (!window._pogTotalManuallyEdited && (parseInt(totalEl.value) || 1) < nextSeq) {
+      totalEl.value = nextSeq;
+    }
   }
+  updatePogCalc();
 }
 
 async function savePanOGram(barcode, locationCode, editId) {
@@ -16248,7 +16261,16 @@ async function savePanOGram(barcode, locationCode, editId) {
         showToast(isLao ? '✅ ສ້າງສຳເລັດ' : '✅ สร้างสำเร็จ', 'success');
       }
     }
-    
+
+    // ⭐ "ทั้งหมด" (total_in_shelf) เป็นค่าระดับชั้น — sync สินค้าทุกตัวในชั้นเดียวกันให้เท่ากันอัตโนมัติ
+    // เช่น เพิ่มตัวที่ 8 (total=8) → 1-6-7,1-7-7 กลายเป็น 1-6-8,1-7-8
+    try {
+      await sb.from('pan_o_grams')
+        .update({ total_in_shelf: total, updated_at: new Date().toISOString() })
+        .eq('branch_id', branch.id).eq('location_code', locationCode).eq('shelf', shelf)
+        .neq('total_in_shelf', total);
+    } catch (e2) {}
+
     closeModal();
     // hook สำหรับหน้า Pan-O-Gram ใหม่ (รีเฟรชลิสต์ Gondola ที่กำลังกำหนด)
     if (typeof window._pogAfterSave === 'function') { try { window._pogAfterSave(); } catch (e2) {} }
@@ -16300,12 +16322,88 @@ async function deletePanOGram(id) {
   }
 }
 
+// ==================== แก้ไขสินค้าใน Pan-O-Gram: เปลี่ยนสินค้า / ย้ายตำแหน่ง ====================
+function pogRefreshAfterEdit(locationCode) {
+  if (typeof window._pogAfterSave === 'function') { try { window._pogAfterSave(); } catch (e) {} }
+  if (typeof curProduct !== 'undefined' && curProduct) { try { loadPanOGramForProduct(curProduct, locationCode); } catch (e) {} }
+}
+// เปลี่ยนสินค้าในตำแหน่งนี้เป็นสินค้าอื่น (ตำแหน่ง/มิติเดิม)
+function pogSwapProduct(id, oldBc, locationCode) {
+  const isLao = lang === 'lo';
+  showModal('<h3 style="font-size:15px;margin:0 0 4px;">🔄 ' + (isLao ? 'ປ່ຽນສິນຄ້າ' : 'เปลี่ยนสินค้า') + '</h3>'
+    + '<p style="font-size:11px;color:var(--slate-500);margin:0 0 11px;">' + (isLao ? 'ສິນຄ້າເດີມ' : 'สินค้าเดิม') + ': ' + escapeHtml(oldBc) + ' • Loc: ' + escapeHtml(locationCode) + '</p>'
+    + '<div class="error-msg" id="pogSwapErr"></div>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'Barcode ສິນຄ້າໃໝ່' : 'Barcode สินค้าใหม่') + '</label>'
+    + '<input class="form-input" id="pogSwapBc" type="text" inputmode="numeric" placeholder="' + (isLao ? 'ສະແກນ ຫຼື ພິມ' : 'สแกน หรือ พิมพ์') + '"></div>'
+    + '<button onclick="pogSwapScan()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:11px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:9px;">📷 ' + (isLao ? 'ສະແກນ' : 'สแกน') + '</button>'
+    + '<div class="action-row"><button class="btn btn-secondary" onclick="closeModal()">' + (isLao ? 'ຍົກເລີກ' : 'ยกเลิก') + '</button>'
+    + '<button class="btn btn-primary" onclick="pogSwapConfirm(' + id + ',\'' + String(locationCode).replace(/'/g, '') + '\')" style="background:var(--amber-500);">' + (isLao ? 'ປ່ຽນ' : 'เปลี่ยน') + '</button></div>');
+}
+function pogSwapScan() {
+  window._scanCallback = function (c) { const el = document.getElementById('pogSwapBc'); if (el) el.value = c; };
+  if (typeof triggerPhotoScan === 'function') triggerPhotoScan('pog');
+}
+async function pogSwapConfirm(id, locationCode) {
+  const isLao = lang === 'lo';
+  const errEl = document.getElementById('pogSwapErr');
+  const bc = ((document.getElementById('pogSwapBc') || {}).value || '').trim();
+  if (!bc) { if (errEl) { errEl.textContent = isLao ? 'ໃສ່ Barcode' : 'ใส่ Barcode'; errEl.classList.add('show'); } return; }
+  try {
+    const { data: prod } = await sb.from('products').select('id').eq('barcode', bc).eq('branch_id', branch.id).maybeSingle();
+    const { error } = await sb.from('pan_o_grams').update({ barcode: bc, product_id: prod ? prod.id : null, updated_at: new Date().toISOString(), last_audited_at: new Date().toISOString(), last_audited_by: user.id }).eq('id', id);
+    if (error) throw error;
+    showToast(isLao ? '✅ ປ່ຽນສິນຄ້າແລ້ວ' : '✅ เปลี่ยนสินค้าแล้ว', 'success');
+    if (typeof logActivity === 'function') logActivity('pog_swap', locationCode + ' → ' + bc);
+    closeModal();
+    pogRefreshAfterEdit(locationCode);
+  } catch (e) { if (errEl) { errEl.textContent = (e && e.message) || String(e); errEl.classList.add('show'); } }
+}
+// ย้ายสินค้าไปตำแหน่ง/ชั้น/ลำดับใหม่ (หรือ Gondola อื่น)
+async function pogMoveItem(id, curLoc) {
+  const isLao = lang === 'lo';
+  let locs = [];
+  try { const { data } = await sb.from('location_master').select('location_code').eq('branch_id', branch.id).eq('is_active', true).order('location_code'); locs = (data || []).map(x => x.location_code); } catch (e) {}
+  const opts = locs.map(l => '<option value="' + escapeHtml(l) + '">').join('');
+  showModal('<h3 style="font-size:15px;margin:0 0 11px;">➡️ ' + (isLao ? 'ຍ້າຍຕຳແໜ່ງ' : 'ย้ายตำแหน่ง') + '</h3>'
+    + '<div class="error-msg" id="pogMvErr"></div>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'Gondola / ຕຳແໜ່ງໃໝ່' : 'Gondola / ตำแหน่งใหม่') + '</label>'
+    + '<input class="form-input" id="pogMvLoc" list="pogMvLocList" value="' + escapeHtml(curLoc) + '" style="text-transform:uppercase;"><datalist id="pogMvLocList">' + opts + '</datalist></div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ຊັ້ນ' : 'ชั้น') + '</label><input class="form-input" id="pogMvShelf" type="number" min="1" max="20" value="1" style="text-align:center;"></div>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ລຳດັບ' : 'ลำดับ') + '</label><input class="form-input" id="pogMvSeq" type="number" min="1" max="50" value="1" style="text-align:center;"></div></div>'
+    + '<div class="action-row"><button class="btn btn-secondary" onclick="closeModal()">' + (isLao ? 'ຍົກເລີກ' : 'ยกเลิก') + '</button>'
+    + '<button class="btn btn-primary" onclick="pogMoveConfirm(' + id + ',\'' + String(curLoc).replace(/'/g, '') + '\')" style="background:var(--fs-blue);">' + (isLao ? 'ຍ້າຍ' : 'ย้าย') + '</button></div>');
+}
+async function pogMoveConfirm(id, curLoc) {
+  const isLao = lang === 'lo';
+  const errEl = document.getElementById('pogMvErr');
+  const setErr = (msg) => { if (errEl) { errEl.textContent = msg; errEl.classList.add('show'); } };
+  const newLoc = ((document.getElementById('pogMvLoc') || {}).value || '').trim().toUpperCase();
+  const newShelf = parseInt((document.getElementById('pogMvShelf') || {}).value) || 1;
+  const newSeq = parseInt((document.getElementById('pogMvSeq') || {}).value) || 1;
+  if (!newLoc) { setErr(isLao ? 'ໃສ່ຕຳແໜ່ງ' : 'ใส่ตำแหน่ง'); return; }
+  try {
+    const { data: row } = await sb.from('pan_o_grams').select('barcode').eq('id', id).maybeSingle();
+    const myBc = row ? row.barcode : null;
+    // เช็คตำแหน่งปลายทางว่ามีสินค้าอื่นใช้อยู่หรือไม่
+    const { data: ex } = await sb.from('pan_o_grams').select('id, barcode').eq('branch_id', branch.id).eq('location_code', newLoc).eq('shelf', newShelf).eq('seq_in_shelf', newSeq).maybeSingle();
+    if (ex && ex.id !== id && ex.barcode !== myBc) { setErr((isLao ? 'ຕຳແໜ່ງນີ້ມີ ' : 'ตำแหน่งนี้มี ') + ex.barcode + (isLao ? ' ໃຊ້ຢູ່' : ' ใช้อยู่')); return; }
+    const { error } = await sb.from('pan_o_grams').update({ location_code: newLoc, shelf: newShelf, seq_in_shelf: newSeq, updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) throw error;
+    showToast(isLao ? '✅ ຍ້າຍແລ້ວ' : '✅ ย้ายแล้ว', 'success');
+    if (typeof logActivity === 'function') logActivity('pog_move', curLoc + ' → ' + newLoc + '-' + newShelf + '-' + newSeq);
+    closeModal();
+    pogRefreshAfterEdit(curLoc);
+  } catch (e) { setErr((e && e.message) || String(e)); }
+}
+
 // ==================== หน้า Pan-O-Gram (เมนูแยก: กำหนดตำแหน่งสินค้าต่อ Gondola ก่อนนับสต๊อก) ====================
 let _pogView = 'board';        // 'board' | 'assign'
 let _pogLoc = null;            // location_code ที่กำลังกำหนด
 let _pogShelfSel = 1;          // ชั้นที่เลือกในโหมด assign
+let _pogSearch = '';           // ค้นหา Gondola บนบอร์ด
 let _pogBoardData = { locs: [], counts: {}, done: {} };
-let _pogAssign = { items: [], nameMap: {}, done: null };
+let _pogAssign = { items: [], nameMap: {}, done: null, creators: {} };
 
 function pogCanAssign() { return ['admin', 'scc', 'bcs', 'ctl', 'verifier', 'counter', 'staff'].includes(user && user.role); }
 function pogCanComplete() { return ['admin', 'scc', 'bcs', 'ctl'].includes(user && user.role); }
@@ -16327,12 +16425,20 @@ function renderPanoGramPage() {
       <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">📐 Pan-O-Gram</h2>
       <p style="font-size:11px;color:var(--slate-500);margin:0;">${isLao ? 'ກຳນົດຕຳແໜ່ງສິນຄ້າຕໍ່ Gondola ກ່ອນນັບສະຕ໋ອກ' : 'กำหนดตำแหน่งสินค้าต่อ Gondola ก่อนนับสต๊อก'} • 🏪 ${escapeHtml(brName)}</p>
     </div>
-    ${pogCanSummary() ? `<button onclick="pogOpenSummary()" style="width:100%;background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;margin-bottom:10px;">📊 ${isLao ? 'ສະຫຼຸບລາຍສາຂາ' : 'สรุปรายสาขา'}</button>` : ''}
+    ${pogCanSummary() ? `<div style="display:flex;gap:7px;margin-bottom:10px;">
+      <button onclick="pogOpenSummary()" style="flex:1;background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">📊 ${isLao ? 'ສະຫຼຸບລາຍສາຂາ' : 'สรุปรายสาขา'}</button>
+      <button onclick="pogOpenShortReport()" style="flex:1;background:#fff1f2;color:var(--fs-red);border:1px solid var(--rose-200);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">📦 ${isLao ? 'ສິນຄ້າຂາດ' : 'สินค้าขาด'}</button>
+    </div>` : ''}
+    <div id="pogSearchWrap" style="margin-bottom:10px;">
+      <input id="pogSearchInp" oninput="pogSetSearch(this.value)" placeholder="🔍 ${isLao ? 'ຄົ້ນຫາ Gondola (ເຊັ່ນ 18E02, 18)' : 'ค้นหา Gondola (เช่น 18E02, 18)'}" style="width:100%;padding:11px;border:1px solid var(--slate-300);border-radius:9px;font-size:14px;box-sizing:border-box;">
+    </div>
     <div id="pogBody"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>
   `;
 }
+function pogSetSearch(v) { _pogSearch = (v || '').trim().toLowerCase(); pogRenderBoard(); }
 async function loadPanoGram() {
-  _pogView = 'board'; _pogLoc = null; window._pogAfterSave = null;
+  _pogView = 'board'; _pogLoc = null; _pogSearch = ''; window._pogAfterSave = null;
+  const sw = document.getElementById('pogSearchWrap'); if (sw) sw.style.display = '';
   await pogLoadBoard();
 }
 async function pogLoadBoard() {
@@ -16359,14 +16465,27 @@ function pogRenderBoard() {
   const isLao = lang === 'lo';
   const body = document.getElementById('pogBody');
   if (!body) return;
-  const { locs, counts, done } = _pogBoardData;
-  if (!locs.length) { body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--slate-400);"><div style="font-size:34px;">📐</div><div style="font-size:12px;margin-top:6px;">' + (isLao ? 'ຍັງບໍ່ມີ Gondola/ຕຳແໜ່ງ — ຕັ້ງຄ່າຕຳແໜ່ງໃນ ຕັ້ງຄ່າ ກ່ອນ' : 'ยังไม่มี Gondola/ตำแหน่ง — ตั้งค่าตำแหน่งในหน้าตั้งค่าก่อน') + '</div></div>'; return; }
-  const total = locs.length;
-  const doneN = locs.filter(l => done[l.location_code]).length;
+  const { counts, done } = _pogBoardData;
+  const all = _pogBoardData.locs;
+  if (!all.length) { body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--slate-400);"><div style="font-size:34px;">📐</div><div style="font-size:12px;margin-top:6px;">' + (isLao ? 'ຍັງບໍ່ມີ Gondola/ຕຳແໜ່ງ — ຕັ້ງຄ່າຕຳແໜ່ງໃນ ຕັ້ງຄ່າ ກ່ອນ' : 'ยังไม่มี Gondola/ตำแหน่ง — ตั้งค่าตำแหน่งในหน้าตั้งค่าก่อน') + '</div></div>'; return; }
+  // % คืบหน้า = ทั้งหมด | ลิสต์ = กรองตามคำค้น
+  const locs = _pogSearch ? all.filter(l => { const p = pogParseLoc(l.location_code); return String(l.location_code).toLowerCase().includes(_pogSearch) || (p.groupLabel || '').toLowerCase().includes(_pogSearch); }) : all;
+  const total = all.length;
+  const doneN = all.filter(l => done[l.location_code]).length;
   const pct = total ? Math.round(doneN / total * 100) : 0;
   let html = '<div style="background:white;border:1px solid var(--slate-200);border-radius:11px;padding:12px;margin-bottom:11px;">'
     + '<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:800;margin-bottom:6px;"><span>' + (isLao ? 'ຄວາມຄືບໜ້າ' : 'ความคืบหน้า') + '</span><span style="color:var(--fs-blue);">' + doneN + '/' + total + ' (' + pct + '%)</span></div>'
     + '<div style="height:10px;background:var(--slate-100);border-radius:99px;overflow:hidden;"><div style="height:100%;width:' + pct + '%;background:linear-gradient(90deg,#0071e3,#34c759);border-radius:99px;transition:width .3s;"></div></div></div>';
+  // 🟡 ทางลัด Gondola ที่ทำค้างอยู่ (มีสินค้าแล้วแต่ยังไม่กดเสร็จ) — แตะเพื่อทำต่อ
+  const inProg = all.filter(l => (counts[l.location_code] || 0) > 0 && !done[l.location_code]).sort((a, b) => String(a.location_code).localeCompare(String(b.location_code)));
+  if (inProg.length) {
+    html += '<div style="background:#fffbeb;border:1px solid #f59e0b;border-radius:11px;padding:9px 11px;margin-bottom:11px;">'
+      + '<div style="font-size:11.5px;font-weight:800;color:#b45309;margin-bottom:7px;">🟡 ' + (isLao ? 'ກຳລັງເຮັດຄ້າງ' : 'กำลังทำค้าง') + ' (' + inProg.length + ') — ' + (isLao ? 'ແຕະເພື່ອເຮັດຕໍ່' : 'แตะเพื่อทำต่อ') + '</div>'
+      + '<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;">'
+      + inProg.map(l => '<button onclick="pogOpenAssign(\'' + String(l.location_code).replace(/'/g, '') + '\')" style="flex-shrink:0;background:white;border:1px solid #f59e0b;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:800;color:#b45309;cursor:pointer;font-family:monospace;white-space:nowrap;">' + escapeHtml(l.location_code) + ' <span style="color:var(--slate-400);font-weight:600;">' + (counts[l.location_code] || 0) + '</span></button>').join('')
+      + '</div></div>';
+  }
+  if (_pogSearch && !locs.length) { body.innerHTML = html + '<div style="text-align:center;padding:22px;color:var(--slate-400);font-size:12px;">🔍 ' + (isLao ? 'ບໍ່ພົບ Gondola' : 'ไม่พบ Gondola') + ' "' + escapeHtml(_pogSearch) + '"</div>'; return; }
   const groups = {};
   locs.forEach(l => { const p = pogParseLoc(l.location_code); (groups[p.groupKey] = groups[p.groupKey] || { label: p.groupLabel, items: [] }).items.push(Object.assign({ _p: p }, l)); });
   html += Object.keys(groups).sort().map(gk => {
@@ -16389,18 +16508,20 @@ function pogRenderBoard() {
 }
 async function pogOpenAssign(loc) {
   _pogView = 'assign'; _pogLoc = loc; _pogShelfSel = 1;
+  const sw = document.getElementById('pogSearchWrap'); if (sw) sw.style.display = 'none';
   window._pogAfterSave = function () { if (document.getElementById('pogBody') && _pogView === 'assign') pogLoadAssign(); };
   await pogLoadAssign();
 }
 function pogBackBoard() {
   _pogView = 'board'; window._pogAfterSave = null;
+  const sw = document.getElementById('pogSearchWrap'); if (sw) sw.style.display = '';
   pogLoadBoard();
 }
 function pogSetShelf(s) { _pogShelfSel = s; pogRenderAssign(); }
 async function pogLoadAssign() {
   const body = document.getElementById('pogBody');
   try {
-    const { data: items } = await sb.from('pan_o_grams').select('id, barcode, shelf, seq_in_shelf, total_in_shelf, facial, depth, stack, total_qty').eq('branch_id', branch.id).eq('location_code', _pogLoc).order('shelf').order('seq_in_shelf');
+    const { data: items } = await sb.from('pan_o_grams').select('id, barcode, shelf, seq_in_shelf, total_in_shelf, facial, depth, stack, total_qty, created_by, updated_at').eq('branch_id', branch.id).eq('location_code', _pogLoc).order('shelf').order('seq_in_shelf');
     const list = items || [];
     const bcs = [...new Set(list.map(i => i.barcode).filter(Boolean))];
     const nameMap = {};
@@ -16410,9 +16531,15 @@ async function pogLoadAssign() {
         (pr || []).forEach(p => { nameMap[p.barcode] = (lang === 'lo' ? (p.name_lo || p.name_th) : (p.name_th || p.name_lo)) || p.barcode; });
       } catch (e) {}
     }
+    // ชื่อผู้ระบุ (เฉพาะ admin ดูได้ — ไว้ตรวจสอบการทำงาน)
+    const creators = {};
+    if ((user && user.role) === 'admin') {
+      const uids = [...new Set(list.map(i => i.created_by).filter(Boolean))];
+      if (uids.length) { try { const { data: us } = await sb.from('users').select('id, full_name').in('id', uids); (us || []).forEach(u => { creators[u.id] = u.full_name; }); } catch (e) {} }
+    }
     let doneRow = null;
     try { const { data: d } = await sb.from('pog_progress').select('*').eq('branch_id', branch.id).eq('location_code', _pogLoc).eq('status', 'done').maybeSingle(); doneRow = d || null; } catch (e) {}
-    _pogAssign = { items: list, nameMap, done: doneRow };
+    _pogAssign = { items: list, nameMap, done: doneRow, creators };
     pogRenderAssign();
   } catch (e) {
     if (body) body.innerHTML = '<div style="text-align:center;padding:20px;color:var(--rose-500);font-size:11px;">❌ ' + escapeHtml(friendlyError(e)) + '</div>';
@@ -16422,8 +16549,9 @@ function pogRenderAssign() {
   const isLao = lang === 'lo';
   const body = document.getElementById('pogBody');
   if (!body) return;
-  const { items, nameMap, done } = _pogAssign;
+  const { items, nameMap, done, creators } = _pogAssign;
   const canA = pogCanAssign();
+  const isAdmin = (user && user.role) === 'admin';
   const isDone = !!done;
   const shelves = [...new Set(items.map(i => i.shelf))].sort((a, b) => a - b);
   const upTo = Math.max(shelves.length ? Math.max.apply(null, shelves) : 1, _pogShelfSel);
@@ -16433,7 +16561,9 @@ function pogRenderAssign() {
   const shelfItems = items.filter(i => i.shelf === _pogShelfSel).sort((a, b) => a.seq_in_shelf - b.seq_in_shelf);
   const listHtml = shelfItems.length ? shelfItems.map(i => '<div onclick="pogEditItem(' + i.id + ')" style="display:flex;align-items:center;gap:9px;background:white;border:1px solid var(--slate-200);border-radius:9px;padding:9px 11px;margin-bottom:6px;cursor:pointer;">'
     + '<div style="width:26px;height:26px;border-radius:7px;background:#eff6ff;color:var(--fs-blue);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0;">' + i.seq_in_shelf + '</div>'
-    + '<div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(nameMap[i.barcode] || i.barcode) + '</div><div style="font-size:10px;color:var(--slate-400);font-family:monospace;">' + escapeHtml(i.barcode) + ' · ' + (isLao ? 'ຄວາມຈຸ ' : 'ความจุ ') + (i.total_qty || (i.facial * i.depth * i.stack) || 0) + '</div></div>'
+    + '<div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(nameMap[i.barcode] || i.barcode) + '</div><div style="font-size:10px;color:var(--slate-400);font-family:monospace;">' + escapeHtml(i.barcode) + ' · ' + (isLao ? 'ຄວາມຈຸ ' : 'ความจุ ') + (i.total_qty || (i.facial * i.depth * i.stack) || 0) + '</div>'
+    + (isAdmin && creators && creators[i.created_by] ? '<div style="font-size:9.5px;color:var(--violet-500);font-weight:700;margin-top:1px;">👤 ' + escapeHtml(creators[i.created_by]) + '</div>' : '')
+    + '</div>'
     + '<span style="color:var(--slate-300);">✏️</span></div>').join('') : '<div style="text-align:center;padding:18px;color:var(--slate-400);font-size:12px;">' + (isLao ? 'ຊັ້ນນີ້ຍັງບໍ່ມີສິນຄ້າ — ສະແກນເພື່ອເພີ່ມ' : 'ชั้นนี้ยังไม่มีสินค้า — สแกนเพื่อเพิ่ม') + '</div>';
   let html = '<div style="display:flex;align-items:center;gap:9px;margin-bottom:10px;"><button onclick="pogBackBoard()" style="background:var(--slate-100);border:none;border-radius:8px;padding:8px 11px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
     + '<div style="flex:1;min-width:0;"><div style="font-size:16px;font-weight:800;color:var(--slate-900);font-family:monospace;">' + escapeHtml(_pogLoc) + '</div>'
@@ -16524,6 +16654,78 @@ async function pogOpenSummary() {
   } catch (e) {
     const el = document.getElementById('pogSumBody'); if (el) el.innerHTML = '<div style="color:var(--rose-500);font-size:11px;padding:10px;">❌ ' + escapeHtml(friendlyError(e)) + '</div>';
   }
+}
+
+// รายงานสินค้าขาดสำหรับ Panogram (รวมทุกสาขา + ปัดเป็นลังตาม packsize)
+async function pogOpenShortReport() {
+  const isLao = lang === 'lo';
+  showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;"><h3 style="font-size:15px;margin:0;">📦 ' + (isLao ? 'ສິນຄ້າຂາດ ສຳລັບ Panogram' : 'สินค้าขาด สำหรับ Panogram') + '</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
+    + '<div style="font-size:10.5px;color:var(--slate-400);margin-bottom:9px;">' + (isLao ? 'ຄວາມຈຸ Panogram > ສະຕ໋ອກ = ຂາດ · ລວມທຸກສາຂາ · ປັດຂຶ້ນເປັນລັງ' : 'ความจุ Panogram > สต๊อก = ขาด · รวมทุกสาขา · ปัดขึ้นเป็นลัง') + '</div>'
+    + '<div id="pogShortBody"><div class="loader" style="margin:16px auto;"></div></div>');
+  try {
+    // 1) ความจุ Panogram รวมต่อ (barcode, สาขา)
+    const pogRows = await fetchAllQuery(() => sb.from('pan_o_grams').select('barcode, branch_id, total_qty'));
+    const capBB = {}; const bcSet = new Set();
+    pogRows.forEach(p => { if (!p.barcode) return; const k = p.barcode + '|' + p.branch_id; capBB[k] = (capBB[k] || 0) + (Number(p.total_qty) || 0); bcSet.add(String(p.barcode)); });
+    const bcArr = [...bcSet];
+    // 2) สต๊อก POS ต่อ (barcode, สาขา)
+    const posBB = {};
+    for (let i = 0; i < bcArr.length; i += 300) {
+      const chunk = bcArr.slice(i, i + 300);
+      try { const { data } = await sb.from('products').select('barcode, branch_id, pos_qty').in('barcode', chunk); (data || []).forEach(p => { posBB[p.barcode + '|' + p.branch_id] = Number(p.pos_qty) || 0; }); } catch (e) {}
+    }
+    // 3) ขาด (capacity - pos) ต่อ barcode รวมทุกสาขา
+    const shortByBc = {};
+    Object.keys(capBB).forEach(k => {
+      const idx = k.lastIndexOf('|'); const bc = k.slice(0, idx);
+      const sh = Math.max(0, capBB[k] - (posBB[k] || 0));
+      if (sh > 0) { const o = shortByBc[bc] || (shortByBc[bc] = { short: 0, brs: 0 }); o.short += sh; o.brs++; }
+    });
+    const shortBcs = Object.keys(shortByBc);
+    const el = document.getElementById('pogShortBody');
+    if (!el) return;
+    if (!shortBcs.length) { el.innerHTML = '<div style="text-align:center;padding:22px;color:var(--fs-green);font-size:13px;font-weight:700;">✅ ' + (isLao ? 'ບໍ່ມີສິນຄ້າຂາດ' : 'ไม่มีสินค้าขาด') + '</div>'; return; }
+    // 4) packsize (ลัง) + ชื่อสินค้า
+    const packMap = {}, nameMap = {};
+    for (let i = 0; i < shortBcs.length; i += 200) {
+      const chunk = shortBcs.slice(i, i + 200);
+      try { const { data } = await sb.from('barcode_packsize').select('barcode_unit, qty_unit, qty_pack, pcs_per_box').in('barcode_unit', chunk); (data || []).forEach(b => { let upb = Number(b.pcs_per_box) || 0; if (!upb && Number(b.qty_unit) && Number(b.qty_pack)) upb = Number(b.qty_unit) * Number(b.qty_pack); packMap[b.barcode_unit] = upb; }); } catch (e) {}
+      try { const { data } = await sb.from('master_products').select('barcode, name_th, name_lo').in('barcode', chunk); (data || []).forEach(m => { nameMap[m.barcode] = (lang === 'lo' ? (m.name_lo || m.name_th) : (m.name_th || m.name_lo)) || m.barcode; }); } catch (e) {}
+    }
+    const fmt = new Intl.NumberFormat('th-TH');
+    const rows = shortBcs.map(bc => {
+      const s = shortByBc[bc]; const carton = packMap[bc] || 0;
+      const cartons = carton > 1 ? Math.ceil(s.short / carton) : null;
+      const orderUnits = cartons != null ? cartons * carton : s.short;
+      return { bc, name: nameMap[bc] || bc, short: s.short, brs: s.brs, carton, cartons, orderUnits };
+    }).sort((a, b) => b.short - a.short);
+    const totShort = rows.reduce((a, r) => a + r.short, 0);
+    const totOrder = rows.reduce((a, r) => a + r.orderUnits, 0);
+    _pogShortRows = rows;
+    el.innerHTML = '<div style="display:flex;gap:6px;margin-bottom:9px;">'
+      + '<div style="flex:1;background:#fff1f2;border-radius:9px;padding:8px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ຂາດລວມ' : 'ขาดรวม') + '</div><div style="font-size:17px;font-weight:800;color:var(--fs-red);">-' + fmt.format(totShort) + '</div></div>'
+      + '<div style="flex:1;background:#eff6ff;border-radius:9px;padding:8px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ຕ້ອງສັ່ງ' : 'ต้องสั่ง') + '</div><div style="font-size:17px;font-weight:800;color:var(--fs-blue);">' + fmt.format(totOrder) + '</div></div>'
+      + '<div style="flex:1;background:var(--fs-fill2);border-radius:9px;padding:8px;text-align:center;"><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ລາຍການ' : 'รายการ') + '</div><div style="font-size:17px;font-weight:800;color:var(--slate-700);">' + rows.length + '</div></div></div>'
+      + '<button onclick="pogExportShort()" style="width:100%;background:var(--emerald-500);color:white;border:none;border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;margin-bottom:9px;">📊 Export Excel</button>'
+      + '<div style="max-height:52vh;overflow-y:auto;">' + rows.map(r => '<div style="display:flex;align-items:center;gap:9px;border:1px solid var(--slate-200);border-radius:9px;padding:9px 11px;margin-bottom:6px;">'
+        + '<div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(r.name) + '</div>'
+        + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;">' + escapeHtml(r.bc) + ' · ' + r.brs + ' ' + (isLao ? 'ສາຂາ' : 'สาขา') + '</div></div>'
+        + '<div style="text-align:right;flex-shrink:0;"><div style="font-size:14px;font-weight:800;color:var(--fs-red);">-' + fmt.format(r.short) + '</div>'
+        + '<div style="font-size:10px;color:var(--fs-blue);font-weight:700;">' + (isLao ? 'ສັ່ງ ' : 'สั่ง ') + (r.cartons != null ? r.cartons + (isLao ? ' ລັງ (' : ' ลัง (') + fmt.format(r.orderUnits) + ')' : fmt.format(r.orderUnits) + (isLao ? ' ຊິ້ນ' : ' ชิ้น')) + '</div></div></div>').join('') + '</div>';
+  } catch (e) {
+    const el = document.getElementById('pogShortBody'); if (el) el.innerHTML = '<div style="color:var(--rose-500);font-size:11px;padding:10px;">❌ ' + escapeHtml(friendlyError(e)) + '</div>';
+  }
+}
+let _pogShortRows = [];
+function pogExportShort() {
+  const isLao = lang === 'lo';
+  if (!_pogShortRows.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
+  if (typeof XLSX === 'undefined') { showToast('XLSX not loaded', 'error'); return; }
+  const aoa = [['Barcode', 'ชื่อสินค้า', 'ขาดรวม (ทุกสาขา)', 'จำนวนสาขาที่ขาด', 'ลัง/หน่วย', 'สั่ง (ลัง)', 'สั่งรวม (ชิ้น)']];
+  _pogShortRows.forEach(r => aoa.push([r.bc, r.name, r.short, r.brs, r.carton || '', r.cartons != null ? r.cartons : '', r.orderUnits]));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'PanogramShort');
+  XLSX.writeFile(wb, 'panogram_short_' + (typeof localDayKey === 'function' ? localDayKey(new Date()) : 'report') + '.xlsx');
 }
 
 // ==================== PAN-O-GRAM MANAGER (Settings) ====================
@@ -22616,7 +22818,23 @@ async function loadPerformance() {
       const day = localDayKey(c.counted_at);  // ⭐ B4: ใช้วันที่ท้องถิ่น ไม่ใช่ UTC
       if (day) perUser[uid].dailyTotals[day] = (perUser[uid].dailyTotals[day] || 0) + 1;
     });
-    
+
+    // 📐 สรุปงาน Pan-O-Gram ที่พนักงานสร้างในช่วง 30 วัน (ตาม scope เดียวกับการนับ)
+    try {
+      let pq = sb.from('pan_o_grams').select('created_by, created_at').gte('created_at', since).not('created_by', 'is', null);
+      if (!isManager || _perfBranchScope === 'mine') pq = pq.eq('branch_id', branch.id);
+      const { data: pogs } = await pq;
+      const pogBy = {};
+      (pogs || []).forEach(p => { pogBy[p.created_by] = (pogBy[p.created_by] || 0) + 1; });
+      const missing = Object.keys(pogBy).filter(uid => !perUser[uid]);
+      const nmap = {};
+      if (missing.length) { try { const { data: us } = await sb.from('users').select('id, full_name, role').in('id', missing); (us || []).forEach(u => { nmap[u.id] = u; }); } catch (e) {} }
+      Object.keys(pogBy).forEach(uid => {
+        if (!perUser[uid]) perUser[uid] = { userId: uid, userName: (nmap[uid] && nmap[uid].full_name) || '?', role: (nmap[uid] && nmap[uid].role) || '', counts: [], dailyTotals: {} };
+        perUser[uid].pogCount = pogBy[uid];
+      });
+    } catch (e) {}
+
     // Compute composite score per user
     const scored = Object.values(perUser).map(u => {
       const total = u.counts.length;
@@ -22639,6 +22857,7 @@ async function loadPerformance() {
         accuracyPct,
         avgPerDay,
         volume,
+        pogCount: u.pogCount || 0,
         // Raw scores will be normalized below
         rawAcc: accuracyPct,
         rawSpeed: avgPerDay,
@@ -22733,6 +22952,7 @@ function renderMyCard(me, rank, totalUsers) {
     </div>
     <div style="background:rgba(0,0,0,0.15);border-radius:9px;padding:9px;text-align:center;font-size:12px;font-weight:700;">
       ${isLao ? 'ອັນດັບ' : 'อันดับ'}: ${rankBadge} ${isLao ? 'ຈາກ' : 'จาก'} ${totalUsers} ${isLao ? 'ຄົນ' : 'คน'}
+      <span style="opacity:0.85;margin-left:8px;">📐 Pan-O-Gram: ${me.pogCount || 0} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}</span>
     </div>
   `;
 }
@@ -22767,7 +22987,7 @@ function renderLeaderboard(scored) {
             ${escapeHtml(u.userName)}${youLabel}
           </div>
           <div style="font-size:9px;color:var(--slate-500);font-family:'Space Grotesk',monospace;">
-            ${u.volume} ${isLao ? 'ນັບ' : 'นับ'} · ${u.avgPerDay.toFixed(1)}/${isLao ? 'ວັນ' : 'วัน'} · ${u.accuracyPct.toFixed(1)}%
+            ${u.volume} ${isLao ? 'ນັບ' : 'นับ'} · ${u.avgPerDay.toFixed(1)}/${isLao ? 'ວັນ' : 'วัน'} · ${u.accuracyPct.toFixed(1)}%${(u.pogCount || 0) > 0 ? ' · 📐' + u.pogCount : ''}
           </div>
         </div>
         <div style="text-align:right;flex-shrink:0;">
