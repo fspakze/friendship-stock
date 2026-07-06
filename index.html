@@ -8815,10 +8815,14 @@ function prcScan() {
 
 async function prcLookup() {
   const isLao = lang === 'lo';
-  const bc = ((document.getElementById('prcBarcode') || {}).value || '').trim();
-  if (!bc) return;
+  const raw = ((document.getElementById('prcBarcode') || {}).value || '').trim();
+  if (!raw) return;
   const card = document.getElementById('prcProduct');
   if (card) card.innerHTML = '<div style="text-align:center;padding:10px;"><div class="loader" style="margin:0 auto;"></div></div>';
+  // แพ๊ค/ลัง: ถ้าสแกนบาร์โค้ดแพ๊ค/ลัง → แปลงเป็นบาร์โค้ดหน่วย (unit) ของสินค้าเดียวกัน
+  const bpRec = await bpLookup(raw);
+  const bpLevel = bpMatchLevel(bpRec, raw);
+  const bc = (bpRec && bpLevel !== 'unit' && bpRec.barcode_unit) ? String(bpRec.barcode_unit) : raw;
   let p = null;
   try {
     const { data } = await sb.from('products').select('barcode,name_th,name_lo,sell_price')
@@ -8831,12 +8835,25 @@ async function prcLookup() {
   } catch (e) {}
   if (!p) {
     _prcProduct = null;
-    if (card) card.innerHTML = '<div style="background:var(--rose-50);border:1px solid var(--rose-200);border-radius:9px;padding:10px;font-size:12px;color:var(--rose-600);font-weight:700;">⚠️ ' + (isLao ? 'ບໍ່ພົບສິນຄ້າ' : 'ไม่พบสินค้า') + ': ' + escapeHtml(bc) + '</div>';
+    if (card) card.innerHTML = '<div style="background:var(--rose-50);border:1px solid var(--rose-200);border-radius:9px;padding:10px;font-size:12px;color:var(--rose-600);font-weight:700;">⚠️ ' + (isLao ? 'ບໍ່ພົບສິນຄ້າ' : 'ไม่พบสินค้า') + ': ' + escapeHtml(raw) + '</div>';
     return;
   }
+  // ที่อยู่ Panogram ของสินค้านี้ (ตามบาร์โค้ด + สาขานี้)
+  let pog = null;
+  try {
+    const { data: pg } = await sb.from('pan_o_grams').select('location_code,shelf,seq_in_shelf')
+      .eq('barcode', bc).eq('branch_id', branch.id).limit(1).maybeSingle();
+    pog = pg || null;
+  } catch (e) {}
   const name = isLao ? (p.name_lo || p.name_th || bc) : (p.name_th || p.name_lo || bc);
   const price = Number(p.sell_price) || 0;
   _prcProduct = { barcode: bc, name: name, nameTh: p.name_th || '', price: price };
+  const lvlLabel = bpLevel === 'box' ? (isLao ? 'ລັງ' : 'ลัง') : bpLevel === 'pack' ? (isLao ? 'ແພັກ' : 'แพ๊ค') : bpLevel === 'other' ? (isLao ? 'ອື່ນໆ' : 'อื่นๆ') : '';
+  const packHtml = lvlLabel ? `<div style="margin-top:7px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:7px 10px;font-size:11px;color:#4338ca;font-weight:700;">📦 ${isLao ? 'ສະແກນ' : 'สแกน'}${lvlLabel} → ${isLao ? 'ອ້າງອີງ Unit' : 'อ้างอิงหน่วย'}: ${escapeHtml(bc)}</div>` : '';
+  const locTxt = pog && pog.location_code ? (pog.location_code + (pog.shelf != null ? ' · ' + (isLao ? 'ຊັ້ນ' : 'ชั้น') + ' ' + pog.shelf : '') + (pog.seq_in_shelf != null ? ' #' + pog.seq_in_shelf : '')) : '';
+  const locHtml = locTxt
+    ? `<div style="margin-top:7px;background:var(--fs-fill2);border:1px solid var(--slate-200);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--slate-700);font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span style="font-size:14px;">📍</span>${isLao ? 'ຕຳແໜ່ງ Panogram' : 'ที่อยู่ Panogram'}: <b style="color:var(--fs-blue);font-family:'Space Grotesk',monospace;">${escapeHtml(locTxt)}</b></div>`
+    : `<div style="margin-top:7px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;font-size:11.5px;color:#b45309;font-weight:700;">📍 ${isLao ? 'ຍັງບໍ່ໄດ້ກຳນົດ Panogram' : 'ยังไม่ได้กำหนด Panogram'}</div>`;
   if (card) card.innerHTML = `
     <div style="background:var(--fs-fill2);border-radius:10px;padding:12px;text-align:center;">
       <div style="font-size:13px;font-weight:700;color:var(--slate-900);">${escapeHtml(name)}</div>
@@ -8844,6 +8861,8 @@ async function prcLookup() {
       <div style="font-size:11px;color:var(--slate-500);">${isLao ? 'ລາຄາໃນລະບົບ' : 'ราคาในระบบ'}</div>
       <div style="font-size:30px;font-weight:800;color:var(--fs-blue);font-family:'Space Grotesk',monospace;line-height:1.15;">${price.toLocaleString()} ₭</div>
     </div>
+    ${packHtml}
+    ${locHtml}
     <div style="display:flex;gap:8px;margin-top:9px;">
       <button onclick="prcSave(true)" style="flex:1;background:var(--fs-green);color:white;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;">✓ ${isLao ? 'ປ້າຍຕົງ' : 'ป้ายตรง'}</button>
       <button onclick="prcMismatch()" style="flex:1;background:var(--fs-red);color:white;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;">✕ ${isLao ? 'ລາຄາບໍ່ຕົງ' : 'ราคาไม่ตรง'}</button>
@@ -8871,7 +8890,7 @@ async function prcSave(isMatch) {
     if (shelfPrice == null) { showToast(isLao ? '⚠️ ໃສ່ລາຄາເທິງປ້າຍ' : '⚠️ กรอกราคาบนป้าย', 'warning'); return; }
   }
   const { error } = await sb.from('price_checks').insert({
-    branch_id: branch.id, barcode: _prcProduct.barcode, product_name: _prcProduct.nameTh || _prcProduct.name,
+    branch_id: branch.id, barcode: _prcProduct.barcode, product_name: _prcProduct.name || _prcProduct.nameTh,
     system_price: _prcProduct.price, shelf_price: shelfPrice, is_match: !!isMatch,
     created_by: user.id, created_by_name: user.full_name || user.username || ''
   });
@@ -8889,7 +8908,7 @@ async function prcSaveNoTag() {
   const isLao = lang === 'lo';
   if (!_prcProduct) return;
   const { error } = await sb.from('price_checks').insert({
-    branch_id: branch.id, barcode: _prcProduct.barcode, product_name: _prcProduct.nameTh || _prcProduct.name,
+    branch_id: branch.id, barcode: _prcProduct.barcode, product_name: _prcProduct.name || _prcProduct.nameTh,
     system_price: _prcProduct.price, shelf_price: null, is_match: false, no_tag: true,
     created_by: user.id, created_by_name: user.full_name || user.username || ''
   });
@@ -8935,8 +8954,18 @@ async function loadPriceChecks() {
     listEl.innerHTML = '<div style="text-align:center;padding:25px;color:var(--slate-400);"><div style="font-size:32px;">🎉</div>' + (isLao ? 'ບໍ່ມີປ້າຍລໍແກ້' : 'ไม่มีป้ายรอแก้') + '</div>';
     return;
   }
+  // โหมดลาว: เติมชื่อลาวจาก master ให้รายการที่เก็บชื่อไทยไว้ (ของเก่า) — แสดงเป็นลาว
+  let nameLoMap = {};
+  if (isLao && mm.length) {
+    try {
+      const bcs = [...new Set(mm.map(r => r.barcode).filter(Boolean))];
+      const { data: mps } = await sb.from('master_products').select('barcode,name_lo').in('barcode', bcs);
+      (mps || []).forEach(m => { if (m.name_lo) nameLoMap[m.barcode] = m.name_lo; });
+    } catch (e) {}
+  }
   const fmt = new Intl.NumberFormat('th-TH');
   listEl.innerHTML = mm.map(r => {
+    const dispName = (isLao && nameLoMap[r.barcode]) ? nameLoMap[r.barcode] : (r.product_name || r.barcode || '?');
     const isNoTag = !!r.no_tag;
     const edge = isNoTag ? '#f59e0b' : 'var(--fs-red)';
     const diff = (Number(r.shelf_price) || 0) - (Number(r.system_price) || 0);
@@ -8945,7 +8974,7 @@ async function loadPriceChecks() {
       : `<div style="font-size:11px;margin-top:2px;color:var(--slate-700);">${isLao ? 'ປ້າຍ' : 'ป้าย'} <b style="color:var(--fs-red)">${fmt.format(Number(r.shelf_price) || 0)}</b> → ${isLao ? 'ລະບົບ' : 'ระบบ'} <b style="color:var(--fs-blue)">${fmt.format(Number(r.system_price) || 0)}</b> <span style="color:${diff > 0 ? '#e11d48' : '#b45309'};font-weight:700;">(${diff > 0 ? '+' : ''}${fmt.format(diff)})</span></div>`;
     return `<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ${edge};border-radius:9px;padding:9px 11px;margin-bottom:5px;display:flex;align-items:center;gap:9px;">
       <div style="flex:1;min-width:0;">
-        <div style="font-size:12px;font-weight:700;color:var(--slate-900);">${escapeHtml(r.product_name || r.barcode || '?')}</div>
+        <div style="font-size:12px;font-weight:700;color:var(--slate-900);">${escapeHtml(dispName)}</div>
         <div style="font-size:9.5px;color:var(--slate-500);font-family:monospace;">${escapeHtml(r.barcode || '')} · ${escapeHtml(r.created_by_name || '')} · ${irDayLabel(localDayKey(r.created_at), isLao)}</div>
         ${detail}
       </div>
@@ -34365,4 +34394,3 @@ if (typeof isPWAMode === 'function') {
 </script>
 </body>
 </html>
- 
