@@ -9240,6 +9240,20 @@ let _hcGifts = [];           // โปรโมชั่นสินค้าแ
 let _hcQuoteMode = false;    // โหมดหยิบสินค้าจาก catalog เข้าใบเสนอราคา (กดปุ่ม + บนการ์ด)
 let _hcDelMode = false;      // โหมดเลือกลบหลายรายการ
 let _hcDelSel = new Set();   // id สินค้าที่ติ๊กเลือกไว้ (โหมดลบ)
+let _hcCollapsed = new Set(); // หมวด/กลุ่มที่ย่ออยู่ (key 'c:<cat>' / 'g:<cat>|<grp>')
+let _hcSearch = '';          // ค้นหาชื่อ/บาร์โค้ดในแคตตาล็อก (กรองแสดงเฉพาะที่ตรง)
+// กรองแถวที่แสดงตามสถานะ (ซ่อน/favorite/โปร/หมวด/ค้นหา) — ใช้ร่วมกันทุกที่กันตกหล่น
+function hcFilteredRows() {
+  const isLao = lang === 'lo';
+  const isPromoRow = r => r.promo_price != null || r.pack_promo != null || r.box_promo != null;
+  let rows = _hcHiddenOnly ? _hcRows.filter(r => r.is_hidden) : _hcRows.filter(r => !r.is_hidden);
+  if (_hcFavOnly) rows = rows.filter(r => r.is_favorite);
+  if (_hcPromoOnly) rows = rows.filter(isPromoRow);
+  if (_hcCatFilter) rows = rows.filter(r => (r.category || (isLao ? 'ອື່ນໆ' : 'อื่นๆ')) === _hcCatFilter);
+  if (_hcSearch) { const s = _hcSearch.toLowerCase(); rows = rows.filter(r => (r.product_name || '').toLowerCase().includes(s) || String(r.barcode || '').toLowerCase().includes(s) || (r.category || '').toLowerCase().includes(s) || (r.product_group || '').toLowerCase().includes(s)); }
+  return rows;
+}
+function hcSetCatSearch(v) { _hcSearch = (v || '').trim(); hcRenderList(); }
 let _hg = null;              // state ฟอร์มสร้างโปรแถม {type, buy, gift, buy_qty, min_amount, gift_qty, note}
 let _hgHits = {};            // cache ผลค้นสินค้า (catalog+master) ของฟอร์มโปรแถม
 let _hgSeq = 0;              // กันผลค้นช้าทับผลใหม่
@@ -9454,10 +9468,7 @@ function renderHorecaPage() {
           <label style="font-size:10px;font-weight:700;color:var(--slate-500);">${isLao ? 'ຊຸດ Catalog' : 'ชุด Catalog'}</label>
           <select id="hcSetSel" onchange="hcSelectSet(this.value)" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;background:white;"></select>
         </div>
-        ${canEdit ? `<button onclick="hcRenameSet()" title="${isLao ? 'ປ່ຽນຊື່ຊຸດ' : 'เปลี่ยนชื่อชุด'}" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:9px 11px;font-size:12px;font-weight:700;cursor:pointer;">✏️</button>
-        <button onclick="hcCopySet()" title="${isLao ? 'ສຳເນົາຊຸດ' : 'คัดลอกชุด'}" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:9px 11px;font-size:12px;font-weight:700;cursor:pointer;">📑</button>
-        <button onclick="hcNewSet()" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;">+ ${isLao ? 'ຊຸດ' : 'ชุด'}</button>` : ''}
-        ${isAdmin ? `<button onclick="hcDeleteSet()" title="${isLao ? 'ລຶບຊຸດ (admin)' : 'ลบชุด (admin)'}" style="background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:8px;padding:9px 11px;font-size:12px;font-weight:700;cursor:pointer;">🗑️</button>` : ''}
+        ${canEdit ? `<button onclick="hcSetMenu()" title="${isLao ? 'ຈັດການຊຸດ' : 'จัดการชุด'}" style="background:var(--violet-100);color:var(--violet-700);border:1px solid var(--violet-300);border-radius:8px;padding:9px 14px;font-size:17px;font-weight:800;cursor:pointer;line-height:1;letter-spacing:1px;">⋯</button>` : ''}
       </div>
       ${canEdit ? `<div style="display:flex;gap:6px;margin-bottom:8px;">
         <input id="hcBarcode" type="text" inputmode="numeric" placeholder="${isLao ? 'ໃສ່/ສະແກນ Barcode ເພື່ອເພີ່ມ' : 'ใส่/สแกน Barcode เพื่อเพิ่ม'}" style="flex:1;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:14px;box-sizing:border-box;" onkeydown="if(event.key==='Enter')hcLookup()">
@@ -9466,15 +9477,20 @@ function renderHorecaPage() {
       </div>
       <div id="hcAddForm"></div>
       <button onclick="hcOpenPromo()" style="width:100%;margin-top:4px;background:linear-gradient(135deg,#e11d48,#f43f5e);color:white;border:none;border-radius:9px;padding:10px;font-size:12.5px;font-weight:800;cursor:pointer;box-shadow:0 2px 6px rgba(225,29,72,.25);">🏷️ ${isLao ? 'ຕັ້ງວັນໂປຣໂມຊັນທັງຊຸດ' : 'ตั้งวันโปรโมชั่นทั้งชุด'}</button>` : ''}
-      <div style="display:flex;gap:6px;margin-top:6px;">
-        ${canEdit ? `<button onclick="hcPasteOpen()" style="flex:1;background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">📋 ${isLao ? 'ວາງ Barcode' : 'วางบาร์โค้ด'}</button>
+      ${canEdit ? `<div style="display:flex;gap:6px;margin-top:6px;">
+        <button onclick="hcPasteOpen()" style="flex:1;background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">📋 ${isLao ? 'ວາງ Barcode' : 'วางบาร์โค้ด'}</button>
         <button onclick="hcImportOpen()" style="flex:1;background:var(--violet-100);color:var(--violet-700);border:1px solid var(--violet-300);border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">📥 ${isLao ? 'ນຳເຂົ້າ Excel' : 'นำเข้า Excel'}</button>
-        <button onclick="hcDelModeToggle()" title="${isLao ? 'ເລືອກລຶບຫຼາຍລາຍການ' : 'เลือกลบหลายรายการ'}" style="background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:8px;padding:8px 11px;font-size:12px;font-weight:700;cursor:pointer;">🗑️</button>` : ''}
-        <button onclick="hcExportGuard('excel')" style="flex:1;background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">📊 Export Excel</button>
+        <button onclick="hcDelModeToggle()" style="flex:1;background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">🗑️ ${isLao ? 'ເລືອກລຶບ' : 'เลือกลบ'}</button>
+      </div>` : ''}
+      <div style="display:flex;gap:6px;margin-top:6px;">
+        <button onclick="hcExportGuard('excel')" style="flex:1;background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">📊 Excel</button>
         <button onclick="hcExportGuard('pdf')" style="flex:1;background:var(--fs-red);color:white;border:none;border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">🖨️ PDF A4</button>
-        <button onclick="hcShareText()" title="${isLao ? 'ແບ່ງປັນລາຍການລາຄາ' : 'แชร์รายการราคา'}" style="background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:8px;padding:8px 11px;font-size:12px;font-weight:700;cursor:pointer;">📤</button>
-        <button onclick="hcOpenFontSettings()" title="${isLao ? 'ຕັ້ງຄ່າ' : 'ตั้งค่า'}" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;">⚙️</button>
+        <button onclick="hcShareText()" style="flex:1;background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">📤 ${isLao ? 'ແບ່ງປັນ' : 'แชร์'}</button>
+        <button onclick="hcOpenFontSettings()" title="${isLao ? 'ຕັ້ງຄ່າ' : 'ตั้งค่า'}" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:8px 13px;font-size:13px;font-weight:700;cursor:pointer;">⚙️</button>
       </div>
+    </div>
+    <div style="margin-bottom:8px;">
+      <input id="hcCatSearch" oninput="hcSetCatSearch(this.value)" placeholder="🔍 ${isLao ? 'ຄົ້ນຫາຊື່/ບາໂຄດ (ເຊັ່ນ Aro)' : 'ค้นหาชื่อ/บาร์โค้ด (เช่น Aro)'}" style="width:100%;padding:10px 12px;border:1px solid var(--slate-300);border-radius:9px;font-size:14px;box-sizing:border-box;">
     </div>
     <div id="hcPromoBanner" style="margin-bottom:8px;"></div>
     <div id="hcGiftBanner" style="margin-bottom:8px;"></div>
@@ -9499,7 +9515,8 @@ async function loadHoreca() {
     const { data, error } = await sb.from('horeca_catalog').select('*').eq('catalog_set', _hcSet).order('category').order('sort_order');
     if (error) throw error;
     _hcRows = data || [];
-    _hcCatFilter = ''; _hcFavOnly = false; _hcHiddenOnly = false; _hcPromoOnly = false; _hcQuoteMode = false; _hcDelMode = false; _hcDelSel = new Set();
+    _hcCatFilter = ''; _hcFavOnly = false; _hcHiddenOnly = false; _hcPromoOnly = false; _hcQuoteMode = false; _hcDelMode = false; _hcDelSel = new Set(); _hcCollapsed = new Set(); _hcSearch = '';
+    const _si = document.getElementById('hcCatSearch'); if (_si) _si.value = '';
     // โหลดช่วงวันโปรของชุดนี้ (ตั้งครั้งเดียว ใช้ทุกสินค้า)
     try { _hcShowGroups = localStorage.getItem('fs_hc_groups') === '1'; } catch (e) {}
     try {
@@ -9601,6 +9618,19 @@ async function hcMoveItem(id, dir, event) {
   } catch (e) { showToast('Error: ' + ((e && e.message) || e), 'error'); }
 }
 // C1: คัดลอกทั้งชุด (สินค้า + วันโปร) ไปเป็นชุดใหม่ — ใช้ทำโปรเดือนถัดไปเร็ว
+// เมนูจัดการชุด Catalog (รวม สร้าง/เปลี่ยนชื่อ/คัดลอก/ลบ ไว้ที่เดียว — กดปุ่ม ⋯)
+function hcSetMenu() {
+  if (!hcRequireEdit()) return;
+  const isLao = lang === 'lo';
+  const isAdmin = (user && user.role) === 'admin';
+  const item = (icon, label, onclick, danger) => '<button onclick="' + onclick + '" style="display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:' + (danger ? 'var(--rose-50)' : 'white') + ';border:1px solid ' + (danger ? 'var(--rose-200)' : 'var(--slate-200)') + ';border-radius:10px;padding:12px 14px;font-size:13.5px;font-weight:700;color:' + (danger ? 'var(--rose-600)' : 'var(--slate-800)') + ';cursor:pointer;margin-bottom:8px;"><span style="font-size:19px;flex-shrink:0;">' + icon + '</span><span>' + label + '</span></button>';
+  showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;"><h3 style="font-size:15px;margin:0;">⚙️ ' + (isLao ? 'ຈັດການຊຸດ Catalog' : 'จัดการชุด Catalog') + '</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
+    + '<div style="font-size:11px;color:var(--slate-400);margin-bottom:12px;">' + (isLao ? 'ຊຸດປັດຈຸບັນ' : 'ชุดปัจจุบัน') + ': <b style="color:var(--slate-700);">' + escapeHtml(_hcSet) + '</b></div>'
+    + item('➕', (isLao ? 'ສ້າງຊຸດໃໝ່ (ວ່າງ)' : 'สร้างชุดใหม่ (ว่าง)'), 'closeModal();hcNewSet()')
+    + item('✏️', (isLao ? 'ປ່ຽນຊື່ຊຸດ' : 'เปลี่ยนชื่อชุด'), 'closeModal();hcRenameSet()')
+    + item('📑', (isLao ? 'ສຳເນົາຊຸດນີ້ (ສ້າງໃໝ່ຈາກຊຸດນີ້)' : 'คัดลอกชุดนี้ (สร้างใหม่จากชุดนี้)'), 'closeModal();hcCopySet()')
+    + (isAdmin ? item('🗑️', (isLao ? 'ລຶບຊຸດນີ້' : 'ลบชุดนี้'), 'closeModal();hcDeleteSet()', true) : ''));
+}
 async function hcCopySet() {
   if (!hcRequireEdit()) return;
   const isLao = lang === 'lo';
@@ -9976,15 +10006,16 @@ function hcRenderList() {
   const el = document.getElementById('hcList');
   if (!el) return;
   const isPromoRow = r => r.promo_price != null || r.pack_promo != null || r.box_promo != null;
-  let rows = _hcHiddenOnly ? _hcRows.filter(r => r.is_hidden) : _hcRows.filter(r => !r.is_hidden);
-  if (_hcFavOnly) rows = rows.filter(r => r.is_favorite);
-  if (_hcPromoOnly) rows = rows.filter(isPromoRow);   // กดจากป้ายโปร → เฉพาะสินค้าจัดโปร
-  if (_hcCatFilter) rows = rows.filter(r => (r.category || (isLao ? 'ອື່ນໆ' : 'อื่นๆ')) === _hcCatFilter);
+  const rows = hcFilteredRows();
   const promoCnt = hcPromoActive() ? _hcRows.filter(isPromoRow).length : 0;
+  // หมวดที่แสดงอยู่ตอนนี้ (สำหรับปุ่มย่อ/ขยายทั้งหมด)
+  const catKeysNow = [...new Set(rows.map(r => r.category || (isLao ? 'ອື່ນໆ' : 'อื่นๆ')))];
+  const anyExpanded = catKeysNow.some(ck => !_hcCollapsed.has('c:' + ck));
   const sEl = document.getElementById('hcSummary');
-  if (sEl) sEl.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;"><span style="background:var(--fs-blue);color:white;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">' + _hcRows.length + ' ' + (isLao ? 'ລາຍການ' : 'รายการ') + '</span>'
-    + (promoCnt ? '<button onclick="hcTogglePromoFilter()" style="background:' + (_hcPromoOnly ? 'var(--fs-red)' : '#fff1f2') + ';color:' + (_hcPromoOnly ? 'white' : '#e11d48') + ';border:1.5px solid ' + (_hcPromoOnly ? 'var(--fs-red)' : 'var(--rose-200)') + ';border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;cursor:pointer;">🏷️ ' + (isLao ? 'ໂປຣ' : 'โปรโม') + ' ' + promoCnt + (_hcPromoOnly ? ' ✕' : '') + '</button>' : '') + '</div>';
-  if (!rows.length) { el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--slate-400);"><div style="font-size:34px;">🍽️</div>' + (isLao ? 'ຍັງບໍ່ມີສິນຄ້າ — ສະແກນ/import ເພື່ອເພີ່ມ' : 'ยังไม่มีสินค้า — สแกน/import เพื่อเพิ่ม') + '</div>'; return; }
+  if (sEl) sEl.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;"><span style="background:var(--fs-blue);color:white;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">' + _hcRows.length + ' ' + (isLao ? 'ລາຍການ' : 'รายการ') + '</span>'
+    + (promoCnt ? '<button onclick="hcTogglePromoFilter()" style="background:' + (_hcPromoOnly ? 'var(--fs-red)' : '#fff1f2') + ';color:' + (_hcPromoOnly ? 'white' : '#e11d48') + ';border:1.5px solid ' + (_hcPromoOnly ? 'var(--fs-red)' : 'var(--rose-200)') + ';border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;cursor:pointer;">🏷️ ' + (isLao ? 'ໂປຣ' : 'โปรโม') + ' ' + promoCnt + (_hcPromoOnly ? ' ✕' : '') + '</button>' : '')
+    + (catKeysNow.length ? '<button onclick="hcToggleCollapseAll()" style="margin-left:auto;background:var(--slate-100);color:var(--slate-600);border:none;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;cursor:pointer;">' + (anyExpanded ? (isLao ? '⊟ ຫຍໍ້ທັງໝົດ' : '⊟ ย่อทั้งหมด') : (isLao ? '⊞ ຂະຫຍາຍທັງໝົດ' : '⊞ ขยายทั้งหมด')) + '</button>' : '') + '</div>';
+  if (!rows.length) { el.innerHTML = _hcSearch ? ('<div style="text-align:center;padding:30px;color:var(--slate-400);"><div style="font-size:34px;">🔍</div>' + (isLao ? 'ບໍ່ພົບ ' : 'ไม่พบ ') + '"' + escapeHtml(_hcSearch) + '"</div>') : ('<div style="text-align:center;padding:30px;color:var(--slate-400);"><div style="font-size:34px;">🍽️</div>' + (isLao ? 'ຍັງບໍ່ມີສິນຄ້າ — ສະແກນ/import ເພື່ອເພີ່ມ' : 'ยังไม่มีสินค้า — สแกน/import เพื่อเพิ่ม') + '</div>'); return; }
   const fmt = new Intl.NumberFormat('th-TH');
   const F = hcFont();
   const cols = hcCols();
@@ -10057,29 +10088,53 @@ function hcRenderList() {
   rows.forEach(r => { const k = r.category || (isLao ? 'ອື່ນໆ' : 'อื่นๆ'); (byCat[k] = byCat[k] || []).push(r); });
   el.innerHTML = Object.keys(byCat).sort().map(ck => {
     const cs = hcCatStyle(ck);
-    const head = '<div style="display:flex;align-items:center;gap:9px;background:' + cs.bg + ';border-left:5px solid ' + cs.color + ';border-radius:9px;padding:9px 12px;margin-bottom:9px;box-shadow:0 1px 3px rgba(0,0,0,.06);">'
+    const catCollapsed = _hcCollapsed.has('c:' + ck);
+    const head = '<div onclick="hcToggleCat(\'' + encodeURIComponent(ck) + '\')" style="display:flex;align-items:center;gap:9px;background:' + cs.bg + ';border-left:5px solid ' + cs.color + ';border-radius:9px;padding:9px 12px;margin-bottom:9px;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer;user-select:none;">'
+      + '<span style="font-size:13px;color:' + cs.color + ';width:13px;flex-shrink:0;">' + (catCollapsed ? '▶' : '▼') + '</span>'
       + '<span style="font-size:19px;line-height:1;">' + cs.icon + '</span>'
       + '<span style="font-size:14px;font-weight:800;color:' + cs.color + ';flex:1;min-width:0;">' + escapeHtml(ck) + '</span>'
       + '<span style="font-size:11px;font-weight:800;color:' + cs.color + ';background:white;border-radius:11px;padding:2px 10px;">' + byCat[ck].length + '</span>'
       + '</div>';
+    if (catCollapsed) return '<div style="margin-bottom:14px;">' + head + '</div>';   // ย่อ = เหลือแต่หัวข้อ
     let inner;
     if (_hcShowGroups) {
       // แถบย่อยตามกลุ่มสินค้า (product_group)
       const byGrp = {};
       byCat[ck].forEach(r => { const gk = (r.product_group && String(r.product_group).trim()) || (isLao ? 'ບໍ່ລະບຸກຸ່ມ' : 'ไม่ระบุกลุ่ม'); (byGrp[gk] = byGrp[gk] || []).push(r); });
-      inner = Object.keys(byGrp).sort().map(gk =>
-        '<div style="margin:0 0 9px 3px;">'
-        + '<div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;">'
-        + '<span style="width:4px;height:15px;border-radius:2px;background:' + cs.color + ';flex-shrink:0;"></span>'
-        + '<span style="font-size:12px;font-weight:800;color:' + cs.color + ';">' + escapeHtml(gk) + '</span>'
-        + '<span style="font-size:10px;font-weight:700;color:var(--slate-400);">(' + byGrp[gk].length + ')</span>'
-        + '</div>' + gridOf(byGrp[gk]) + '</div>'
-      ).join('');
+      inner = Object.keys(byGrp).sort().map(gk => {
+        const grpCollapsed = _hcCollapsed.has('g:' + ck + '|' + gk);
+        return '<div style="margin:0 0 9px 3px;">'
+          + '<div onclick="hcToggleGrp(\'' + encodeURIComponent(ck) + '\',\'' + encodeURIComponent(gk) + '\')" style="display:flex;align-items:center;gap:7px;margin-bottom:6px;cursor:pointer;user-select:none;">'
+          + '<span style="width:4px;height:15px;border-radius:2px;background:' + cs.color + ';flex-shrink:0;"></span>'
+          + '<span style="font-size:12px;font-weight:800;color:' + cs.color + ';">' + escapeHtml(gk) + '</span>'
+          + '<span style="font-size:10px;font-weight:700;color:var(--slate-400);">(' + byGrp[gk].length + ')</span>'
+          + '<span style="margin-left:auto;font-size:11px;color:' + cs.color + ';">' + (grpCollapsed ? '▶' : '▼') + '</span>'
+          + '</div>' + (grpCollapsed ? '' : gridOf(byGrp[gk])) + '</div>';
+      }).join('');
     } else {
       inner = gridOf(byCat[ck]);
     }
     return '<div style="margin-bottom:14px;">' + head + inner + '</div>';
   }).join('');
+}
+// ย่อ/ขยาย หมวด + กลุ่ม
+function hcToggleCat(enc) {
+  const k = 'c:' + decodeURIComponent(enc);
+  if (_hcCollapsed.has(k)) _hcCollapsed.delete(k); else _hcCollapsed.add(k);
+  hcRenderList();
+}
+function hcToggleGrp(cEnc, gEnc) {
+  const k = 'g:' + decodeURIComponent(cEnc) + '|' + decodeURIComponent(gEnc);
+  if (_hcCollapsed.has(k)) _hcCollapsed.delete(k); else _hcCollapsed.add(k);
+  hcRenderList();
+}
+function hcToggleCollapseAll() {
+  const isLao = lang === 'lo';
+  const cats = [...new Set(hcFilteredRows().map(r => r.category || (isLao ? 'ອື່ນໆ' : 'อื่นๆ')))];
+  const anyExpanded = cats.some(ck => !_hcCollapsed.has('c:' + ck));
+  if (anyExpanded) cats.forEach(ck => _hcCollapsed.add('c:' + ck));   // ย่อทั้งหมด — เหลือแต่หัวข้อ
+  else _hcCollapsed = new Set();                                       // ขยายทั้งหมด
+  hcRenderList();
 }
 
 // ==================== โหมดหยิบสินค้าเข้าใบเสนอราคา (item +) ====================
@@ -10187,13 +10242,7 @@ function hcDelToggle(id, event) {
 }
 // รายการที่มองเห็นตามตัวกรองปัจจุบัน (ใช้ตอน "เลือกหมด" — ตรงกับที่ hcRenderList แสดง)
 function hcDelVisibleIds() {
-  const isLao = lang === 'lo';
-  const isPromoRow = r => r.promo_price != null || r.pack_promo != null || r.box_promo != null;
-  let rows = _hcHiddenOnly ? _hcRows.filter(r => r.is_hidden) : _hcRows.filter(r => !r.is_hidden);
-  if (_hcFavOnly) rows = rows.filter(r => r.is_favorite);
-  if (_hcPromoOnly) rows = rows.filter(isPromoRow);
-  if (_hcCatFilter) rows = rows.filter(r => (r.category || (isLao ? 'ອື່ນໆ' : 'อื่นๆ')) === _hcCatFilter);
-  return rows.map(r => r.id);
+  return hcFilteredRows().map(r => r.id);
 }
 function hcDelSelectAll() {
   const vis = hcDelVisibleIds();
@@ -10893,7 +10942,7 @@ async function hqOpen() {
     + '<button onclick="hqNew()" style="width:100%;background:var(--violet-600);color:white;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:10px;">+ ' + (isLao ? 'ສ້າງໃໝ່' : 'สร้างใหม่') + '</button>'
     + '<div id="hqList" style="max-height:50vh;overflow-y:auto;"><div class="loader" style="margin:10px auto;"></div></div>');
   try {
-    const { data } = await sb.from('horeca_quotations').select('id,quote_no,customer_name,total,created_at,valid_until,status').order('id', { ascending: false }).limit(50);
+    const { data } = await sb.from('horeca_quotations').select('id,quote_no,customer_name,total,created_at,valid_until,status,created_by_name').order('id', { ascending: false }).limit(50);
     const el = document.getElementById('hqList');
     if (!el) return;
     const fmt = new Intl.NumberFormat('th-TH');
@@ -10904,7 +10953,7 @@ async function hqOpen() {
       const noSafe = String(q.quote_no || '').replace(/[^0-9A-Za-z_-]/g, '');
       return '<div style="display:flex;align-items:center;gap:6px;border:1px solid var(--slate-200);border-radius:9px;padding:10px 12px;margin-bottom:7px;">'
         + '<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:800;color:var(--slate-800);">' + escapeHtml(q.quote_no || '-') + ' · ' + escapeHtml(q.customer_name || '-') + '</div>'
-        + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + fmt.format(q.total || 0) + '₭ · ' + (q.created_at ? String(q.created_at).slice(0, 10) : '') + '</div></div>'
+        + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + fmt.format(q.total || 0) + '₭ · ' + (q.created_at ? String(q.created_at).slice(0, 10) : '') + (q.created_by_name ? ' · 👤 ' + escapeHtml(q.created_by_name) : '') + '</div></div>'
         + '<button onclick="hqStatusPick(' + q.id + ')" style="background:' + st.bg + ';color:' + st.col + ';border:none;border-radius:999px;padding:5px 10px;font-size:10.5px;font-weight:800;cursor:pointer;white-space:nowrap;">' + st.label(isLao) + '</button>'
         + '<button onclick="hqEditQ(' + q.id + ')" title="' + (isLao ? 'ແກ້ໄຂ' : 'แก้ไข') + '" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:8px 10px;font-size:12px;cursor:pointer;">✏️</button>'
         + '<button onclick="hqShare(' + q.id + ')" title="' + (isLao ? 'ແບ່ງປັນໃຫ້ລູກຄ້າ' : 'แชร์ให้ลูกค้า') + '" style="background:#0071e3;color:white;border:none;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;cursor:pointer;">📤</button>'
@@ -11219,6 +11268,7 @@ function hqShareText(q, gifts, isLao) {
   L.push('🧾 ' + (isLao ? 'ໃບສະເໜີລາຄາ' : 'ใบเสนอราคา') + ' ' + (q.quote_no || ''));
   L.push('Friendship SuperMart · HORECA');
   L.push((isLao ? 'ລູກຄ້າ: ' : 'ลูกค้า: ') + (q.customer_name || '-') + (q.customer_phone ? ' (' + q.customer_phone + ')' : ''));
+  if (q.created_by_name) L.push((isLao ? 'ຜູ້ສະເໜີລາຄາ: ' : 'ผู้เสนอราคา: ') + q.created_by_name);
   L.push('────────────');
   items.forEach((it, i) => {
     const qy = Number(it.qty) || 0, p = Number(it.price) || 0;
@@ -11334,7 +11384,7 @@ function hqRenderPDF(q, gifts) {
   w.document.write('<html><head><meta charset="utf-8"><title>' + esc(q.quote_no || 'Quotation') + '</title><style>' + css + '</style></head><body>'
     + bar
     + '<table class="doc"><thead><tr><td class="hcell">' + qhd + '</td></tr></thead><tbody><tr><td class="bcell">'
-    + '<div class="box"><b>' + (isLao ? 'ລູກຄ້າ' : 'ลูกค้า') + ':</b> ' + esc(q.customer_name || '-') + (q.customer_phone ? ' · 📞 ' + esc(q.customer_phone) : '') + '</div>'
+    + '<div class="box"><b>' + (isLao ? 'ລູກຄ້າ' : 'ลูกค้า') + ':</b> ' + esc(q.customer_name || '-') + (q.customer_phone ? ' · 📞 ' + esc(q.customer_phone) : '') + (q.created_by_name ? '<br><b>' + (isLao ? 'ຜູ້ສະເໜີລາຄາ' : 'ผู้เสนอราคา') + ':</b> ' + esc(q.created_by_name) : '') + '</div>'
     + giftHtml
     + '<table><thead><tr><th class="c">#</th><th>' + (isLao ? 'ລາຍການ' : 'รายการ') + '</th><th class="c">' + (isLao ? 'ໜ່ວຍ' : 'หน่วย') + '</th><th class="r">' + (isLao ? 'ຈຳນວນ' : 'จำนวน') + '</th><th class="r">' + (isLao ? 'ລາຄາປົກກະຕິ' : 'ราคาปกติ') + '</th><th class="r">' + (isLao ? 'ໂປຣໂມ' : 'ราคาโปรฯ') + '</th><th class="r">' + (isLao ? 'ສ່ວນລດ' : 'ส่วนลด') + '</th><th class="r">' + (isLao ? 'ລວມ' : 'รวม') + '</th></tr></thead><tbody>' + rows + '</tbody></table>'
     + '<div class="tot"><div><span>' + (isLao ? 'ຍອດລວມ' : 'ยอดรวม') + '</span><span>' + fmt.format(q.subtotal || 0) + ' ₭</span></div>'
@@ -11342,7 +11392,7 @@ function hqRenderPDF(q, gifts) {
     + '<div class="g"><span>' + (isLao ? 'ຍອດສຸດທິ' : 'ยอดสุทธิ') + '</span><span>' + fmt.format(q.total || 0) + ' ₭</span></div></div>'
     + (totalSave > 0 ? '<div class="saveline"><span>💰 ' + (isLao ? 'ປະຢັດລວມ' : 'รวมส่วนลด/ประหยัด') + '</span><span>' + fmt.format(totalSave) + ' ₭</span></div>' : '')
     + (q.note ? '<div style="clear:both;font-size:11px;color:#555;margin-top:10px;">📝 ' + esc(q.note) + '</div>' : '')
-    + '<div class="ft"><div>' + brand + '<br>' + (isLao ? 'ຂອບໃຈທີ່ໃຊ້ບໍລິການ' : 'ขอบคุณที่ใช้บริการ') + '</div><div class="sign"><div class="l">' + (isLao ? 'ຜູ້ສະເໜີລາຄາ' : 'ผู้เสนอราคา') + '</div></div></div>'
+    + '<div class="ft"><div>' + brand + '<br>' + (isLao ? 'ຂອບໃຈທີ່ໃຊ້ບໍລິການ' : 'ขอบคุณที่ใช้บริการ') + '</div><div class="sign">' + (q.created_by_name ? '<div style="font-weight:700;color:#1d1d1f;">' + esc(q.created_by_name) + '</div>' : '') + '<div class="l">' + (isLao ? 'ຜູ້ສະເໜີລາຄາ' : 'ผู้เสนอราคา') + '</div></div></div>'
     + '</td></tr></tbody></table>'
     + '<scr' + 'ipt>var _t=' + shareJson + ',_ti=' + shareTitle + ',_cp=' + JSON.stringify(isLao ? 'ຄັດລອກແລ້ວ — ວາງສົ່ງລູກຄ້າ' : 'คัดลอกแล้ว — วางส่งให้ลูกค้า') + ';'
     + 'var _sb=document.getElementById("shareBtn");if(_sb)_sb.onclick=function(){if(navigator.share){navigator.share({title:_ti,text:_t}).catch(function(){});}else{navigator.clipboard.writeText(_t).then(function(){alert(_cp);}).catch(function(){});}};'
@@ -31535,6 +31585,7 @@ function renderWtList() {
       + '<span style="font-family:monospace;font-weight:700;">' + t.ticket_no + '</span>'
       + '<span>🏷️ ' + wtCatLabel(t.category) + '</span>'
       + '<span>➡️ ' + wtEsc(t.dept) + '</span>'
+      + (t.reporter_name ? '<span>👤 ' + wtEsc(t.reporter_name) + '</span>' : '')
       + '<span style="color:' + (s === 'over' ? 'var(--rose-500)' : 'var(--slate-500)') + ';">⏱ ' + wtFmtDate(t.due_at) + '</span>'
       + '</div></div>';
   }).join('');
