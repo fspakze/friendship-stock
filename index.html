@@ -2727,7 +2727,7 @@ let _menuOff = {};            // จัดการเมนู (admin): {pageKe
 
 // ---------- Banner เตือน Admin อัพเดทข้อมูลรายวัน ----------
 const DATA_UPDATE_TASKS = [
-  { key: 'last_update_status', th: 'Status สินค้า', lo: 'Status สินค้า', page: 'productstatus' },
+  { key: 'last_update_status', th: 'Status สินค้า', lo: 'Status ສິນຄ້າ', page: 'productstatus' },
   { key: 'last_update_pos',    th: 'Stock (POS)',   lo: 'Stock (POS)',   page: 'settings' },
   { key: 'last_update_master', th: 'Master Product', lo: 'Master Product', page: 'masterproduct' },
 ];
@@ -2885,13 +2885,24 @@ async function loadZonesAndLocations() {
   
   log('Loading zones + locations for branch:', branch.id);
   
-  const [zonesRes, locsRes] = await Promise.all([
+  let locsAll = null, locsErr = null;
+  const [zonesRes] = await Promise.all([
     sb.from('zones').select('*').eq('branch_id', branch.id).eq('is_active', true).order('sort_order'),
-    sb.from('location_master').select('*').eq('branch_id', branch.id).eq('is_active', true).order('location_code')
+    // fetchAllQuery กัน limit 1000 (สาขาใหญ่ตำแหน่งเกินพัน)
+    fetchAllQuery(() => sb.from('location_master').select('*').eq('branch_id', branch.id).eq('is_active', true).order('location_code').order('id'))
+      .then(rows => { locsAll = rows; }).catch(e => { locsErr = e; })
   ]);
-  
+
+  // ⚠️ ถ้า query พลาด (เน็ตหลุด/RLS) ห้ามสรุปว่า "สาขาใหม่ไม่มีโซน" — จะเด้ง modal ให้ copy ข้อมูลซ้ำ
+  if (zonesRes.error || locsErr) {
+    const qe = zonesRes.error || locsErr;
+    log('loadZonesAndLocations error:', qe);
+    showToast('Error: ' + (qe.message || 'load zones failed'), 'error');
+    return;
+  }
+
   allZones = zonesRes.data || [];
-  allLocations = locsRes.data || [];
+  allLocations = locsAll || [];
   
   // จัดกลุ่มตาม type
   locationsByType = {};
@@ -3011,11 +3022,14 @@ let _copyState = {
 async function openSelectiveCopyModal() {
   const isLao = lang === 'lo';
   
-  // โหลด zones + locations ของ SUPERMART
-  const [zonesRes, locsRes] = await Promise.all([
+  // โหลด zones + locations ของ SUPERMART — fetchAllQuery กัน limit 1000
+  let locsData = null, locsError = null;
+  const [zonesRes] = await Promise.all([
     sb.from('zones').select('*').eq('branch_id', 1).eq('is_active', true).order('sort_order').order('code'),
-    sb.from('location_master').select('*').eq('branch_id', 1).eq('is_active', true).order('location_code')
+    fetchAllQuery(() => sb.from('location_master').select('*').eq('branch_id', 1).eq('is_active', true).order('location_code').order('id'))
+      .then(rows => { locsData = rows; }).catch(e => { locsError = e; })
   ]);
+  const locsRes = { data: locsData, error: locsError };
   
   if (zonesRes.error || locsRes.error) {
     showToast('Error: ' + (zonesRes.error?.message || locsRes.error?.message), 'error');
@@ -3961,6 +3975,9 @@ async function logout() {
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('username').value = '';
   document.getElementById('password').value = '';
+  // รีเซ็ตปุ่มเข้าสู่ระบบ — login() สำเร็จจะทิ้งปุ่มไว้ disabled+loader ถ้าไม่รีเซ็ต ล็อกอินรอบถัดไปกดไม่ได้
+  const lb = document.getElementById('loginBtn');
+  if (lb) { lb.disabled = false; lb.innerHTML = '<span data-i18n="login">' + (typeof T === 'function' ? T('login') : 'เข้าสู่ระบบ') + '</span>'; }
 }
 
 // ==================== BRANCH SWITCHER (Admin) ====================
@@ -4393,9 +4410,12 @@ async function ensureSession() {
     .maybeSingle();
   
   if (selErr) {
+    // ห้ามไปต่อ — ถ้าไปต่อจะ INSERT เซสชัน active ซ้ำ ทำให้การนับแตกเป็น 2 เซสชัน
     log('Session select error:', selErr);
+    showToast('Error: ' + (selErr.message || 'session check failed'), 'error');
+    return null;
   }
-  
+
   if (existing) {
     session = existing;
     log('Active session found:', session.id, session.session_name);
@@ -5636,7 +5656,7 @@ function renderGapProductCard(product, shelfCapacity) {
       
       <!-- Product info -->
       <div style="margin-bottom:11px;">
-        <div style="font-size:14px;font-weight:800;color:var(--slate-900);line-height:1.3;">${name}</div>
+        <div style="font-size:14px;font-weight:800;color:var(--slate-900);line-height:1.3;">${escapeHtml(name)}</div>
         <div style="font-size:10px;color:var(--slate-500);font-family:monospace;margin-top:2px;">${product.barcode}</div>
         ${loc?.location_code ? `
           <div style="display:inline-block;background:var(--violet-100);color:var(--violet-600);padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700;font-family:'Space Grotesk',monospace;margin-top:5px;">
@@ -5941,7 +5961,7 @@ async function loadGapScanRecent() {
           <div style="font-size:16px;flex-shrink:0;">${icon}</div>
           <div style="flex:1;min-width:0;">
             <div style="font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-              ${g.product_name || g.barcode}
+              ${escapeHtml(g.product_name || g.barcode)}
             </div>
             <div style="font-size:9px;color:var(--slate-500);">
               ${g.location_code ? `📍 ${g.location_code} • ` : ''}${time}
@@ -6431,7 +6451,7 @@ function renderActivityLogRow(r) {
           <span style="font-size:16px;flex-shrink:0;">${meta.emoji}</span>
           <div style="min-width:0;">
             <div style="font-size:13px;font-weight:700;color:var(--slate-800);">
-              ${r.username || '-'} <span style="font-size:10px;color:var(--slate-400);font-weight:500;">(${r.user_role || '?'})</span>
+              ${escapeHtml(r.username || '-')} <span style="font-size:10px;color:var(--slate-400);font-weight:500;">(${escapeHtml(r.user_role || '?')})</span>
             </div>
             <span style="background:${meta.color}22;color:${meta.color};font-size:10px;font-weight:700;padding:1px 7px;border-radius:5px;">${actionLabel}</span>
           </div>
@@ -6707,7 +6727,7 @@ function psBuildStatusCard(ps, posQty) {
   const isLao = lang === 'lo';
   if (!ps) {
     return '<div style="text-align:center;font-size:12px;color:var(--fs-ink3);">'
-      + (isLao ? 'ບໍ່ມີຂໍ້ມູນ Status สินค้า (ยังไม่ได้อัปโหลด หรือไม่พบ barcode นี้)' : 'ไม่มีข้อมูล Status สินค้า (ยังไม่อัปโหลด หรือไม่พบ barcode นี้)') + '</div>';
+      + (isLao ? 'ບໍ່ມີຂໍ້ມູນ Status ສິນຄ້າ (ຍັງບໍ່ໄດ້ອັບໂຫລດ ຫຼືບໍ່ພົບ barcode ນີ້)' : 'ไม่มีข้อมูล Status สินค้า (ยังไม่อัปโหลด หรือไม่พบ barcode นี้)') + '</div>';
   }
   // AVG สาขานี้
   const bkey = psBranchKey(ps.branch_avg);
@@ -7101,7 +7121,7 @@ async function loadMasterProducts(reset = false) {
     if (_mpSearchTerm) {
       // Search barcode (exact prefix) OR name fuzzy
       // PostgREST or filter syntax: or=(barcode.ilike.%X%,name_lo.ilike.%X%,name_th.ilike.%X%)
-      const term = _mpSearchTerm.replace(/[%,]/g, '');
+      const term = _mpSearchTerm.replace(/[%,()]/g, '');   // ต้องตัด () ด้วย — ชื่อสินค้ามีวงเล็บทำ .or() ของ PostgREST parse พัง
       q = q.or(`barcode.ilike.%${term}%,name_lo.ilike.%${term}%,name_th.ilike.%${term}%`);
     }
     if (_mpFilterBrand) q = q.eq('brand', _mpFilterBrand);
@@ -7994,15 +8014,15 @@ function renderReorderPage() {
           </select>
         </div>
         <div style="flex:1;min-width:80px;">
-          <label style="font-size:10px;font-weight:700;color:var(--slate-500);">Lead <span style="color:var(--slate-400);font-weight:500;">(${isLao ? 'ຕາມກฎ' : 'ตามกฎ'})</span></label>
+          <label style="font-size:10px;font-weight:700;color:var(--slate-500);">Lead <span style="color:var(--slate-400);font-weight:500;">(${isLao ? 'ຕາມກົດ' : 'ตามกฎ'})</span></label>
           <input id="roLeadOv" type="number" min="0" placeholder="${isLao ? 'ອັດຕະໂນມັດ' : 'อัตโนมัติ'}" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;box-sizing:border-box;">
         </div>
         <div style="flex:1;min-width:80px;">
-          <label style="font-size:10px;font-weight:700;color:var(--slate-500);">Cycle <span style="color:var(--slate-400);font-weight:500;">(${isLao ? 'ຕາມກฎ' : 'ตามกฎ'})</span></label>
+          <label style="font-size:10px;font-weight:700;color:var(--slate-500);">Cycle <span style="color:var(--slate-400);font-weight:500;">(${isLao ? 'ຕາມກົດ' : 'ตามกฎ'})</span></label>
           <input id="roCycleOv" type="number" min="1" placeholder="${isLao ? 'ອັດຕະໂນມັດ' : 'อัตโนมัติ'}" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;box-sizing:border-box;">
         </div>
       </div>
-      <div style="font-size:9.5px;color:var(--slate-400);margin-top:6px;">💡 ${isLao ? 'ເວັ້ນວ່າງ = ໃຊ້ Lead/Cycle ຕາມกฎ (ປະเภท/Supplier/ໃນ-ນອກ) · ໃສ່ຄ່າ = ໃຊ້ทับทຸກລາຍการ' : 'เว้นว่าง = ใช้ Lead/Cycle ตามกฎ (ประเภท/Supplier/ใน-นอก) · ใส่ค่า = ใช้ทับทุกรายการ'}</div>
+      <div style="font-size:9.5px;color:var(--slate-400);margin-top:6px;">💡 ${isLao ? 'ເວັ້ນວ່າງ = ໃຊ້ Lead/Cycle ຕາມກົດ (ປະເພດ/Supplier/ໃນ-ນອກ) · ໃສ່ຄ່າ = ໃຊ້ທັບທຸກລາຍການ' : 'เว้นว่าง = ใช้ Lead/Cycle ตามกฎ (ประเภท/Supplier/ใน-นอก) · ใส่ค่า = ใช้ทับทุกรายการ'}</div>
       <div style="display:flex;gap:7px;margin-top:9px;align-items:center;">
         <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--slate-600);font-weight:600;"><input type="checkbox" id="roTopOnly" style="accent-color:var(--fs-blue);">TOP</label>
         <button onclick="roCalc()" id="roCalcBtn" style="flex:1;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;">🔄 ${isLao ? 'ຄຳນວນ' : 'คำนวณ'}</button>
@@ -8026,7 +8046,7 @@ async function roInit() {
   if (!sel) return;
   try {
     // โหลดรายชื่อ buyer ทุกครั้ง (ไม่ cache — สะท้อนข้อมูลล่าสุดหลัง import Status)
-    const rows = await fetchAllQuery(() => sb.from('product_status').select('buyer,updated_at').not('buyer', 'is', null));
+    const rows = await fetchAllQuery(() => sb.from('product_status').select('buyer,updated_at').not('buyer', 'is', null).order('barcode'));
     // ⭐ กรองแถวเก่าค้าง: เก็บเฉพาะ buyer ที่มีแถวอัปเดตช่วง import ล่าสุด (กันชื่อเก่า เช่น Pop ที่ barcode หลุดไฟล์)
     let maxTs = 0;
     (rows || []).forEach(r => { const t = r.updated_at ? new Date(r.updated_at).getTime() : 0; if (t > maxTs) maxTs = t; });
@@ -8073,7 +8093,7 @@ async function roCalc() {
     const statusRows = await fetchAllQuery(() => {
       let q = sb.from('product_status').select('barcode,name,buyer,branch_avg,top_2026,in_out,last_buy');
       if (buyer) q = q.ilike('buyer', buyer); // ไม่สนพิมพ์เล็ก-ใหญ่ → รวม lae+Lae
-      return q;
+      return q.order('barcode'); // ต้อง order คงที่ — pagination ข้ามหน้าไม่งั้นแถวซ้ำ/หาย
     });
 
     // กรอง: มี AVG สาขานี้ > 0 (ขายอยู่จริงถึงจะแนะนำสั่งได้)
@@ -8601,14 +8621,15 @@ async function loadMgrDash() {
     }
     const monthStart = localDayKey(new Date()).slice(0, 7) + '-01';
     const in30 = localDayKey(new Date(Date.now() + 30 * 86400000));
-    // ดึงพร้อมกัน 6 ชุด (เฉพาะ column ที่ใช้ group)
+    // ดึงพร้อมกัน 6 ชุด (เฉพาะ column ที่ใช้ group) — fetchAllQuery กัน limit 1000 (limit เดิม >1000 โดน cap เงียบ)
+    const _wrap = p => p.then(rows => ({ data: rows })).catch(() => ({ data: [] }));
     const [wt, gap, iss, doc, exp, shr] = await Promise.all([
-      sb.from('work_tickets').select('branch_id,status,due_at').neq('status', 'done').limit(2000),
-      sb.from('gap_scans').select('branch_id,action_type').eq('status', 'pending').limit(3000),
-      sb.from('product_issues').select('branch_id').eq('status', 'open').limit(2000),
-      sb.from('doc_requests').select('branch_id,required_positions,signatures').eq('status', 'pending').limit(1000),
-      sb.from('expiry_batches').select('branch_id,expiry_date').in('status', ['active', 'marked_down']).lte('expiry_date', in30).limit(3000),
-      sb.from('shrinkage_logs').select('branch_id,total_value').gte('created_at', monthStart).limit(3000)
+      _wrap(fetchAllQuery(() => sb.from('work_tickets').select('branch_id,status,due_at,id').neq('status', 'done').order('id'))),
+      _wrap(fetchAllQuery(() => sb.from('gap_scans').select('branch_id,action_type,id').eq('status', 'pending').order('id'))),
+      _wrap(fetchAllQuery(() => sb.from('product_issues').select('branch_id,id').eq('status', 'open').order('id'))),
+      _wrap(fetchAllQuery(() => sb.from('doc_requests').select('branch_id,required_positions,signatures,id').eq('status', 'pending').order('id'))),
+      _wrap(fetchAllQuery(() => sb.from('expiry_batches').select('branch_id,expiry_date,id').in('status', ['active', 'marked_down']).lte('expiry_date', in30).order('id'))),
+      _wrap(fetchAllQuery(() => sb.from('shrinkage_logs').select('branch_id,total_value,id').gte('created_at', monthStart).order('id')))
     ]);
     const agg = {}; // branch_id → {wt, over, gapRep, gapPur, iss, doc, exp, shrV}
     const A = id => (agg[id] = agg[id] || { wt: 0, over: 0, gapRep: 0, gapPur: 0, iss: 0, doc: 0, exp: 0, shrV: 0 });
@@ -8701,14 +8722,14 @@ async function loadCycleCount() {
   if (!listEl) return;
   try {
     const since = new Date(Date.now() - 90 * 86400000).toISOString();
-    const [zRes, locRes, cntRes] = await Promise.all([
+    // fetchAllQuery กัน limit 1000 (limit 5000/10000 เดิมโดน cap เงียบที่ 1000)
+    const _cw = p => p.catch(() => []);
+    const [zRes, locs, counts] = await Promise.all([
       sb.from('zones').select('id,code,name_th,name_lo,color').eq('branch_id', branch.id).eq('is_active', true).order('sort_order'),
-      sb.from('location_master').select('location_code,zone_id').eq('branch_id', branch.id).eq('is_active', true).limit(5000),
-      sb.from('stock_counts').select('zone_id,location_code,created_at').eq('branch_id', branch.id).gte('created_at', since).order('created_at', { ascending: false }).limit(10000)
+      _cw(fetchAllQuery(() => sb.from('location_master').select('location_code,zone_id,id').eq('branch_id', branch.id).eq('is_active', true).order('id'))),
+      _cw(fetchAllQuery(() => sb.from('stock_counts').select('zone_id,location_code,created_at,id').eq('branch_id', branch.id).gte('created_at', since).order('created_at', { ascending: false }).order('id')))
     ]);
     const zones = zRes.data || [];
-    const locs = locRes.data || [];
-    const counts = cntRes.data || [];
     if (!zones.length) {
       listEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--slate-400);">' + (isLao ? 'ສາຂານີ້ບໍ່ມີໂຊນ' : 'สาขานี้ไม่มีโซน — ตั้งค่าโซนก่อน') + '</div>';
       return;
@@ -8927,11 +8948,10 @@ async function loadPriceChecks() {
   if (!listEl) return;
   try {
     const since = localDayKey(new Date(Date.now() - 30 * 86400000));
-    const { data, error } = await sb.from('price_checks').select('*')
+    // fetchAllQuery กัน limit 1000 (เดิม limit 1500 โดน cap เงียบ — รายการรอแก้เก่าหาย)
+    _prcRows = await fetchAllQuery(() => sb.from('price_checks').select('*')
       .eq('branch_id', branch.id).gte('created_at', since)
-      .order('created_at', { ascending: false }).limit(1500);
-    if (error) throw error;
-    _prcRows = data || [];
+      .order('created_at', { ascending: false }).order('id'));
   } catch (e) {
     listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--rose-500);font-size:11px;">❌ ' + escapeHtml(friendlyError(e)) + '</div>';
     return;
@@ -10148,7 +10168,7 @@ function hcRenderList() {
   el.innerHTML = Object.keys(byCat).sort().map(ck => {
     const cs = hcCatStyle(ck);
     const catCollapsed = _hcCollapsed.has('c:' + ck);
-    const head = '<div onclick="hcToggleCat(\'' + encodeURIComponent(ck) + '\')" style="display:flex;align-items:center;gap:9px;background:' + cs.bg + ';border-left:5px solid ' + cs.color + ';border-radius:9px;padding:9px 12px;margin-bottom:9px;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer;user-select:none;">'
+    const head = '<div onclick="hcToggleCat(\'' + encodeURIComponent(ck).replace(/'/g, '%27') + '\')" style="display:flex;align-items:center;gap:9px;background:' + cs.bg + ';border-left:5px solid ' + cs.color + ';border-radius:9px;padding:9px 12px;margin-bottom:9px;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer;user-select:none;">'
       + '<span style="font-size:13px;color:' + cs.color + ';width:13px;flex-shrink:0;">' + (catCollapsed ? '▶' : '▼') + '</span>'
       + '<span style="font-size:19px;line-height:1;">' + cs.icon + '</span>'
       + '<span style="font-size:14px;font-weight:800;color:' + cs.color + ';flex:1;min-width:0;">' + escapeHtml(ck) + '</span>'
@@ -10163,7 +10183,7 @@ function hcRenderList() {
       inner = Object.keys(byGrp).sort().map(gk => {
         const grpCollapsed = _hcCollapsed.has('g:' + ck + '|' + gk);
         return '<div style="margin:0 0 9px 3px;">'
-          + '<div onclick="hcToggleGrp(\'' + encodeURIComponent(ck) + '\',\'' + encodeURIComponent(gk) + '\')" style="display:flex;align-items:center;gap:7px;margin-bottom:6px;cursor:pointer;user-select:none;">'
+          + '<div onclick="hcToggleGrp(\'' + encodeURIComponent(ck).replace(/'/g, '%27') + '\',\'' + encodeURIComponent(gk).replace(/'/g, '%27') + '\')" style="display:flex;align-items:center;gap:7px;margin-bottom:6px;cursor:pointer;user-select:none;">'
           + '<span style="width:4px;height:15px;border-radius:2px;background:' + cs.color + ';flex-shrink:0;"></span>'
           + '<span style="font-size:12px;font-weight:800;color:' + cs.color + ';">' + escapeHtml(gk) + '</span>'
           + '<span style="font-size:10px;font-weight:700;color:var(--slate-400);">(' + byGrp[gk].length + ')</span>'
@@ -10717,7 +10737,7 @@ function hcExportPDF() {
   }
   const hdrHtml = '<div class="hdr"><div><h1>🍽️ ' + brand + '</h1><div class="sub">HORECA Catalog · ' + today + ((hcPromoActive() && hcPeriodText(isLao)) ? ' · 🏷️ ' + (isLao ? 'ໂປຣ' : 'โปร') + ' ' + esc(hcPeriodText(isLao)) : '') + '</div></div><div style="display:flex;align-items:center;gap:10px;">' + qrHtml + '<div class="set">' + esc(_hcSet) + '</div></div></div>';
   // 🎁 ประกาศโปรสินค้าแถม (เฉพาะที่เปิดใช้) — โชว์เหนือรายการสินค้า
-  const actGifts = (_hcGifts || []).filter(g => g.is_active);
+  const actGifts = (_hcGifts || []).filter(g => g.is_active && hgForBranch(g));   // กรองสาขา — PDF ส่งลูกค้าห้ามโชว์โปรของสาขาอื่น
   const giftHtml = actGifts.length
     ? '<div class="gift"><b>🎁 ' + (isLao ? 'ໂປຣໂມຊັນສິນຄ້າແຖມ' : 'โปรโมชั่น สินค้าแถม') + '</b><br>' + actGifts.map(g => '• ' + esc(hgText(g, isLao))).join('<br>') + '</div>'
     : '';
@@ -10740,7 +10760,7 @@ async function hcShareText() {
   rows.forEach(r => { const k = r.category || (isLao ? 'ອື່ນໆ' : 'อื่นๆ'); (byCat[k] = byCat[k] || []).push(r); });
   let txt = '🍽️ HORECA Catalog — ' + _hcSet + '\n';
   if (hcPromoActive() && hcPeriodText(isLao)) txt += '🏷️ ' + (isLao ? 'ໂປຣ' : 'โปร') + ' ' + hcPeriodText(isLao) + '\n';
-  const actG = (_hcGifts || []).filter(g => g.is_active);
+  const actG = (_hcGifts || []).filter(g => g.is_active && hgForBranch(g));   // กรองสาขาเหมือน banner/PDF
   if (actG.length) { txt += '🎁 ' + (isLao ? 'ສິນຄ້າແຖມ' : 'สินค้าแถม') + ':\n'; actG.forEach(g => { txt += '• ' + hgText(g, isLao) + '\n'; }); }
   txt += '\n';
   Object.keys(byCat).sort().forEach(ck => {
@@ -12109,7 +12129,7 @@ function renderInvMovementRow(m) {
     <div style="background:white;border:1px solid var(--slate-200);border-left:3px solid ${meta.color};border-radius:9px;padding:11px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;gap:9px;">
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-          ${m.product_name || m.barcode || '-'}
+          ${escapeHtml(m.product_name || m.barcode || '-')}
         </div>
         <div style="font-size:10px;color:var(--slate-400);font-family:monospace;margin-top:1px;">
           ${m.barcode || ''}
@@ -12267,13 +12287,21 @@ async function loadGapReport() {
       query = query.eq('status', statusFilter);
     }
 
-    const { data, error } = await query
-      .order('created_at', { ascending: false })
-      .limit(seeAll ? 3000 : 500);
-
-    if (error) throw error;
-
-    _gapReportData = data || [];
+    if (seeAll) {
+      // ทุกสาขา — fetchAllQuery กัน limit 1000 (เดิม limit 3000 โดน cap เงียบ)
+      _gapReportData = await fetchAllQuery(() => {
+        let q = sb.from('gap_scans')
+          .select('*, users!user_id(full_name), assigned_user:users!assigned_to(full_name), resolver:users!resolved_by(full_name), products(name_th, name_lo, unit_th, unit_lo, cost_price, sell_price, pos_qty)');
+        if (Array.isArray(statusFilter)) q = q.in('status', statusFilter); else q = q.eq('status', statusFilter);
+        return q.order('created_at', { ascending: false }).order('id');
+      });
+    } else {
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      _gapReportData = data || [];
+    }
     _gapSelection.clear();
     updateGapBulkBar();
     renderGapBranchTabs();
@@ -16257,8 +16285,10 @@ async function openPanOGramModal(barcode, locationCode, editId = null, presetShe
     
     <!-- Hidden fields (default auto values) -->
     <input type="hidden" id="pogMinQty" value="${existing?.min_qty ?? 0}">
-    <input type="hidden" id="pogMaxQty" value="${existing?.max_qty ?? ((existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1))}">
-    <input type="hidden" id="pogReorderQty" value="${existing?.reorder_qty ?? ((existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1))}">
+    <!-- max/reorder: ค่าว่าง = auto (คำนวณจาก facial×depth×stack ตอนบันทึก) | ถ้า Manager ตั้งเองไว้ → คงค่า
+         ค่า 1 ทั้งที่ความจุ >1 = ของเดิมที่บันทึกผิด (บั๊กเก่า) → รักษาเป็น auto ให้หายเอง -->
+    <input type="hidden" id="pogMaxQty" value="${(() => { const c = (existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1); const v = existing?.max_qty; return (v && !(v === 1 && c !== 1) && v !== c) ? v : ''; })()}">
+    <input type="hidden" id="pogReorderQty" value="${(() => { const c = (existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1); const v = existing?.reorder_qty; return (v && !(v === 1 && c !== 1) && v !== c) ? v : ''; })()}">
     
     <!-- Notes -->
     <div class="form-group">
@@ -16402,17 +16432,33 @@ async function savePanOGram(barcode, locationCode, editId) {
       shelf, seq_in_shelf: seq, total_in_shelf: total,
       facial, depth, stack,
       min_qty: parseInt(document.getElementById('pogMinQty')?.value) || 0,
-      max_qty: parseInt(document.getElementById('pogMaxQty')?.value) || total,
-      reorder_qty: parseInt(document.getElementById('pogReorderQty')?.value) || total,
+      // auto (ช่องว่าง) = ความจุชั้น facial×depth×stack — ห้ามใช้ total (นั่นคือจำนวนสินค้าต่อชั้น ไม่ใช่ความจุ)
+      max_qty: parseInt(document.getElementById('pogMaxQty')?.value) || (facial * depth * stack),
+      reorder_qty: parseInt(document.getElementById('pogReorderQty')?.value) || (facial * depth * stack),
       notes: notes || null,
-      created_by: user.id,
       last_audited_at: new Date().toISOString(),
       last_audited_by: user.id,
       updated_at: new Date().toISOString()
     };
     
     if (editId) {
-      // UPDATE
+      // UPDATE — เช็คก่อนว่าตำแหน่งใหม่ไม่ชนกับรายการอื่น (ไม่นับตัวเอง)
+      const { data: clash } = await sb
+        .from('pan_o_grams').select('id, barcode')
+        .eq('branch_id', branch.id)
+        .eq('location_code', locationCode)
+        .eq('shelf', shelf)
+        .eq('seq_in_shelf', seq)
+        .neq('id', editId)
+        .limit(1).maybeSingle();
+      if (clash) {
+        errEl.textContent = isLao
+          ? `ຕຳແໜ່ງນີ້ມີ ${clash.barcode} ໃຊ້ຢູ່ແລ້ວ`
+          : `ตำแหน่งนี้มี ${clash.barcode} ใช้อยู่แล้ว`;
+        errEl.classList.add('show');
+        btn.disabled = false;
+        return;
+      }
       const { error } = await sb.from('pan_o_grams').update(payload).eq('id', editId);
       if (error) throw error;
       showToast(isLao ? '✅ ບັນທຶກສຳເລັດ' : '✅ บันทึกสำเร็จ', 'success');
@@ -16450,8 +16496,9 @@ async function savePanOGram(barcode, locationCode, editId) {
           return;
         }
       } else {
-        // INSERT ใหม่
+        // INSERT ใหม่ — created_by เฉพาะตอนสร้าง (แก้ไขต้องไม่ทับชื่อผู้ระบุเดิม ใช้ตรวจสอบผลงาน)
         payload.created_at = new Date().toISOString();
+        payload.created_by = user.id;
         const { error } = await sb.from('pan_o_grams').insert(payload);
         if (error) throw error;
         showToast(isLao ? '✅ ສ້າງສຳເລັດ' : '✅ สร้างสำเร็จ', 'success');
@@ -16584,8 +16631,19 @@ async function pogMoveConfirm(id, curLoc) {
     // เช็คตำแหน่งปลายทางว่ามีสินค้าอื่นใช้อยู่หรือไม่
     const { data: ex } = await sb.from('pan_o_grams').select('id, barcode').eq('branch_id', branch.id).eq('location_code', newLoc).eq('shelf', newShelf).eq('seq_in_shelf', newSeq).maybeSingle();
     if (ex && ex.id !== id && ex.barcode !== myBc) { setErr((isLao ? 'ຕຳແໜ່ງນີ້ມີ ' : 'ตำแหน่งนี้มี ') + ex.barcode + (isLao ? ' ໃຊ້ຢູ່' : ' ใช้อยู่')); return; }
-    const { error } = await sb.from('pan_o_grams').update({ location_code: newLoc, shelf: newShelf, seq_in_shelf: newSeq, updated_at: new Date().toISOString() }).eq('id', id);
+    // sync total_in_shelf ของชั้นปลายทาง (กัน seq/total เก่าค้างแล้วรายการหายจากภาพชั้น)
+    let destTotal = newSeq;
+    try {
+      const { data: destRows } = await sb.from('pan_o_grams').select('total_in_shelf, seq_in_shelf').eq('branch_id', branch.id).eq('location_code', newLoc).eq('shelf', newShelf).limit(1000);
+      (destRows || []).forEach(r => { destTotal = Math.max(destTotal, r.total_in_shelf || 0, r.seq_in_shelf || 0); });
+    } catch (e2) {}
+    const { error } = await sb.from('pan_o_grams').update({ location_code: newLoc, shelf: newShelf, seq_in_shelf: newSeq, total_in_shelf: destTotal, updated_at: new Date().toISOString() }).eq('id', id);
     if (error) throw error;
+    // ปรับ total ของเพื่อนร่วมชั้นปลายทางให้เท่ากัน (แนวเดียวกับ savePanOGram)
+    try {
+      await sb.from('pan_o_grams').update({ total_in_shelf: destTotal, updated_at: new Date().toISOString() })
+        .eq('branch_id', branch.id).eq('location_code', newLoc).eq('shelf', newShelf).neq('total_in_shelf', destTotal);
+    } catch (e2) {}
     showToast(isLao ? '✅ ຍ້າຍແລ້ວ' : '✅ ย้ายแล้ว', 'success');
     if (typeof logActivity === 'function') logActivity('pog_move', curLoc + ' → ' + newLoc + '-' + newShelf + '-' + newSeq);
     closeModal();
@@ -17181,15 +17239,19 @@ async function openPanOGramManager() {
 async function loadPanOGramManager() {
   if (!branch) return;
   
-  // Load all Pan-O-Grams for this branch + products info
-  const { data: pogs, error } = await sb
-    .from('pan_o_grams')
-    .select('*, products(name_th, name_lo, unit_th, unit_lo, sell_price)')
-    .eq('branch_id', branch.id)
-    .order('location_code')
-    .order('shelf')
-    .order('seq_in_shelf');
-  
+  // Load all Pan-O-Grams for this branch + products info — fetchAllQuery กัน limit 1000 (สาขาใหญ่เกิน)
+  let pogs = null, error = null;
+  try {
+    pogs = await fetchAllQuery(() => sb
+      .from('pan_o_grams')
+      .select('*, products(name_th, name_lo, unit_th, unit_lo, sell_price)')
+      .eq('branch_id', branch.id)
+      .order('location_code')
+      .order('shelf')
+      .order('seq_in_shelf')
+      .order('id'));
+  } catch (e) { error = e; }
+
   if (error) {
     document.getElementById('pogMgrLoader').innerHTML = '❌ Error: ' + error.message;
     return;
@@ -17464,7 +17526,8 @@ function renderPogVisualLayout(items) {
     
     sortedShelves.forEach(shelf => {
       const shelfItems = byShelf[shelf].sort((a, b) => a.seq_in_shelf - b.seq_in_shelf);
-      const totalInShelf = shelfItems[0]?.total_in_shelf || shelfItems.length;
+      // กัน item ที่ seq > total_in_shelf หายจากภาพ (เช่น ย้ายมาโดย total เก่าค้าง) — ใช้ค่ามากสุด
+      const totalInShelf = Math.max(shelfItems[0]?.total_in_shelf || shelfItems.length, ...shelfItems.map(x => x.seq_in_shelf || 0));
       const shelfTotalQty = shelfItems.reduce((s, p) => s + (p.total_qty || 0), 0);
       
       // Build slots (filled + empty)
@@ -17585,7 +17648,7 @@ async function exportPogImage() {
     li.forEach(p => { (byShelf[p.shelf] = byShelf[p.shelf] || []).push(p); });
     const shelves = Object.keys(byShelf).sort((a, b) => parseInt(a) - parseInt(b)).map(sh => {
       const arr = byShelf[sh].sort((a, b) => a.seq_in_shelf - b.seq_in_shelf);
-      const total = (arr[0] && arr[0].total_in_shelf) || arr.length;
+      const total = Math.max((arr[0] && arr[0].total_in_shelf) || arr.length, ...arr.map(x => x.seq_in_shelf || 0));
       const slots = [];
       for (let i = 1; i <= total; i++) slots.push(arr.find(x => x.seq_in_shelf === i) || null);
       return { shelf: sh, slots, total, filled: arr.length, qty: arr.reduce((s, p) => s + (p.total_qty || 0), 0) };
@@ -18242,14 +18305,12 @@ async function exportPanOGramExcel() {
   showToast(isLao ? '⏳ ກຳລັງສ້າງ Excel...' : '⏳ กำลังสร้าง Excel...', 'success');
   
   try {
-    // Load all PoGs for this branch
-    const { data: pogs, error } = await sb
+    // Load all PoGs for this branch — fetchAllQuery กัน limit 1000 (Excel ต้องครบทุกแถว)
+    const pogs = await fetchAllQuery(() => sb
       .from('pan_o_grams')
       .select('*, products(name_th, name_lo, unit_th, unit_lo, sell_price, pos_qty)')
       .eq('branch_id', branch.id)
-      .order('location_code').order('shelf').order('seq_in_shelf');
-    
-    if (error) throw error;
+      .order('location_code').order('shelf').order('seq_in_shelf').order('id'));
     if (!pogs || pogs.length === 0) {
       showToast(isLao ? '⚠️ ບໍ່ມີຂໍ້ມູນ' : '⚠️ ไม่มีข้อมูล', 'warning');
       return;
@@ -18392,11 +18453,11 @@ async function loadPrecountReport() {
   const isLao = lang === 'lo';
   
   try {
-    // Load all PoGs + latest stock counts
-    const { data: pogs } = await sb
+    // Load all PoGs + latest stock counts — fetchAllQuery กัน limit 1000
+    const pogs = await fetchAllQuery(() => sb
       .from('pan_o_grams')
       .select('*, products(name_th, name_lo, unit_th, unit_lo, sell_price)')
-      .eq('branch_id', branch.id);
+      .eq('branch_id', branch.id).order('id'));
     
     if (!pogs || pogs.length === 0) {
       document.getElementById('precountLoader').innerHTML = `
@@ -18795,15 +18856,19 @@ async function exportFullBackupJSON() {
     
     for (const t of BACKUP_TABLES) {
       // ⭐ users: ดึงผ่าน RPC (ครบทุกคอลัมน์ยกเว้น password_hash) เพื่อให้ backup ทำงานหลังล็อกตาราง
-      let query;
+      let data = null, error = null;
       if (t.key === 'users') {
-        query = sb.rpc('list_users_safe');
+        ({ data, error } = await sb.rpc('list_users_safe'));
       } else {
-        query = sb.from(t.key).select('*');
-        if (t.branchField) query = query.eq(t.branchField, branch.id);
+        // fetchAllQuery กัน limit 1000 — backup ต้องครบทุกแถว ไม่งั้น restore แล้วข้อมูลหาย
+        try {
+          data = await fetchAllQuery(() => {
+            let q = sb.from(t.key).select('*');
+            if (t.branchField) q = q.eq(t.branchField, branch.id);
+            return q.order('id');
+          });
+        } catch (e) { error = e; }
       }
-      
-      const { data, error } = await query;
       if (error) {
         console.warn(`[FS] Backup ${t.key} error:`, error);
         backup[t.key] = { error: error.message };
@@ -18880,15 +18945,19 @@ async function exportFullBackupExcel() {
     
     for (const t of BACKUP_TABLES) {
       // ⭐ users: ดึงผ่าน RPC (ครบทุกคอลัมน์ยกเว้น password_hash) เพื่อให้ backup ทำงานหลังล็อกตาราง
-      let query;
+      let data = null, error = null;
       if (t.key === 'users') {
-        query = sb.rpc('list_users_safe');
+        ({ data, error } = await sb.rpc('list_users_safe'));
       } else {
-        query = sb.from(t.key).select('*');
-        if (t.branchField) query = query.eq(t.branchField, branch.id);
+        // fetchAllQuery กัน limit 1000 — backup ต้องครบทุกแถว
+        try {
+          data = await fetchAllQuery(() => {
+            let q = sb.from(t.key).select('*');
+            if (t.branchField) q = q.eq(t.branchField, branch.id);
+            return q.order('id');
+          });
+        } catch (e) { error = e; }
       }
-      
-      const { data, error } = await query;
       if (error || !data) {
         metaSheet.push([t.key, 0, error?.message || 'no data']);
         continue;
@@ -19328,19 +19397,22 @@ async function exportTableJSON(tableName) {
   if (!tableInfo) return;
   
   showToast(isLao ? '⏳ ກຳລັງສ້າງ...' : '⏳ กำลังสร้าง...', 'success');
-  
+
   try {
     // ⭐ users: ดึงผ่าน RPC (ไม่มี password_hash) เพื่อให้ทำงานหลังล็อกตาราง
-    let query;
+    let data = null;
     if (tableName === 'users') {
-      query = sb.rpc('list_users_safe');
+      const res = await sb.rpc('list_users_safe');
+      if (res.error) throw res.error;
+      data = res.data;
     } else {
-      query = sb.from(tableName).select('*');
-      if (tableInfo.branchField) query = query.eq(tableInfo.branchField, branch.id);
+      // fetchAllQuery กัน limit 1000
+      data = await fetchAllQuery(() => {
+        let q = sb.from(tableName).select('*');
+        if (tableInfo.branchField) q = q.eq(tableInfo.branchField, branch.id);
+        return q.order('id');
+      });
     }
-    
-    const { data, error } = await query;
-    if (error) throw error;
     if (!data || data.length === 0) {
       showToast(isLao ? '⚠️ ບໍ່ມີຂໍ້ມູນ' : '⚠️ ไม่มีข้อมูล', 'warning');
       return;
@@ -19385,19 +19457,22 @@ async function exportTableExcel(tableName) {
   if (!tableInfo) return;
   
   showToast(isLao ? '⏳ ກຳລັງສ້າງ Excel...' : '⏳ กำลังสร้าง Excel...', 'success');
-  
+
   try {
     // ⭐ users: ดึงผ่าน RPC (ไม่มี password_hash) เพื่อให้ทำงานหลังล็อกตาราง
-    let query;
+    let data = null;
     if (tableName === 'users') {
-      query = sb.rpc('list_users_safe');
+      const res = await sb.rpc('list_users_safe');
+      if (res.error) throw res.error;
+      data = res.data;
     } else {
-      query = sb.from(tableName).select('*');
-      if (tableInfo.branchField) query = query.eq(tableInfo.branchField, branch.id);
+      // fetchAllQuery กัน limit 1000
+      data = await fetchAllQuery(() => {
+        let q = sb.from(tableName).select('*');
+        if (tableInfo.branchField) q = q.eq(tableInfo.branchField, branch.id);
+        return q.order('id');
+      });
     }
-    
-    const { data, error } = await query;
-    if (error) throw error;
     if (!data || data.length === 0) {
       showToast(isLao ? '⚠️ ບໍ່ມີຂໍ້ມູນ' : '⚠️ ไม่มีข้อมูล', 'warning');
       return;
@@ -19812,7 +19887,7 @@ function openZoneFormModal(existing) {
     <div class="form-group">
       <label class="form-label">${isLao ? 'ລະຫັດ' : 'รหัส'} * (${isLao ? 'ບໍ່ສາມາດແກ້ໄຂພາຍຫຼັງ' : 'ไม่สามารถแก้ไขภายหลัง'})</label>
       <input type="text" class="form-input mono" id="zoneFormCode" 
-             value="${existing?.code || ''}"
+             value="${escapeHtml(existing?.code || '')}"
              ${isEdit ? 'disabled' : ''}
              style="text-transform:uppercase;font-weight:700;letter-spacing:1px;text-align:center;${isEdit ? 'opacity:0.6;' : ''}"
              placeholder="01, 02, WH, W..."
@@ -19822,14 +19897,14 @@ function openZoneFormModal(existing) {
     <div class="form-group">
       <label class="form-label">${isLao ? 'ຊື່ (ລາວ)' : 'ชื่อ (ลาว)'} *</label>
       <input type="text" class="form-input" id="zoneFormNameLo" 
-             value="${existing?.name_lo || ''}"
+             value="${escapeHtml(existing?.name_lo || '')}"
              placeholder="${isLao ? 'ເຊັ່ນ: ໂຊນອາຫານ' : 'เช่น: โซนอาหาร'}">
     </div>
     
     <div class="form-group">
       <label class="form-label">${isLao ? 'ຊື່ (ໄທ)' : 'ชื่อ (ไทย)'}</label>
       <input type="text" class="form-input" id="zoneFormNameTh" 
-             value="${existing?.name_th || ''}"
+             value="${escapeHtml(existing?.name_th || '')}"
              placeholder="${isLao ? 'ເຊັ່ນ: โซนอาหาร' : 'เช่น: โซนอาหาร'}">
     </div>
     
@@ -20396,8 +20471,7 @@ async function saveCount() {
   if (error) {
     console.error('[FS] Save error:', error);
     showToast('Error: ' + error.message, 'error');
-    saveBtn.disabled = false;
-    saveBtn.innerHTML = T('save');
+    releaseBtn();   // ใช้ helper เดิม — กัน TypeError ถ้าปุ่มไม่อยู่ใน DOM แล้ว
     return;
   }
   
@@ -21548,19 +21622,20 @@ async function loadHealthAlerts() {
     // Note: skip exec_sql (function อาจไม่มีใน DB)
     // ใช้ fallback ด้านล่างแทน — query all stock_counts แล้วเช็ค product ที่หายไป
     
-    // Fallback: query all stock_counts → product_ids → check missing
-    const { data: scIds } = await sb.from('stock_counts')
-      .select('product_id')
-      .eq('branch_id', branch.id)
-      .limit(5000);
-    
+    // Fallback: query all stock_counts → product_ids → check missing — fetchAllQuery กัน limit 1000
+    let scIds = [];
+    try { scIds = await fetchAllQuery(() => sb.from('stock_counts').select('product_id,id').eq('branch_id', branch.id).order('id')); } catch (e) {}
+
     if (scIds && scIds.length > 0) {
       const productIds = [...new Set(scIds.map(s => s.product_id).filter(Boolean))];
       if (productIds.length > 0) {
-        const { data: existingProducts } = await sb.from('products')
-          .select('id')
-          .in('id', productIds);
-        const existingIds = new Set((existingProducts || []).map(p => p.id));
+        // .in() ต้อง chunk — เกิน 1000 ids ทั้ง URL ยาวเกินและผลโดน cap → ของจริงกลายเป็น orphan ปลอม
+        const existingIds = new Set();
+        for (let i = 0; i < productIds.length; i += 300) {
+          const chunk = productIds.slice(i, i + 300);
+          const { data: exP } = await sb.from('products').select('id').in('id', chunk);
+          (exP || []).forEach(p => existingIds.add(p.id));
+        }
         const orphanProductIds = productIds.filter(id => !existingIds.has(id));
         if (orphanProductIds.length > 0) {
           alerts.push({
@@ -22050,20 +22125,18 @@ async function loadVarianceReport() {
       dateFilter = week.toISOString();
     }
     
-    // โหลด stock_counts ของ branch (กับ products)
-    let query = sb.from('stock_counts')
-      .select(`
-        *, 
-        products(barcode, name_th, name_lo, unit_th, unit_lo, pos_qty, cost_price, sell_price)
-      `)
-      .eq('branch_id', branch.id);
-    
-    if (sessionFilter) query = query.eq('session_id', sessionFilter);
-    if (dateFilter) query = query.gte('counted_at', dateFilter);
-    
-    const { data: counts, error } = await query.order('counted_at', { ascending: false });
-    
-    if (error) throw error;
+    // โหลด stock_counts ของ branch (กับ products) — fetchAllQuery กัน limit 1000 (variance ต้องเห็นครบ)
+    const counts = await fetchAllQuery(() => {
+      let query = sb.from('stock_counts')
+        .select(`
+          *,
+          products(barcode, name_th, name_lo, unit_th, unit_lo, pos_qty, cost_price, sell_price)
+        `)
+        .eq('branch_id', branch.id);
+      if (sessionFilter) query = query.eq('session_id', sessionFilter);
+      if (dateFilter) query = query.gte('counted_at', dateFilter);
+      return query.order('counted_at', { ascending: false }).order('id');
+    });
     
     // Pivot: รวม counts ของ product เดียวกัน (counter, verifier, ctl, manager)
     // จัด priority: manager_final > ctl_tiebreaker > verifier > counter (newest)
@@ -23305,22 +23378,22 @@ async function loadPerformance() {
   try {
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     
-    // Build base query
-    let query = sb.from('stock_counts')
-      .select(`id, user_id, counted_qty, diff, variance_level, counted_at, branch_id,
-               users!user_id(full_name, role)`)
-      .gte('counted_at', since)
-      .not('user_id', 'is', null);
-    
     // Scope filter (managers can choose all branches)
     const r = (user?.role || '').toLowerCase();
     const isManager = ['admin', 'scc', 'bcs'].includes(r);
-    if (!isManager || _perfBranchScope === 'mine') {
-      query = query.eq('branch_id', branch.id);
-    }
-    
-    const { data: counts, error } = await query;
-    if (error) throw error;
+
+    // fetchAllQuery กัน limit 1000 — 30 วัน × ทุกสาขา เกินพันแน่ (leaderboard ต้องนับครบ)
+    const counts = await fetchAllQuery(() => {
+      let query = sb.from('stock_counts')
+        .select(`id, user_id, counted_qty, diff, variance_level, counted_at, branch_id,
+                 users!user_id(full_name, role)`)
+        .gte('counted_at', since)
+        .not('user_id', 'is', null);
+      if (!isManager || _perfBranchScope === 'mine') {
+        query = query.eq('branch_id', branch.id);
+      }
+      return query.order('id');
+    });
     
     const items = counts || [];
     
@@ -23343,11 +23416,13 @@ async function loadPerformance() {
       if (day) perUser[uid].dailyTotals[day] = (perUser[uid].dailyTotals[day] || 0) + 1;
     });
 
-    // 📐 สรุปงาน Pan-O-Gram ที่พนักงานสร้างในช่วง 30 วัน (ตาม scope เดียวกับการนับ)
+    // 📐 สรุปงาน Pan-O-Gram ที่พนักงานสร้างในช่วง 30 วัน (ตาม scope เดียวกับการนับ) — fetchAllQuery กัน limit 1000
     try {
-      let pq = sb.from('pan_o_grams').select('created_by, created_at').gte('created_at', since).not('created_by', 'is', null);
-      if (!isManager || _perfBranchScope === 'mine') pq = pq.eq('branch_id', branch.id);
-      const { data: pogs } = await pq;
+      const pogs = await fetchAllQuery(() => {
+        let pq = sb.from('pan_o_grams').select('created_by, created_at').gte('created_at', since).not('created_by', 'is', null);
+        if (!isManager || _perfBranchScope === 'mine') pq = pq.eq('branch_id', branch.id);
+        return pq.order('id');
+      });
       const pogBy = {};
       (pogs || []).forEach(p => { pogBy[p.created_by] = (pogBy[p.created_by] || 0) + 1; });
       const missing = Object.keys(pogBy).filter(uid => !perUser[uid]);
@@ -23615,21 +23690,21 @@ async function loadHealth() {
   try {
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     
-    // 1. Get stock_counts with high variance (level >= 2) - signals counting issues
-    const { data: counts, error: e1 } = await sb.from('stock_counts')
+    // 1. Get stock_counts with high variance (level >= 2) - signals counting issues — fetchAllQuery กัน limit 1000
+    const counts = await fetchAllQuery(() => sb.from('stock_counts')
       .select('id, gondola_code, location_code, variance_level, is_markdown, diff, counted_at')
       .eq('branch_id', branch.id)
       .gte('counted_at', since)
-      .not('gondola_code', 'is', null);
-    if (e1) throw e1;
-    
-    // 2. Get gap_scans (any status) - signals stock-out / replenish issues
-    const { data: gaps, error: e2 } = await sb.from('gap_scans')
+      .not('gondola_code', 'is', null)
+      .order('id'));
+
+    // 2. Get gap_scans (any status) - signals stock-out / replenish issues — fetchAllQuery กัน limit 1000
+    const gaps = await fetchAllQuery(() => sb.from('gap_scans')
       .select('id, gondola_code, status, gap_qty, action_type, created_at')
       .eq('branch_id', branch.id)
       .gte('created_at', since)
-      .not('gondola_code', 'is', null);
-    if (e2) throw e2;
+      .not('gondola_code', 'is', null)
+      .order('id'));
     
     // Aggregate per gondola
     const perGondola = {}; // { gondola_code: { code, varianceCount, gapCount, markdownCount, totalCounts, lastIssue } }
@@ -23837,7 +23912,7 @@ function bmForm(b) {
     + '<input class="form-input" id="bmNameLo" value="' + bmEsc(v.name_lo || '') + '"></div>'
     + '<label style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--slate-50);border-radius:9px;cursor:pointer;margin-top:4px;">'
     + '<input type="checkbox" id="bmZones"' + (zonesOn ? ' checked' : '') + ' style="width:18px;height:18px;accent-color:var(--teal-500);">'
-    + '<span style="font-size:12px;"><b>' + (isLao ? 'ໃຊ້ລະບົບໂຊນ' : 'ใช้ระบบโซน') + '</b><br><span style="color:var(--slate-500);font-size:11px;">' + (isLao ? 'ປິດຖ້າບໍ່ຕ້ອງການໃຫ້ counter เลือกโซนก่อนนับ' : 'ปิดถ้าไม่ต้องการให้ counter เลือกโซนก่อนนับ') + '</span></span></label>';
+    + '<span style="font-size:12px;"><b>' + (isLao ? 'ໃຊ້ລະບົບໂຊນ' : 'ใช้ระบบโซน') + '</b><br><span style="color:var(--slate-500);font-size:11px;">' + (isLao ? 'ປິດຖ້າບໍ່ຕ້ອງການໃຫ້ counter ເລືອກໂຊນກ່ອນນັບ' : 'ปิดถ้าไม่ต้องการให้ counter เลือกโซนก่อนนับ') + '</span></span></label>';
 }
 
 function bmOpenAdd() {
@@ -23865,7 +23940,7 @@ async function bmSave(id) {
   const nameTh = document.getElementById('bmNameTh').value.trim();
   const nameLo = document.getElementById('bmNameLo').value.trim();
   const useZones = document.getElementById('bmZones').checked;
-  if (!code || !nameTh) { showToast(isLao ? 'ໃສ່ລະຫັດ + ชื่อสาขา' : 'ใส่รหัส + ชื่อสาขา', 'error'); return; }
+  if (!code || !nameTh) { showToast(isLao ? 'ໃສ່ລະຫັດ + ຊື່ສາຂາ' : 'ใส่รหัส + ชื่อสาขา', 'error'); return; }
   const branchType = document.getElementById('bmType').value || 'minimart';
   const payload = { code: code, name_th: nameTh, name_lo: nameLo || nameTh, use_zones: useZones, branch_type: branchType };
   if (id) {
@@ -23903,13 +23978,13 @@ async function bmDelete(id) {
       + '<div style="font-size:13px;color:var(--slate-700);line-height:1.7;">'
       + (isLao ? 'ສາຂາ ' : 'สาขา ') + '<b>' + bmEsc(b.name_th || b.code) + '</b> ' + (isLao ? 'ຍັງມີຂໍ້ມູນຜູກຢູ່:' : 'ยังมีข้อมูลผูกอยู่:') + '<br><br>'
       + (uCount > 0 ? '• ' + (isLao ? 'ພະນັກງານ ' : 'พนักงาน ') + '<b>' + uCount + '</b> ' + (isLao ? 'ຄົນ' : 'คน') + '<br>' : '')
-      + (pCount > 0 ? '• ' + (isLao ? 'ສິນຄ້າ/สต๊อก ' : 'สินค้า/สต๊อก ') + '<b>' + pCount.toLocaleString() + '</b> ' + (isLao ? 'ລາຍການ' : 'รายการ') + '<br>' : '')
-      + '<br>' + (isLao ? 'ກະລຸນາຍ້າຍ/ลบข้อมูลเหล่านี้ก่อน จึงจะลบสาขาได้' : 'กรุณาย้าย/ลบข้อมูลเหล่านี้ก่อน จึงจะลบสาขาได้') + '</div>'
+      + (pCount > 0 ? '• ' + (isLao ? 'ສິນຄ້າ/ສະຕ໋ອກ ' : 'สินค้า/สต๊อก ') + '<b>' + pCount.toLocaleString() + '</b> ' + (isLao ? 'ລາຍການ' : 'รายการ') + '<br>' : '')
+      + '<br>' + (isLao ? 'ກະລຸນາຍ້າຍ/ລຶບຂໍ້ມູນເຫຼົ່ານີ້ກ່ອນ ຈຶ່ງຈະລຶບສາຂາໄດ້' : 'กรุณาย้าย/ลบข้อมูลเหล่านี้ก่อน จึงจะลบสาขาได้') + '</div>'
       + '<div class="action-row"><button class="btn btn-primary" onclick="closeModal()">' + (isLao ? 'ເຂົ້າໃຈແລ້ວ' : 'เข้าใจแล้ว') + '</button></div>');
     return;
   }
   // ไม่มี users/products → สาขาเปล่า/ทดสอบ → ลบได้ (cascade ลบข้อมูลที่ผูกอยู่ก่อน)
-  if (!confirm((isLao ? 'ລຶບສາຂາ ' : 'ลบสาขา ') + (b.name_th || b.code) + ' ?\n' + (isLao ? 'ລຶບຂໍ້ມູນການນັບ/เซสชันที่ผูกอยู่ด้วย กู้คืนไม่ได้' : 'จะลบข้อมูลการนับ/เซสชันที่ผูกอยู่ด้วย · กู้คืนไม่ได้'))) return;
+  if (!confirm((isLao ? 'ລຶບສາຂາ ' : 'ลบสาขา ') + (b.name_th || b.code) + ' ?\n' + (isLao ? 'ລຶບຂໍ້ມູນການນັບ/ເຊດຊັນທີ່ຜູກຢູ່ນຳ ກູ້ຄືນບໍ່ໄດ້' : 'จะลบข้อมูลการนับ/เซสชันที่ผูกอยู่ด้วย · กู้คืนไม่ได้'))) return;
   showToast(isLao ? 'ກຳລັງລຶບ...' : 'กำลังลบ...', 'info');
   // ลบ cascade ฝั่ง server ผ่าน RPC (ข้าม RLS ที่บล็อก DELETE จาก client)
   const { error } = await sb.rpc('delete_branch_cascade', { p_branch_id: id });
@@ -26009,7 +26084,9 @@ function xlStyleHeader(cell, color = 'teal') {
 }
 
 function xlStyleData(cell, opts = {}) {
-  cell.font = { name: 'Calibri', size: opts.size || 10, bold: opts.bold || false, color: { argb: 'FF' + (opts.color || XL_COLORS.slate900) } };
+  // color รับได้ทั้งชื่อ palette ('emerald') และ hex — ชื่อต้อง resolve ผ่าน XL_COLORS ไม่งั้นได้ 'FFemerald' (ARGB เสีย)
+  const _col = (opts.color && XL_COLORS[opts.color]) ? XL_COLORS[opts.color] : opts.color;
+  cell.font = { name: 'Calibri', size: opts.size || 10, bold: opts.bold || false, color: { argb: 'FF' + (_col || XL_COLORS.slate900) } };
   cell.alignment = { horizontal: opts.align || 'left', vertical: 'middle', wrapText: true };
   cell.border = {
     left: { style: 'thin', color: { argb: 'FF' + XL_COLORS.slate200 } },
@@ -26813,14 +26890,16 @@ async function loadFloorMap() {
   
   log('Loading floor map for branch:', branch.id);
   
-  // Parallel: floor map data + Pan-O-Gram counts + Gap counts per location
+  // Parallel: floor map data + Pan-O-Gram counts + Gap counts per location — fetchAllQuery กัน limit 1000
+  const _fw = p => p.then(rows => ({ data: rows })).catch(() => ({ data: [] }));
   const [fmRes, pogRes, gapRes] = await Promise.all([
     sb.rpc('get_floor_map_data', { p_branch_id: branch.id }),
-    sb.from('pan_o_grams').select('location_code').eq('branch_id', branch.id),
-    sb.from('gap_scans')
-      .select('gondola_code, action_type')
+    _fw(fetchAllQuery(() => sb.from('pan_o_grams').select('location_code,id').eq('branch_id', branch.id).order('id'))),
+    _fw(fetchAllQuery(() => sb.from('gap_scans')
+      .select('gondola_code, action_type, id')
       .eq('branch_id', branch.id)
       .eq('status', 'pending')
+      .order('id')))
   ]);
   
   if (fmRes.error) {
@@ -27246,7 +27325,7 @@ function renderFloorMapSearchResults(searchVal) {
           </div>
           <div style="font-size:10px;color:var(--slate-500);">
             ${si.label} ${total > 0 ? `• ${counted}/${total}` : ''}
-            ${loc.counter_name ? ` • 👤 ${loc.counter_name}` : ''}
+            ${loc.counter_name ? ` • 👤 ${escapeHtml(loc.counter_name)}` : ''}
           </div>
         </div>
         <div style="font-size:11px;color:var(--violet-500);font-weight:700;flex-shrink:0;">
@@ -27747,7 +27826,7 @@ async function showGondolaActions(locationCode, status) {
     ${(info.counter_name || info.verifier_name || (info.counter_count > 0) || (info.verifier_count > 0)) ? `
     <div style="background:var(--slate-50);border-radius:10px;padding:9px;margin-bottom:11px;font-size:11px;">
       ${info.counter_name ? `<div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:var(--slate-500);">👤 Counter:</span><strong>${escapeHtml(info.counter_name)} (${info.counter_count || 0})</strong></div>` : ''}
-      ${info.verifier_name ? `<div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:var(--slate-500);">🔍 Verifier:</span><strong>${info.verifier_name} (${info.verifier_count || 0})</strong></div>` : ''}
+      ${info.verifier_name ? `<div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:var(--slate-500);">🔍 Verifier:</span><strong>${escapeHtml(info.verifier_name)} (${info.verifier_count || 0})</strong></div>` : ''}
       ${info.tb_count > 0 ? `<div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:var(--slate-500);">⚖️ Tiebreaker:</span><strong>${info.tb_count}</strong></div>` : ''}
     </div>` : ''}
     
@@ -27990,6 +28069,19 @@ async function saveEditGondola() {
       );
       updates.push(
         sb.from('stock_counts').update({ location_code: newCode })
+          .eq('branch_id', branch.id).eq('location_code', oldCode)
+      );
+      // gondola_code ก็ต้องตาม — ป้าย Gap บน Floor Map และ query อื่นยึด gondola_code ถ้าไม่อัปเดต ข้อมูลแตกเป็น 2 code
+      updates.push(
+        sb.from('stock_counts').update({ gondola_code: newCode })
+          .eq('branch_id', branch.id).eq('gondola_code', oldCode)
+      );
+      updates.push(
+        sb.from('gap_scans').update({ gondola_code: newCode })
+          .eq('branch_id', branch.id).eq('gondola_code', oldCode)
+      );
+      updates.push(
+        sb.from('gap_scans').update({ location_code: newCode })
           .eq('branch_id', branch.id).eq('location_code', oldCode)
       );
       
@@ -28294,17 +28386,20 @@ async function showLocationDetail(locationCode) {
   
   // Load counts — query gondola_code only (since save logic always sets gondola_code = location_code)
   // .or() ที่ใช้เดิมมีปัญหากับ Supabase syntax — เปลี่ยนเป็น .in() กับ array แทน
-  const { data: counts, error } = await sb.from('stock_counts')
-    .select(`
-      id, counted_qty, count_role, counted_at, zone_id, location_code, gondola_code, 
-      diff, variance_level, is_markdown, note, user_id, product_id,
-      products(id, barcode, name_th, name_lo, unit_th, unit_lo, pos_qty, sell_price)
-    `)
-    .eq('session_id', session.id)
-    .or(`location_code.eq.${locationCode},gondola_code.eq.${locationCode}`)
-    .order('counted_at', { ascending: false })
-    .limit(100);
-  
+  // fetchAllQuery กัน limit — เดิม limit(100) ทำให้ตำแหน่งที่นับ >50 SKU (counter+verifier) แถวเก่าหาย pivot ผิด
+  let counts = null, error = null;
+  try {
+    counts = await fetchAllQuery(() => sb.from('stock_counts')
+      .select(`
+        id, counted_qty, count_role, counted_at, zone_id, location_code, gondola_code,
+        diff, variance_level, is_markdown, note, user_id, product_id,
+        products(id, barcode, name_th, name_lo, unit_th, unit_lo, pos_qty, sell_price)
+      `)
+      .eq('session_id', session.id)
+      .or(`location_code.eq.${locationCode},gondola_code.eq.${locationCode}`)
+      .order('counted_at', { ascending: false }).order('id'));
+  } catch (e) { error = e; }
+
   if (error) {
     log('showLocationDetail error:', error);
     showToast('Error: ' + error.message, 'error');
@@ -29455,7 +29550,7 @@ function renderSettingsPage() {
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
         <div style="flex:1;">
           <div style="font-size:14px;font-weight:800;color:var(--slate-800);">📦 ${lang === 'lo' ? 'ເມນູນັບສະຕ໋ອກ (Counter/Verifier)' : 'เมนูนับสต๊อก (Counter/Verifier)'}</div>
-          <div style="font-size:11px;color:var(--slate-500);margin-top:3px;">${lang === 'lo' ? 'ເປີດເມື່ອ จะนับสต๊อก ປິດເມື່ອ ບໍ່ໃຊ້' : 'เปิดเมื่อจะนับสต๊อก · ปิดเมื่อไม่ใช้ (ซ่อน นับสต๊อค+ตัดสิน)'}</div>
+          <div style="font-size:11px;color:var(--slate-500);margin-top:3px;">${lang === 'lo' ? 'ເປີດເມື່ອຈະນັບສະຕ໋ອກ ປິດເມື່ອບໍ່ໃຊ້' : 'เปิดเมื่อจะนับสต๊อก · ปิดเมื่อไม่ใช้ (ซ่อน นับสต๊อค+ตัดสิน)'}</div>
         </div>
         <button id="countMenuToggle" onclick="toggleCountMenu()" style="flex-shrink:0;width:56px;height:30px;border-radius:20px;border:none;cursor:pointer;position:relative;background:${_countMenuEnabled ? 'var(--teal-500)' : 'var(--slate-300)'};transition:background 0.2s;">
           <span style="position:absolute;top:3px;left:${_countMenuEnabled ? '29px' : '3px'};width:24px;height:24px;border-radius:50%;background:white;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></span>
@@ -30068,7 +30163,8 @@ async function runTestCleanup() {
       let q = sb.from(tbl).delete();
       if (branchVal === 'ALL') {
         // ลบทุก row → ต้องใช้ filter ที่ match ทั้งหมด (Supabase ห้าม delete ไม่มี filter)
-        q = q.gte('id', 0);
+        // ⚠️ ห้าม gte('id', 0) — ตารางที่ id เป็น uuid จะ error "invalid input syntax for type uuid"
+        q = q.not('id', 'is', null);
       } else {
         q = q.eq('branch_id', parseInt(branchVal));
       }
@@ -30355,11 +30451,11 @@ function renderExpiryForm(prod) {
   if (!card) return;
   const name = isLao ? (prod.name_lo || prod.name_th || '?') : (prod.name_th || prod.name_lo || '?');
   const unit = isLao ? (prod.unit_lo || 'pcs') : (prod.unit_th || 'ชิ้น');
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDayKey(new Date());
   card.innerHTML = `
     <div style="padding:2px 0;">
       <div style="margin-bottom:13px;padding-bottom:11px;border-bottom:1px solid var(--slate-200);">
-        <div style="font-size:14px;font-weight:800;color:var(--slate-800);margin-bottom:3px;line-height:1.3;">${name}</div>
+        <div style="font-size:14px;font-weight:800;color:var(--slate-800);margin-bottom:3px;line-height:1.3;">${escapeHtml(name)}</div>
         <div style="font-size:10px;color:var(--slate-400);font-family:monospace;">${prod.barcode}</div>
       </div>
       <label style="font-size:11px;font-weight:700;color:var(--slate-600);display:block;margin-bottom:4px;">📅 ${isLao ? 'ວັນໝົດອາຍຸ' : 'วันหมดอายุ'}</label>
@@ -30397,7 +30493,7 @@ async function saveExpiryBatch() {
     product_name: p.name_th || p.name_lo || null,
     expiry_date: expDate,
     qty: qty,
-    received_date: new Date().toISOString().slice(0, 10),
+    received_date: localDayKey(new Date()),
     user_id: (typeof user !== 'undefined' && user) ? user.id : null
   };
   const { data, error } = await sb.from('expiry_batches').insert(payload).select().single();
@@ -30485,7 +30581,7 @@ const WT_DEPTS = [
 ];
 
 // SLA ตามความเร่งด่วน (ชั่วโมง)
-const WT_SLA = { low: { h: 72, th: '3 วัน' }, mid: { h: 24, th: '1 วัน' }, high: { h: 8, th: 'วันนี้' } };
+const WT_SLA = { low: { h: 72, th: '3 วัน', lo: '3 ມື້' }, mid: { h: 24, th: '1 วัน', lo: '1 ມື້' }, high: { h: 8, th: 'วันนี้', lo: 'ມື້ນີ້' } };
 const WT_PRI_LABEL = { low: 'ปกติ', mid: 'เร่งด่วน', high: 'ด่วนมาก' };
 const WT_STATUS_LABEL = { new: 'รอรับเรื่อง', prog: 'กำลังดำเนินการ', done: 'เสร็จสิ้น', over: 'เกินกำหนด' };
 
@@ -30508,7 +30604,7 @@ let _dbPraises = [];  // [{name, dept}]
 
 function renderDailyBriefPage() {
   const isLao = lang === 'lo';
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDayKey(new Date());
   const now = new Date();
   const hhmm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
   return `
@@ -30750,7 +30846,7 @@ function dbEditOpen(id) {
     + '<div class="form-group" style="flex:1;"><label class="form-label">Diff %</label><input class="form-input" id="dbeDiff" type="number" value="' + (b.sales_diff_pct != null ? b.sales_diff_pct : '') + '"></div></div>';
   // มาตรฐานร้าน
   html += '<label class="form-label">' + (isLao ? 'ມາດຕະຖານຮ້ານ' : 'มาตรฐานร้าน') + '</label>';
-  [['staff', isLao ? 'ພະນັກງານ' : 'ความเรียบร้อยพนักงาน'], ['clean', isLao ? 'ຄວາມສະອາດ' : 'ความสะอาด'], ['stock', 'สต๊อก'], ['price', isLao ? 'ປ້າຍລາຄາ' : 'ป้ายราคา']].forEach(([k, t]) => {
+  [['staff', isLao ? 'ພະນັກງານ' : 'ความเรียบร้อยพนักงาน'], ['clean', isLao ? 'ຄວາມສະອາດ' : 'ความสะอาด'], ['stock', isLao ? 'ສະຕ໋ອກ' : 'สต๊อก'], ['price', isLao ? 'ປ້າຍລາຄາ' : 'ป้ายราคา']].forEach(([k, t]) => {
     html += '<label style="display:flex;align-items:center;gap:9px;padding:6px 0;font-size:12px;cursor:pointer;"><input type="checkbox" id="dbeChk_' + k + '"' + (sc[k] ? ' checked' : '') + ' style="width:17px;height:17px;accent-color:var(--teal-500);"> ' + t + '</label>';
   });
   // ข้อความ
@@ -30814,9 +30910,7 @@ function renderBriefLogPage() {
 
 async function loadDailyBriefs() {
   try {
-    const { data, error } = await sb.from('daily_briefs').select('*').eq('branch_id', branch.id).order('brief_date', { ascending: false }).order('created_at', { ascending: false });
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-    _dbData = data || [];
+    _dbData = await fetchAllQuery(() => sb.from('daily_briefs').select('*').eq('branch_id', branch.id).order('brief_date', { ascending: false }).order('created_at', { ascending: false }).order('id'));
   } catch (e) { _dbData = []; }
   renderDbFilter();
   renderDbList();
@@ -30952,7 +31046,7 @@ function scTotalItems() { return SC_CHECKLIST.reduce((n, g) => n + g.items.reduc
 
 function renderScDailyPage() {
   const isLao = lang === 'lo';
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDayKey(new Date());
   const groups = SC_CHECKLIST.map(g => {
     const rows = g.items.map(it =>
       '<label style="display:flex;align-items:flex-start;gap:9px;padding:9px 0;font-size:12px;cursor:pointer;border-bottom:1px solid var(--slate-100);">'
@@ -31067,11 +31161,9 @@ function renderScDailyLogPage() {
 }
 async function loadScDailyLogs() {
   try {
-    const { data, error } = await sb.from('sc_daily_logs').select('*').eq('branch_id', branch.id).order('log_date', { ascending: false }).order('created_at', { ascending: false });
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-    _scData = data || [];
+    _scData = await fetchAllQuery(() => sb.from('sc_daily_logs').select('*').eq('branch_id', branch.id).order('log_date', { ascending: false }).order('created_at', { ascending: false }).order('id'));
   } catch (e) { _scData = []; }
-  if (!_scChartMonth) _scChartMonth = new Date().toISOString().slice(0, 7);
+  if (!_scChartMonth) _scChartMonth = localDayKey(new Date()).slice(0, 7);   // เดือนท้องถิ่น — UTC จะผิดเดือนช่วง 00:00-07:00
   renderScFilter();
   renderScChart();
   renderScList();
@@ -31515,7 +31607,7 @@ async function wrSubmit() {
   logActivity('work_ticket_create', ticketNo + ' | ' + dept + ' | ' + title);
   document.getElementById('wrAckNo').textContent = ticketNo;
   document.getElementById('wrAckDept').textContent = dept;
-  document.getElementById('wrAckSla').textContent = sla.th;
+  document.getElementById('wrAckSla').textContent = (lang === 'lo' && sla.lo) ? sla.lo : sla.th;
   document.getElementById('wrForm').style.display = 'none';
   document.getElementById('wrAck').style.display = 'block';
   if (typeof updateTbBadge === 'function') updateTbBadge();
@@ -31588,9 +31680,7 @@ function renderWorkTrackPage() {
 
 async function loadWorkTickets() {
   try {
-    const { data, error } = await sb.from('work_tickets').select('*').eq('branch_id', branch.id).order('created_at', { ascending: false });
-    if (error) { showToast('Error: ' + error.message, 'error'); return; }
-    _wtData = data || [];
+    _wtData = await fetchAllQuery(() => sb.from('work_tickets').select('*').eq('branch_id', branch.id).order('created_at', { ascending: false }).order('id'));
   } catch (e) { _wtData = []; }
   renderWtDash();
   renderWtList();
@@ -33363,7 +33453,7 @@ function renderDocUsage() {
     + '<span style="font-size:11.5px;font-weight:700;color:var(--slate-600);">💾 ' + (isLao ? 'ພື້ນທີ່ໃຊ້ (ປະມານ)' : 'พื้นที่ใช้ (ประมาณ)') + '</span>'
     + '<span style="font-size:11.5px;font-weight:800;color:' + barColor + ';">' + docFmtBytes(used) + ' / 1 GB</span></div>'
     + '<div style="height:7px;border-radius:5px;background:var(--slate-100);overflow:hidden;"><div style="width:' + pct.toFixed(1) + '%;height:100%;background:' + barColor + ';"></div></div>'
-    + '<div style="font-size:10px;color:var(--slate-400);margin-top:4px;">' + (isLao ? 'ເອກະສານ' : 'เอกสาร') + ' ' + _docData.length + ' • ' + (isLao ? 'ຮູບ' : 'รูป') + ' ' + imgs + ' • ' + (isLao ? 'ໃຊ້ຮ່ວມກັບຮູບແຈ້ງບັນຫາ/แจ้งงาน' : 'ใช้ร่วมกับรูปแจ้งปัญหา/แจ้งงาน') + '</div>';
+    + '<div style="font-size:10px;color:var(--slate-400);margin-top:4px;">' + (isLao ? 'ເອກະສານ' : 'เอกสาร') + ' ' + _docData.length + ' • ' + (isLao ? 'ຮູບ' : 'รูป') + ' ' + imgs + ' • ' + (isLao ? 'ໃຊ້ຮ່ວມກັບຮູບແຈ້ງບັນຫາ/ແຈ້ງວຽກ' : 'ใช้ร่วมกับรูปแจ้งปัญหา/แจ้งงาน') + '</div>';
 }
 
 let _docSelMode = false;
@@ -33470,7 +33560,7 @@ function renderCmpPage() {
       + '<button onclick="cmpEndSession()" style="border:none;background:var(--teal-600);color:white;border-radius:9px;padding:9px 13px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;">✓ ' + (isLao ? 'ເສັດ/ຮ້ານໃໝ່' : 'เสร็จ/ร้านใหม่') + '</button>'
       + '</div>'
       + '<div style="display:flex;gap:7px;margin-bottom:11px;">'
-      + '<input id="cmpBarcode" inputmode="text" placeholder="' + (isLao ? 'ບາໂຄ້ດ / ชื่อสินค้า' : 'บาร์โค้ด / ชื่อสินค้า') + '" onkeydown="if(event.key===\'Enter\')cmpLookup()" style="flex:1;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:14px;font-family:monospace;">'
+      + '<input id="cmpBarcode" inputmode="text" placeholder="' + (isLao ? 'ບາໂຄ້ດ / ຊື່ສິນຄ້າ' : 'บาร์โค้ด / ชื่อสินค้า') + '" onkeydown="if(event.key===\'Enter\')cmpLookup()" style="flex:1;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:14px;font-family:monospace;">'
       + '<button onclick="cmpStartScan()" style="border:none;background:var(--fs-blue);color:white;border-radius:10px;padding:0 15px;font-size:18px;cursor:pointer;">📷</button>'
       + '<button onclick="cmpLookup()" style="border:none;background:var(--slate-700);color:white;border-radius:10px;padding:0 15px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? 'ຄົ້ນ' : 'ค้นหา') + '</button>'
       + '</div>'
@@ -33528,7 +33618,7 @@ async function cmpLoadStores() {
   const stores = Object.values(map).sort((a, b) => (b.last || '').localeCompare(a.last || ''));
   if (!stores.length) { wrap.innerHTML = '<div style="text-align:center;color:var(--slate-400);font-size:12px;padding:14px;">' + (isLao ? 'ຍັງບໍ່ມີຮ້ານທີ່ສຳຫຼວດ' : 'ยังไม่มีร้านที่สำรวจ') + '</div>'; return; }
   wrap.innerHTML = stores.map(s =>
-    '<button onclick="cmpJoinStore(\'' + cmpEsc(s.store).replace(/'/g, '&#39;') + '\')" style="width:100%;text-align:left;border:1px solid var(--teal-200);background:var(--teal-50);border-radius:10px;padding:11px 13px;margin-bottom:7px;cursor:pointer;display:flex;align-items:center;gap:10px;">'
+    '<button onclick="cmpJoinStore(decodeURIComponent(\'' + encodeURIComponent(s.store).replace(/'/g, '%27') + '\'))" style="width:100%;text-align:left;border:1px solid var(--teal-200);background:var(--teal-50);border-radius:10px;padding:11px 13px;margin-bottom:7px;cursor:pointer;display:flex;align-items:center;gap:10px;">'
     + '<span style="font-size:17px;">🏬</span>'
     + '<span style="flex:1;min-width:0;"><span style="font-size:14px;font-weight:800;color:var(--teal-800);display:block;line-height:1.3;">' + cmpEsc(s.store) + '</span>'
     + '<span style="font-size:10.5px;color:var(--teal-700);">' + s.count + (isLao ? ' ລາຍການ · ' : ' รายการ · ') + '👥 ' + Array.from(s.people).map(cmpEsc).join(', ') + '</span></span>'
@@ -33842,7 +33932,7 @@ function cmpExportPdf() {
     + sections
     + '<scr' + 'ipt>window.onload=function(){setTimeout(function(){try{window.print();}catch(e){}},500);};</scr' + 'ipt></body></html>';
   const w = window.open('', '_blank');
-  if (!w) { showToast(isLao ? 'ເປີດບໍ່ໄດ້ · อนุญาตป๊อปอัพแล้วลองใหม่' : 'เปิดไม่ได้ · อนุญาตป๊อปอัพแล้วลองใหม่', 'error'); return; }
+  if (!w) { showToast(isLao ? 'ເປີດບໍ່ໄດ້ · ອະນຸຍາດປັອບອັບແລ້ວລອງໃໝ່' : 'เปิดไม่ได้ · อนุญาตป๊อปอัพแล้วลองใหม่', 'error'); return; }
   w.document.open(); w.document.write(html); w.document.close();
 }
 
@@ -34076,7 +34166,7 @@ window.phLoadCount = phLoadCount;
 // ==================== 🔄 อัพเดท (Update Hub) ====================
 const UPDATE_HUB_ITEMS = [
   { id: 'master',   page: 'masterproduct',   icon: '📦', th: 'Master Product',  lo: 'Master Product' },
-  { id: 'status',   page: 'productstatus',   icon: '📊', th: 'Status สินค้า',   lo: 'Status สินค้า' },
+  { id: 'status',   page: 'productstatus',   icon: '📊', th: 'Status สินค้า',   lo: 'Status ສິນຄ້າ' },
   { id: 'purchase', page: 'purchasehistory', icon: '🧾', th: 'ข้อมูลการซื้อ',   lo: 'ຂໍ້ມູນການຊື້' },
   { id: 'pos',      page: 'settings',        icon: '🏪', th: 'นำเข้าข้อมูล POS', lo: 'ນຳເຂົ້າຂໍ້ມູນ POS' },
 ];
@@ -34087,7 +34177,7 @@ function renderUpdateHubPage() {
     + '<button onclick="goPage(getHomePage())" style="border:1px solid var(--slate-200);background:white;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
     + '</div>'
     + '<h2 style="font-size:19px;font-weight:800;color:var(--slate-800);margin:0 0 3px;">🔄 ' + (isLao ? 'ອັບເດດຂໍ້ມູນ' : 'อัปเดตข้อมูล') + '</h2>'
-    + '<div style="font-size:12px;color:var(--slate-500);margin-bottom:14px;">' + (isLao ? 'ແຕະເພື່ອໄປອັບເດດ — แสดงวันที่อัปเดตล่าสุด' : 'แตะเพื่อไปอัปเดต — แสดงวันที่อัปเดตล่าสุด') + '</div>'
+    + '<div style="font-size:12px;color:var(--slate-500);margin-bottom:14px;">' + (isLao ? 'ແຕະເພື່ອໄປອັບເດດ — ສະແດງວັນທີອັບເດດຫຼ້າສຸດ' : 'แตะเพื่อไปอัปเดต — แสดงวันที่อัปเดตล่าสุด') + '</div>'
     + UPDATE_HUB_ITEMS.map(it =>
         '<button onclick="goPage(\'' + it.page + '\')" style="width:100%;text-align:left;border:1px solid var(--slate-200);background:white;border-radius:13px;padding:14px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:13px;box-shadow:0 2px 6px rgba(0,0,0,0.03);">'
         + '<span style="font-size:26px;">' + it.icon + '</span>'
