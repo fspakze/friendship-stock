@@ -4661,7 +4661,7 @@ const PAGE_META = {
   shrinkage: { iconSvg: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>', labelTh: 'ของเสีย/สูญหาย', labelLo: 'ຂອງເສຍ/ສູນຫາຍ', page: 'shrinkage' },
   mgrdash: { iconSvg: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12v5M12 8v9M16 14v3"/>', labelTh: 'ภาพรวมสาขา', labelLo: 'ພາບລວມສາຂາ', page: 'mgrdash' },
   cyclecount: { iconSvg: '<path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>', labelTh: 'นับวนรอบ', labelLo: 'ນັບວົນຮອບ', page: 'cyclecount' },
-  pricecheck: { iconSvg: '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>', labelTh: 'เช็คราคาป้าย', labelLo: 'ກວດລາຄາປ້າຍ', page: 'pricecheck' },
+  pricecheck: { iconSvg: '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>', labelTh: 'เช็คราคาป้าย', labelLo: 'ກວດລາຄາປ້າຍ', page: 'pricecheck', badge: 'tabPriceBadge' },
   checklist: { iconSvg: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/><path d="M3 15l3 3"/>', labelTh: 'เช็คลิสต์เปิด-ปิด', labelLo: 'ເຊັກລິສເປີດ-ປິດ', page: 'checklist' },
   templog: { iconSvg: '<path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>', labelTh: 'อุณหภูมิตู้แช่', labelLo: 'ອຸນຫະພູມຕູ້ແຊ່', page: 'templog' },
   horeca: { iconSvg: '<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>', labelTh: 'HORECA Catalog', labelLo: 'HORECA Catalog', page: 'horeca' },
@@ -5129,6 +5129,7 @@ function goPage(page) {
   updateDocBadge();
   updateWorkBadge();
   updateGapBadge();
+  updatePriceBadge();
 }
 
 // ==================== SCAN PAGE ====================
@@ -8800,7 +8801,7 @@ function renderPriceCheckPage() {
     </div>
     <div id="prcSummary" style="margin-bottom:9px;"></div>
     <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;">
-      <span style="font-size:12px;font-weight:800;color:var(--slate-700);flex:1;">❌ ${isLao ? 'ປ້າຍບໍ່ຕົງ — ລໍແກ້' : 'ป้ายไม่ตรง — รอแก้'}</span>
+      <span style="font-size:12px;font-weight:800;color:var(--slate-700);flex:1;">❌ ${isLao ? 'ລໍແກ້ / ພິມປ້າຍ' : 'รอแก้ / พิมพ์ป้าย'}</span>
       <button onclick="prcExport()" style="background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;">📊 Excel</button>
     </div>
     <div id="prcList" style="padding-bottom:90px;"><div style="text-align:center;padding:25px;"><div class="loader" style="margin:0 auto;"></div></div></div>
@@ -8845,8 +8846,9 @@ async function prcLookup() {
     </div>
     <div style="display:flex;gap:8px;margin-top:9px;">
       <button onclick="prcSave(true)" style="flex:1;background:var(--fs-green);color:white;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;">✓ ${isLao ? 'ປ້າຍຕົງ' : 'ป้ายตรง'}</button>
-      <button onclick="prcMismatch()" style="flex:1;background:var(--fs-red);color:white;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;">✕ ${isLao ? 'ບໍ່ຕົງ' : 'ไม่ตรง'}</button>
+      <button onclick="prcMismatch()" style="flex:1;background:var(--fs-red);color:white;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;">✕ ${isLao ? 'ລາຄາບໍ່ຕົງ' : 'ราคาไม่ตรง'}</button>
     </div>
+    <button onclick="prcSaveNoTag()" style="width:100%;margin-top:8px;background:#f59e0b;color:white;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">🏷️ ${isLao ? 'ບໍ່ມີປ້າຍລາຄາ — ພິມປ້າຍມາຕິດ' : 'ไม่มีป้ายราคา — พิมพ์ป้ายมาติด'}</button>
     <div id="prcMismatchForm" style="display:none;margin-top:8px;">
       <div style="display:flex;gap:7px;">
         <input id="prcShelfPrice" type="number" inputmode="numeric" placeholder="${isLao ? 'ລາຄາເທິງປ້າຍ (₭)' : 'ราคาบนป้าย (₭)'}" style="flex:1;padding:11px;border:1.5px solid var(--rose-300);border-radius:9px;font-size:15px;font-weight:700;box-sizing:border-box;">
@@ -8882,6 +8884,24 @@ async function prcSave(isMatch) {
   loadPriceChecks();
 }
 
+// ไม่มีป้ายราคา → บันทึกเข้ารายการรอ "พิมพ์ป้ายมาติด" (no_tag=true)
+async function prcSaveNoTag() {
+  const isLao = lang === 'lo';
+  if (!_prcProduct) return;
+  const { error } = await sb.from('price_checks').insert({
+    branch_id: branch.id, barcode: _prcProduct.barcode, product_name: _prcProduct.nameTh || _prcProduct.name,
+    system_price: _prcProduct.price, shelf_price: null, is_match: false, no_tag: true,
+    created_by: user.id, created_by_name: user.full_name || user.username || ''
+  });
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  if (typeof logActivity === 'function') logActivity('price_check', _prcProduct.barcode + ' notag');
+  showToast('🏷️ ' + (isLao ? 'ບັນທຶກ — ລໍພິມປ້າຍ' : 'บันทึกแล้ว — รอพิมพ์ป้าย'), 'info');
+  _prcProduct = null;
+  const bcEl = document.getElementById('prcBarcode'); if (bcEl) { bcEl.value = ''; bcEl.focus(); }
+  const card = document.getElementById('prcProduct'); if (card) card.innerHTML = '';
+  loadPriceChecks();
+}
+
 async function loadPriceChecks() {
   const isLao = lang === 'lo';
   const listEl = document.getElementById('prcList');
@@ -8899,13 +8919,17 @@ async function loadPriceChecks() {
   }
   const today = localDayKey(new Date());
   const todayRows = _prcRows.filter(r => localDayKey(r.created_at) === today);
-  const mm = _prcRows.filter(r => !r.is_match && !r.fixed); // รอแก้ป้าย
+  const noTagRows = _prcRows.filter(r => r.no_tag && !r.fixed);              // ไม่มีป้าย → รอพิมพ์
+  const wrongRows = _prcRows.filter(r => !r.is_match && !r.no_tag && !r.fixed); // ราคาผิด → รอแก้
+  const mm = _prcRows.filter(r => !r.is_match && !r.fixed);                  // ทั้งหมดที่รอจัดการ
+  if (typeof updatePriceBadge === 'function') updatePriceBadge();
   const okPct = todayRows.length ? Math.round(100 * todayRows.filter(r => r.is_match).length / todayRows.length) : null;
   const sEl = document.getElementById('prcSummary');
   if (sEl) sEl.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
     + '<span style="background:var(--fs-blue);color:white;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">' + (isLao ? 'ມື້ນີ້' : 'วันนี้') + ' ' + todayRows.length + '</span>'
     + (okPct != null ? '<span style="background:' + (okPct >= 95 ? '#e8f8ee;color:#248a3d' : '#fffbeb;color:#b45309') + ';border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">✓ ' + (isLao ? 'ຕົງ' : 'ตรง') + ' ' + okPct + '%</span>' : '')
-    + (mm.length ? '<span style="background:#fff1f2;color:#e11d48;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">❌ ' + (isLao ? 'ລໍແກ້ປ້າຍ' : 'รอแก้ป้าย') + ' ' + mm.length + '</span>' : '')
+    + (wrongRows.length ? '<span style="background:#fff1f2;color:#e11d48;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">❌ ' + (isLao ? 'ລໍແກ້ປ້າຍ' : 'รอแก้ป้าย') + ' ' + wrongRows.length + '</span>' : '')
+    + (noTagRows.length ? '<span style="background:#fffbeb;color:#b45309;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">🏷️ ' + (isLao ? 'ລໍພິມປ້າຍ' : 'รอพิมพ์ป้าย') + ' ' + noTagRows.length + '</span>' : '')
     + '</div>';
   if (!mm.length) {
     listEl.innerHTML = '<div style="text-align:center;padding:25px;color:var(--slate-400);"><div style="font-size:32px;">🎉</div>' + (isLao ? 'ບໍ່ມີປ້າຍລໍແກ້' : 'ไม่มีป้ายรอแก้') + '</div>';
@@ -8913,14 +8937,19 @@ async function loadPriceChecks() {
   }
   const fmt = new Intl.NumberFormat('th-TH');
   listEl.innerHTML = mm.map(r => {
+    const isNoTag = !!r.no_tag;
+    const edge = isNoTag ? '#f59e0b' : 'var(--fs-red)';
     const diff = (Number(r.shelf_price) || 0) - (Number(r.system_price) || 0);
-    return `<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid var(--fs-red);border-radius:9px;padding:9px 11px;margin-bottom:5px;display:flex;align-items:center;gap:9px;">
+    const detail = isNoTag
+      ? `<div style="font-size:11px;margin-top:2px;color:var(--slate-700);">🏷️ <b style="color:#b45309">${isLao ? 'ບໍ່ມີປ້າຍລາຄາ' : 'ไม่มีป้ายราคา'}</b> → ${isLao ? 'ພິມປ້າຍ' : 'พิมพ์ป้าย'} <b style="color:var(--fs-blue)">${fmt.format(Number(r.system_price) || 0)} ₭</b></div>`
+      : `<div style="font-size:11px;margin-top:2px;color:var(--slate-700);">${isLao ? 'ປ້າຍ' : 'ป้าย'} <b style="color:var(--fs-red)">${fmt.format(Number(r.shelf_price) || 0)}</b> → ${isLao ? 'ລະບົບ' : 'ระบบ'} <b style="color:var(--fs-blue)">${fmt.format(Number(r.system_price) || 0)}</b> <span style="color:${diff > 0 ? '#e11d48' : '#b45309'};font-weight:700;">(${diff > 0 ? '+' : ''}${fmt.format(diff)})</span></div>`;
+    return `<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ${edge};border-radius:9px;padding:9px 11px;margin-bottom:5px;display:flex;align-items:center;gap:9px;">
       <div style="flex:1;min-width:0;">
         <div style="font-size:12px;font-weight:700;color:var(--slate-900);">${escapeHtml(r.product_name || r.barcode || '?')}</div>
         <div style="font-size:9.5px;color:var(--slate-500);font-family:monospace;">${escapeHtml(r.barcode || '')} · ${escapeHtml(r.created_by_name || '')} · ${irDayLabel(localDayKey(r.created_at), isLao)}</div>
-        <div style="font-size:11px;margin-top:2px;color:var(--slate-700);">${isLao ? 'ປ້າຍ' : 'ป้าย'} <b style="color:var(--fs-red)">${fmt.format(Number(r.shelf_price) || 0)}</b> → ${isLao ? 'ລະບົບ' : 'ระบบ'} <b style="color:var(--fs-blue)">${fmt.format(Number(r.system_price) || 0)}</b> <span style="color:${diff > 0 ? '#e11d48' : '#b45309'};font-weight:700;">(${diff > 0 ? '+' : ''}${fmt.format(diff)})</span></div>
+        ${detail}
       </div>
-      ${prcCanFix() ? `<button onclick="prcMarkFixed(${r.id})" style="background:var(--fs-green);color:white;border:none;border-radius:7px;padding:8px 11px;font-size:11px;font-weight:800;cursor:pointer;flex-shrink:0;">✓ ${isLao ? 'ແກ້ແລ້ວ' : 'แก้แล้ว'}</button>` : ''}
+      ${prcCanFix() ? `<button onclick="prcMarkFixed(${r.id})" style="background:var(--fs-green);color:white;border:none;border-radius:7px;padding:8px 11px;font-size:11px;font-weight:800;cursor:pointer;flex-shrink:0;">✓ ${isNoTag ? (isLao ? 'ຕິດແລ້ວ' : 'ติดแล้ว') : (isLao ? 'ແກ້ແລ້ວ' : 'แก้แล้ว')}</button>` : ''}
     </div>`;
   }).join('');
 }
@@ -8944,7 +8973,7 @@ function prcExport() {
       'ชื่อสินค้า': r.product_name || '',
       'ราคาระบบ (₭)': Number(r.system_price) || 0,
       'ราคาป้าย (₭)': r.shelf_price != null ? Number(r.shelf_price) : '',
-      'ผล': r.is_match ? 'ตรง' : 'ไม่ตรง',
+      'ผล': r.is_match ? 'ตรง' : (r.no_tag ? 'ไม่มีป้าย' : 'ไม่ตรง'),
       'แก้ป้ายแล้ว': r.fixed ? '✓' : '',
       'ผู้เช็ค': r.created_by_name || ''
     }));
@@ -9455,9 +9484,8 @@ function renderHorecaPage() {
       <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">🍽️ HORECA Catalog</h2>
       <p style="font-size:11px;color:var(--slate-500);margin:0 0 8px;">${isLao ? 'ແຄັດຕາລັອກສິນຄ້າ/ໂປຣໂມຊັນ ສຳລັບທີມ HORECA ໄປສະເໜີລູກຄ້າ' : 'แคตตาล็อกสินค้า/โปรโมชั่น สำหรับทีม HORECA ไปเสนอลูกค้า'}${canEdit ? '' : (isLao ? ' · 👁️ ເບິ່ງຢ່າງດຽວ' : ' · 👁️ ดูอย่างเดียว')}</p>
       ${canEdit ? `<div style="display:flex;gap:7px;flex-wrap:wrap;">
-        <button onclick="hcStartQuotePick()" style="flex:1 1 100%;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:white;border:none;border-radius:9px;padding:10px;font-size:12.5px;font-weight:800;cursor:pointer;box-shadow:0 2px 6px rgba(79,70,229,.28);">➕🧾 ${isLao ? 'ຫຍິບສິນຄ້າເຂົ້າໃບສະເໜີລາຄາ' : 'หยิบสินค้าเข้าใบเสนอราคา'}</button>
-        <button onclick="hqOpen()" style="flex:1 1 46%;background:var(--violet-600);color:white;border:none;border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">🧾 ${isLao ? 'ໃບສະເໜີລາຄາ' : 'ใบเสนอราคา'}</button>
-        <button onclick="hgOpen()" style="flex:1 1 46%;background:#f59e0b;color:white;border:none;border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">🎁 ${isLao ? 'ສິນຄ້າແຖມ' : 'สินค้าแถม'}</button>
+        <button onclick="hcStartQuotePick()" style="flex:1 1 46%;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:10px;font-size:12px;font-weight:800;cursor:pointer;box-shadow:0 2px 6px rgba(0,113,227,.28);">➕🧾 ${isLao ? 'ຫຍິບສິນຄ້າ' : 'หยิบสินค้า'}</button>
+        <button onclick="hqOpen()" style="flex:1 1 46%;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:10px;font-size:12px;font-weight:800;cursor:pointer;box-shadow:0 2px 6px rgba(0,113,227,.28);">🧾 ${isLao ? 'ໃບສະເໜີລາຄາ' : 'ใบเสนอราคา'}</button>
         <button onclick="hcuOpen()" style="flex:1 1 46%;background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">👥 ${isLao ? 'ລູກຄ້າ' : 'ลูกค้า'}</button>
         <button onclick="hqDash()" style="flex:1 1 46%;background:var(--fs-fill2);color:var(--slate-700);border:1px solid var(--slate-300);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">📊 ${isLao ? 'ສະຫຼຸບ' : 'สรุปยอด'}</button>
       </div>` : ''}
@@ -9474,20 +9502,22 @@ function renderHorecaPage() {
         <input id="hcBarcode" type="text" inputmode="numeric" placeholder="${isLao ? 'ໃສ່/ສະແກນ Barcode ເພື່ອເພີ່ມ' : 'ใส่/สแกน Barcode เพื่อเพิ่ม'}" style="flex:1;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:14px;box-sizing:border-box;" onkeydown="if(event.key==='Enter')hcLookup()">
         <button onclick="hcLookup()" style="background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:10px 13px;font-size:13px;font-weight:700;cursor:pointer;">🔍</button>
         <button onclick="hcScanBtn()" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:9px;padding:10px 13px;font-size:13px;font-weight:700;cursor:pointer;">📷</button>
+        <button onclick="hcOpenFontSettings()" title="${isLao ? 'ຕັ້ງຄ່າ' : 'ตั้งค่า'}" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:9px;padding:10px 13px;font-size:13px;font-weight:700;cursor:pointer;">⚙️</button>
       </div>
+      <button onclick="hcPasteOpen()" style="width:100%;margin-bottom:8px;background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">📋 ${isLao ? 'ວາງ Barcode' : 'วางบาร์โค้ด'}</button>
       <div id="hcAddForm"></div>
-      <button onclick="hcOpenPromo()" style="width:100%;margin-top:4px;background:linear-gradient(135deg,#e11d48,#f43f5e);color:white;border:none;border-radius:9px;padding:10px;font-size:12.5px;font-weight:800;cursor:pointer;box-shadow:0 2px 6px rgba(225,29,72,.25);">🏷️ ${isLao ? 'ຕັ້ງວັນໂປຣໂມຊັນທັງຊຸດ' : 'ตั้งวันโปรโมชั่นทั้งชุด'}</button>` : ''}
-      ${canEdit ? `<div style="display:flex;gap:6px;margin-top:6px;">
-        <button onclick="hcPasteOpen()" style="flex:1;background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">📋 ${isLao ? 'ວາງ Barcode' : 'วางบาร์โค้ด'}</button>
-        <button onclick="hcImportOpen()" style="flex:1;background:var(--violet-100);color:var(--violet-700);border:1px solid var(--violet-300);border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">📥 ${isLao ? 'ນຳເຂົ້າ Excel' : 'นำเข้า Excel'}</button>
-        <button onclick="hcDelModeToggle()" style="flex:1;background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">🗑️ ${isLao ? 'ເລືອກລຶບ' : 'เลือกลบ'}</button>
-      </div>` : ''}
-      <div style="display:flex;gap:6px;margin-top:6px;">
-        <button onclick="hcExportGuard('excel')" style="flex:1;background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">📊 Excel</button>
-        <button onclick="hcExportGuard('pdf')" style="flex:1;background:var(--fs-red);color:white;border:none;border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">🖨️ PDF A4</button>
-        <button onclick="hcShareText()" style="flex:1;background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:8px;padding:8px;font-size:11.5px;font-weight:700;cursor:pointer;">📤 ${isLao ? 'ແບ່ງປັນ' : 'แชร์'}</button>
-        <button onclick="hcOpenFontSettings()" title="${isLao ? 'ຕັ້ງຄ່າ' : 'ตั้งค่า'}" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:8px 13px;font-size:13px;font-weight:700;cursor:pointer;">⚙️</button>
-      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px;">
+        <button onclick="hcExportGuard('excel')" style="background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:9px 4px;font-size:11.5px;font-weight:700;cursor:pointer;">📊 Excel</button>
+        <button onclick="hcImportOpen()" style="background:var(--violet-100);color:var(--violet-700);border:1px solid var(--violet-300);border-radius:8px;padding:9px 4px;font-size:11.5px;font-weight:700;cursor:pointer;">📥 ${isLao ? 'ນຳເຂົ້າ' : 'นำเข้า'}</button>
+        <button onclick="hcDelModeToggle()" style="background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:8px;padding:9px 4px;font-size:11.5px;font-weight:700;cursor:pointer;">🗑️ ${isLao ? 'ເລືອກລຶບ' : 'เลือกลบ'}</button>
+        <button onclick="hcOpenPromo()" style="background:linear-gradient(135deg,#e11d48,#f43f5e);color:white;border:none;border-radius:8px;padding:9px 4px;font-size:11.5px;font-weight:700;cursor:pointer;">🏷️ ${isLao ? 'ຕັ້ງໂປຣ' : 'ตั้งโปร'}</button>
+        <button onclick="hcExportGuard('pdf')" style="background:var(--fs-red);color:white;border:none;border-radius:8px;padding:9px 4px;font-size:11.5px;font-weight:700;cursor:pointer;">🖨️ PDF</button>
+        <button onclick="hcShareText()" style="background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:8px;padding:9px 4px;font-size:11.5px;font-weight:700;cursor:pointer;">📤 ${isLao ? 'ແບ່ງປັນ' : 'แชร์'}</button>
+      </div>` : `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+        <button onclick="hcExportGuard('excel')" style="background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:9px 4px;font-size:11.5px;font-weight:700;cursor:pointer;">📊 Excel</button>
+        <button onclick="hcExportGuard('pdf')" style="background:var(--fs-red);color:white;border:none;border-radius:8px;padding:9px 4px;font-size:11.5px;font-weight:700;cursor:pointer;">🖨️ PDF</button>
+        <button onclick="hcShareText()" style="background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:8px;padding:9px 4px;font-size:11.5px;font-weight:700;cursor:pointer;">📤 ${isLao ? 'ແບ່ງປັນ' : 'แชร์'}</button>
+      </div>`}
     </div>
     <div style="margin-bottom:8px;">
       <input id="hcCatSearch" oninput="hcSetCatSearch(this.value)" placeholder="🔍 ${isLao ? 'ຄົ້ນຫາຊື່/ບາໂຄດ (ເຊັ່ນ Aro)' : 'ค้นหาชื่อ/บาร์โค้ด (เช่น Aro)'}" style="width:100%;padding:10px 12px;border:1px solid var(--slate-300);border-radius:9px;font-size:14px;box-sizing:border-box;">
@@ -13058,6 +13088,23 @@ async function updateGapBadge() {
       } else {
         el.style.display = 'none';
       }
+    });
+  } catch (e) {}
+}
+
+// Badge เช็คราคาป้าย — นับรายการที่รอจัดการ (ราคาผิด + ไม่มีป้าย) ยังไม่ fixed ใน 30 วัน
+async function updatePriceBadge() {
+  if (!branch?.id) return;
+  try {
+    const since = localDayKey(new Date(Date.now() - 30 * 86400000));
+    const { count } = await sb.from('price_checks').select('id', { count: 'exact', head: true })
+      .eq('branch_id', branch.id).eq('is_match', false)
+      .or('fixed.is.null,fixed.eq.false')
+      .gte('created_at', since);
+    const n = count || 0;
+    ['tabPriceBadge', 'drawer_tabPriceBadge'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = n; el.style.display = n > 0 ? 'inline-block' : 'none'; }
     });
   } catch (e) {}
 }
@@ -34085,7 +34132,7 @@ window.renderMgrDashPage = renderMgrDashPage; window.loadMgrDash = loadMgrDash;
 // Cycle Count
 window.renderCycleCountPage = renderCycleCountPage; window.loadCycleCount = loadCycleCount;
 // Price Check
-window.renderPriceCheckPage = renderPriceCheckPage; window.loadPriceChecks = loadPriceChecks; window.prcLookup = prcLookup; window.prcScan = prcScan; window.prcMismatch = prcMismatch; window.prcSave = prcSave; window.prcMarkFixed = prcMarkFixed; window.prcExport = prcExport;
+window.renderPriceCheckPage = renderPriceCheckPage; window.loadPriceChecks = loadPriceChecks; window.prcLookup = prcLookup; window.prcScan = prcScan; window.prcMismatch = prcMismatch; window.prcSave = prcSave; window.prcSaveNoTag = prcSaveNoTag; window.prcMarkFixed = prcMarkFixed; window.prcExport = prcExport; window.updatePriceBadge = updatePriceBadge;
 // Daily Checklist
 window.renderChecklistPage = renderChecklistPage; window.loadChecklist = loadChecklist; window.cklSetShift = cklSetShift; window.cklToggle = cklToggle; window.cklSave = cklSave;
 // Temperature Log
