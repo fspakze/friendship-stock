@@ -8846,12 +8846,13 @@ function renderPriceCheckPage() {
     </div>
     <div id="prcSummary" style="margin-bottom:9px;"></div>
     <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;flex-wrap:wrap;">
-      <span style="font-size:12px;font-weight:800;color:var(--slate-700);flex:1;">❌ ${isLao ? 'ລໍແກ້ / ພິມປ້າຍ' : 'รอแก้ / พิมพ์ป้าย'}</span>
+      <span style="font-size:12px;font-weight:800;color:var(--slate-700);flex:1;">📋 ${isLao ? 'ລາຍການ' : 'รายการ'}</span>
       <select id="prcDateFilter" onchange="prcSetDateFilter(this.value)" style="border:1px solid var(--slate-300);border-radius:8px;padding:6px 8px;font-size:11px;background:white;">
         <option value="">${isLao ? 'ທຸກມື້' : 'ทุกวัน'}</option>
       </select>
       <button onclick="prcExport()" style="background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;">📊 Excel</button>
     </div>
+    <div id="prcStatusBar" style="display:flex;gap:5px;margin-bottom:8px;"></div>
     <div id="prcSelBar" style="margin-bottom:8px;"></div>
     <div id="prcList" style="padding-bottom:90px;"><div style="text-align:center;padding:25px;"><div class="loader" style="margin:0 auto;"></div></div></div>
   `;
@@ -9035,13 +9036,24 @@ function prcGroupCmp(a, b) {
 }
 
 let _prcDateFilter = '';   // '' = ทุกวัน | 'YYYY-MM-DD' = เฉพาะวันนั้น
+let _prcStatusFilter = 'pending';   // 'pending'=รอทำ | 'fixed'=ติดแล้ว | 'all'=ทั้งหมด (รวมป้ายตรง)
 let _prcSel = new Set();   // id ที่เลือกไว้ (สำหรับกด "ติดแล้วทั้งหมด")
 
-// รายการรอจัดการ (pending) ตามตัวกรองวันที่ปัจจุบัน
+// รายการรอจัดการ (pending) ตามตัวกรองวันที่ปัจจุบัน — ใช้กับ select-all/bulk (เฉพาะรอทำ)
 function prcPendingFiltered() {
   const mm = (_prcRows || []).filter(r => !r.is_match && !r.fixed);
   return _prcDateFilter ? mm.filter(r => localDayKey(r.created_at) === _prcDateFilter) : mm;
 }
+// รายการที่แสดงในลิสต์ ตามสถานะ + วันที่
+function prcVisibleRows() {
+  let rows;
+  if (_prcStatusFilter === 'fixed') rows = (_prcRows || []).filter(r => r.fixed);
+  else if (_prcStatusFilter === 'all') rows = (_prcRows || []).slice();
+  else rows = (_prcRows || []).filter(r => !r.is_match && !r.fixed);   // pending (default)
+  return _prcDateFilter ? rows.filter(r => localDayKey(r.created_at) === _prcDateFilter) : rows;
+}
+
+function prcSetStatus(s) { _prcStatusFilter = s; _prcSel = new Set(); prcRenderList(); }
 
 function prcSetDateFilter(v) {
   _prcDateFilter = v || '';
@@ -9101,24 +9113,40 @@ async function prcRenderList() {
     + (noTagRows.length ? '<span style="background:#fffbeb;color:#b45309;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">🏷️ ' + (isLao ? 'ລໍພິມປ້າຍ' : 'รอพิมพ์ป้าย') + ' ' + noTagRows.length + '</span>' : '')
     + '</div>';
 
-  // ตัวเลือกวันที่ (เฉพาะวันที่มี pending) — คงค่าที่เลือกไว้
+  // สถานะ chips (รอทำ / ติดแล้ว / ทั้งหมด) — นับตามวันที่ที่กรองอยู่
+  const base = _prcDateFilter ? _prcRows.filter(r => localDayKey(r.created_at) === _prcDateFilter) : _prcRows;
+  const cPending = base.filter(r => !r.is_match && !r.fixed).length;
+  const cFixed = base.filter(r => r.fixed).length;
+  const cAll = base.length;
+  const stBar = document.getElementById('prcStatusBar');
+  if (stBar) {
+    const chip = (key, th, lo, n, col) => '<button onclick="prcSetStatus(\'' + key + '\')" style="flex:1;background:' + (_prcStatusFilter === key ? col : 'var(--slate-100)') + ';color:' + (_prcStatusFilter === key ? 'white' : 'var(--slate-600)') + ';border:none;border-radius:8px;padding:7px 6px;font-size:11.5px;font-weight:800;cursor:pointer;">' + (isLao ? lo : th) + ' ' + n + '</button>';
+    stBar.innerHTML = chip('pending', '⏳ รอทำ', '⏳ ລໍທຳ', cPending, 'var(--fs-red)')
+      + chip('fixed', '✓ ติดแล้ว', '✓ ຕິດແລ້ວ', cFixed, 'var(--fs-green)')
+      + chip('all', '📋 ทั้งหมด', '📋 ທັງໝົດ', cAll, 'var(--fs-blue)');
+  }
+
+  // ตัวเลือกวันที่ — ตามชุดของสถานะปัจจุบัน
   const dateSel = document.getElementById('prcDateFilter');
   if (dateSel) {
-    const pendAll = _prcRows.filter(r => !r.is_match && !r.fixed);
+    const statusBase = _prcStatusFilter === 'fixed' ? _prcRows.filter(r => r.fixed)
+      : _prcStatusFilter === 'all' ? _prcRows
+      : _prcRows.filter(r => !r.is_match && !r.fixed);
     const dateCounts = {};
-    pendAll.forEach(r => { const d = localDayKey(r.created_at); dateCounts[d] = (dateCounts[d] || 0) + 1; });
+    statusBase.forEach(r => { const d = localDayKey(r.created_at); dateCounts[d] = (dateCounts[d] || 0) + 1; });
     const dates = Object.keys(dateCounts).sort((a, b) => b.localeCompare(a));
     dateSel.innerHTML = '<option value="">' + (isLao ? 'ທຸກມື້' : 'ทุกวัน') + '</option>'
       + dates.map(d => '<option value="' + d + '"' + (d === _prcDateFilter ? ' selected' : '') + '>' + d + ' (' + dateCounts[d] + ')</option>').join('');
     dateSel.value = _prcDateFilter;
   }
 
-  const mm = prcPendingFiltered();
+  const mm = prcVisibleRows();
+  const isPending = _prcStatusFilter === 'pending';
 
-  // แถบเลือกทั้งหมด / กดติดแล้วทั้งหมด (เฉพาะคนมีสิทธิ์แก้ป้าย)
+  // แถบเลือกทั้งหมด / กดติดแล้วทั้งหมด — เฉพาะสถานะ "รอทำ" + คนมีสิทธิ์แก้ป้าย
   const selBar = document.getElementById('prcSelBar');
   if (selBar) {
-    if (!prcCanFix() || !mm.length) {
+    if (!isPending || !prcCanFix() || !mm.length) {
       selBar.innerHTML = '';
     } else {
       const ids = mm.map(r => r.id);
@@ -9134,7 +9162,10 @@ async function prcRenderList() {
   }
 
   if (!mm.length) {
-    listEl.innerHTML = '<div style="text-align:center;padding:25px;color:var(--slate-400);"><div style="font-size:32px;">🎉</div>' + (isLao ? 'ບໍ່ມີປ້າຍລໍແກ້' : 'ไม่มีป้ายรอแก้') + '</div>';
+    const emptyMsg = _prcStatusFilter === 'fixed' ? (isLao ? 'ຍັງບໍ່ມີລາຍການທີ່ຕິດແລ້ວ' : 'ยังไม่มีรายการที่ติดแล้ว')
+      : _prcStatusFilter === 'all' ? (isLao ? 'ຍັງບໍ່ມີການສະແກນ' : 'ยังไม่มีการสแกน')
+      : (isLao ? 'ບໍ່ມີປ້າຍລໍແກ້' : 'ไม่มีป้ายรอแก้');
+    listEl.innerHTML = '<div style="text-align:center;padding:25px;color:var(--slate-400);"><div style="font-size:32px;">🎉</div>' + emptyMsg + '</div>';
     return;
   }
   // โหมดลาว: เติมชื่อลาวจาก master ให้รายการที่เก็บชื่อไทยไว้ (ของเก่า) — แสดงเป็นลาว
@@ -9150,23 +9181,33 @@ async function prcRenderList() {
   const rowHtml = (r) => {
     const dispName = (isLao && nameLoMap[r.barcode]) ? nameLoMap[r.barcode] : (r.product_name || r.barcode || '?');
     const isNoTag = !!r.no_tag;
-    const edge = isNoTag ? '#f59e0b' : 'var(--fs-red)';
+    const edge = r.fixed ? 'var(--fs-green)' : r.is_match ? 'var(--slate-300)' : isNoTag ? '#f59e0b' : 'var(--fs-red)';
     const diff = (Number(r.shelf_price) || 0) - (Number(r.system_price) || 0);
-    const detail = isNoTag
-      ? `<div style="font-size:11px;margin-top:2px;color:var(--slate-700);">🏷️ <b style="color:#b45309">${isLao ? 'ບໍ່ມີປ້າຍລາຄາ' : 'ไม่มีป้ายราคา'}</b> → ${isLao ? 'ພິມປ້າຍ' : 'พิมพ์ป้าย'} <b style="color:var(--fs-blue)">${fmt.format(Number(r.system_price) || 0)} ₭</b></div>`
-      : `<div style="font-size:11px;margin-top:2px;color:var(--slate-700);">${isLao ? 'ປ້າຍ' : 'ป้าย'} <b style="color:var(--fs-red)">${fmt.format(Number(r.shelf_price) || 0)}</b> → ${isLao ? 'ລະບົບ' : 'ระบบ'} <b style="color:var(--fs-blue)">${fmt.format(Number(r.system_price) || 0)}</b> <span style="color:${diff > 0 ? '#e11d48' : '#b45309'};font-weight:700;">(${diff > 0 ? '+' : ''}${fmt.format(diff)})</span></div>`;
-    const checkbox = prcCanFix() ? `<input type="checkbox" ${_prcSel.has(r.id) ? 'checked' : ''} onchange="prcToggleSel(${r.id})" style="width:17px;height:17px;accent-color:var(--fs-blue);flex-shrink:0;">` : '';
+    const detail = r.is_match
+      ? `<div style="font-size:11px;margin-top:2px;color:#248a3d;font-weight:700;">✓ ${isLao ? 'ປ້າຍຕົງ' : 'ป้ายตรง'} <span style="color:var(--slate-500);font-weight:500;">${fmt.format(Number(r.system_price) || 0)} ₭</span></div>`
+      : isNoTag
+        ? `<div style="font-size:11px;margin-top:2px;color:var(--slate-700);">🏷️ <b style="color:#b45309">${isLao ? 'ບໍ່ມີປ້າຍລາຄາ' : 'ไม่มีป้ายราคา'}</b> → ${isLao ? 'ພິມປ້າຍ' : 'พิมพ์ป้าย'} <b style="color:var(--fs-blue)">${fmt.format(Number(r.system_price) || 0)} ₭</b></div>`
+        : `<div style="font-size:11px;margin-top:2px;color:var(--slate-700);">${isLao ? 'ປ້າຍ' : 'ป้าย'} <b style="color:var(--fs-red)">${fmt.format(Number(r.shelf_price) || 0)}</b> → ${isLao ? 'ລະບົບ' : 'ระบบ'} <b style="color:var(--fs-blue)">${fmt.format(Number(r.system_price) || 0)}</b> <span style="color:${diff > 0 ? '#e11d48' : '#b45309'};font-weight:700;">(${diff > 0 ? '+' : ''}${fmt.format(diff)})</span></div>`;
+    // checkbox เฉพาะสถานะรอทำ + มีสิทธิ์
+    const checkbox = (isPending && prcCanFix()) ? `<input type="checkbox" ${_prcSel.has(r.id) ? 'checked' : ''} onchange="prcToggleSel(${r.id})" style="width:17px;height:17px;accent-color:var(--fs-blue);flex-shrink:0;">` : '';
     const tagLbl = prcTagLabel(r.tag_type, isLao);
     const noteHtml = (tagLbl || r.note) ? `<div style="font-size:10px;color:var(--violet-600);margin-top:2px;font-weight:700;">${tagLbl}${tagLbl && r.note ? ' · ' : ''}${r.note ? '📍 ' + escapeHtml(r.note) : ''}</div>` : '';
-    return `<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ${edge};border-radius:9px;padding:9px 11px;margin-bottom:5px;display:flex;align-items:center;gap:9px;">
+    const fixedBadge = r.fixed ? ` <span style="font-size:9px;color:#248a3d;background:#e8f8ee;border-radius:5px;padding:1px 6px;font-weight:800;">✓ ${isLao ? 'ຕິດແລ້ວ' : 'ติดแล้ว'}</span>` : '';
+    // ปุ่ม action ตามสถานะ
+    let action = '';
+    if (prcCanFix()) {
+      if (r.fixed) action = `<button onclick="prcUnfix(${r.id})" style="background:var(--slate-100);color:var(--slate-600);border:1px solid var(--slate-300);border-radius:7px;padding:8px 10px;font-size:11px;font-weight:800;cursor:pointer;flex-shrink:0;">↩ ${isLao ? 'ຍັງບໍ່ຕິດ' : 'ยังไม่ติด'}</button>`;
+      else if (!r.is_match) action = `<button onclick="prcMarkFixed(${r.id})" style="background:var(--fs-green);color:white;border:none;border-radius:7px;padding:8px 11px;font-size:11px;font-weight:800;cursor:pointer;flex-shrink:0;">✓ ${isNoTag ? (isLao ? 'ຕິດແລ້ວ' : 'ติดแล้ว') : (isLao ? 'ແກ້ແລ້ວ' : 'แก้แล้ว')}</button>`;
+    }
+    return `<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ${edge};border-radius:9px;padding:9px 11px;margin-bottom:5px;display:flex;align-items:center;gap:9px;${r.fixed ? 'opacity:.75;' : ''}">
       ${checkbox}
       <div style="flex:1;min-width:0;">
-        <div style="font-size:12px;font-weight:700;color:var(--slate-900);">${escapeHtml(dispName)}</div>
+        <div style="font-size:12px;font-weight:700;color:var(--slate-900);">${escapeHtml(dispName)}${fixedBadge}</div>
         <div style="font-size:9.5px;color:var(--slate-500);font-family:monospace;">${escapeHtml(r.barcode || '')} · ${escapeHtml(r.created_by_name || '')} · ${irDayLabel(localDayKey(r.created_at), isLao)}</div>
         ${detail}
         ${noteHtml}
       </div>
-      ${prcCanFix() ? `<button onclick="prcMarkFixed(${r.id})" style="background:var(--fs-green);color:white;border:none;border-radius:7px;padding:8px 11px;font-size:11px;font-weight:800;cursor:pointer;flex-shrink:0;">✓ ${isNoTag ? (isLao ? 'ຕິດແລ້ວ' : 'ติดแล้ว') : (isLao ? 'ແກ້ແລ້ວ' : 'แก้แล้ว')}</button>` : ''}
+      ${action}
     </div>`;
   };
 
@@ -9194,6 +9235,16 @@ async function prcMarkFixed(id) {
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   showToast('✓ ' + (isLao ? 'ແກ້ປ້າຍແລ້ວ' : 'แก้ป้ายแล้ว'), 'success');
   _prcSel.delete(id);
+  loadPriceChecks();
+}
+
+// ยกเลิก "ติดแล้ว" → กลับเป็นรอทำ (เผื่อกดพลาด / bulk ผิด)
+async function prcUnfix(id) {
+  const isLao = lang === 'lo';
+  if (!prcCanFix()) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
+  const { error } = await sb.from('price_checks').update({ fixed: false }).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  showToast('↩ ' + (isLao ? 'ກັບເປັນລໍທຳ' : 'กลับเป็นรอทำ'), 'success');
   loadPriceChecks();
 }
 
@@ -34740,7 +34791,7 @@ window.renderMgrDashPage = renderMgrDashPage; window.loadMgrDash = loadMgrDash;
 window.renderCycleCountPage = renderCycleCountPage; window.loadCycleCount = loadCycleCount;
 // Price Check
 window.renderPriceCheckPage = renderPriceCheckPage; window.loadPriceChecks = loadPriceChecks; window.prcLookup = prcLookup; window.prcScan = prcScan; window.prcMismatch = prcMismatch; window.prcSave = prcSave; window.prcSaveNoTag = prcSaveNoTag; window.prcMarkFixed = prcMarkFixed; window.prcExport = prcExport; window.updatePriceBadge = updatePriceBadge;
-window.prcSetDateFilter = prcSetDateFilter; window.prcToggleSel = prcToggleSel; window.prcToggleSelAll = prcToggleSelAll; window.prcMarkFixedBulk = prcMarkFixedBulk; window.prcRenderList = prcRenderList; window.prcNoTagOpen = prcNoTagOpen;
+window.prcSetDateFilter = prcSetDateFilter; window.prcToggleSel = prcToggleSel; window.prcToggleSelAll = prcToggleSelAll; window.prcMarkFixedBulk = prcMarkFixedBulk; window.prcRenderList = prcRenderList; window.prcNoTagOpen = prcNoTagOpen; window.prcSetStatus = prcSetStatus; window.prcUnfix = prcUnfix;
 // Daily Checklist
 window.renderChecklistPage = renderChecklistPage; window.loadChecklist = loadChecklist; window.cklSetShift = cklSetShift; window.cklToggle = cklToggle; window.cklSave = cklSave;
 // Temperature Log
