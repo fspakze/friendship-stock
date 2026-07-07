@@ -8916,18 +8916,43 @@ async function prcLookup() {
       <button onclick="prcSave(true)" style="flex:1;background:var(--fs-green);color:white;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;">✓ ${isLao ? 'ປ້າຍຕົງ' : 'ป้ายตรง'}</button>
       <button onclick="prcMismatch()" style="flex:1;background:var(--fs-red);color:white;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;">✕ ${isLao ? 'ລາຄາບໍ່ຕົງ' : 'ราคาไม่ตรง'}</button>
     </div>
-    <button onclick="prcSaveNoTag()" style="width:100%;margin-top:8px;background:#f59e0b;color:white;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">🏷️ ${isLao ? 'ບໍ່ມີປ້າຍລາຄາ — ພິມປ້າຍມາຕິດ' : 'ไม่มีป้ายราคา — พิมพ์ป้ายมาติด'}</button>
+    <button onclick="prcNoTagOpen()" style="width:100%;margin-top:8px;background:#f59e0b;color:white;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">🏷️ ${isLao ? 'ບໍ່ມີປ້າຍລາຄາ — ພິມປ້າຍມາຕິດ' : 'ไม่มีป้ายราคา — พิมพ์ป้ายมาติด'}</button>
     <div id="prcMismatchForm" style="display:none;margin-top:8px;">
-      <div style="display:flex;gap:7px;">
-        <input id="prcShelfPrice" type="number" inputmode="numeric" placeholder="${isLao ? 'ລາຄາເທິງປ້າຍ (₭)' : 'ราคาบนป้าย (₭)'}" style="flex:1;padding:11px;border:1.5px solid var(--rose-300);border-radius:9px;font-size:15px;font-weight:700;box-sizing:border-box;">
-        <button onclick="prcSave(false)" style="background:var(--fs-red);color:white;border:none;border-radius:9px;padding:11px 16px;font-size:13px;font-weight:800;cursor:pointer;">${isLao ? 'ບັນທຶກ' : 'บันทึก'}</button>
-      </div>
+      <input id="prcShelfPrice" type="number" inputmode="numeric" placeholder="${isLao ? 'ລາຄາເທິງປ້າຍ (₭)' : 'ราคาบนป้าย (₭)'}" style="width:100%;padding:11px;border:1.5px solid var(--rose-300);border-radius:9px;font-size:15px;font-weight:700;box-sizing:border-box;">
+      <select id="prcMmTagType" style="width:100%;margin-top:7px;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;background:white;box-sizing:border-box;">
+        <option value="">${isLao ? 'ປະເພດປ້າຍ (ເວັ້ນໄດ້)' : 'ประเภทป้าย (เว้นได้)'}</option>
+        <option value="price">🏷️ ${isLao ? 'ປ້າຍລາຄາ' : 'ป้ายราคา'}</option>
+        <option value="promo">🎁 ${isLao ? 'ປ້າຍໂປຣໂມຊັນ' : 'ป้ายโปรโมชั่น'}</option>
+      </select>
+      <input id="prcMmNote" placeholder="${isLao ? 'ທີ່ຢູ່ສິນຄ້າ ເຊັ່ນ ກອງໂປຣ / Gondola 5 (ເວັ້ນໄດ້)' : 'ที่อยู่สินค้า เช่น กองโปร / Gondola 5 (เว้นได้)'}" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;box-sizing:border-box;">
+      <button onclick="prcSave(false)" style="width:100%;margin-top:7px;background:var(--fs-red);color:white;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;">${isLao ? 'ບັນທຶກ' : 'บันทึก'}</button>
+    </div>
+    <div id="prcNoTagForm" style="display:none;margin-top:8px;">
+      <select id="prcNtTagType" style="width:100%;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;background:white;box-sizing:border-box;">
+        <option value="">${isLao ? 'ປະເພດປ້າຍທີ່ຕ້ອງພິມ (ເວັ້ນໄດ້)' : 'ประเภทป้ายที่ต้องพิมพ์ (เว้นได้)'}</option>
+        <option value="price">🏷️ ${isLao ? 'ປ້າຍລາຄາ' : 'ป้ายราคา'}</option>
+        <option value="promo">🎁 ${isLao ? 'ປ້າຍໂປຣໂມຊັນ' : 'ป้ายโปรโมชั่น'}</option>
+      </select>
+      <input id="prcNtNote" placeholder="${isLao ? 'ທີ່ຢູ່ສິນຄ້າ ເຊັ່ນ ກອງໂປຣ / Gondola 5 (ເວັ້ນໄດ້)' : 'ที่อยู่สินค้า เช่น กองโปร / Gondola 5 (เว้นได้)'}" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;box-sizing:border-box;">
+      <button onclick="prcSaveNoTag()" style="width:100%;margin-top:7px;background:#f59e0b;color:white;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;">${isLao ? 'ຢືນຢັນ ບໍ່ມີປ້າຍ' : 'ยืนยัน ไม่มีป้าย'}</button>
     </div>`;
 }
 
 function prcMismatch() {
+  const nt = document.getElementById('prcNoTagForm'); if (nt) nt.style.display = 'none';
   const f = document.getElementById('prcMismatchForm');
   if (f) { f.style.display = 'block'; const inp = document.getElementById('prcShelfPrice'); if (inp) inp.focus(); }
+}
+function prcNoTagOpen() {
+  const mm = document.getElementById('prcMismatchForm'); if (mm) mm.style.display = 'none';
+  const f = document.getElementById('prcNoTagForm');
+  if (f) { f.style.display = 'block'; const inp = document.getElementById('prcNtNote'); if (inp) inp.focus(); }
+}
+// ป้ายชนิดอะไร (ไว้แสดง/พิมพ์)
+function prcTagLabel(t, isLao) {
+  if (t === 'price') return isLao ? '🏷️ ປ້າຍລາຄາ' : '🏷️ ป้ายราคา';
+  if (t === 'promo') return isLao ? '🎁 ປ້າຍໂປຣ' : '🎁 ป้ายโปรโมชั่น';
+  return '';
 }
 
 // insert price_checks ทน column ใหม่ที่ยังไม่รัน SQL (location_code/no_tag) — ถ้า schema cache ไม่รู้จัก ให้ตัดออกแล้วลองใหม่ (วนได้หลายคอลัมน์)
@@ -8948,15 +8973,17 @@ async function prcInsertResilient(payload) {
 async function prcSave(isMatch) {
   const isLao = lang === 'lo';
   if (!_prcProduct) return;
-  let shelfPrice = null;
+  let shelfPrice = null, tagType = null, note = null;
   if (!isMatch) {
     shelfPrice = parseFloat((document.getElementById('prcShelfPrice') || {}).value) || null;
     if (shelfPrice == null) { showToast(isLao ? '⚠️ ໃສ່ລາຄາເທິງປ້າຍ' : '⚠️ กรอกราคาบนป้าย', 'warning'); return; }
+    tagType = (document.getElementById('prcMmTagType') || {}).value || null;
+    note = ((document.getElementById('prcMmNote') || {}).value || '').trim() || null;
   }
   const { error } = await prcInsertResilient({
     branch_id: branch.id, barcode: _prcProduct.barcode, product_name: _prcProduct.name || _prcProduct.nameTh,
     system_price: _prcProduct.price, shelf_price: shelfPrice, is_match: !!isMatch,
-    location_code: _prcProduct.locationCode || null,
+    location_code: _prcProduct.locationCode || null, tag_type: tagType, note: note,
     created_by: user.id, created_by_name: user.full_name || user.username || ''
   });
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
@@ -8972,10 +8999,12 @@ async function prcSave(isMatch) {
 async function prcSaveNoTag() {
   const isLao = lang === 'lo';
   if (!_prcProduct) return;
+  const tagType = (document.getElementById('prcNtTagType') || {}).value || null;
+  const note = ((document.getElementById('prcNtNote') || {}).value || '').trim() || null;
   const { error } = await prcInsertResilient({
     branch_id: branch.id, barcode: _prcProduct.barcode, product_name: _prcProduct.name || _prcProduct.nameTh,
     system_price: _prcProduct.price, shelf_price: null, is_match: false, no_tag: true,
-    location_code: _prcProduct.locationCode || null,
+    location_code: _prcProduct.locationCode || null, tag_type: tagType, note: note,
     created_by: user.id, created_by_name: user.full_name || user.username || ''
   });
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
@@ -9127,12 +9156,15 @@ async function prcRenderList() {
       ? `<div style="font-size:11px;margin-top:2px;color:var(--slate-700);">🏷️ <b style="color:#b45309">${isLao ? 'ບໍ່ມີປ້າຍລາຄາ' : 'ไม่มีป้ายราคา'}</b> → ${isLao ? 'ພິມປ້າຍ' : 'พิมพ์ป้าย'} <b style="color:var(--fs-blue)">${fmt.format(Number(r.system_price) || 0)} ₭</b></div>`
       : `<div style="font-size:11px;margin-top:2px;color:var(--slate-700);">${isLao ? 'ປ້າຍ' : 'ป้าย'} <b style="color:var(--fs-red)">${fmt.format(Number(r.shelf_price) || 0)}</b> → ${isLao ? 'ລະບົບ' : 'ระบบ'} <b style="color:var(--fs-blue)">${fmt.format(Number(r.system_price) || 0)}</b> <span style="color:${diff > 0 ? '#e11d48' : '#b45309'};font-weight:700;">(${diff > 0 ? '+' : ''}${fmt.format(diff)})</span></div>`;
     const checkbox = prcCanFix() ? `<input type="checkbox" ${_prcSel.has(r.id) ? 'checked' : ''} onchange="prcToggleSel(${r.id})" style="width:17px;height:17px;accent-color:var(--fs-blue);flex-shrink:0;">` : '';
+    const tagLbl = prcTagLabel(r.tag_type, isLao);
+    const noteHtml = (tagLbl || r.note) ? `<div style="font-size:10px;color:var(--violet-600);margin-top:2px;font-weight:700;">${tagLbl}${tagLbl && r.note ? ' · ' : ''}${r.note ? '📍 ' + escapeHtml(r.note) : ''}</div>` : '';
     return `<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ${edge};border-radius:9px;padding:9px 11px;margin-bottom:5px;display:flex;align-items:center;gap:9px;">
       ${checkbox}
       <div style="flex:1;min-width:0;">
         <div style="font-size:12px;font-weight:700;color:var(--slate-900);">${escapeHtml(dispName)}</div>
         <div style="font-size:9.5px;color:var(--slate-500);font-family:monospace;">${escapeHtml(r.barcode || '')} · ${escapeHtml(r.created_by_name || '')} · ${irDayLabel(localDayKey(r.created_at), isLao)}</div>
         ${detail}
+        ${noteHtml}
       </div>
       ${prcCanFix() ? `<button onclick="prcMarkFixed(${r.id})" style="background:var(--fs-green);color:white;border:none;border-radius:7px;padding:8px 11px;font-size:11px;font-weight:800;cursor:pointer;flex-shrink:0;">✓ ${isNoTag ? (isLao ? 'ຕິດແລ້ວ' : 'ติดแล้ว') : (isLao ? 'ແກ້ແລ້ວ' : 'แก้แล้ว')}</button>` : ''}
     </div>`;
@@ -9191,6 +9223,8 @@ function prcExport() {
       'ราคาระบบ (₭)': Number(r.system_price) || 0,
       'ราคาป้าย (₭)': r.shelf_price != null ? Number(r.shelf_price) : '',
       'ผล': r.is_match ? 'ตรง' : (r.no_tag ? 'ไม่มีป้าย' : 'ไม่ตรง'),
+      'ประเภทป้าย': r.tag_type === 'price' ? 'ป้ายราคา' : r.tag_type === 'promo' ? 'ป้ายโปรโมชั่น' : '',
+      'ที่อยู่/หมายเหตุ': r.note || '',
       'แก้ป้ายแล้ว': r.fixed ? '✓' : '',
       'ผู้เช็ค': r.created_by_name || ''
     });
@@ -14850,10 +14884,11 @@ function subscribePriceCheckRealtime() {
         if (r.created_by && r.created_by === user.id) return;  // ของตัวเอง = ไม่เตือนซ้ำ
         const isLao = lang === 'lo';
         const who = r.created_by_name ? (' — ' + r.created_by_name) : '';
+        const where = r.note ? (' 📍 ' + r.note) : '';
         const what = r.no_tag
           ? (isLao ? '🏷️ ພົບສິນຄ້າບໍ່ມີປ້າຍລາຄາ' : '🏷️ พบสินค้าไม่มีป้ายราคา')
           : (isLao ? '⚠️ ພົບປ້າຍລາຄາບໍ່ຕົງ' : '⚠️ พบป้ายราคาไม่ตรง');
-        showToast(what + who, 'warning');
+        showToast(what + who + where, 'warning');
         if (typeof beep === 'function') beep();
         if (typeof updatePriceBadge === 'function') updatePriceBadge();
         if (window._currentPage === 'pricecheck') loadPriceChecks();
@@ -34705,7 +34740,7 @@ window.renderMgrDashPage = renderMgrDashPage; window.loadMgrDash = loadMgrDash;
 window.renderCycleCountPage = renderCycleCountPage; window.loadCycleCount = loadCycleCount;
 // Price Check
 window.renderPriceCheckPage = renderPriceCheckPage; window.loadPriceChecks = loadPriceChecks; window.prcLookup = prcLookup; window.prcScan = prcScan; window.prcMismatch = prcMismatch; window.prcSave = prcSave; window.prcSaveNoTag = prcSaveNoTag; window.prcMarkFixed = prcMarkFixed; window.prcExport = prcExport; window.updatePriceBadge = updatePriceBadge;
-window.prcSetDateFilter = prcSetDateFilter; window.prcToggleSel = prcToggleSel; window.prcToggleSelAll = prcToggleSelAll; window.prcMarkFixedBulk = prcMarkFixedBulk; window.prcRenderList = prcRenderList;
+window.prcSetDateFilter = prcSetDateFilter; window.prcToggleSel = prcToggleSel; window.prcToggleSelAll = prcToggleSelAll; window.prcMarkFixedBulk = prcMarkFixedBulk; window.prcRenderList = prcRenderList; window.prcNoTagOpen = prcNoTagOpen;
 // Daily Checklist
 window.renderChecklistPage = renderChecklistPage; window.loadChecklist = loadChecklist; window.cklSetShift = cklSetShift; window.cklToggle = cklToggle; window.cklSave = cklSave;
 // Temperature Log
