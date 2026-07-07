@@ -2669,7 +2669,7 @@ async function login() {
     
     // Step 2: Validate branch access
     const branchIdInt = parseInt(selectedBranchId);
-    const isAdminRole = ['admin', 'scc', 'bcs'].includes(user.role);
+    const isAdminRole = ['admin', 'scc', 'bcs', 'it'].includes(user.role);
     
     if (!isAdminRole && user.branch_id && user.branch_id !== branchIdInt) {
       // User ไม่ใช่ admin + พยายามเข้าสาขาที่ไม่ใช่ของตัวเอง → reject
@@ -2822,7 +2822,7 @@ window._getCountMenuEnabled = () => _countMenuEnabled;
 // เปิด/ปิดเมนูนับสต๊อก (admin/scc) → เก็บ Supabase → มีผลทุกเครื่อง
 async function toggleCountMenu() {
   const isLao = lang === 'lo';
-  if (!['admin', 'scc'].includes(user.role)) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
+  if (!['admin', 'scc', 'it'].includes(user.role)) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
   const next = !_countMenuEnabled;
   const { error } = await sb.from('app_settings').upsert({ key: 'count_menu_enabled', value: next ? 'on' : 'off', updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: 'key' });
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
@@ -3990,7 +3990,7 @@ async function logout() {
 
 // ==================== BRANCH SWITCHER (Admin) ====================
 async function openBranchSwitcher() {
-  if (!user || !['admin', 'scc', 'bcs'].includes(user.role)) {
+  if (!user || !['admin', 'scc', 'bcs', 'it'].includes(user.role)) {
     showToast(lang === 'lo' ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error');
     return;
   }
@@ -4070,7 +4070,7 @@ async function openBranchSwitcher() {
 }
 
 async function switchBranch(newBranchId) {
-  if (!user || !['admin', 'scc', 'bcs'].includes(user.role)) {
+  if (!user || !['admin', 'scc', 'bcs', 'it'].includes(user.role)) {
     showToast(lang === 'lo' ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error');
     return;
   }
@@ -4585,6 +4585,16 @@ const MENU_CONFIG = {
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
+  it: {
+    // IT — อัพเดทข้อมูล + ควบคุมการนับสต๊อก (ทุกสาขา, เปิด/ปิดรอบนับได้) (Ball 2026-07-08) · ไม่ใช่ manager เต็มตัว (ไม่มี users/branch/HORECA cost/backup/reset)
+    bottomTabs: ['stockcheck', 'workflow', 'tiebreaker', 'gapreport'],
+    drawerGroups: [
+      { titleTh: '🔢 ควบคุมการนับ', titleLo: '🔢 ຄວບຄຸມການນັບ', items: ['scan', 'panogram', 'floormap'] },
+      { titleTh: 'รายงานนับ', titleLo: 'ລາຍງານນັບ', items: ['dashboard', 'variance', 'performance', 'health', 'kpi', 'history'] },
+      { titleTh: '🔄 อัปเดตข้อมูล', titleLo: '🔄 ອັບເດດຂໍ້ມູນ', items: ['updatehub', 'settings'] },
+      { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
+    ]
+  },
   ctl: {
     bottomTabs: ['stockcheck', 'docsign', 'gapscan', 'pricecheck', 'tiebreaker', 'workflow'],
     drawerGroups: [
@@ -4774,7 +4784,7 @@ function wtFilterMenuCfg(cfg, role) {
     // ⭐ ยังไม่เปิดรอบนับสต๊อก: ซ่อนเมนูที่เกี่ยวกับการนับ (docsign + gapscan โชว์เป็นแท็บล่างตามปกติ)
     let hide = [];
     if (isCV) hide = ['scan', 'tiebreaker'];
-    else if (role === 'ctl') hide = ['tiebreaker', 'workflow'];
+    else if (role === 'ctl' || role === 'it') hide = ['tiebreaker', 'workflow'];
     if (hide.length) {
       bottomTabs = bottomTabs.filter(x => !hide.includes(x));
       drawerGroups = drawerGroups.map(g => ({ ...g, items: g.items.filter(x => !hide.includes(x)) })).filter(g => g.items.length > 0);
@@ -4962,7 +4972,7 @@ function renderShell() {
       <button class="ctx-change" onclick="changeZone()">${T('change_zone')}</button>
     </div>` : '';
   
-  const isAdminRole = ['admin', 'scc', 'bcs'].includes(r);
+  const isAdminRole = ['admin', 'scc', 'bcs', 'it'].includes(r);
   const branchName = lang === 'lo' ? (branch?.name_lo || branch?.code || '?') : (branch?.name_th || branch?.code || '?');
   
   return `
@@ -6510,7 +6520,7 @@ function renderActivityLogRow(r) {
 
 const MP_PAGE_SIZE = 50;
 const MP_NEW_ITEM_DAYS = 90;
-const MP_ALLOWED_ROLES = ['admin', 'scc', 'bcs'];
+const MP_ALLOWED_ROLES = ['admin', 'scc', 'bcs', 'it'];
 
 let _mpData = [];
 let _mpOffset = 0;
@@ -6606,7 +6616,7 @@ function phCleanDate(v) {
 }
 
 function renderPurchaseUploadPage() {
-  if (!['admin', 'scc', 'bcs'].includes(user.role)) {
+  if (!['admin', 'scc', 'bcs', 'it'].includes(user.role)) {
     return `<div style="text-align:center;padding:40px;color:var(--rose-500);">${lang === 'lo' ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์เข้าถึง'}</div>`;
   }
   const isLao = lang === 'lo';
@@ -12279,10 +12289,10 @@ function hcpSelectSet(v) { _hcSet = v; loadPromotion(); }
 // ==================== END HORECA CATALOG ====================
 
 // ==================== จัดการเมนู (admin: เปิด/ปิดเมนู รวม + ตาม role) ====================
-const MM_ROLES = ['counter', 'verifier', 'audit', 'ctl', 'bcs', 'scc'];
+const MM_ROLES = ['counter', 'verifier', 'audit', 'it', 'ctl', 'bcs', 'scc'];
 let _mmCfg = {};
 function mmRoleLabel(r) {
-  const M = { counter: 'Counter', staff: 'Staff', verifier: 'Verifier', audit: 'Audit', ctl: 'CTL', bcs: 'BCS', scc: 'SCC' };
+  const M = { counter: 'Counter', verifier: 'Verifier', audit: 'Audit', it: 'IT', ctl: 'CTL', bcs: 'BCS', scc: 'SCC' };
   return M[r] || r;
 }
 // รายชื่อเมนูทั้งหมดที่ตั้งเปิด/ปิดได้ (รวมจากทุก role)
@@ -12373,7 +12383,7 @@ async function mmSave() {
 }
 
 // ==================== สิทธิ์ตามตำแหน่ง (admin: ดูว่าแต่ละ role ใช้อะไรได้บ้าง) ====================
-const RM_ROLES = ['counter', 'verifier', 'audit', 'ctl', 'bcs', 'scc', 'admin'];
+const RM_ROLES = ['counter', 'verifier', 'audit', 'it', 'ctl', 'bcs', 'scc', 'admin'];
 let _rmRole = 'counter';
 // คำอธิบายสั้น (d) + สิทธิ์พิเศษ (p) ต่อหน้า — ไทยล้วน (เครื่องมือ admin) เพื่อกันลืมว่าแต่ละหน้าทำอะไร/ใครทำได้
 const PAGE_PERM_DESC = {
@@ -24739,7 +24749,7 @@ function renderUsersList() {
   });
   
   // Sort users in each branch by role priority then username
-  const roleOrder = { 'admin': 1, 'scc': 2, 'bcs': 3, 'ctl': 4, 'verifier': 5, 'audit': 5, 'counter': 6 };
+  const roleOrder = { 'admin': 1, 'scc': 2, 'bcs': 3, 'it': 4, 'ctl': 5, 'verifier': 6, 'audit': 6, 'counter': 7 };
   Object.keys(grouped).forEach(bid => {
     grouped[bid].sort((a, b) => {
       const oa = roleOrder[a.role] || 9;
@@ -25026,6 +25036,7 @@ function openUserModal(userId = null) {
         <option value="ctl">🎯 CTL — ${lang === 'lo' ? 'ຄຸ້ມຄອງໜ້າງານ' : 'หัวหน้าหน้างาน'}</option>
         <option value="bcs">📊 BCS — ${lang === 'lo' ? 'ຫົວໜ້າສາຂາ' : 'หัวหน้าสาขา'}</option>
         ${user.role === 'admin' ? `
+          <option value="it">🛠️ IT — ${lang === 'lo' ? 'ອັບເດດຂໍ້ມູນ + ຄວບຄຸມການນັບ' : 'อัปเดตข้อมูล + ควบคุมการนับ'}</option>
           <option value="scc">⚡ SCC — ${lang === 'lo' ? 'ສູນຄຸ້ມຄອງສະຕ໋ອກ' : 'ศูนย์ควบคุมสต๊อก'}</option>
           <option value="admin">👑 Admin — ${lang === 'lo' ? 'ຜູ້ດູແລລະບົບ' : 'ผู้ดูแลระบบ'}</option>
         ` : ''}
@@ -25207,11 +25218,11 @@ async function saveUser() {
     return;
   }
   
-  // 🛡️ Guard: only admin can create/edit admin or scc
-  if (['admin', 'scc'].includes(role) && user.role !== 'admin') {
-    errEl.textContent = lang === 'lo' 
-      ? 'ສະເພາະ Admin ເທົ່ານັ້ນທີ່ສ້າງ Admin/SCC ໄດ້' 
-      : 'เฉพาะ Admin เท่านั้นที่สร้าง Admin/SCC ได้';
+  // 🛡️ Guard: only admin can create/edit admin, scc or it (สิทธิ์สูง)
+  if (['admin', 'scc', 'it'].includes(role) && user.role !== 'admin') {
+    errEl.textContent = lang === 'lo'
+      ? 'ສະເພາະ Admin ເທົ່ານັ້ນທີ່ສ້າງ Admin/SCC/IT ໄດ້'
+      : 'เฉพาะ Admin เท่านั้นที่สร้าง Admin/SCC/IT ได้';
     errEl.classList.add('show');
     return;
   }
@@ -30273,7 +30284,7 @@ function renderSettingsPage() {
       </div>
       <div class="banner-text">
         <h4>${T('settings')}</h4>
-        <p>${user.role === 'admin' ? '👑 Admin (Full Access)' : (user.role === 'scc' ? '⚡ SCC' : '📊 BCS') + ' — ' + (lang === 'lo' ? 'ບໍ່ມີສິດ Reset' : 'ไม่มีสิทธิ์ Reset')}</p>
+        <p>${user.role === 'admin' ? '👑 Admin (Full Access)' : (user.role === 'scc' ? '⚡ SCC' : (user.role === 'it' ? '🛠️ IT' : '📊 BCS')) + ' — ' + (lang === 'lo' ? 'ບໍ່ມີສິດ Reset' : 'ไม่มีสิทธิ์ Reset')}</p>
       </div>
     </div>
     
@@ -30283,8 +30294,8 @@ function renderSettingsPage() {
       <div class="stat-card"><div class="num" id="settingsTotalSessions">-</div><div class="lbl">${T('sessions_to_delete')}</div></div>
     </div>
     
-    ${['admin', 'scc', 'bcs'].includes(user.role) ? `
-    ${['admin', 'scc'].includes(user.role) ? `
+    ${['admin', 'scc', 'bcs', 'it'].includes(user.role) ? `
+    ${['admin', 'scc', 'it'].includes(user.role) ? `
     <!-- Toggle เมนูนับสต๊อก -->
     <div style="background:white;border:2px solid var(--teal-200);border-radius:14px;padding:16px;margin-top:14px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
