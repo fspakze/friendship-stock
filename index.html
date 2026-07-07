@@ -9805,21 +9805,83 @@ async function loadHoreca() {
 }
 
 // โหลดสต๊อค POS ของสาขานี้ ตาม barcode ในชุด แล้วรีเฟรชการ์ด (ไม่บล็อก)
+// resolve id ของสาขาหลัก (Super) — branch_type 'super'/'hq' | cache + เก็บรายชื่อสาขา (มี branch_type) ไว้ใช้ modal
+async function hcSuperBranchId() {
+  if (window._hcSuperBranchId != null) return window._hcSuperBranchId;
+  try {
+    const { data } = await sb.from('branches').select('id, code, name_th, name_lo, branch_type').order('id');
+    window._hcAllBranches = data || [];
+    let sup = (data || []).find(b => b.branch_type === 'super' || b.branch_type === 'hq');
+    if (!sup) sup = (data || []).find(b => /super/i.test(b.code || ''));
+    if (!sup && data && data.length) sup = data[0];   // fallback: id ต่ำสุด
+    window._hcSuperBranchId = sup ? sup.id : (branch && branch.id);
+  } catch (e) { window._hcSuperBranchId = branch && branch.id; }
+  return window._hcSuperBranchId;
+}
+
 async function hcLoadStock() {
   try {
     const bcs = [...new Set(_hcRows.map(r => String(r.barcode || '')).filter(Boolean))];
     if (!bcs.length) { _hcStock = {}; return; }
     const setKey = _hcSet;
+    // ⭐ สต๊อกหลักบนการ์ด = สาขา Super (สาขาหลัก) ไม่ใช่สาขาที่ล็อกอินอยู่ — HORECA ขายจากสาขาหลัก
+    const supId = await hcSuperBranchId();
     const map = {};
     for (let i = 0; i < bcs.length; i += 200) {
       const chunk = bcs.slice(i, i + 200);
-      const { data } = await sb.from('products').select('barcode,pos_qty').eq('branch_id', branch.id).in('barcode', chunk);
+      // กรอง is_active=true เหมือนหน้าตรวจสต๊อก — กันสินค้าปิดใช้งานที่ยังมี pos_qty ค้างโชว์เลขผิด
+      const { data } = await sb.from('products').select('barcode,pos_qty').eq('branch_id', supId).eq('is_active', true).in('barcode', chunk);
       (data || []).forEach(p => { map[String(p.barcode)] = Number(p.pos_qty) || 0; });
     }
     if (setKey !== _hcSet) return; // สลับชุดระหว่างโหลด — ทิ้งผลเก่า
     _hcStock = map;
     hcRenderList();
   } catch (e) {}
+}
+
+// กดสินค้า → ดูสต๊อกทุกสาขา (สาขา Super ขึ้นก่อน) — กรอง is_active=true
+async function hcShowBranchStock(barcode) {
+  const isLao = lang === 'lo';
+  const bc = String(barcode || '');
+  const row = _hcRows.find(r => String(r.barcode || '') === bc);
+  const name = row ? (row.product_name || bc) : bc;
+  showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><h3 style="font-size:15px;margin:0;flex:1;min-width:0;">📦 ' + (isLao ? 'ສະຕ໋ອກທຸກສາຂາ' : 'สต๊อกทุกสาขา') + '</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
+    + '<div style="font-size:12px;font-weight:700;color:var(--slate-800);margin-bottom:2px;">' + escapeHtml(name) + '</div>'
+    + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;margin-bottom:10px;">' + escapeHtml(bc) + '</div>'
+    + '<div id="hcBrStockList"><div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div></div>');
+  await hcSuperBranchId();
+  const brs = window._hcAllBranches || window._allBranchesCache || [];
+  const stockByBr = {};
+  try {
+    const { data } = await sb.from('products').select('branch_id, pos_qty').eq('barcode', bc).eq('is_active', true);
+    (data || []).forEach(p => { stockByBr[p.branch_id] = Number(p.pos_qty) || 0; });
+  } catch (e) {}
+  const supId = window._hcSuperBranchId;
+  const items = brs.map(b => ({ b: b, qty: (stockByBr[b.id] != null ? stockByBr[b.id] : null) }))
+    .sort((a, c) => {
+      const as = (Number(a.b.id) === Number(supId)) ? 0 : 1, cs = (Number(c.b.id) === Number(supId)) ? 0 : 1;
+      if (as !== cs) return as - cs;                          // Super ขึ้นก่อน
+      return (c.qty || 0) - (a.qty || 0);                     // แล้วเรียงสต๊อกมาก→น้อย
+    });
+  const total = items.reduce((s, x) => s + (x.qty || 0), 0);
+  const fmt = new Intl.NumberFormat('th-TH');
+  const listEl = document.getElementById('hcBrStockList');
+  if (!listEl) return;
+  if (!items.length) { listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--slate-400);font-size:12px;">' + (isLao ? 'ບໍ່ພົບຂໍ້ມູນສາຂາ' : 'ไม่พบข้อมูลสาขา') + '</div>'; return; }
+  listEl.innerHTML = '<div style="background:var(--fs-fill2);border-radius:9px;padding:8px 11px;margin-bottom:9px;font-size:12px;font-weight:800;color:var(--slate-700);display:flex;justify-content:space-between;"><span>' + (isLao ? 'ລວມທຸກສາຂາ' : 'รวมทุกสาขา') + '</span><span style="color:var(--fs-blue);">' + fmt.format(total) + '</span></div>'
+    + items.map(x => {
+      const b = x.b;
+      const bname = isLao ? (b.name_lo || b.name_th || b.code) : (b.name_th || b.name_lo || b.code);
+      const isSuper = Number(b.id) === Number(supId);
+      const icon = isSuper ? '⭐' : (b.branch_type === 'warehouse' ? '📦' : '🏪');
+      const qtyTxt = x.qty == null ? (isLao ? 'ບໍ່ມີ' : 'ไม่มี') : fmt.format(x.qty);
+      const qtyColor = x.qty == null ? 'var(--slate-400)' : x.qty <= 0 ? 'var(--fs-red)' : x.qty < 10 ? 'var(--fs-orange)' : 'var(--slate-800)';
+      return '<div style="display:flex;align-items:center;gap:9px;padding:9px 11px;border:1px solid ' + (isSuper ? 'var(--amber-300,#fcd34d)' : 'var(--slate-200)') + ';border-radius:9px;margin-bottom:5px;' + (isSuper ? 'background:#fffbeb;' : 'background:white;') + '">'
+        + '<span style="font-size:16px;">' + icon + '</span>'
+        + '<span style="flex:1;min-width:0;font-size:12.5px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(bname) + (isSuper ? ' <span style="font-size:9px;color:#b45309;font-weight:800;">' + (isLao ? 'ຫຼັກ' : 'หลัก') + '</span>' : '') + '</span>'
+        + '<span style="font-size:15px;font-weight:800;color:' + qtyColor + ';font-family:\'Space Grotesk\',monospace;">' + qtyTxt + '</span>'
+        + '</div>';
+    }).join('');
 }
 // เติมกลุ่มสินค้า (product_group) จาก master_products ให้แถวที่ยังว่าง — อัตโนมัติ ไม่ต้องกรอกเอง
 async function hcBackfillGroups() {
@@ -10089,10 +10151,13 @@ function hcMarginIssues() {
   const min = hcGpMin(), active = hcPromoActive(), out = [];
   const gpOf = (sell, cost) => (sell && cost != null && Number(sell) > 0) ? Math.round((Number(sell) - Number(cost)) / Number(sell) * 1000) / 10 : null;
   _hcRows.filter(r => !r.is_hidden).forEach(r => {
+    // ทุนแพ๊ค/ลัง fallback = ทุนชิ้น×จำนวน ถ้ายังไม่เคยบันทึกทุนแพ๊ค/ลังไว้ตรงๆ (เช่น สินค้าเก่า/นำเข้าที่ยังไม่ได้เปิดแก้ไข)
+    const packCost = r.pack_cost != null ? r.pack_cost : (r.cost_price && r.pack_qty ? r.cost_price * r.pack_qty : null);
+    const boxCost = r.box_cost != null ? r.box_cost : (r.cost_price && r.box_qty ? r.cost_price * r.box_qty : null);
     const tiers = [
       ['หน่วย', (active && r.promo_price != null) ? r.promo_price : r.normal_price, r.cost_price],
-      ['แพ๊ค', (active && r.pack_promo != null) ? r.pack_promo : r.pack_normal, r.pack_cost],
-      ['ลัง', (active && r.box_promo != null) ? r.box_promo : r.box_normal, r.box_cost]
+      ['แพ๊ค', (active && r.pack_promo != null) ? r.pack_promo : r.pack_normal, packCost],
+      ['ลัง', (active && r.box_promo != null) ? r.box_promo : r.box_normal, boxCost]
     ];
     tiers.forEach(([lab, sell, cost]) => {
       if (sell == null || cost == null || Number(cost) <= 0) return;
@@ -10294,7 +10359,8 @@ function hcRenderList() {
         : '<div style="position:absolute;bottom:32px;left:5px;background:#fffbeb;border:1px solid #f59e0b;border-radius:7px;padding:2px 7px;font-size:10px;font-weight:800;color:#b45309;box-shadow:0 1px 3px rgba(0,0,0,.12);">🎁 ' + (isLao ? 'ມີແຖມ' : 'มีแถม') + '</div>')
       : '';
     const stk = _hcStock[String(r0.barcode || '')];
-    const stkPill = (stk != null) ? '<div style="position:absolute;bottom:5px;left:5px;background:rgba(255,255,255,.93);border-radius:7px;padding:2px 7px;font-size:10px;font-weight:800;box-shadow:0 1px 3px rgba(0,0,0,.15);color:' + (stk <= 0 ? 'var(--fs-red)' : stk < 10 ? 'var(--fs-orange)' : 'var(--slate-600)') + ';">📦 ' + Number(stk).toLocaleString() + '</div>' : '';
+    // ป้ายสต๊อก = สาขา Super | กดได้ → ดูสต๊อกทุกสาขา (stopPropagation กันไปเปิดหน้าแก้ไข)
+    const stkPill = (stk != null) ? '<div onclick="event.stopPropagation();hcShowBranchStock(\'' + bcSafe + '\')" title="' + (isLao ? 'ເບິ່ງສະຕ໋ອກທຸກສາຂາ' : 'ดูสต๊อกทุกสาขา') + '" style="position:absolute;bottom:5px;left:5px;background:rgba(255,255,255,.93);border-radius:7px;padding:2px 7px;font-size:10px;font-weight:800;box-shadow:0 1px 3px rgba(0,0,0,.15);cursor:pointer;color:' + (stk <= 0 ? 'var(--fs-red)' : stk < 10 ? 'var(--fs-orange)' : 'var(--slate-600)') + ';">📦 ' + Number(stk).toLocaleString() + ' ›</div>' : '';
     const reBtns = (canEdit && _hcReorder) ? '<div style="position:absolute;bottom:5px;right:5px;z-index:3;display:flex;gap:3px;">'
       + '<button onclick="hcMoveItem(' + r.id + ',\'up\',event)" style="width:26px;height:26px;border-radius:7px;border:none;background:rgba(255,255,255,.95);box-shadow:0 1px 3px rgba(0,0,0,.2);font-size:13px;cursor:pointer;padding:0;">⬆️</button>'
       + '<button onclick="hcMoveItem(' + r.id + ',\'down\',event)" style="width:26px;height:26px;border-radius:7px;border:none;background:rgba(255,255,255,.95);box-shadow:0 1px 3px rgba(0,0,0,.2);font-size:13px;cursor:pointer;padding:0;">⬇️</button></div>' : '';
@@ -10540,6 +10606,7 @@ function hcEdit(id) {
   showModal(''
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><h3 style="font-size:15px;margin:0;flex:1;">' + escapeHtml(r.product_name) + '</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
     + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;margin-bottom:9px;">' + escapeHtml(r.barcode || '') + '</div>'
+    + '<button onclick="hcShowBranchStock(\'' + String(r.barcode || '').replace(/[^0-9A-Za-z_-]/g, '') + '\')" style="width:100%;margin-bottom:9px;background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">📦 ' + (isLao ? 'ເບິ່ງສະຕ໋ອກທຸກສາຂາ' : 'ดูสต๊อกทุกสาขา') + '</button>'
     + '<div style="margin-bottom:9px;">' + hcPhotoBoxHtml(r.image_url || null, 'e') + '</div>'
     + '<div style="display:flex;gap:6px;margin-bottom:8px;">'
     + '<input id="hceCat" value="' + escapeHtml(r.category || '') + '" placeholder="' + (isLao ? 'ປະເພດ' : 'ประเภท') + '" style="flex:1;min-width:0;padding:8px;border:1px solid var(--slate-300);border-radius:8px;font-size:12px;box-sizing:border-box;">'
@@ -10553,11 +10620,11 @@ function hcEdit(id) {
     + (r.pack_qty ? '<div style="margin-bottom:8px;"><div style="font-size:11px;font-weight:800;color:var(--violet-700);margin-bottom:3px;display:flex;justify-content:space-between;align-items:center;">📦 ' + (isLao ? 'ແພັກ' : 'แพ๊ค') + ' ' + r.pack_qty + '<span id="hceGpPack"></span></div><div style="display:flex;gap:6px;">'
         + '<input id="hcePackNormal" type="number" value="' + (r.pack_normal != null ? r.pack_normal : '') + '" placeholder="' + (isLao ? 'ປົກກະຕິ' : 'ปกติ') + '" oninput="hcUpdGP(\'hcePackNormal\',\'hcePackPromo\',\'hcePackCost\',\'hceGpPack\')" style="flex:1;padding:8px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;box-sizing:border-box;">'
         + '<input id="hcePackPromo" type="number" value="' + (r.pack_promo != null ? r.pack_promo : '') + '" placeholder="' + (isLao ? 'ໂປຣ' : 'โปร') + '" oninput="hcUpdGP(\'hcePackNormal\',\'hcePackPromo\',\'hcePackCost\',\'hceGpPack\')" style="flex:1;padding:8px;border:1.5px solid var(--rose-300);border-radius:8px;font-size:13px;font-weight:700;box-sizing:border-box;">'
-        + (hcSeeCost() ? '<input id="hcePackCost" type="number" value="' + (r.pack_cost != null ? r.pack_cost : '') + '" placeholder="' + (isLao ? 'ທຶນ' : 'ทุน') + '" oninput="hcUpdGP(\'hcePackNormal\',\'hcePackPromo\',\'hcePackCost\',\'hceGpPack\')" style="flex:1;padding:8px;border:1px solid var(--slate-200);border-radius:8px;font-size:13px;color:var(--slate-500);box-sizing:border-box;">' : '') + '</div></div>' : '')
+        + (hcSeeCost() ? '<input id="hcePackCost" type="number" value="' + (r.pack_cost != null ? r.pack_cost : (r.cost_price ? Math.round(r.cost_price * r.pack_qty) : '')) + '" placeholder="' + (isLao ? 'ທຶນ' : 'ทุน') + '" oninput="hcUpdGP(\'hcePackNormal\',\'hcePackPromo\',\'hcePackCost\',\'hceGpPack\')" style="flex:1;padding:8px;border:1px solid var(--slate-200);border-radius:8px;font-size:13px;color:var(--slate-500);box-sizing:border-box;">' : '') + '</div></div>' : '')
     + (r.box_qty ? '<div style="margin-bottom:8px;"><div style="font-size:11px;font-weight:800;color:var(--violet-700);margin-bottom:3px;display:flex;justify-content:space-between;align-items:center;">📦 ' + (isLao ? 'ລັງ' : 'ลัง') + ' ' + r.box_qty + '<span id="hceGpBox"></span></div><div style="display:flex;gap:6px;">'
         + '<input id="hceBoxNormal" type="number" value="' + (r.box_normal != null ? r.box_normal : '') + '" placeholder="' + (isLao ? 'ປົກກະຕິ' : 'ปกติ') + '" oninput="hcUpdGP(\'hceBoxNormal\',\'hceBoxPromo\',\'hceBoxCost\',\'hceGpBox\')" style="flex:1;padding:8px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;box-sizing:border-box;">'
         + '<input id="hceBoxPromo" type="number" value="' + (r.box_promo != null ? r.box_promo : '') + '" placeholder="' + (isLao ? 'ໂປຣ' : 'โปร') + '" oninput="hcUpdGP(\'hceBoxNormal\',\'hceBoxPromo\',\'hceBoxCost\',\'hceGpBox\')" style="flex:1;padding:8px;border:1.5px solid var(--rose-300);border-radius:8px;font-size:13px;font-weight:700;box-sizing:border-box;">'
-        + (hcSeeCost() ? '<input id="hceBoxCost" type="number" value="' + (r.box_cost != null ? r.box_cost : '') + '" placeholder="' + (isLao ? 'ທຶນ' : 'ทุน') + '" oninput="hcUpdGP(\'hceBoxNormal\',\'hceBoxPromo\',\'hceBoxCost\',\'hceGpBox\')" style="flex:1;padding:8px;border:1px solid var(--slate-200);border-radius:8px;font-size:13px;color:var(--slate-500);box-sizing:border-box;">' : '') + '</div></div>' : '')
+        + (hcSeeCost() ? '<input id="hceBoxCost" type="number" value="' + (r.box_cost != null ? r.box_cost : (r.cost_price ? Math.round(r.cost_price * r.box_qty) : '')) + '" placeholder="' + (isLao ? 'ທຶນ' : 'ทุน') + '" oninput="hcUpdGP(\'hceBoxNormal\',\'hceBoxPromo\',\'hceBoxCost\',\'hceGpBox\')" style="flex:1;padding:8px;border:1px solid var(--slate-200);border-radius:8px;font-size:13px;color:var(--slate-500);box-sizing:border-box;">' : '') + '</div></div>' : '')
     + '<div style="font-size:10px;color:var(--slate-400);margin-bottom:8px;">🏷️ ' + (isLao ? 'ວັນໂປຣຕັ້ງລວມທັງຊຸດ' : 'วันโปรตั้งรวมทั้งชุด') + (hcPeriodText(isLao) ? ': <b style="color:var(--fs-red);">' + escapeHtml(hcPeriodText(isLao)) + '</b>' : ' (' + (isLao ? 'ຍັງບໍ່ໄດ້ຕັ້ງ' : 'ยังไม่ได้ตั้ง') + ')') + '</div>'
     + '<div style="display:flex;gap:7px;">'
     + '<button onclick="hcDelete(' + id + ')" style="background:var(--rose-50);color:var(--rose-600);border:1px solid var(--rose-200);border-radius:9px;padding:11px 14px;font-size:13px;font-weight:700;cursor:pointer;">🗑️</button>'
@@ -10566,6 +10633,28 @@ function hcEdit(id) {
   hcUpdGP('hceNormal', 'hcePromo', 'hceCost', 'hceGpUnit');
   if (r.pack_qty) hcUpdGP('hcePackNormal', 'hcePackPromo', 'hcePackCost', 'hceGpPack');
   if (r.box_qty) hcUpdGP('hceBoxNormal', 'hceBoxPromo', 'hceBoxCost', 'hceGpBox');
+  // ⭐ ทุนชิ้นยังไม่เคยตั้งไว้ → ย้อนดูราคาซื้อล่าสุดจาก purchase_history (เหมือนตอนเพิ่มสินค้าใหม่ hcLookup)
+  // ไม่บล็อกการเปิด modal — ถ้าเจอค่อยเติมให้ทีหลัง
+  if (!r.cost_price && hcSeeCost()) hcFillCostFromPurchase(id, r.barcode);
+}
+
+async function hcFillCostFromPurchase(id, barcode) {
+  let cost = 0;
+  try {
+    const { data: ph } = await sb.from('purchase_history').select('unit_price').eq('barcode', barcode).order('buy_date', { ascending: false }).limit(1).maybeSingle();
+    if (ph && ph.unit_price) cost = Number(ph.unit_price) || 0;
+  } catch (e) {}
+  if (!cost) return;
+  const costEl = document.getElementById('hceCost');
+  // modal อาจถูกปิด/เปลี่ยนไปแก้สินค้าอื่นแล้วระหว่างรอ query — เช็คว่ายังเป็น modal ของสินค้านี้อยู่ + ผู้ใช้ยังไม่ได้พิมพ์ทับ
+  if (!costEl || costEl.value !== '') return;
+  const r = _hcRows.find(x => x.id === id);
+  costEl.value = cost;
+  hcUpdGP('hceNormal', 'hcePromo', 'hceCost', 'hceGpUnit');
+  const packEl = document.getElementById('hcePackCost');
+  if (packEl && packEl.value === '' && r && r.pack_qty) { packEl.value = Math.round(cost * r.pack_qty); hcUpdGP('hcePackNormal', 'hcePackPromo', 'hcePackCost', 'hceGpPack'); }
+  const boxEl = document.getElementById('hceBoxCost');
+  if (boxEl && boxEl.value === '' && r && r.box_qty) { boxEl.value = Math.round(cost * r.box_qty); hcUpdGP('hceBoxNormal', 'hceBoxPromo', 'hceBoxCost', 'hceGpBox'); }
 }
 
 async function hcSaveEdit(id) {
@@ -16899,7 +16988,7 @@ async function pogLoadShort(pogAll) {
     const posBc = {}; const bcArr = [...bcSet];
     for (let i = 0; i < bcArr.length; i += 300) {
       const chunk = bcArr.slice(i, i + 300);
-      try { const { data } = await sb.from('products').select('barcode, pos_qty').eq('branch_id', branch.id).in('barcode', chunk); (data || []).forEach(p => { posBc[String(p.barcode)] = Number(p.pos_qty) || 0; }); } catch (e) {}
+      try { const { data } = await sb.from('products').select('barcode, pos_qty').eq('branch_id', branch.id).eq('is_active', true).in('barcode', chunk); (data || []).forEach(p => { posBc[String(p.barcode)] = Number(p.pos_qty) || 0; }); } catch (e) {}
     }
     const short = {};
     // POS-short ต่อ gondola = จำนวน barcode ที่ pos < ความจุที่ gondola นั้น
@@ -17142,7 +17231,7 @@ async function pogOpenShortReport() {
     const posBB = {};
     for (let i = 0; i < bcArr.length; i += 300) {
       const chunk = bcArr.slice(i, i + 300);
-      try { const data = await fetchAllQuery(() => sb.from('products').select('barcode, branch_id, pos_qty').in('barcode', chunk).order('id')); (data || []).forEach(p => { posBB[p.barcode + '|' + p.branch_id] = Number(p.pos_qty) || 0; }); } catch (e) {}
+      try { const data = await fetchAllQuery(() => sb.from('products').select('barcode, branch_id, pos_qty').eq('is_active', true).in('barcode', chunk).order('id')); (data || []).forEach(p => { posBB[p.barcode + '|' + p.branch_id] = Number(p.pos_qty) || 0; }); } catch (e) {}
     }
     // 3) ขาด (capacity - pos) ต่อ barcode → เก็บ per-branch ด้วย
     const detail = {};
@@ -17257,7 +17346,7 @@ async function pogOpenGondolaShort() {
     const posBB = {}; const bcArr = [...bcSet];
     for (let i = 0; i < bcArr.length; i += 300) {
       const chunk = bcArr.slice(i, i + 300);
-      try { const data = await fetchAllQuery(() => sb.from('products').select('barcode, branch_id, pos_qty').in('barcode', chunk).order('id')); (data || []).forEach(p => { posBB[p.barcode + '␟' + p.branch_id] = Number(p.pos_qty) || 0; }); } catch (e) {}
+      try { const data = await fetchAllQuery(() => sb.from('products').select('barcode, branch_id, pos_qty').eq('is_active', true).in('barcode', chunk).order('id')); (data || []).forEach(p => { posBB[p.barcode + '␟' + p.branch_id] = Number(p.pos_qty) || 0; }); } catch (e) {}
     }
     // 3) รายละเอียดสินค้าขาดต่อ (สาขา, gondola) — เก็บ per-barcode ไว้ drill-down
     // detailMap[br␟loc] = { bc: { posShort, cap, pos, gapQty } }
@@ -34458,7 +34547,7 @@ window.renderChecklistPage = renderChecklistPage; window.loadChecklist = loadChe
 // Temperature Log
 window.renderTempLogPage = renderTempLogPage; window.loadTempLogs = loadTempLogs; window.tmpSetType = tmpSetType; window.tmpSave = tmpSave;
 // HORECA Catalog
-window.renderHorecaPage = renderHorecaPage; window.loadHoreca = loadHoreca; window.hcSelectSet = hcSelectSet; window.hcNewSet = hcNewSet; window.hcDeleteSet = hcDeleteSet; window.hcScanBtn = hcScanBtn; window.hcLookup = hcLookup; window.hcOnPhoto = hcOnPhoto; window.hcSaveItem = hcSaveItem; window.hcUpdGP = hcUpdGP; window.hcSetCat = hcSetCat; window.hcToggleFavFilter = hcToggleFavFilter; window.hcToggleFav = hcToggleFav; window.hcEdit = hcEdit; window.hcSaveEdit = hcSaveEdit; window.hcDelete = hcDelete; window.hcImportOpen = hcImportOpen; window.hcHandleImport = hcHandleImport; window.hcExportExcel = hcExportExcel; window.hcExportPDF = hcExportPDF; window.hcOpenFontSettings = hcOpenFontSettings; window.hcSetFont = hcSetFont; window.hcResetFont = hcResetFont; window.hcResetDisplay = hcResetDisplay;
+window.renderHorecaPage = renderHorecaPage; window.loadHoreca = loadHoreca; window.hcSelectSet = hcSelectSet; window.hcNewSet = hcNewSet; window.hcDeleteSet = hcDeleteSet; window.hcScanBtn = hcScanBtn; window.hcLookup = hcLookup; window.hcOnPhoto = hcOnPhoto; window.hcSaveItem = hcSaveItem; window.hcUpdGP = hcUpdGP; window.hcSetCat = hcSetCat; window.hcToggleFavFilter = hcToggleFavFilter; window.hcToggleFav = hcToggleFav; window.hcEdit = hcEdit; window.hcFillCostFromPurchase = hcFillCostFromPurchase; window.hcSaveEdit = hcSaveEdit; window.hcShowBranchStock = hcShowBranchStock; window.hcSuperBranchId = hcSuperBranchId; window.hcDelete = hcDelete; window.hcImportOpen = hcImportOpen; window.hcHandleImport = hcHandleImport; window.hcExportExcel = hcExportExcel; window.hcExportPDF = hcExportPDF; window.hcOpenFontSettings = hcOpenFontSettings; window.hcSetFont = hcSetFont; window.hcResetFont = hcResetFont; window.hcResetDisplay = hcResetDisplay;
 window.hcRenameSet = hcRenameSet; window.hcPasteOpen = hcPasteOpen; window.hcPasteBarcodes = hcPasteBarcodes; window.hcToggleHidden = hcToggleHidden; window.hcToggleHiddenFilter = hcToggleHiddenFilter; window.hcSetCols = hcSetCols; window.hcOpenPromo = hcOpenPromo; window.hcApplyPromo = hcApplyPromo; window.hcClearPromo = hcClearPromo;
 window.hcToggleGroups = hcToggleGroups; window.hcOpenCatPicker = hcOpenCatPicker; window.hcPickCat = hcPickCat; window.hcPickFav = hcPickFav;
 window.hcToggleReorder = hcToggleReorder; window.hcMoveItem = hcMoveItem; window.hcCopySet = hcCopySet; window.hcExportGuard = hcExportGuard; window.hcSetGpMin = hcSetGpMin; window.hcSaveContact = hcSaveContact; window.hcShareText = hcShareText;
