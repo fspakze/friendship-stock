@@ -8925,7 +8925,10 @@ async function prcLookup() {
         <option value="price">🏷️ ${isLao ? 'ປ້າຍລາຄາ' : 'ป้ายราคา'}</option>
         <option value="promo">🎁 ${isLao ? 'ປ້າຍໂປຣໂມຊັນ' : 'ป้ายโปรโมชั่น'}</option>
       </select>
-      <input id="prcMmNote" placeholder="${isLao ? 'ທີ່ຢູ່ສິນຄ້າ ເຊັ່ນ ກອງໂປຣ / Gondola 5 (ເວັ້ນໄດ້)' : 'ที่อยู่สินค้า เช่น กองโปร / Gondola 5 (เว้นได้)'}" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;box-sizing:border-box;">
+      <div style="display:flex;gap:6px;margin-top:6px;">
+        <input id="prcMmNote" placeholder="${isLao ? 'ທີ່ຢູ່ສິນຄ້າ ເຊັ່ນ ກອງໂປຣ / Gondola 5 (ເວັ້ນໄດ້)' : 'ที่อยู่สินค้า เช่น กองโปร / Gondola 5 (เว้นได้)'}" style="flex:1;min-width:0;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;box-sizing:border-box;">
+        <button type="button" id="prcMmMicBtn" onclick="prcVoiceNote('prcMmNote','prcMmMicBtn')" title="${isLao ? 'ເວົ້າເພື່ອພິມ' : 'พูดเพื่อพิมพ์'}" style="width:46px;border:1.5px solid var(--slate-300);background:white;border-radius:9px;font-size:18px;cursor:pointer;flex-shrink:0;">🎤</button>
+      </div>
       <button onclick="prcSave(false)" style="width:100%;margin-top:7px;background:var(--fs-red);color:white;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;">${isLao ? 'ບັນທຶກ' : 'บันทึก'}</button>
     </div>
     <div id="prcNoTagForm" style="display:none;margin-top:8px;">
@@ -8934,7 +8937,10 @@ async function prcLookup() {
         <option value="price">🏷️ ${isLao ? 'ປ້າຍລາຄາ' : 'ป้ายราคา'}</option>
         <option value="promo">🎁 ${isLao ? 'ປ້າຍໂປຣໂມຊັນ' : 'ป้ายโปรโมชั่น'}</option>
       </select>
-      <input id="prcNtNote" placeholder="${isLao ? 'ທີ່ຢູ່ສິນຄ້າ ເຊັ່ນ ກອງໂປຣ / Gondola 5 (ເວັ້ນໄດ້)' : 'ที่อยู่สินค้า เช่น กองโปร / Gondola 5 (เว้นได้)'}" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;box-sizing:border-box;">
+      <div style="display:flex;gap:6px;margin-top:6px;">
+        <input id="prcNtNote" placeholder="${isLao ? 'ທີ່ຢູ່ສິນຄ້າ ເຊັ່ນ ກອງໂປຣ / Gondola 5 (ເວັ້ນໄດ້)' : 'ที่อยู่สินค้า เช่น กองโปร / Gondola 5 (เว้นได้)'}" style="flex:1;min-width:0;padding:10px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;box-sizing:border-box;">
+        <button type="button" id="prcNtMicBtn" onclick="prcVoiceNote('prcNtNote','prcNtMicBtn')" title="${isLao ? 'ເວົ້າເພື່ອພິມ' : 'พูดเพื่อพิมพ์'}" style="width:46px;border:1.5px solid var(--slate-300);background:white;border-radius:9px;font-size:18px;cursor:pointer;flex-shrink:0;">🎤</button>
+      </div>
       <button onclick="prcSaveNoTag()" style="width:100%;margin-top:7px;background:#f59e0b;color:white;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;">${isLao ? 'ຢືນຢັນ ບໍ່ມີປ້າຍ' : 'ยืนยัน ไม่มีป้าย'}</button>
     </div>`;
 }
@@ -8948,6 +8954,33 @@ function prcNoTagOpen() {
   const mm = document.getElementById('prcMismatchForm'); if (mm) mm.style.display = 'none';
   const f = document.getElementById('prcNoTagForm');
   if (f) { f.style.display = 'block'; const inp = document.getElementById('prcNtNote'); if (inp) inp.focus(); }
+}
+// พูดเพื่อพิมพ์ลงช่องหมายเหตุ (ที่อยู่สินค้า) — ใช้ Web Speech API + ภาษาที่เลือกไว้ร่วมกับหน้าค้นหาสินค้า (scVoiceLang)
+function prcVoiceNote(inputId, btnId) {
+  const isLao = lang === 'lo';
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { showToast(isLao ? 'ບຣາວເຊີບໍ່ຮອງຮັບການເວົ້າ — ພິມແທນ' : 'เบราว์เซอร์ไม่รองรับการพูด — พิมพ์แทนนะคะ', 'warning'); return; }
+  const btn = document.getElementById(btnId);
+  let rec;
+  try { rec = new SR(); } catch (e) { showToast('Error: ' + e.message, 'error'); return; }
+  rec.lang = (typeof scVoiceLang === 'function') ? scVoiceLang() : (isLao ? 'lo-LA' : 'th-TH');
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+  if (btn) { btn.textContent = '🔴'; btn.disabled = true; }
+  const done = () => { if (btn) { btn.textContent = '🎤'; btn.disabled = false; } };
+  rec.onresult = (ev) => {
+    done();
+    const said = (ev.results && ev.results[0] && ev.results[0][0] && ev.results[0][0].transcript) || '';
+    const box = document.getElementById(inputId);
+    if (box && said) {
+      const cur = (box.value || '').trim();
+      box.value = cur ? (cur + ' ' + said.trim()) : said.trim();
+      box.focus();
+    }
+  };
+  rec.onerror = (ev) => { done(); showToast((isLao ? 'ຟັງບໍ່ໄດ້ຍິນ ລອງໃໝ່' : 'ฟังไม่ชัด ลองใหม่นะคะ') + (ev.error ? ' (' + ev.error + ')' : ''), 'warning'); };
+  rec.onend = done;
+  try { rec.start(); } catch (e) { done(); }
 }
 // ป้ายชนิดอะไร (ไว้แสดง/พิมพ์)
 function prcTagLabel(t, isLao) {
