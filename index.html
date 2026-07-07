@@ -2663,6 +2663,8 @@ async function login() {
     }
     
     user = userData;
+    // Staff เลิกใช้แล้ว → map เป็น counter (Ball 2026-07-08) กัน user เก่าใน DB เมนูว่าง
+    if (user && user.role === 'staff') user.role = 'counter';
     log('User found:', user.username, 'role:', user.role, 'user.branch_id:', user.branch_id);
     
     // Step 2: Validate branch access
@@ -2847,7 +2849,7 @@ async function toggleCountMenu() {
 async function afterLogin() {
   // CTL, BCS, Admin, SCC ไม่ต้องเลือก Zone/Location (ดูภาพรวม + ควบคุม)
   // Counter, Verifier, Staff, Audit ต้องเลือก (ต้องสแกนนับ)
-  const needsZone = ['counter', 'verifier', 'staff', 'audit'].includes(user.role);
+  const needsZone = ['counter', 'verifier', 'audit'].includes(user.role);
   
   // โหลด zones+locations เสมอ (เพื่อให้ Floor Map + Workflow Control ใช้)
   await loadZonesAndLocations();
@@ -2867,14 +2869,12 @@ async function afterLogin() {
         zone = allZones[0];
         log('Branch use_zones=false, default zone:', zone.code);
       }
-      // เข้า app แล้วเปิด Gondola Picker ทันที
       enterApp();
-      // หลัง render เสร็จ → เปิด picker (ยกเว้นมี loc อยู่แล้ว)
-      setTimeout(() => {
-        if (!loc) {
-          openQuickLocPicker(true); // true = force mode (must select)
-        }
-      }, 400);
+      // ⭐ ตอนเปิดรอบนับสต๊อก (count menu) + Counter/Verifier → บังคับเลือก Gondola ไม่ให้ location ว่าง (Ball 2026-07-08)
+      //    นอกรอบนับ = ไม่บังคับ (กดปุ่ม "เลือก Gondola" บนหน้าสแกนเองได้)
+      if (_countMenuEnabled && ['counter', 'verifier', 'audit'].includes(user.role)) {
+        setTimeout(() => { if (!loc) openQuickLocPicker(true); }, 400);
+      }
     }
   } else {
     enterApp();
@@ -4566,16 +4566,6 @@ const MENU_CONFIG = {
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
-  staff: {
-    bottomTabs: ['stockcheck', 'scan', 'gapscan', 'history'],
-    drawerGroups: [
-      { titleTh: '📐 Pan-O-Gram', titleLo: '📐 Pan-O-Gram', items: ['panogram'] },
-      { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport', 'pricecheck'] },
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport'] },
-      { titleTh: '🍽️ HORECA', titleLo: '🍽️ HORECA', items: ['horeca'] },
-      { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
-    ]
-  },
   verifier: {
     bottomTabs: ['stockcheck', 'pricecheck', 'tiebreaker', 'scan', 'history'],
     drawerGroups: [
@@ -4586,10 +4576,11 @@ const MENU_CONFIG = {
     ]
   },
   audit: {
-    bottomTabs: ['stockcheck', 'tiebreaker', 'scan', 'history'],
+    // audit = เมนูเดียวกับ counter (Ball 2026-07-08) · การนับยังเป็นฝั่ง verifier (count_role='verifier')
+    bottomTabs: ['stockcheck', 'pricecheck', 'scan', 'gapscan', 'history'],
     drawerGroups: [
       { titleTh: '📐 Pan-O-Gram', titleLo: '📐 Pan-O-Gram', items: ['panogram'] },
-      { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport', 'pricecheck'] },
+      { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport', 'docsign'] },
       { titleTh: '🍽️ HORECA', titleLo: '🍽️ HORECA', items: ['horeca'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -4777,7 +4768,7 @@ function wtFilterMenuCfg(cfg, role) {
   if (!cfg) return cfg;
   let bottomTabs = (cfg.bottomTabs || []).slice();
   let drawerGroups = (cfg.drawerGroups || []).map(g => ({ ...g, items: (g.items || []).slice() }));
-  const isCV = (role === 'counter' || role === 'verifier');
+  const isCV = (role === 'counter' || role === 'verifier' || role === 'audit'); // audit = เมนูเหมือน counter (Ball 2026-07-08)
 
   if (!_countMenuEnabled) {
     // ⭐ ยังไม่เปิดรอบนับสต๊อก: ซ่อนเมนูที่เกี่ยวกับการนับ (docsign + gapscan โชว์เป็นแท็บล่างตามปกติ)
@@ -12288,7 +12279,7 @@ function hcpSelectSet(v) { _hcSet = v; loadPromotion(); }
 // ==================== END HORECA CATALOG ====================
 
 // ==================== จัดการเมนู (admin: เปิด/ปิดเมนู รวม + ตาม role) ====================
-const MM_ROLES = ['counter', 'staff', 'verifier', 'audit', 'ctl', 'bcs', 'scc'];
+const MM_ROLES = ['counter', 'verifier', 'audit', 'ctl', 'bcs', 'scc'];
 let _mmCfg = {};
 function mmRoleLabel(r) {
   const M = { counter: 'Counter', staff: 'Staff', verifier: 'Verifier', audit: 'Audit', ctl: 'CTL', bcs: 'BCS', scc: 'SCC' };
@@ -12382,7 +12373,7 @@ async function mmSave() {
 }
 
 // ==================== สิทธิ์ตามตำแหน่ง (admin: ดูว่าแต่ละ role ใช้อะไรได้บ้าง) ====================
-const RM_ROLES = ['counter', 'staff', 'verifier', 'audit', 'ctl', 'bcs', 'scc', 'admin'];
+const RM_ROLES = ['counter', 'verifier', 'audit', 'ctl', 'bcs', 'scc', 'admin'];
 let _rmRole = 'counter';
 // คำอธิบายสั้น (d) + สิทธิ์พิเศษ (p) ต่อหน้า — ไทยล้วน (เครื่องมือ admin) เพื่อกันลืมว่าแต่ละหน้าทำอะไร/ใครทำได้
 const PAGE_PERM_DESC = {
@@ -12512,12 +12503,11 @@ function renderInvMovementPage() {
   const isLao = lang === 'lo';
   
   // Filter chips — movement type
+  // ⚠️ ซ่อน po_in / count_adjust / manual_adjust ไว้ก่อน (ยังไม่มีจุดใดในโค้ดเขียนข้อมูล 3 ชนิดนี้ = แท็บว่างตลอด กันสับสน)
+  //    เมื่อต่อการบันทึกชนิดนั้นแล้ว ให้เพิ่ม chip กลับเข้า array นี้ (IM_TYPE_META + คำแปลยังคงอยู่ครบ)
   const typeChips = [
     { key: 'all', label: T('im_filter_all') },
-    { key: 'replenish', label: T('im_type_replenish') },
-    { key: 'po_in', label: T('im_type_po_in') },
-    { key: 'count_adjust', label: T('im_type_count_adjust') },
-    { key: 'manual_adjust', label: T('im_type_manual_adjust') }
+    { key: 'replenish', label: T('im_type_replenish') }
   ].map(t => `
     <button onclick="imSetType('${t.key}')" id="imType_${t.key}"
             style="background:${_imFilterType === t.key ? 'var(--violet-500)' : 'var(--slate-100)'};color:${_imFilterType === t.key ? 'white' : 'var(--slate-600)'};border:none;border-radius:7px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">
@@ -17263,7 +17253,7 @@ let _pogSearch = '';           // ค้นหา Gondola บนบอร์ด
 let _pogBoardData = { locs: [], counts: {}, done: {} };
 let _pogAssign = { items: [], nameMap: {}, done: null, creators: {} };
 
-function pogCanAssign() { return ['admin', 'scc', 'bcs', 'ctl', 'verifier', 'counter', 'staff'].includes(user && user.role); }
+function pogCanAssign() { return ['admin', 'scc', 'bcs', 'ctl', 'verifier', 'counter', 'audit'].includes(user && user.role); }
 function pogCanComplete() { return ['admin', 'scc', 'bcs', 'ctl'].includes(user && user.role); }
 function pogCanSummary() { return ['admin', 'scc', 'bcs', 'ctl'].includes(user && user.role); }
 // จัดกลุ่ม location_code (สำเนา logic จาก parseLocationCode ที่ซ่อนใน scope อื่น)
@@ -20944,7 +20934,14 @@ async function saveCount() {
     log('ERROR: No session when saving');
     return;
   }
-  
+
+  // ⭐ ตอนเปิดรอบนับสต๊อก + Counter/Verifier บนสาขาปิดโซน → ห้ามบันทึกถ้ายังไม่เลือก Gondola (กันเลี่ยงด้วยการล้าง location) (Ball 2026-07-08)
+  if (_countMenuEnabled && ['counter', 'verifier', 'audit'].includes(user.role) && branch?.use_zones === false && !loc) {
+    showToast(lang === 'lo' ? '⚠️ ກະລຸນາເລືອກ Gondola ກ່ອນບັນທຶກ' : '⚠️ กรุณาเลือก Gondola ก่อนบันทึก', 'warning');
+    openQuickLocPicker(true);
+    return;
+  }
+
   // ⭐ B6: ห้ามช่องว่าง — ถ้านับได้ 0 ต้องพิมพ์ 0 จริง ๆ (กันบันทึก 0 โดยไม่ตั้งใจ)
   const countRaw = document.getElementById('countInput').value.trim();
   if (countRaw === '' || isNaN(Number(countRaw))) {
@@ -20965,14 +20962,14 @@ async function saveCount() {
   
   // Workflow check - Counter/Verifier ต้องให้ CTL เปิดก่อน
   const r = user.role;
-  if (['counter', 'staff', 'verifier', 'audit'].includes(r) && loc?.location_code) {
+  if (['counter', 'verifier', 'audit'].includes(r) && loc?.location_code) {
     const { data: gs } = await sb.from('gondola_status')
       .select('status, active_counter_id, active_verifier_id')
       .eq('session_id', session.id)
       .eq('location_code', loc.location_code)
       .maybeSingle();
     
-    const isCounter = ['counter', 'staff'].includes(r);
+    const isCounter = ['counter'].includes(r);
     const isVerifier = ['verifier', 'audit'].includes(r);
     
     if (!gs) {
@@ -24742,7 +24739,7 @@ function renderUsersList() {
   });
   
   // Sort users in each branch by role priority then username
-  const roleOrder = { 'admin': 1, 'scc': 2, 'bcs': 3, 'ctl': 4, 'verifier': 5, 'audit': 5, 'counter': 6, 'staff': 7 };
+  const roleOrder = { 'admin': 1, 'scc': 2, 'bcs': 3, 'ctl': 4, 'verifier': 5, 'audit': 5, 'counter': 6 };
   Object.keys(grouped).forEach(bid => {
     grouped[bid].sort((a, b) => {
       const oa = roleOrder[a.role] || 9;
@@ -25032,7 +25029,6 @@ function openUserModal(userId = null) {
           <option value="scc">⚡ SCC — ${lang === 'lo' ? 'ສູນຄຸ້ມຄອງສະຕ໋ອກ' : 'ศูนย์ควบคุมสต๊อก'}</option>
           <option value="admin">👑 Admin — ${lang === 'lo' ? 'ຜູ້ດູແລລະບົບ' : 'ผู้ดูแลระบบ'}</option>
         ` : ''}
-        <option value="staff">👤 Staff (Legacy)</option>
         <option value="audit">🔍 Audit (Legacy)</option>
       </select>
       ${user.role === 'admin' ? `
@@ -35181,6 +35177,7 @@ if (typeof isPWAMode === 'function') {
   if (saved) {
     try {
       user = JSON.parse(saved);
+      if (user && user.role === 'staff') user.role = 'counter'; // Staff เลิกใช้ → counter (Ball 2026-07-08)
       if (savedBranch) branch = JSON.parse(savedBranch);
       
       // Re-fetch branch to make sure
@@ -35196,7 +35193,7 @@ if (typeof isPWAMode === 'function') {
       }
       
       const ctx = JSON.parse(localStorage.getItem('fs_context') || '{}');
-      const needsZone = ['counter', 'verifier', 'staff', 'audit'].includes(user.role);
+      const needsZone = ['counter', 'verifier', 'audit'].includes(user.role);
       
       // โหลด zones+locations เสมอ
       await loadZonesAndLocations();
@@ -35226,12 +35223,10 @@ if (typeof isPWAMode === 'function') {
           loc = allLocations.find(l => l.location_code === ctx.location);
         }
         enterApp();
-        // ถ้าไม่มี loc → เปิด picker
-        setTimeout(() => {
-          if (!loc) {
-            openQuickLocPicker(true);
-          }
-        }, 400);
+        // ⭐ ตอนเปิดรอบนับสต๊อก (count menu) + Counter/Verifier → บังคับเลือก Gondola ไม่ให้ location ว่าง (Ball 2026-07-08)
+        if (_countMenuEnabled && ['counter', 'verifier', 'audit'].includes(user.role)) {
+          setTimeout(() => { if (!loc) openQuickLocPicker(true); }, 400);
+        }
       } else {
         // Admin/CTL/BCS — ไม่ต้องเลือก
         enterApp();
