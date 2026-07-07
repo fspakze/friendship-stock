@@ -3961,6 +3961,10 @@ async function logout() {
       await sb.removeChannel(window._issueChannel);
       window._issueChannel = null;
     }
+    if (window._priceChannel) {
+      await sb.removeChannel(window._priceChannel);
+      window._priceChannel = null;
+    }
   } catch (e) { console.warn('[logout] channel cleanup error:', e); }
   
   localStorage.removeItem('fs_user');
@@ -4106,7 +4110,8 @@ async function switchBranch(newBranchId) {
     if (['admin', 'scc', 'bcs'].includes(user.role)) {
       setupGapRealtime();
     }
-    
+    subscribePriceCheckRealtime();   // channel ผูกกับ branch → ต้อง re-subscribe เมื่อสลับสาขา
+
   } catch (e) {
     console.error('[FS] switchBranch error:', e);
     toastError(e);
@@ -4474,6 +4479,8 @@ async function enterApp() {
     subscribeIssueRealtime();
     updateIssueBadge();
   }
+  // 🏷️ ตรวจราคาป้าย realtime (audit/ctl/bcs/admin/scc)
+  subscribePriceCheckRealtime();
 }
 
 function renderApp() {
@@ -4623,7 +4630,7 @@ const MENU_CONFIG = {
       { titleTh: 'วิเคราะห์', titleLo: 'ວິເຄາະ', items: ['mgrdash', 'kpi', 'health'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['reorder', 'cyclecount', 'issuereport', 'invmovement'] },
       { titleTh: '🔄 อัปเดตข้อมูล', titleLo: '🔄 ອັບເດດຂໍ້ມູນ', items: ['updatehub'] },
-      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'branchmanage', 'settings', 'menumanage', 'activitylog'] },
+      { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'branchmanage', 'settings', 'menumanage', 'rolemenu', 'activitylog'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
@@ -4687,7 +4694,8 @@ const PAGE_META = {
   horeca: { iconSvg: '<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>', labelTh: 'HORECA Catalog', labelLo: 'HORECA Catalog', page: 'horeca' },
   promotion: { iconSvg: '<path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>', labelTh: '🎁 Promotion', labelLo: '🎁 Promotion', page: 'promotion' },
   panogram: { iconSvg: '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/>', labelTh: '📐 Pan-O-Gram', labelLo: '📐 Pan-O-Gram', page: 'panogram' },
-  menumanage: { iconSvg: '<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="2" fill="currentColor" stroke="none"/>', labelTh: 'จัดการเมนู', labelLo: 'ຈັດການເມນູ', page: 'menumanage' }
+  menumanage: { iconSvg: '<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="2" fill="currentColor" stroke="none"/>', labelTh: 'จัดการเมนู', labelLo: 'ຈັດການເມນູ', page: 'menumanage' },
+  rolemenu: { iconSvg: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>', labelTh: 'สิทธิ์ตามตำแหน่ง', labelLo: 'ສິດຕາມຕຳແໜ່ງ', page: 'rolemenu' }
 };
 
 /**
@@ -5079,6 +5087,9 @@ function goPage(page) {
   } else if (page === 'menumanage') {
     c.innerHTML = renderMenuManagePage();
     setTimeout(() => mmInit(), 30);
+  } else if (page === 'rolemenu') {
+    c.innerHTML = renderRoleMenuPage();
+    setTimeout(() => rmInit(), 30);
   } else if (page === 'invmovement') {
     c.innerHTML = renderInvMovementPage();
     loadInvMovements(true);
@@ -12191,6 +12202,133 @@ async function mmSave() {
   if (typeof renderApp === 'function') renderApp();
 }
 
+// ==================== สิทธิ์ตามตำแหน่ง (admin: ดูว่าแต่ละ role ใช้อะไรได้บ้าง) ====================
+const RM_ROLES = ['counter', 'staff', 'verifier', 'audit', 'ctl', 'bcs', 'scc', 'admin'];
+let _rmRole = 'counter';
+// คำอธิบายสั้น (d) + สิทธิ์พิเศษ (p) ต่อหน้า — ไทยล้วน (เครื่องมือ admin) เพื่อกันลืมว่าแต่ละหน้าทำอะไร/ใครทำได้
+const PAGE_PERM_DESC = {
+  stockcheck: { d: 'ดูข้อมูลสินค้า/สต๊อก + แจ้งปัญหา (ไม่บันทึกการนับ)' },
+  pricecheck: { d: 'เช็คราคาป้าย vs ระบบ · จัดกลุ่ม/พิมพ์ตาม Gondola', p: 'ทุก role บันทึกได้ · กด "แก้แล้ว/ติดแล้ว" = CTL ขึ้นไป' },
+  scan: { d: 'สแกนนับสต๊อก (แสดงเฉพาะตอนเปิดรอบนับ)' },
+  gapscan: { d: 'สแกนของขาด → เติมคลัง/ส่งจัดซื้อ' },
+  gapreport: { d: 'รายงาน Gap Scan', p: 'ผู้จัดการดูได้ทุกสาขา' },
+  history: { d: 'ประวัติการนับของตัวเอง' },
+  panogram: { d: 'กำหนดตำแหน่งสินค้าต่อ Gondola', p: 'assign = ทุก role · กด "ทำเสร็จ"/สรุป = CTL ขึ้นไป' },
+  floormap: { d: 'แผนผังร้าน + Gondola', p: 'แก้/ลบ Gondola = admin/scc/bcs หรือ bcs1-suea' },
+  tiebreaker: { d: 'ตัดสินผลนับที่ไม่ตรงกัน (counter vs verifier)' },
+  workflow: { d: 'จัดการรอบนับสต๊อก' },
+  dashboard: { d: 'แดชบอร์ดสรุปการนับ' },
+  kpi: { d: 'ตัวชี้วัด KPI' },
+  performance: { d: 'ผลงานพนักงาน (นับ + Pan-O-Gram)' },
+  health: { d: 'สุขภาพชั้นวาง (variance/gap ต่อ gondola)' },
+  variance: { d: 'รายงานคาดเคลื่อน (นับ vs POS)' },
+  mgrdash: { d: 'ภาพรวมทุกสาขา (ผู้จัดการ)' },
+  reorder: { d: 'แนะนำสินค้าที่ควรสั่งซื้อ (คำนวณจาก POS/ยอดขาย)' },
+  cyclecount: { d: 'นับวนรอบตามโซน' },
+  shrinkage: { d: 'บันทึกของเสีย/สูญหาย' },
+  expirytrack: { d: 'ติดตามอายุสินค้า + รายงานทำใน Sabuysoft' },
+  checklist: { d: 'เช็คลิสต์เปิด-ปิดร้าน' },
+  templog: { d: 'บันทึกอุณหภูมิตู้แช่' },
+  workreport: { d: 'แจ้งงาน (สร้าง work ticket)' },
+  worktrack: { d: 'ติดตามงานที่แจ้ง + รับเรื่อง' },
+  docsign: { d: 'แจ้งเอกสารเซ็น', p: 'สร้าง = ทุก role · เซ็น/แก้ = CTL ขึ้นไป · ลบ = BCS ขึ้นไป' },
+  cmpprice: { d: 'เทียบราคาคู่แข่ง' },
+  dailybrief: { d: 'Daily Brief (สรุปประจำวัน)' },
+  brieflog: { d: 'ประวัติ Daily Brief' },
+  scdaily: { d: 'งานรายวัน SC (เช็คลิสต์)' },
+  scdailylog: { d: 'ประวัติ/ติดตามงาน SC' },
+  issuereport: { d: 'รายงานปัญหาสินค้า', p: 'จัดการ = admin/scc/bcs/ctl' },
+  invmovement: { d: 'การเคลื่อนไหวสต๊อก' },
+  horeca: { d: 'HORECA Catalog (สต๊อกหลัก=สาขา Super, กดดูทุกสาขา)', p: 'ดู = ทุกคน · แก้/สร้าง = ID HORECA-NN หรือ BCS · ลบชุด = admin' },
+  promotion: { d: 'โปรโมชั่นแถม/ลดราคา HORECA' },
+  masterproduct: { d: 'ฐานสินค้ากลาง (นำเข้า/แก้) — เข้าผ่านอัปเดตข้อมูล' },
+  productstatus: { d: 'สถานะสินค้า (ยอดขาย/ซื้อล่าสุด) — เข้าผ่านอัปเดตข้อมูล' },
+  purchasehistory: { d: 'ข้อมูลการซื้อ — เข้าผ่านอัปเดตข้อมูล' },
+  updatehub: { d: 'ศูนย์อัปเดตข้อมูล (Master/Status/Purchase/POS)' },
+  users: { d: 'จัดการพนักงาน', p: 'admin/scc/bcs' },
+  branchmanage: { d: 'จัดการสาขา' },
+  settings: { d: 'ตั้งค่าระบบ' },
+  menumanage: { d: 'เปิด/ปิดเมนูต่อ role', p: 'admin เท่านั้น' },
+  activitylog: { d: 'บันทึกกิจกรรมทั้งระบบ (ใครทำอะไร)' },
+  rolemenu: { d: 'ดูสิทธิ์/เมนูแต่ละตำแหน่ง (หน้านี้)', p: 'admin เท่านั้น' }
+};
+
+function renderRoleMenuPage() {
+  const isLao = lang === 'lo';
+  if ((user && user.role) !== 'admin') {
+    return '<div style="text-align:center;padding:40px;color:var(--rose-500);font-size:13px;">' + (isLao ? 'ສະເພາະ admin' : 'เฉพาะ admin') + '</div>';
+  }
+  return '<div style="margin-bottom:11px;">'
+    + '<h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">🗂️ ' + (isLao ? 'ສິດຕາມຕຳແໜ່ງ' : 'สิทธิ์ตามตำแหน่ง') + '</h2>'
+    + '<p style="font-size:11px;color:var(--slate-500);margin:0;">' + (isLao ? 'ເບິ່ງວ່າແຕ່ລະຕຳແໜ່ງເຫັນ/ໃຊ້ຫຍັງໄດ້ + ໜ້າທີ່ມີແຕ່ຍັງບໍ່ເປີດ' : 'ดูว่าแต่ละตำแหน่งเห็น/ใช้อะไรได้ + หน้าที่มีแต่ยังไม่เปิด') + '</p>'
+    + '</div>'
+    + '<div id="rmChips" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:11px;"></div>'
+    + '<div id="rmBody"></div>'
+    + '<div id="rmOrphan" style="margin-top:14px;"></div>';
+}
+function rmInit() { rmRenderChips(); rmRenderBody(); rmRenderOrphan(); }
+function rmRenderChips() {
+  const el = document.getElementById('rmChips'); if (!el) return;
+  el.innerHTML = RM_ROLES.map(r => {
+    const on = r === _rmRole;
+    return '<button onclick="rmSelectRole(\'' + r + '\')" style="background:' + (on ? 'var(--fs-blue)' : 'var(--slate-100)') + ';color:' + (on ? 'white' : 'var(--slate-600)') + ';border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">' + (r === 'admin' ? 'Admin' : mmRoleLabel(r)) + '</button>';
+  }).join('');
+}
+function rmSelectRole(r) { _rmRole = r; rmRenderChips(); rmRenderBody(); }
+function rmItemHtml(pk, tag) {
+  const isLao = lang === 'lo';
+  const meta = PAGE_META[pk]; if (!meta) return '';
+  const label = isLao ? (meta.labelLo || meta.labelTh) : (meta.labelTh || meta.labelLo);
+  const info = PAGE_PERM_DESC[pk] || {};
+  const off = menuHidden(pk, _rmRole);   // ปิดโดย admin (menu_off) — role admin ไม่โดนปิด
+  return '<div style="background:white;border:1px solid var(--slate-200);border-radius:9px;padding:9px 11px;margin-bottom:6px;' + (off ? 'opacity:.55;' : '') + '">'
+    + '<div style="display:flex;align-items:center;gap:7px;">'
+    + '<span style="font-size:12.5px;font-weight:800;color:var(--slate-800);flex:1;min-width:0;">' + escapeHtml(label) + (off ? ' <span style="font-size:9px;color:var(--fs-red);font-weight:800;">🔴 ' + (isLao ? 'ປິດຢູ່' : 'ปิดอยู่') + '</span>' : '') + '</span>'
+    + (tag ? '<span style="font-size:9px;color:var(--slate-400);background:var(--slate-100);border-radius:5px;padding:2px 6px;font-weight:700;">' + tag + '</span>' : '')
+    + '<span style="font-size:8.5px;color:var(--slate-300);font-family:monospace;">' + pk + '</span>'
+    + '</div>'
+    + (info.d ? '<div style="font-size:10.5px;color:var(--slate-600);margin-top:3px;line-height:1.4;">' + escapeHtml(info.d) + '</div>' : '')
+    + (info.p ? '<div style="font-size:10px;color:var(--violet-600);margin-top:2px;line-height:1.4;">🔑 ' + escapeHtml(info.p) + '</div>' : '')
+    + '</div>';
+}
+function rmRenderBody() {
+  const el = document.getElementById('rmBody'); if (!el) return;
+  const isLao = lang === 'lo';
+  const cfg = MENU_CONFIG[_rmRole];
+  if (!cfg) { el.innerHTML = ''; return; }
+  const bottom = (cfg.bottomTabs || []).filter(p => PAGE_META[p]);
+  const drawerItems = [];
+  (cfg.drawerGroups || []).forEach(g => (g.items || []).forEach(p => { if (PAGE_META[p]) drawerItems.push(p); }));
+  const autoItems = ['cmpprice'];   // แทรกอัตโนมัติทุก role
+  if (drawerItems.includes('horeca') || bottom.includes('horeca')) autoItems.push('promotion');
+  let html = '<div style="background:var(--fs-fill2);border-radius:10px;padding:9px 12px;margin-bottom:11px;font-size:12px;font-weight:800;color:var(--slate-700);">' + (_rmRole === 'admin' ? 'Admin' : mmRoleLabel(_rmRole)) + ' · ' + (bottom.length + drawerItems.length + autoItems.length) + ' ' + (isLao ? 'ຫົວຂໍ້' : 'หัวข้อ') + '</div>';
+  html += '<div style="font-size:11px;font-weight:800;color:var(--fs-blue);margin:0 0 6px;">📱 ' + (isLao ? 'ແຖບລຸ່ມ' : 'แท็บล่าง') + ' (' + bottom.length + ')</div>';
+  html += bottom.map(p => rmItemHtml(p, '')).join('') || '<div style="font-size:11px;color:var(--slate-400);margin-bottom:8px;">—</div>';
+  html += '<div style="font-size:11px;font-weight:800;color:var(--violet-600);margin:12px 0 6px;">☰ ' + (isLao ? 'ໃນເມນູ' : 'ในเมนู') + ' (' + drawerItems.length + ')</div>';
+  html += drawerItems.map(p => rmItemHtml(p, '')).join('') || '<div style="font-size:11px;color:var(--slate-400);">—</div>';
+  html += '<div style="font-size:11px;font-weight:800;color:var(--slate-500);margin:12px 0 6px;">⚙️ ' + (isLao ? 'ແຊກອັດຕະໂນມັດ' : 'แทรกอัตโนมัติ') + ' (' + autoItems.length + ')</div>';
+  html += autoItems.map(p => rmItemHtml(p, 'auto')).join('');
+  el.innerHTML = html;
+}
+// หน้าที่มีใน PAGE_META แต่ไม่ได้อยู่ในเมนู role ไหนเลย (feature ที่ยังไม่เปิดให้ใครใช้)
+function rmRenderOrphan() {
+  const el = document.getElementById('rmOrphan'); if (!el) return;
+  const isLao = lang === 'lo';
+  const reachable = new Set(['cmpprice', 'promotion', '_lang', '_logout', 'masterproduct', 'productstatus', 'purchasehistory']);
+  Object.values(MENU_CONFIG).forEach(cfg => {
+    (cfg.bottomTabs || []).forEach(p => reachable.add(p));
+    (cfg.drawerGroups || []).forEach(g => (g.items || []).forEach(p => reachable.add(p)));
+  });
+  const orphans = Object.keys(PAGE_META).filter(p => !reachable.has(p));
+  if (!orphans.length) {
+    el.innerHTML = '<div style="background:#e8f8ee;border:1px solid var(--emerald-200,#a7f3d0);border-radius:10px;padding:11px 13px;font-size:12px;color:#248a3d;font-weight:700;">✅ ' + (isLao ? 'ທຸກໜ້າຖືກເປີດໃຊ້ໃນເມນູແລ້ວ' : 'ทุกหน้าถูกเปิดใช้ในเมนูแล้ว') + '</div>';
+    return;
+  }
+  el.innerHTML = '<div style="font-size:12px;font-weight:800;color:var(--fs-orange);margin:0 0 6px;">⚠️ ' + (isLao ? 'ມີໃນລະບົບ ແຕ່ຍັງບໍ່ຢູ່ໃນເມນູໃຜເລີຍ' : 'มีในระบบ แต่ยังไม่อยู่ในเมนูใครเลย') + ' (' + orphans.length + ')</div>'
+    + orphans.map(p => rmItemHtml(p, isLao ? 'ບໍ່ເປີດ' : 'ไม่เปิด')).join('');
+}
+// ==================== END สิทธิ์ตามตำแหน่ง ====================
+
 function renderInvMovementPage() {
   const isLao = lang === 'lo';
   
@@ -14697,6 +14835,32 @@ function subscribeIssueRealtime() {
       .subscribe();
     log('Subscribed to product_issues realtime');
   } catch (e) { log('subscribeIssueRealtime error:', e); }
+}
+
+// แจ้งเตือน realtime เมื่อมีการตรวจราคาป้ายเจอ "ป้ายไม่ตรง / ไม่มีป้าย" — ส่งให้ audit/ctl/bcs/admin/scc (เฉพาะสาขาตัวเอง)
+function subscribePriceCheckRealtime() {
+  if (!['admin', 'scc', 'bcs', 'ctl', 'audit'].includes(user?.role)) return;
+  if (!branch || !branch.id) return;
+  if (window._priceChannel) { try { sb.removeChannel(window._priceChannel); } catch (e) {} window._priceChannel = null; }
+  try {
+    window._priceChannel = sb.channel('price_checks_branch_' + branch.id)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'price_checks', filter: 'branch_id=eq.' + branch.id }, (payload) => {
+        const r = payload.new;
+        if (!r || r.is_match) return;                          // ป้ายตรง = ไม่ต้องเตือน
+        if (r.created_by && r.created_by === user.id) return;  // ของตัวเอง = ไม่เตือนซ้ำ
+        const isLao = lang === 'lo';
+        const who = r.created_by_name ? (' — ' + r.created_by_name) : '';
+        const what = r.no_tag
+          ? (isLao ? '🏷️ ພົບສິນຄ້າບໍ່ມີປ້າຍລາຄາ' : '🏷️ พบสินค้าไม่มีป้ายราคา')
+          : (isLao ? '⚠️ ພົບປ້າຍລາຄາບໍ່ຕົງ' : '⚠️ พบป้ายราคาไม่ตรง');
+        showToast(what + who, 'warning');
+        if (typeof beep === 'function') beep();
+        if (typeof updatePriceBadge === 'function') updatePriceBadge();
+        if (window._currentPage === 'pricecheck') loadPriceChecks();
+      })
+      .subscribe();
+    log('Subscribed to price_checks realtime');
+  } catch (e) { log('subscribePriceCheckRealtime error:', e); }
 }
 // ==================== END ISSUE REPORT MANAGER ====================
 
