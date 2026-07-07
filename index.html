@@ -4547,10 +4547,10 @@ function doExitApp() {
 // Icons use Heroicons-style paths (stroke-based, 24x24 viewBox)
 const MENU_CONFIG = {
   counter: {
-    bottomTabs: ['stockcheck', 'docsign', 'scan', 'gapscan', 'history'],
+    bottomTabs: ['stockcheck', 'pricecheck', 'scan', 'gapscan', 'history'],
     drawerGroups: [
       { titleTh: '📐 Pan-O-Gram', titleLo: '📐 Pan-O-Gram', items: ['panogram'] },
-      { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport'] },
+      { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport', 'docsign'] },
       { titleTh: '🍽️ HORECA', titleLo: '🍽️ HORECA', items: ['horeca'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -4559,17 +4559,17 @@ const MENU_CONFIG = {
     bottomTabs: ['stockcheck', 'scan', 'gapscan', 'history'],
     drawerGroups: [
       { titleTh: '📐 Pan-O-Gram', titleLo: '📐 Pan-O-Gram', items: ['panogram'] },
-      { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport'] },
+      { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport', 'pricecheck'] },
       { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['gapreport'] },
       { titleTh: '🍽️ HORECA', titleLo: '🍽️ HORECA', items: ['horeca'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
   },
   verifier: {
-    bottomTabs: ['stockcheck', 'docsign', 'tiebreaker', 'scan', 'history'],
+    bottomTabs: ['stockcheck', 'pricecheck', 'tiebreaker', 'scan', 'history'],
     drawerGroups: [
       { titleTh: '📐 Pan-O-Gram', titleLo: '📐 Pan-O-Gram', items: ['panogram'] },
-      { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport'] },
+      { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport', 'docsign'] },
       { titleTh: '🍽️ HORECA', titleLo: '🍽️ HORECA', items: ['horeca'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
@@ -4578,7 +4578,7 @@ const MENU_CONFIG = {
     bottomTabs: ['stockcheck', 'tiebreaker', 'scan', 'history'],
     drawerGroups: [
       { titleTh: '📐 Pan-O-Gram', titleLo: '📐 Pan-O-Gram', items: ['panogram'] },
-      { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport'] },
+      { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport', 'pricecheck'] },
       { titleTh: '🍽️ HORECA', titleLo: '🍽️ HORECA', items: ['horeca'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
     ]
