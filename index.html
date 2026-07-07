@@ -9193,6 +9193,7 @@ async function prcRenderList() {
     const tagLbl = prcTagLabel(r.tag_type, isLao);
     const noteHtml = (tagLbl || r.note) ? `<div style="font-size:10px;color:var(--violet-600);margin-top:2px;font-weight:700;">${tagLbl}${tagLbl && r.note ? ' · ' : ''}${r.note ? '📍 ' + escapeHtml(r.note) : ''}</div>` : '';
     const fixedBadge = r.fixed ? ` <span style="font-size:9px;color:#248a3d;background:#e8f8ee;border-radius:5px;padding:1px 6px;font-weight:800;">✓ ${isLao ? 'ຕິດແລ້ວ' : 'ติดแล้ว'}</span>` : '';
+    const fixedByHtml = (r.fixed && r.fixed_by_name) ? `<div style="font-size:9.5px;color:#248a3d;font-weight:700;margin-top:1px;">✓ ${isLao ? 'ຢືນຢັນໂດຍ' : 'ยืนยันโดย'} ${escapeHtml(r.fixed_by_name)}${r.fixed_at ? ' · ' + irDayLabel(localDayKey(r.fixed_at), isLao) : ''}</div>` : '';
     // ปุ่ม action ตามสถานะ
     let action = '';
     if (prcCanFix()) {
@@ -9206,6 +9207,7 @@ async function prcRenderList() {
         <div style="font-size:9.5px;color:var(--slate-500);font-family:monospace;">${escapeHtml(r.barcode || '')} · ${escapeHtml(r.created_by_name || '')} · ${irDayLabel(localDayKey(r.created_at), isLao)}</div>
         ${detail}
         ${noteHtml}
+        ${fixedByHtml}
       </div>
       ${action}
     </div>`;
@@ -9228,21 +9230,40 @@ async function prcRenderList() {
   }).join('');
 }
 
+// update price_checks ทน column ใหม่ (fixed_by/fixed_by_name/fixed_at) — ตัดออกอัตโนมัติถ้ายังไม่รัน SQL
+// applyFilter(qb) = ใส่ .eq('id',id) หรือ .in('id',ids)
+async function prcFixUpdate(payload, applyFilter) {
+  let p = { ...payload }, res;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    res = await applyFilter(sb.from('price_checks').update(p));
+    if (!res.error) break;
+    if (!(res.error.code === 'PGRST204' || /schema cache/i.test(res.error.message || ''))) break;
+    const missing = (res.error.message.match(/'([^']+)' column/) || [])[1];
+    if (!missing || !Object.prototype.hasOwnProperty.call(p, missing)) break;
+    delete p[missing];
+  }
+  return res;
+}
+
 async function prcMarkFixed(id) {
   const isLao = lang === 'lo';
   if (!prcCanFix()) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
-  const { error } = await sb.from('price_checks').update({ fixed: true }).eq('id', id);
+  const { error } = await prcFixUpdate(
+    { fixed: true, fixed_by: user.id, fixed_by_name: user.full_name || user.username || '', fixed_at: new Date().toISOString() },
+    (qb) => qb.eq('id', id));
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   showToast('✓ ' + (isLao ? 'ແກ້ປ້າຍແລ້ວ' : 'แก้ป้ายแล้ว'), 'success');
   _prcSel.delete(id);
   loadPriceChecks();
 }
 
-// ยกเลิก "ติดแล้ว" → กลับเป็นรอทำ (เผื่อกดพลาด / bulk ผิด)
+// ยกเลิก "ติดแล้ว" → กลับเป็นรอทำ (เผื่อกดพลาด / bulk ผิด) — ล้างผู้ยืนยันด้วย
 async function prcUnfix(id) {
   const isLao = lang === 'lo';
   if (!prcCanFix()) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
-  const { error } = await sb.from('price_checks').update({ fixed: false }).eq('id', id);
+  const { error } = await prcFixUpdate(
+    { fixed: false, fixed_by: null, fixed_by_name: null, fixed_at: null },
+    (qb) => qb.eq('id', id));
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   showToast('↩ ' + (isLao ? 'ກັບເປັນລໍທຳ' : 'กลับเป็นรอทำ'), 'success');
   loadPriceChecks();
@@ -9255,7 +9276,9 @@ async function prcMarkFixedBulk() {
   const ids = [..._prcSel];
   if (!ids.length) return;
   if (!confirm((isLao ? 'ຢືນຢັນວ່າຕິດ/ແກ້ປ້າຍແລ້ວ ' : 'ยืนยันว่าติด/แก้ป้ายแล้ว ') + ids.length + (isLao ? ' ລາຍການ?' : ' รายการ?'))) return;
-  const { error } = await sb.from('price_checks').update({ fixed: true }).in('id', ids);
+  const { error } = await prcFixUpdate(
+    { fixed: true, fixed_by: user.id, fixed_by_name: user.full_name || user.username || '', fixed_at: new Date().toISOString() },
+    (qb) => qb.in('id', ids));
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   showToast('✓ ' + (isLao ? 'ແກ້ແລ້ວ ' : 'แก้แล้ว ') + ids.length + (isLao ? ' ລາຍການ' : ' รายการ'), 'success');
   _prcSel = new Set();
@@ -9277,6 +9300,7 @@ function prcExport() {
       'ประเภทป้าย': r.tag_type === 'price' ? 'ป้ายราคา' : r.tag_type === 'promo' ? 'ป้ายโปรโมชั่น' : '',
       'ที่อยู่/หมายเหตุ': r.note || '',
       'แก้ป้ายแล้ว': r.fixed ? '✓' : '',
+      'ผู้ยืนยันติดแล้ว': r.fixed ? (r.fixed_by_name || '') : '',
       'ผู้เช็ค': r.created_by_name || ''
     });
     // แยก sheet ตาม Gondola — เพื่อพิมพ์ไล่ตามชั้นวางจริง
