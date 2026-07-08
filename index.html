@@ -9110,11 +9110,19 @@ function prcGroupCmp(a, b) {
 let _prcDateFilter = '';   // '' = ทุกวัน | 'YYYY-MM-DD' = เฉพาะวันนั้น
 let _prcStatusFilter = 'pending';   // 'pending'=รอทำ | 'fixed'=ติดแล้ว | 'all'=ทั้งหมด (รวมป้ายตรง)
 let _prcSel = new Set();   // id ที่เลือกไว้ (สำหรับกด "ติดแล้วทั้งหมด")
+let _prcPendingType = 'both'; // รอทำ: 'wrong'=ราคาไม่ตรง | 'notag'=ไม่มีป้าย | 'both'=ทั้งสอง (ปุ่มเลือกดู ลดการ scroll)
 
-// รายการรอจัดการ (pending) ตามตัวกรองวันที่ปัจจุบัน — ใช้กับ select-all/bulk (เฉพาะรอทำ)
+// กรองตามหมวดที่เลือกดูในหน้ารอทำ
+function prcApplyPendingType(rows) {
+  if (_prcPendingType === 'wrong') return rows.filter(r => !r.no_tag);
+  if (_prcPendingType === 'notag') return rows.filter(r => r.no_tag);
+  return rows;
+}
+// รายการรอจัดการ (pending) ตามตัวกรองวันที่ + หมวดที่เลือกดู — ใช้กับ select-all/bulk (เฉพาะรอทำ)
 function prcPendingFiltered() {
-  const mm = (_prcRows || []).filter(r => !r.is_match && !r.fixed);
-  return _prcDateFilter ? mm.filter(r => localDayKey(r.created_at) === _prcDateFilter) : mm;
+  let mm = (_prcRows || []).filter(r => !r.is_match && !r.fixed);
+  if (_prcDateFilter) mm = mm.filter(r => localDayKey(r.created_at) === _prcDateFilter);
+  return prcApplyPendingType(mm);   // เคารพหมวดที่เลือกดู (เลือกทั้งหมด/ติดแล้วทั้งหมด = เฉพาะหมวดที่เห็น)
 }
 // รายการที่แสดงในลิสต์ ตามสถานะ + วันที่
 function prcVisibleRows() {
@@ -9145,6 +9153,8 @@ function prcToggleSelAll() {
   else ids.forEach(id => _prcSel.add(id));
   prcRenderList();
 }
+// เลือกดูหมวดในหน้ารอทำ (ราคาไม่ตรง/ไม่มีป้าย/ทั้งสอง) — reset selection กันเลือกค้างข้ามหมวด
+function prcSetPendingType(t) { _prcPendingType = t; _prcSel = new Set(); prcRenderList(); }
 
 async function loadPriceChecks() {
   const isLao = lang === 'lo';
@@ -9214,14 +9224,15 @@ async function prcRenderList() {
 
   const mm = prcVisibleRows();
   const isPending = _prcStatusFilter === 'pending';
+  const visPending = isPending ? prcApplyPendingType(mm) : mm;   // pending: เคารพหมวดที่เลือกดู
 
   // แถบเลือกทั้งหมด / กดติดแล้วทั้งหมด — เฉพาะสถานะ "รอทำ" + คนมีสิทธิ์แก้ป้าย
   const selBar = document.getElementById('prcSelBar');
   if (selBar) {
-    if (!isPending || !prcCanFix() || !mm.length) {
+    if (!isPending || !prcCanFix() || !visPending.length) {
       selBar.innerHTML = '';
     } else {
-      const ids = mm.map(r => r.id);
+      const ids = visPending.map(r => r.id);
       const allSelected = ids.length > 0 && ids.every(id => _prcSel.has(id));
       selBar.innerHTML = '<div style="display:flex;align-items:center;gap:9px;background:var(--fs-fill2);border-radius:9px;padding:8px 11px;">'
         + '<label style="display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:var(--slate-700);cursor:pointer;flex:1;">'
@@ -9313,9 +9324,18 @@ async function prcRenderList() {
       + '<span style="background:rgba(255,255,255,.25);color:white;border-radius:9px;padding:1px 10px;font-size:11px;font-weight:800;">' + rows.length + '</span>'
       + '</div>' + renderByGondola(rows)
     ) : '';
-    listEl.innerHTML =
-      section(wrongList, '❌', 'ราคาไม่ตรง — รอแก้ราคา', 'ລາຄາບໍ່ຕົງ — ລໍແກ້ລາຄາ', 'var(--fs-red)')
-      + section(noTagList, '🏷️', 'ไม่มีป้ายราคา — รอพิมพ์ป้าย', 'ບໍ່ມີປ້າຍລາຄາ — ລໍພິມປ້າຍ', '#d97706');
+    // ปุ่มเลือกดูหมวด (วางข้างกัน) — ลดการ scroll เวลารายการเยอะ (Ball 2026-07-08)
+    const tBtn = (key, icon, th, lo, n, col) => '<button onclick="prcSetPendingType(\'' + key + '\')" style="flex:1;background:' + (_prcPendingType === key ? col : 'var(--slate-100)') + ';color:' + (_prcPendingType === key ? 'white' : 'var(--slate-600)') + ';border:none;border-radius:8px;padding:8px 4px;font-size:11px;font-weight:800;cursor:pointer;">' + icon + ' ' + (isLao ? lo : th) + ' ' + n + '</button>';
+    const toggle = '<div style="display:flex;gap:5px;margin-bottom:10px;">'
+      + tBtn('wrong', '❌', 'ราคาไม่ตรง', 'ລາຄາບໍ່ຕົງ', wrongList.length, 'var(--fs-red)')
+      + tBtn('notag', '🏷️', 'ไม่มีป้าย', 'ບໍ່ມີປ້າຍ', noTagList.length, '#d97706')
+      + tBtn('both', '📋', 'ทั้งสอง', 'ທັງສອງ', mm.length, 'var(--fs-blue)')
+      + '</div>';
+    const showWrong = _prcPendingType !== 'notag';
+    const showNoTag = _prcPendingType !== 'wrong';
+    const body = (showWrong ? section(wrongList, '❌', 'ราคาไม่ตรง — รอแก้ราคา', 'ລາຄາບໍ່ຕົງ — ລໍແກ້ລາຄາ', 'var(--fs-red)') : '')
+      + (showNoTag ? section(noTagList, '🏷️', 'ไม่มีป้ายราคา — รอพิมพ์ป้าย', 'ບໍ່ມີປ້າຍລາຄາ — ລໍພິມປ້າຍ', '#d97706') : '');
+    listEl.innerHTML = toggle + (body || '<div style="text-align:center;padding:20px;color:var(--slate-400);font-size:12px;">' + (isLao ? 'ບໍ່ມີລາຍການໃນໝວດນີ້' : 'ไม่มีรายการในหมวดนี้') + '</div>');
   } else {
     listEl.innerHTML = renderByGondola(mm);
   }
