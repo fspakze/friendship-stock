@@ -8882,6 +8882,7 @@ function renderPriceCheckPage() {
       <select id="prcDateFilter" onchange="prcSetDateFilter(this.value)" style="border:1px solid var(--slate-300);border-radius:8px;padding:6px 8px;font-size:11px;background:white;">
         <option value="">${isLao ? 'ທຸກມື້' : 'ทุกวัน'}</option>
       </select>
+      <button onclick="prcOpenTrend()" style="background:var(--violet-500);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;">📈 ${isLao ? 'ສະຫຼຸບ' : 'สรุป'}</button>
       <button onclick="prcExport()" style="background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;">📊 Excel</button>
     </div>
     <div id="prcStatusBar" style="display:flex;gap:5px;margin-bottom:8px;"></div>
@@ -9284,21 +9285,146 @@ async function prcRenderList() {
     </div>`;
   };
 
-  // จัดกลุ่มตาม Gondola (เพื่อให้ปริ้น/ไล่ติดป้ายเป็นชุดตามชั้นวางจริง)
-  const byGroup = {};
-  mm.forEach(r => {
-    const g = prcGondolaGroup(r.location_code);
-    (byGroup[g.key] = byGroup[g.key] || { label: g.label, rows: [] }).rows.push(r);
+  // ผู้ช่วย: จัดกลุ่มแถวตาม Gondola แล้ว render (เพื่อให้ปริ้น/ไล่ติดป้ายเป็นชุดตามชั้นวางจริง)
+  const renderByGondola = (rows) => {
+    const byGroup = {};
+    rows.forEach(r => {
+      const g = prcGondolaGroup(r.location_code);
+      (byGroup[g.key] = byGroup[g.key] || { label: g.label, rows: [] }).rows.push(r);
+    });
+    return Object.keys(byGroup).sort(prcGroupCmp).map(k => {
+      const g = byGroup[k];
+      const head = '<div style="display:flex;align-items:center;gap:7px;background:var(--slate-100);border-radius:9px;padding:7px 11px;margin:9px 0 6px;">'
+        + '<span style="font-size:12px;font-weight:800;color:var(--slate-700);flex:1;">📍 ' + escapeHtml(g.label) + '</span>'
+        + '<span style="background:var(--fs-blue);color:white;border-radius:9px;padding:1px 9px;font-size:10px;font-weight:800;">' + g.rows.length + '</span>'
+        + '</div>';
+      return head + g.rows.map(rowHtml).join('');
+    }).join('');
+  };
+
+  if (isPending) {
+    // หน้ารอทำ: แยก 2 กลุ่มงานที่ต้องทำ — ❌ ราคาไม่ตรง / 🏷️ ไม่มีป้าย · แต่ละกลุ่มยังเรียงตาม Gondola (Ball 2026-07-08)
+    // (ป้ายตรง = ไม่ต้องทำ ไม่อยู่ในรอทำอยู่แล้ว — ดูได้ในแท็บ "ทั้งหมด")
+    const wrongList = mm.filter(r => !r.no_tag);   // mm = pending (ไม่ตรง+ไม่ติด) → ที่ไม่ใช่ no_tag = ราคาไม่ตรง
+    const noTagList = mm.filter(r => r.no_tag);
+    const section = (rows, icon, th, lo, col) => rows.length ? (
+      '<div style="display:flex;align-items:center;gap:8px;margin:14px 0 4px;padding:8px 12px;background:' + col + ';border-radius:10px;">'
+      + '<span style="font-size:13px;font-weight:800;color:white;flex:1;">' + icon + ' ' + (isLao ? lo : th) + '</span>'
+      + '<span style="background:rgba(255,255,255,.25);color:white;border-radius:9px;padding:1px 10px;font-size:11px;font-weight:800;">' + rows.length + '</span>'
+      + '</div>' + renderByGondola(rows)
+    ) : '';
+    listEl.innerHTML =
+      section(wrongList, '❌', 'ราคาไม่ตรง — รอแก้ราคา', 'ລາຄາບໍ່ຕົງ — ລໍແກ້ລາຄາ', 'var(--fs-red)')
+      + section(noTagList, '🏷️', 'ไม่มีป้ายราคา — รอพิมพ์ป้าย', 'ບໍ່ມີປ້າຍລາຄາ — ລໍພິມປ້າຍ', '#d97706');
+  } else {
+    listEl.innerHTML = renderByGondola(mm);
+  }
+}
+
+// ==================== 📈 สรุปแนวโน้มป้ายราคา (ราย週/เดือน) — ดูว่าไม่มีป้าย/ราคาผิด ลดลงไหม ====================
+let _prcTrendRaw = null;     // แถวดิบ 6 เดือน {created_at,is_match,no_tag}
+let _prcTrendMode = 'month'; // 'month' | 'week'
+// จันทร์ต้นสัปดาห์ของวัน (YYYY-MM-DD local) → คืน YYYY-MM-DD ของวันจันทร์
+function prcWeekStartKey(dayKey) {
+  const d = new Date(dayKey + 'T00:00:00');
+  const dow = (d.getDay() + 6) % 7; // 0=จันทร์
+  d.setDate(d.getDate() - dow);
+  return localDayKey(d);
+}
+function prcWeekRangeLabel(mondayKey) {
+  const mon = new Date(mondayKey + 'T00:00:00');
+  const sun = new Date(mon); sun.setDate(sun.getDate() + 6);
+  const f = d => d.getDate() + '/' + (d.getMonth() + 1);
+  return f(mon) + '–' + f(sun);
+}
+// จัดกลุ่มตามงวด → {key,label,total,ok,notag,wrong} เรียงใหม่ล่าสุดก่อน
+function prcAggPeriods(rows, mode) {
+  const map = {};
+  rows.forEach(r => {
+    const day = localDayKey(r.created_at);
+    let key, label;
+    if (mode === 'month') { key = day.slice(0, 7); label = key; }
+    else { key = prcWeekStartKey(day); label = prcWeekRangeLabel(key); }
+    const b = map[key] || (map[key] = { key, label, total: 0, ok: 0, notag: 0, wrong: 0 });
+    b.total++;
+    if (r.is_match) b.ok++;
+    else if (r.no_tag) b.notag++;
+    else b.wrong++;
   });
-  const groupKeys = Object.keys(byGroup).sort(prcGroupCmp);
-  listEl.innerHTML = groupKeys.map(k => {
-    const g = byGroup[k];
-    const head = '<div style="display:flex;align-items:center;gap:7px;background:var(--slate-100);border-radius:9px;padding:7px 11px;margin:9px 0 6px;">'
-      + '<span style="font-size:12px;font-weight:800;color:var(--slate-700);flex:1;">📍 ' + escapeHtml(g.label) + '</span>'
-      + '<span style="background:var(--fs-blue);color:white;border-radius:9px;padding:1px 9px;font-size:10px;font-weight:800;">' + g.rows.length + '</span>'
-      + '</div>';
-    return head + g.rows.map(rowHtml).join('');
-  }).join('');
+  return Object.values(map).sort((a, b) => b.key.localeCompare(a.key));
+}
+async function prcOpenTrend() {
+  const isLao = lang === 'lo';
+  showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+    + '<h3 style="font-size:15px;margin:0;">📈 ' + (isLao ? 'ສະຫຼຸບແນວໂນ້ມປ້າຍລາຄາ' : 'สรุปแนวโน้มป้ายราคา') + '</h3>'
+    + '<button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
+    + '<div id="prcTrendChips" style="display:flex;gap:6px;margin-bottom:10px;"></div>'
+    + '<div id="prcTrendBody" style="max-height:66vh;overflow-y:auto;"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>');
+  try {
+    const since = localDayKey(new Date(Date.now() - 183 * 86400000)); // ~6 เดือน
+    _prcTrendRaw = await fetchAllQuery(() => sb.from('price_checks').select('created_at,is_match,no_tag')
+      .eq('branch_id', branch.id).gte('created_at', since).order('created_at', { ascending: false }).order('id'));
+  } catch (e) {
+    const b = document.getElementById('prcTrendBody');
+    if (b) b.innerHTML = '<div style="text-align:center;padding:20px;color:var(--rose-500);font-size:11px;">❌ ' + escapeHtml(friendlyError(e)) + '</div>';
+    return;
+  }
+  prcRenderTrend();
+}
+function prcTrendSetMode(m) { _prcTrendMode = m; prcRenderTrend(); }
+function prcRenderTrend() {
+  const isLao = lang === 'lo';
+  const chipsEl = document.getElementById('prcTrendChips');
+  const bodyEl = document.getElementById('prcTrendBody');
+  if (!bodyEl) return;
+  if (chipsEl) {
+    const chip = (m, th, lo) => '<button onclick="prcTrendSetMode(\'' + m + '\')" style="flex:1;background:' + (_prcTrendMode === m ? 'var(--violet-500)' : 'var(--slate-100)') + ';color:' + (_prcTrendMode === m ? 'white' : 'var(--slate-600)') + ';border:none;border-radius:8px;padding:7px;font-size:12px;font-weight:800;cursor:pointer;">' + (isLao ? lo : th) + '</button>';
+    chipsEl.innerHTML = chip('month', '📅 รายเดือน', '📅 ລາຍເດືອນ') + chip('week', '🗓️ รายอาทิตย์', '🗓️ ລາຍອາທິດ');
+  }
+  const rows = _prcTrendRaw || [];
+  if (!rows.length) { bodyEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--slate-400);font-size:12px;">' + (isLao ? 'ຍັງບໍ່ມີຂໍ້ມູນ' : 'ยังไม่มีข้อมูล') + '</div>'; return; }
+  const limit = _prcTrendMode === 'month' ? 6 : 8;
+  const periods = prcAggPeriods(rows, _prcTrendMode).slice(0, limit); // ล่าสุดก่อน
+  const prob = p => p.total ? Math.round(100 * (p.notag + p.wrong) / p.total) : 0;
+  // ตัวชี้แนวโน้ม: งวดล่าสุด vs งวดก่อน (ปัญหา = ไม่มีป้าย+ผิด)
+  let trendHtml = '';
+  if (periods.length >= 2) {
+    const cur = prob(periods[0]), prev = prob(periods[1]), d = cur - prev;
+    const col = d < 0 ? '#248a3d' : d > 0 ? '#e11d48' : 'var(--slate-500)';
+    const bg = d < 0 ? '#e8f8ee' : d > 0 ? '#fff1f2' : 'var(--slate-100)';
+    const arrow = d < 0 ? '▼' : d > 0 ? '▲' : '—';
+    const msg = d < 0 ? (isLao ? 'ບັນຫາຫຼຸດລົງ ✓' : 'ปัญหาลดลง ✓') : d > 0 ? (isLao ? 'ບັນຫາເພີ່ມຂຶ້ນ' : 'ปัญหาเพิ่มขึ้น') : (isLao ? 'ຄົງທີ່' : 'คงที่');
+    trendHtml = '<div style="background:' + bg + ';border-radius:11px;padding:11px 13px;margin-bottom:12px;">'
+      + '<div style="font-size:11px;color:var(--slate-500);font-weight:700;">' + (isLao ? 'ປ້າຍມີບັນຫາ (ບໍ່ມີປ້າຍ+ຜິດ) ທຽບງວດກ່ອນ' : 'ป้ายมีปัญหา (ไม่มีป้าย+ผิด) เทียบงวดก่อน') + '</div>'
+      + '<div style="display:flex;align-items:baseline;gap:9px;margin-top:4px;flex-wrap:wrap;">'
+      + '<span style="font-size:24px;font-weight:800;color:' + col + ';">' + cur + '%</span>'
+      + '<span style="font-size:12.5px;font-weight:800;color:' + col + ';">' + arrow + ' ' + Math.abs(d) + '% ' + msg + '</span>'
+      + '<span style="font-size:10px;color:var(--slate-400);margin-left:auto;">' + (isLao ? 'ງວດກ່ອນ' : 'งวดก่อน') + ' ' + prev + '%</span>'
+      + '</div></div>';
+  }
+  const r = n => Math.round(n);
+  const pctBar = (p) => {
+    const okP = p.total ? 100 * p.ok / p.total : 0;
+    const ntP = p.total ? 100 * p.notag / p.total : 0;
+    const wrP = p.total ? 100 * p.wrong / p.total : 0;
+    return '<div style="margin-bottom:11px;">'
+      + '<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;">'
+      + '<span style="font-size:12.5px;font-weight:800;color:var(--slate-800);flex:1;">' + escapeHtml(p.label) + '</span>'
+      + '<span style="font-size:10px;color:var(--slate-400);font-weight:700;">' + (isLao ? 'ທັງໝົດ' : 'ทั้งหมด') + ' ' + p.total + '</span>'
+      + '</div>'
+      + '<div style="display:flex;height:16px;border-radius:5px;overflow:hidden;background:var(--slate-100);">'
+      + (okP ? '<div style="width:' + okP + '%;background:#22c55e;"></div>' : '')
+      + (ntP ? '<div style="width:' + ntP + '%;background:#f59e0b;"></div>' : '')
+      + (wrP ? '<div style="width:' + wrP + '%;background:#ef4444;"></div>' : '')
+      + '</div>'
+      + '<div style="display:flex;gap:11px;margin-top:4px;font-size:10px;font-weight:700;flex-wrap:wrap;">'
+      + '<span style="color:#16a34a;">✓ ' + (isLao ? 'ຕົງ' : 'ตรง') + ' ' + p.ok + ' (' + r(okP) + '%)</span>'
+      + '<span style="color:#d97706;">🏷️ ' + (isLao ? 'ບໍ່ມີປ້າຍ' : 'ไม่มีป้าย') + ' ' + p.notag + ' (' + r(ntP) + '%)</span>'
+      + '<span style="color:#dc2626;">❌ ' + (isLao ? 'ຜິດ' : 'ผิด') + ' ' + p.wrong + ' (' + r(wrP) + '%)</span>'
+      + '</div></div>';
+  };
+  bodyEl.innerHTML = trendHtml + periods.map(pctBar).join('')
+    + '<div style="font-size:9.5px;color:var(--slate-400);margin-top:6px;text-align:center;">' + (isLao ? 'ອ້າງອີງ 6 ເດືອນຫຼ້າສຸດ · ໜ້ານີ້ອ່ານຢ່າງດຽວ' : 'อ้างอิง 6 เดือนล่าสุด · หน้านี้อ่านอย่างเดียว') + '</div>';
 }
 
 // update price_checks ทน column ใหม่ (fixed_by/fixed_by_name/fixed_at) — ตัดออกอัตโนมัติถ้ายังไม่รัน SQL
