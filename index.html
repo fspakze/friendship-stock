@@ -8906,15 +8906,15 @@ async function prcLookup() {
   const bpRec = await bpLookup(raw);
   const bpLevel = bpMatchLevel(bpRec, raw);
   const bc = (bpRec && bpLevel !== 'unit' && bpRec.barcode_unit) ? String(bpRec.barcode_unit) : raw;
-  let p = null;
+  // ⭐ ราคา Unit ใช้จาก Master (ราคาขาย 1 = ราคาปัจจุบันที่ใช้) — branch ไว้ดูชื่อ/มีอยู่ไหม (Ball 2026-07-08)
+  let p = null, masterPrice = null;
   try {
-    const { data } = await sb.from('products').select('barcode,name_th,name_lo,sell_price')
-      .eq('barcode', bc).eq('branch_id', branch.id).eq('is_active', true).maybeSingle();
-    p = data;
-    if (!p) {
-      const { data: mp } = await sb.from('master_products').select('barcode,name_th,name_lo,sell_price').eq('barcode', bc).maybeSingle();
-      p = mp;
-    }
+    const [{ data: brData }, { data: mp }] = await Promise.all([
+      sb.from('products').select('barcode,name_th,name_lo,sell_price').eq('barcode', bc).eq('branch_id', branch.id).eq('is_active', true).maybeSingle(),
+      sb.from('master_products').select('barcode,name_th,name_lo,sell_price').eq('barcode', bc).maybeSingle()
+    ]);
+    p = brData || mp;
+    if (mp && Number(mp.sell_price) > 0) masterPrice = Number(mp.sell_price);
   } catch (e) {}
   if (!p) {
     _prcProduct = null;
@@ -8929,7 +8929,7 @@ async function prcLookup() {
     pog = pg || null;
   } catch (e) {}
   const name = isLao ? (p.name_lo || p.name_th || bc) : (p.name_th || p.name_lo || bc);
-  const price = Number(p.sell_price) || 0;
+  const price = masterPrice != null ? masterPrice : (Number(p.sell_price) || 0);
   _prcProduct = { barcode: bc, name: name, nameTh: p.name_th || '', price: price, locationCode: (pog && pog.location_code) || null };
   const lvlLabel = bpLevel === 'box' ? (isLao ? 'ລັງ' : 'ลัง') : bpLevel === 'pack' ? (isLao ? 'ແພັກ' : 'แพ๊ค') : bpLevel === 'other' ? (isLao ? 'ອື່ນໆ' : 'อื่นๆ') : '';
   const packHtml = lvlLabel ? `<div style="margin-top:7px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:7px 10px;font-size:11px;color:#4338ca;font-weight:700;">📦 ${isLao ? 'ສະແກນ' : 'สแกน'}${lvlLabel} → ${isLao ? 'ອ້າງອີງ Unit' : 'อ้างอิงหน่วย'}: ${escapeHtml(bc)}</div>` : '';
@@ -10401,7 +10401,8 @@ async function hcLookup() {
     const { data: mp } = await sb.from('master_products').select('name_th,name_lo,category,product_group,sell_price').eq('barcode', bc).maybeSingle();
     if (mp) {
       grp = mp.product_group || '';
-      if (!name) { name = isLao ? (mp.name_lo || mp.name_th || '') : (mp.name_th || mp.name_lo || ''); cat = cat || mp.category || ''; sell = sell || Number(mp.sell_price) || 0; }
+      if (Number(mp.sell_price) > 0) sell = Number(mp.sell_price);   // ⭐ ราคา Unit จาก Master (ราคาปัจจุบัน) (Ball 2026-07-08)
+      if (!name) { name = isLao ? (mp.name_lo || mp.name_th || '') : (mp.name_th || mp.name_lo || ''); cat = cat || mp.category || ''; }
     }
     // ต้นทุนล่าสุดจาก purchase_history (ถ้ามี — ทันกว่า products.cost_price)
     try { const { data: ph } = await sb.from('purchase_history').select('unit_price').eq('barcode', bc).order('buy_date', { ascending: false }).limit(1).maybeSingle(); if (ph && ph.unit_price) cost = Number(ph.unit_price) || cost; } catch (e) {}
@@ -11084,7 +11085,7 @@ function hcBuildCatalogRow(pr, maps, isLao) {
   if (!category) category = (p && p.category) || (mp && mp.category) || null;
   if (!group) group = (mp && mp.product_group) || null;
   if (!unit) unit = p ? (isLao ? p.unit_lo : p.unit_th) : null;
-  if (normal == null) normal = (p && Number(p.sell_price)) || (mp && Number(mp.sell_price)) || (bp && Number(bp.price_unit)) || 0;
+  if (normal == null) normal = (mp && Number(mp.sell_price)) || (p && Number(p.sell_price)) || (bp && Number(bp.price_unit)) || 0;   // ⭐ ราคา Unit จาก Master ก่อน (Ball 2026-07-08)
   if (cost == null) cost = (pr.barcode && maps.costMap[pr.barcode]) || (p && Number(p.cost_price)) || 0;
   let packQty = pr.pack_qty, packNormal = pr.pack_normal, packPromo = pr.pack_promo;
   let boxQty = pr.box_qty, boxNormal = pr.box_normal, boxPromo = pr.box_promo;
@@ -14159,12 +14160,15 @@ async function scLookup() {
   
   _scCurrentProduct = prod;
   
-  // Parallel: get location from PoG + last stock count
-  const [pogRes, countRes, statusRes] = await Promise.all([
+  // Parallel: get location from PoG + last stock count + ราคาขาย 1 (Master)
+  const [pogRes, countRes, statusRes, mpRes] = await Promise.all([
     sb.from('pan_o_grams').select('location_code').eq('product_id', prod.id).eq('branch_id', branch.id).limit(1).maybeSingle(),
     sb.from('stock_counts').select('counted_qty, created_at, users!user_id(full_name)').eq('product_id', prod.id).eq('branch_id', branch.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-    sb.from('product_status').select('*').eq('barcode', searchBc).maybeSingle()
+    sb.from('product_status').select('*').eq('barcode', searchBc).maybeSingle(),
+    sb.from('master_products').select('sell_price').eq('barcode', searchBc).maybeSingle()
   ]);
+  // ⭐ Ball 2026-07-08: ราคาขายในการ์ดใช้ "ราคาขาย 1" จาก Master (ราคากลาง) ถ้ามี — ราคาสาขาจาก POS มักเพี้ยน
+  if (mpRes?.data && Number(mpRes.data.sell_price) > 0) prod._masterSellPrice = Number(mpRes.data.sell_price);
 
   renderStockCheckResult(prod, pogRes?.data, countRes?.data, statusRes?.data);
 }
@@ -14178,7 +14182,8 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
   window._scLastBarcode = prod.barcode || ''; window._scLastName = name;
   const unit = isLao ? (prod.unit_lo || 'pcs') : (prod.unit_th || 'ชิ้น');
   const posQty = prod.pos_qty || 0;
-  const sellPrice = prod.sell_price || 0;
+  // ⭐ ราคาขาย 1 (Master/ราคากลาง) ถ้ามี — ไม่งั้น fallback ราคาสาขา (Ball 2026-07-08)
+  const sellPrice = (prod._masterSellPrice != null ? prod._masterSellPrice : prod.sell_price) || 0;
   // สถานะสต๊อกสาขานี้ (ใช้ระบบเดิม psCalcStatus ตาม DOH/ยอดขาย) → ลงสีตัวเลข POS
   const _bAvg = (ps && ps.branch_avg) ? ps.branch_avg[psBranchKey(ps.branch_avg)] : null;
   const stPos = ps ? psCalcStatus(posQty, _bAvg || 0) : null;
@@ -16689,7 +16694,7 @@ function renderProduct(p) {
   const metaSection = isAdmin ? `
     <div class="product-meta">
       <div class="meta-item"><div class="meta-label">${T('pos_qty')}</div><div class="meta-value mono">${p.pos_qty || 0} ${unit}</div></div>
-      <div class="meta-item"><div class="meta-label">${T('sell_price')}</div><div class="meta-value mono">₭ ${price}</div></div>
+      <div class="meta-item"><div class="meta-label">${T('sell_price')}</div><div class="meta-value mono" id="rpSellPrice">₭ ${price}</div></div>
     </div>` : `
     <div class="product-meta" style="grid-template-columns: 1fr;">
       <div class="meta-item" style="background: var(--teal-50);">
@@ -16742,7 +16747,17 @@ function renderProduct(p) {
     const inp = document.getElementById('countInput');
     if (inp) { inp.focus(); inp.select(); }
   }, 100);
-  
+
+  // ⭐ ราคา Unit ในการ์ดใช้ Master (ราคาปัจจุบัน) — อัปเดตช่องหลังโหลด (เฉพาะ admin ที่เห็นราคา ไม่หน่วงสแกน) (Ball 2026-07-08)
+  if (isAdmin && p.barcode) {
+    (async () => {
+      try {
+        const { data: mp } = await sb.from('master_products').select('sell_price').eq('barcode', p.barcode).maybeSingle();
+        if (mp && Number(mp.sell_price) > 0) { const el = document.getElementById('rpSellPrice'); if (el) el.textContent = '₭ ' + Number(mp.sell_price).toLocaleString(); }
+      } catch (e) {}
+    })();
+  }
+
   // Async: โหลดข้อมูล Pan-O-Gram ของสินค้านี้ที่ location ปัจจุบัน
   if (canEditPog && loc?.location_code) {
     loadPanOGramForProduct(p, loc.location_code);
