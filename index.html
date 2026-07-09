@@ -9119,6 +9119,8 @@ async function prcSaveNoTag() {
   loadPriceChecks();
 }
 
+// รายการที่ถือว่า "ไม่มีป้าย": no_tag=true หรือ ไม่มี shelf_price (record เก่าก่อนมีคอลัมน์ no_tag → shelf=null) — ใช้กับ record ที่ !is_match แล้ว (matched เช็คก่อนหน้า) (Ball 2026-07-08)
+function prcNoTag(r) { return !!r.no_tag || r.shelf_price == null; }
 // จัดกลุ่ม location_code เป็น Gondola (reuse pogParseLoc เดิมของ Pan-O-Gram — ตัวเดียวกันทั้งแอป)
 function prcGondolaGroup(locationCode) {
   const isLao = lang === 'lo';
@@ -9213,8 +9215,8 @@ async function prcRenderList() {
   if (!listEl) return;
   const today = localDayKey(new Date());
   const todayRows = _prcRows.filter(r => localDayKey(r.created_at) === today);
-  const noTagRows = _prcRows.filter(r => r.no_tag && !r.fixed);              // ไม่มีป้าย → รอพิมพ์
-  const wrongRows = _prcRows.filter(r => !r.is_match && !r.no_tag && !r.fixed); // ราคาผิด → รอแก้
+  const noTagRows = _prcRows.filter(r => !r.fixed && !r.is_match && prcNoTag(r));   // ไม่มีป้าย/shelf ว่าง → รอพิมพ์
+  const wrongRows = _prcRows.filter(r => !r.fixed && !r.is_match && !prcNoTag(r));  // มี shelf ราคาผิด → รอแก้
   if (typeof updatePriceBadge === 'function') updatePriceBadge();
   const okPct = todayRows.length ? Math.round(100 * todayRows.filter(r => r.is_match).length / todayRows.length) : null;
   const sEl = document.getElementById('prcSummary');
@@ -9293,7 +9295,7 @@ async function prcRenderList() {
   const fmt = new Intl.NumberFormat('th-TH');
   const rowHtml = (r) => {
     const dispName = (isLao && nameLoMap[r.barcode]) ? nameLoMap[r.barcode] : (r.product_name || r.barcode || '?');
-    const isNoTag = !!r.no_tag;
+    const isNoTag = prcNoTag(r);
     const edge = r.fixed ? 'var(--fs-green)' : r.is_match ? 'var(--slate-300)' : isNoTag ? '#f59e0b' : 'var(--fs-red)';
     const diff = (Number(r.shelf_price) || 0) - (Number(r.system_price) || 0);
     const detail = r.is_match
@@ -9352,8 +9354,8 @@ async function prcRenderList() {
   if (isPending) {
     // หน้ารอทำ: แยก 2 กลุ่มงานที่ต้องทำ — ❌ ราคาไม่ตรง / 🏷️ ไม่มีป้าย · แต่ละกลุ่มยังเรียงตาม Gondola (Ball 2026-07-08)
     // (ป้ายตรง = ไม่ต้องทำ ไม่อยู่ในรอทำอยู่แล้ว — ดูได้ในแท็บ "ทั้งหมด")
-    const wrongList = mm.filter(r => !r.no_tag);   // mm = pending (ไม่ตรง+ไม่ติด) → ที่ไม่ใช่ no_tag = ราคาไม่ตรง
-    const noTagList = mm.filter(r => r.no_tag);
+    const wrongList = mm.filter(r => !prcNoTag(r));   // mm = pending → มี shelf = ราคาไม่ตรง
+    const noTagList = mm.filter(r => prcNoTag(r));     // ไม่มี shelf/no_tag = ไม่มีป้าย
     const section = (rows, icon, th, lo, col) => rows.length ? (
       '<div style="display:flex;align-items:center;gap:8px;margin:14px 0 4px;padding:8px 12px;background:' + col + ';border-radius:10px;">'
       + '<span style="font-size:13px;font-weight:800;color:white;flex:1;">' + icon + ' ' + (isLao ? lo : th) + '</span>'
@@ -9590,7 +9592,7 @@ async function prcResyncMaster() {
     for (const r of rows) {
       const mp = mpMap[r.barcode];
       if (mp == null) continue;
-      const newMatch = r.no_tag ? r.is_match : (r.shelf_price != null && Number(r.shelf_price) === mp);
+      const newMatch = prcNoTag(r) ? r.is_match : (Number(r.shelf_price) === mp);   // shelf ว่าง = ไม่มีป้าย → ไม่คิดเป็น mismatch
       if (Number(r.system_price) === mp && r.is_match === newMatch) continue; // ไม่มีอะไรเปลี่ยน
       const { error } = await sb.from('price_checks').update({ system_price: mp, is_match: newMatch }).eq('id', r.id);
       if (!error) changed++;
@@ -9628,7 +9630,7 @@ function prcExport() {
       'ชื่อสินค้า': r.product_name || '',
       'ราคาระบบ (₭)': Number(r.system_price) || 0,
       'ราคาป้าย (₭)': r.shelf_price != null ? Number(r.shelf_price) : '',
-      'ผล': r.is_match ? 'ตรง' : (r.no_tag ? 'ไม่มีป้าย' : 'ไม่ตรง'),
+      'ผล': r.is_match ? 'ตรง' : (prcNoTag(r) ? 'ไม่มีป้าย' : 'ไม่ตรง'),
       'ประเภทป้าย': r.tag_type === 'price' ? 'ป้ายราคา' : r.tag_type === 'promo' ? 'ป้ายโปรโมชั่น' : '',
       'ที่อยู่/หมายเหตุ': r.note || '',
       'แก้ป้ายแล้ว': r.fixed ? '✓' : '',
