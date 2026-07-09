@@ -8886,6 +8886,7 @@ function renderPriceCheckPage() {
       </select>
       <button onclick="prcOpenTrend()" style="background:var(--violet-500);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;">📈 ${isLao ? 'ສະຫຼຸບ' : 'สรุป'}</button>
       <button onclick="prcExport()" style="background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;">📊 Excel</button>
+      ${prcCanManage() ? `<button onclick="prcResyncMaster()" title="${isLao ? 'ອັບເດດລາຄາຈາກ Master' : 'อัปเดตราคาจาก Master'}" style="background:var(--fs-blue);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;">🔄 ${isLao ? 'ອັບເດດລາຄາ' : 'อัปเดตราคา'}</button>` : ''}
     </div>
     <div id="prcStatusBar" style="display:flex;gap:5px;margin-bottom:8px;"></div>
     <div id="prcSelBar" style="margin-bottom:8px;"></div>
@@ -9285,6 +9286,12 @@ async function prcRenderList() {
       if (r.fixed) action = `<button onclick="prcUnfix(${r.id})" style="background:var(--slate-100);color:var(--slate-600);border:1px solid var(--slate-300);border-radius:7px;padding:8px 10px;font-size:11px;font-weight:800;cursor:pointer;flex-shrink:0;">↩ ${isLao ? 'ຍັງບໍ່ຕິດ' : 'ยังไม่ติด'}</button>`;
       else if (!r.is_match) action = `<button onclick="prcMarkFixed(${r.id})" style="background:var(--fs-green);color:white;border:none;border-radius:7px;padding:8px 11px;font-size:11px;font-weight:800;cursor:pointer;flex-shrink:0;">✓ ${isNoTag ? (isLao ? 'ຕິດແລ້ວ' : 'ติดแล้ว') : (isLao ? 'ແກ້ແລ້ວ' : 'แก้แล้ว')}</button>`;
     }
+    // admin ลบ/แก้ไขรายการ (Ball 2026-07-08)
+    let adminBtns = '';
+    if (prcCanManage()) {
+      adminBtns = `<button onclick="prcEditOpen(${r.id})" title="${isLao ? 'ແກ້ໄຂ' : 'แก้ไข'}" style="background:var(--slate-100);color:var(--slate-600);border:1px solid var(--slate-300);border-radius:7px;padding:8px 9px;font-size:12px;cursor:pointer;flex-shrink:0;">✏️</button>`
+        + `<button onclick="prcDelete(${r.id})" title="${isLao ? 'ລຶບ' : 'ลบ'}" style="background:#fff1f2;color:#e11d48;border:1px solid #fecdd3;border-radius:7px;padding:8px 9px;font-size:12px;cursor:pointer;flex-shrink:0;">🗑️</button>`;
+    }
     return `<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ${edge};border-radius:9px;padding:9px 11px;margin-bottom:5px;display:flex;align-items:center;gap:9px;${r.fixed ? 'opacity:.75;' : ''}">
       ${checkbox}
       <div style="flex:1;min-width:0;">
@@ -9294,7 +9301,7 @@ async function prcRenderList() {
         ${noteHtml}
         ${fixedByHtml}
       </div>
-      ${action}
+      ${action}${adminBtns}
     </div>`;
   };
 
@@ -9486,6 +9493,85 @@ async function prcUnfix(id) {
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   showToast('↩ ' + (isLao ? 'ກັບເປັນລໍທຳ' : 'กลับเป็นรอทำ'), 'success');
   loadPriceChecks();
+}
+
+// ==================== admin: ลบ / แก้ไข / อัปเดตราคา รายการตรวจราคาป้าย (Ball 2026-07-08) ====================
+async function prcDelete(id) {
+  const isLao = lang === 'lo';
+  if (!prcCanManage()) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
+  if (!confirm(isLao ? 'ລຶບລາຍການນີ້?' : 'ลบรายการนี้?')) return;
+  const { error } = await sb.from('price_checks').delete().eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  if (typeof logActivity === 'function') logActivity('price_check_del', String(id));
+  _prcSel.delete(id);
+  showToast('✓ ' + (isLao ? 'ລຶບແລ້ວ' : 'ลบแล้ว'), 'success');
+  loadPriceChecks();
+}
+function prcEditOpen(id) {
+  const isLao = lang === 'lo';
+  if (!prcCanManage()) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
+  const r = (_prcRows || []).find(x => x.id === id);
+  if (!r) { showToast(isLao ? 'ບໍ່ພົບ' : 'ไม่พบรายการ', 'error'); return; }
+  const fmt = new Intl.NumberFormat('th-TH');
+  showModal(`
+    <h3 style="font-size:15px;">✏️ ${isLao ? 'ແກ້ໄຂ' : 'แก้ไข'} — ${escapeHtml(r.product_name || r.barcode || '')}</h3>
+    <div style="font-size:11px;color:var(--slate-500);margin-bottom:9px;">${isLao ? 'ລະບົບ (Master)' : 'ระบบ (Master)'}: <b>${fmt.format(Number(r.system_price) || 0)} ₭</b></div>
+    ${!r.no_tag ? `<div class="form-group"><label class="form-label">${isLao ? 'ລາຄາເທິງປ້າຍ (₭)' : 'ราคาบนป้าย (₭)'}</label><input class="form-input" id="prcEShelf" type="number" inputmode="numeric"></div>` : ''}
+    <div class="form-group"><label class="form-label">${isLao ? 'ໝາຍເຫດ (ທີ່ຢູ່ສິນຄ້າ)' : 'หมายเหตุ (ที่อยู่สินค้า)'}</label><input class="form-input" id="prcENote" type="text"></div>
+    <div class="action-row" style="margin-top:12px;">
+      <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
+      <button class="btn btn-primary" onclick="prcEditSave('${id}')">${T('save')}</button>
+    </div>`);
+  const eShelf = document.getElementById('prcEShelf'); if (eShelf) eShelf.value = (r.shelf_price != null ? r.shelf_price : '');
+  const eNote = document.getElementById('prcENote'); if (eNote) eNote.value = r.note || '';
+}
+async function prcEditSave(id) {
+  const isLao = lang === 'lo';
+  if (!prcCanManage()) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
+  id = Number(id);
+  const r = (_prcRows || []).find(x => x.id === id);
+  if (!r) { showToast(isLao ? 'ບໍ່ພົບ' : 'ไม่พบรายการ', 'error'); return; }
+  const payload = { note: ((document.getElementById('prcENote') || {}).value || '').trim() || null };
+  if (!r.no_tag) {
+    const sv = (document.getElementById('prcEShelf') || {}).value;
+    const shelf = (sv === '' || sv == null) ? null : Number(sv);
+    payload.shelf_price = shelf;
+    payload.is_match = (shelf != null && Number(shelf) === Number(r.system_price));  // เทียบกับราคาระบบ (Master)
+  }
+  const { error } = await sb.from('price_checks').update(payload).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  if (typeof logActivity === 'function') logActivity('price_check_edit', String(id));
+  showToast('✓ ' + (isLao ? 'ບັນທຶກແລ້ວ' : 'บันทึกแล้ว'), 'success');
+  closeModal();
+  loadPriceChecks();
+}
+// อัปเดตราคาระบบ (system_price) ของรายการเก่าให้ตรงกับ Master + คำนวณ ตรง/ไม่ตรง ใหม่ (แก้ข้อมูลราคาสาขาที่เพี้ยน)
+async function prcResyncMaster() {
+  const isLao = lang === 'lo';
+  if (!prcCanManage()) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
+  if (!branch || !branch.id) return;
+  if (!confirm(isLao ? 'ອັບເດດລາຄາລະບົບຈາກ Master ໃຫ້ທຸກລາຍການສາຂານີ້?' : 'อัปเดตราคาระบบจาก Master ให้ทุกรายการของสาขานี้?')) return;
+  try {
+    const rows = await fetchAllQuery(() => sb.from('price_checks').select('id,barcode,shelf_price,system_price,no_tag,is_match').eq('branch_id', branch.id).order('id'));
+    const bcs = [...new Set(rows.map(r => r.barcode).filter(Boolean))];
+    const mpMap = {};
+    for (let i = 0; i < bcs.length; i += 300) {
+      const { data } = await sb.from('master_products').select('barcode,sell_price').in('barcode', bcs.slice(i, i + 300));
+      (data || []).forEach(m => { if (Number(m.sell_price) > 0) mpMap[m.barcode] = Number(m.sell_price); });
+    }
+    let changed = 0;
+    for (const r of rows) {
+      const mp = mpMap[r.barcode];
+      if (mp == null) continue;
+      const newMatch = r.no_tag ? r.is_match : (r.shelf_price != null && Number(r.shelf_price) === mp);
+      if (Number(r.system_price) === mp && r.is_match === newMatch) continue; // ไม่มีอะไรเปลี่ยน
+      const { error } = await sb.from('price_checks').update({ system_price: mp, is_match: newMatch }).eq('id', r.id);
+      if (!error) changed++;
+    }
+    if (typeof logActivity === 'function') logActivity('price_check_resync', changed + ' rows');
+    showToast('✓ ' + (isLao ? 'ອັບເດດ ' : 'อัปเดต ') + changed + (isLao ? ' ລາຍການ' : ' รายการ'), 'success');
+    loadPriceChecks();
+  } catch (e) { showToast('Error: ' + ((e && e.message) || e), 'error'); }
 }
 
 // กด "ติดแล้ว/แก้แล้ว" ทีเดียวทั้งหมดที่เลือกไว้ (เช่น เลือกทั้งวันที่พิมพ์ป้ายไปติดเสร็จแล้ว)
