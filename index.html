@@ -35302,6 +35302,10 @@ window.phLoadCount = phLoadCount;
 // สมัครใหม่ → membership_signups → export .xlsx ไปสมัครจริงใน sabuysoft (reconcile ด้วยเบอร์ตอน upload)
 const MB_UPLOAD_ROLES = ['admin', 'scc', 'bcs', 'it'];
 const MB_DEFAULT_BIZ = ['โรงแรม', 'ร้านอาหาร', 'ร้านกาแฟ', 'ภาครัฐ', 'เอกชน', 'อื่นๆ'];
+// แปลประเภทธุรกิจ (ค่าที่เก็บ = ไทย/ที่ผู้ใช้พิมพ์) → label ลาว สำหรับโชว์เมื่อ lang='lo' (ค่าที่เก็บไม่เปลี่ยน)
+const MB_BIZ_LO = { 'โรงแรม': 'ໂຮງແຮມ', 'ร้านอาหาร': 'ຮ້ານອາຫານ', 'ร้านกาแฟ': 'ຮ້ານກາເຟ', 'ภาครัฐ': 'ພາກລັດ', 'เอกชน': 'ເອກະຊົນ', 'อื่นๆ': 'ອື່ນໆ', 'อื่น ๆ': 'ອື່ນໆ' };
+function mbBizIsOther(v) { const s = String(v || '').replace(/\s/g, ''); return s === 'อื่นๆ' || s === 'ອື່ນໆ' || s.toLowerCase() === 'other'; }
+function mbBizLabel(v) { return (lang === 'lo' && MB_BIZ_LO[v]) ? MB_BIZ_LO[v] : v; }
 const MB_TYPE_META = {
   AFLP:    { bg: '#ede9fe', fg: '#6d28d9' },
   WSP:     { bg: '#dbeafe', fg: '#1d4ed8' },
@@ -35363,9 +35367,11 @@ async function mbSaveBizTypes() {
 }
 function mbBizOptions(sel) {
   const isLao = lang === 'lo';
-  const list = _mbBizTypes || MB_DEFAULT_BIZ;
+  const list = (_mbBizTypes || MB_DEFAULT_BIZ).slice();
+  // "อื่นๆ" อยู่ล่างสุดเสมอ (แม้ผู้ใช้เพิ่มประเภทใหม่ทีหลัง)
+  const ordered = list.filter(v => !mbBizIsOther(v)).concat(list.filter(mbBizIsOther));
   let o = '<option value="">' + (isLao ? '- ປະເພດທຸລະກິດ -' : '- ประเภทธุรกิจ -') + '</option>';
-  list.forEach(t => { o += '<option value="' + escapeHtml(t) + '"' + (t === sel ? ' selected' : '') + '>' + escapeHtml(t) + '</option>'; });
+  ordered.forEach(t => { o += '<option value="' + escapeHtml(t) + '"' + (t === sel ? ' selected' : '') + '>' + escapeHtml(mbBizLabel(t)) + '</option>'; });
   return o;
 }
 async function mbAddBizType() {
@@ -35559,7 +35565,7 @@ function mbRenderSignupsShell() {
 async function mbLoadSignups() {
   const box = document.getElementById('mbSignupList');
   try {
-    const rows = await fetchAllQuery(() => sb.from('membership_signups').order('id', { ascending: false }));
+    const rows = await fetchAllQuery(() => sb.from('membership_signups').select('*').order('id', { ascending: false }));
     _mbSignups = rows || [];
     mbRenderSignups();
   } catch (e) { if (box) box.innerHTML = '<div style="color:var(--rose-500);padding:14px;">Error: ' + escapeHtml(e.message) + '</div>'; }
@@ -35766,7 +35772,7 @@ async function mbExecuteUpload() {
 }
 // จับคู่คิวสมัคร (pending) กับสมาชิกที่เพิ่ง upload ด้วยเบอร์มือถือ/โทร → mark registered
 async function mbReconcileSignups() {
-  const pend = await fetchAllQuery(() => sb.from('membership_signups').eq('status', 'pending').order('id'));
+  const pend = await fetchAllQuery(() => sb.from('membership_signups').select('*').eq('status', 'pending').order('id'));
   if (!pend || !pend.length) return 0;
   let matched = 0;
   for (const s of pend) {
