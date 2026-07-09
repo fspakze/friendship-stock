@@ -26467,12 +26467,32 @@ async function executeMultiBranchImport() {
   _pendingImport = null;
 }
 
+// ⭐ ราคา Unit คุมจาก Master ที่เดียว (Ball 2026-07-08): แทน sell_price ในไฟล์ POS ด้วยราคา Master (ราคาขาย 1)
+//    ก่อน import — กัน products.sell_price เพี้ยนซ้ำ · สินค้าที่ Master ไม่มี = คงราคาในไฟล์ (fallback)
+async function applyMasterPriceToImport(products) {
+  try {
+    const bcs = [...new Set((products || []).map(p => p.barcode).filter(Boolean))];
+    if (!bcs.length) return;
+    const mpMap = {};
+    for (let i = 0; i < bcs.length; i += 300) {
+      const { data } = await sb.from('master_products').select('barcode,sell_price').in('barcode', bcs.slice(i, i + 300));
+      (data || []).forEach(m => { if (Number(m.sell_price) > 0) mpMap[m.barcode] = Number(m.sell_price); });
+    }
+    let n = 0;
+    (products || []).forEach(p => { const mp = mpMap[p.barcode]; if (mp != null) { p.sell_price = mp; n++; } });
+    log('Import: override ราคาจาก Master', n, '/', (products || []).length);
+  } catch (e) { console.warn('[FS] applyMasterPriceToImport failed:', e); }
+}
+
 async function executeImport() {
   if (!_pendingImport || !_pendingImport.length) {
     showToast(T('no_products_found'), 'error');
     return;
   }
-  
+
+  // ⭐ ราคาคุมจาก Master — แทนราคาในไฟล์ก่อน import (มีผลทั้ง single + multi-branch เพราะแก้ _pendingImport ตรงนี้)
+  await applyMasterPriceToImport(_pendingImport);
+
   // 🌐 เช็คว่าเป็น Multi-Branch Mode หรือไม่
   const multiBranchCb = document.getElementById('multiBranchMode');
   const isMultiBranch = multiBranchCb && multiBranchCb.checked;
