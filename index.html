@@ -7484,8 +7484,9 @@ async function mpHandleFileSelected(ev) {
     
     const header = rows[0].map(h => String(h || '').trim());
     
-    // ⭐ หา index คอลัมน์แบบยืดหยุ่น (ตัดช่องว่าง + ไม่สนพิมพ์เล็กใหญ่) — กันชื่อคอลัมน์ราคาไม่ตรงเป๊ะแล้วราคาไม่เข้า null (Ball 2026-07-08)
-    const _mpNorm = s => String(s || '').replace(/\s+/g, '').toLowerCase();
+    // ⭐ หา index คอลัมน์แบบยืดหยุ่น: normalize Unicode (NFC) + ตัดช่องว่าง + ไม่สนพิมพ์เล็กใหญ่
+    //    (แก้เคสอักษรลาวเข้ารหัสคนละแบบ ตาดูเหมือนกันแต่ === ไม่ตรง → ราคาไม่เข้า null) (Ball 2026-07-08)
+    const _mpNorm = s => { let x = String(s || ''); try { x = x.normalize('NFC'); } catch (e) {} return x.replace(/\s+/g, '').toLowerCase(); };
     const mpCol = (...targets) => { const set = targets.map(_mpNorm); return header.findIndex(h => set.includes(_mpNorm(h))); };
     // Required columns (by name match, ทนต่อการเปลี่ยนตำแหน่ง + ชื่อคอลัมน์หลายแบบ)
     const COL = {
@@ -7510,7 +7511,28 @@ async function mpHandleFileSelected(ev) {
       setStatus(`<div style="color:var(--rose-500);">${isLao?'ບໍ່ພົບຄໍລໍາ "Barcode ຫຼັກ"':'ไม่พบคอลัมน์ "Barcode ຫຼັກ"'}</div>`);
       return;
     }
-    
+
+    // ⭐ fallback: ถ้ายังหาคอลัมน์ราคาไม่เจอ (normalize NFC ก่อน test) — จับแบบกว้าง (มีคำ ขาย/sell/ราคา + 1) แล้วสุดท้าย = คอลัมน์ F (Ball ยืนยันไฟล์ Data_DDMMYYYY ราคาขาย 1 อยู่ column F) (Ball 2026-07-08)
+    if (COL.sell_price < 0) {
+      const hn = h => { try { return String(h).normalize('NFC'); } catch (e) { return String(h); } };
+      COL.sell_price = header.findIndex(h => /(ຂາຍ|ขาย|sell|ລາຄາ|ราคา|price)/i.test(hn(h)) && /1/.test(hn(h)));
+      if (COL.sell_price < 0) COL.sell_price = header.findIndex(h => /(ຂາຍ|ขาย|sell\s*price|ລາຄາຂາຍ|ราคาขาย)/i.test(hn(h)));
+      if (COL.sell_price < 0 && header.length > 5) COL.sell_price = 5; // column F = ราคาขาย 1 (ไฟล์มาตรฐาน)
+    }
+    // 🔍 วินิจฉัยราคา: ถ้าคอลัมน์ราคาไม่เจอ หรือ ค่าตัวอย่างว่าง → เด้ง alert โชว์หัวคอลัมน์ทั้งหมด (ไล่ปัญหา "ราคาไม่เข้า")
+    (function () {
+      const sampleRow = rows.find((r, i) => i > 0 && r && r.length && mpCleanStr(r[COL.barcode]));
+      const priceSample = (COL.sell_price >= 0 && sampleRow) ? mpCleanNum(sampleRow[COL.sell_price]) : null;
+      console.log('[FS] Master import — headers:', header, '| price col:', COL.sell_price, header[COL.sell_price], '| sample:', priceSample);
+      if (COL.sell_price < 0 || !priceSample) {
+        try {
+          alert('⚠️ ราคาไม่เข้า!\n\nคอลัมน์ราคาที่จับได้: ' + (COL.sell_price >= 0 ? ('#' + COL.sell_price + ' = "' + header[COL.sell_price] + '"') : 'ไม่พบ')
+            + '\nค่าตัวอย่างแถวแรก: ' + (priceSample == null ? '(ว่าง)' : priceSample)
+            + '\n\nหัวคอลัมน์ทั้งหมดในไฟล์ (ส่งภาพนี้ให้ Anya):\n' + header.map((h, i) => i + ': ' + h).join('\n'));
+        } catch (e) {}
+      }
+    })();
+
     // Parse rows
     const masterRows = [], mdRows = [];
     let skippedNoBc = 0;
