@@ -1706,6 +1706,15 @@ let user = null;
 let branch = null;
 let zone = null;
 let loc = null;
+
+// ผู้ใช้ที่ให้เข้าได้ "ทุกสาขา" เป็นรายบุคคล (นอกเหนือ role admin/scc/bcs/it) — เทียบ username แบบไม่สนพิมพ์เล็กใหญ่
+const ALL_BRANCH_USERS = ['audit-maneexai'];
+function isAllBranch(u) {
+  u = u || user;
+  if (!u) return false;
+  if (['admin', 'scc', 'bcs', 'it'].includes(u.role)) return true;
+  return ALL_BRANCH_USERS.includes(String(u.username || '').trim().toLowerCase());
+}
 let session = null;
 let allZones = [];
 let allLocations = []; // location_master ทั้งหมด
@@ -2669,7 +2678,7 @@ async function login() {
     
     // Step 2: Validate branch access
     const branchIdInt = parseInt(selectedBranchId);
-    const isAdminRole = ['admin', 'scc', 'bcs', 'it'].includes(user.role);
+    const isAdminRole = isAllBranch(user);
     
     if (!isAdminRole && user.branch_id && user.branch_id !== branchIdInt) {
       // User ไม่ใช่ admin + พยายามเข้าสาขาที่ไม่ใช่ของตัวเอง → reject
@@ -3990,7 +3999,7 @@ async function logout() {
 
 // ==================== BRANCH SWITCHER (Admin) ====================
 async function openBranchSwitcher() {
-  if (!user || !['admin', 'scc', 'bcs', 'it'].includes(user.role)) {
+  if (!user || !isAllBranch(user)) {
     showToast(lang === 'lo' ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error');
     return;
   }
@@ -4070,7 +4079,7 @@ async function openBranchSwitcher() {
 }
 
 async function switchBranch(newBranchId) {
-  if (!user || !['admin', 'scc', 'bcs', 'it'].includes(user.role)) {
+  if (!user || !isAllBranch(user)) {
     showToast(lang === 'lo' ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error');
     return;
   }
@@ -4981,7 +4990,7 @@ function renderShell() {
       <button class="ctx-change" onclick="changeZone()">${T('change_zone')}</button>
     </div>` : '';
   
-  const isAdminRole = ['admin', 'scc', 'bcs', 'it'].includes(r);
+  const isAdminRole = isAllBranch(user);
   const branchName = lang === 'lo' ? (branch?.name_lo || branch?.code || '?') : (branch?.name_th || branch?.code || '?');
   
   return `
