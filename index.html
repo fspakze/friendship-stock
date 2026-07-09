@@ -35265,6 +35265,7 @@ let _mbBizTypes = null;
 let _mbResults = [];
 let _mbSignups = [];
 let _mbTypeFilter = 'ALL';
+let _mbSort = 'points.desc';   // points.desc | points.asc | name.asc
 let _mbSearchTimer = null;
 let _mbTab = 'search';
 let _mbUploadParsed = null;
@@ -35359,6 +35360,14 @@ function mbRenderSearch() {
     + '<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;">'
     + chip('ALL', isLao ? 'ທັງໝົດ' : 'ทั้งหมด') + chip('AFLP', 'AFLP') + chip('WSP', 'WSP') + chip('REP', 'REP') + chip('WSDP', 'WSDP') + chip('GENERAL', isLao ? 'ທົ່ວໄປ' : 'ทั่วไป')
     + '</div>'
+    + '<div style="display:flex;align-items:center;gap:7px;margin-bottom:10px;">'
+    + '<span style="font-size:11.5px;color:var(--slate-400);font-weight:700;white-space:nowrap;">↕️ ' + (isLao ? 'ຮຽງ' : 'เรียง') + '</span>'
+    + '<select id="mbSortSel" onchange="mbSetSort(this.value)" style="flex:1;min-width:0;padding:8px 10px;border:1px solid var(--slate-200);border-radius:9px;font-size:12.5px;background:white;font-weight:700;color:var(--slate-700);">'
+    + '<option value="points.desc"' + (_mbSort === 'points.desc' ? ' selected' : '') + '>' + (isLao ? 'ແຕ້ມ ຫຼາຍ→ໜ້ອຍ' : 'แต้ม มาก→น้อย') + '</option>'
+    + '<option value="points.asc"' + (_mbSort === 'points.asc' ? ' selected' : '') + '>' + (isLao ? 'ແຕ້ມ ໜ້ອຍ→ຫຼາຍ' : 'แต้ม น้อย→มาก') + '</option>'
+    + '<option value="name.asc"' + (_mbSort === 'name.asc' ? ' selected' : '') + '>' + (isLao ? 'ຊື່ ກ→ຮ' : 'ชื่อ ก→ฮ') + '</option>'
+    + '</select>'
+    + '</div>'
     + '<div id="mbResults"></div>';
 }
 function mbSetType(t) {
@@ -35366,6 +35375,7 @@ function mbSetType(t) {
   ['ALL', 'AFLP', 'WSP', 'REP', 'WSDP', 'GENERAL'].forEach(v => { const b = document.getElementById('mbChip_' + v); if (b) { const on = v === t; b.style.background = on ? 'var(--fs-blue)' : 'white'; b.style.borderColor = on ? 'var(--fs-blue)' : 'var(--slate-200)'; b.style.color = on ? 'white' : 'var(--slate-600)'; } });
   mbSearch();
 }
+function mbSetSort(v) { _mbSort = v || 'points.desc'; mbSearch(); }
 function mbSearchDebounce() { clearTimeout(_mbSearchTimer); _mbSearchTimer = setTimeout(() => mbSearch(), 250); }
 async function mbSearch() {
   const box = document.getElementById('mbResults');
@@ -35377,7 +35387,8 @@ async function mbSearch() {
     let q = sb.from('memberships').select('*');
     if (_mbTypeFilter && _mbTypeFilter !== 'ALL') q = q.eq('member_type', _mbTypeFilter);
     if (qs) q = q.or('name.ilike.%' + qs + '%,tel.ilike.%' + qs + '%,mobile.ilike.%' + qs + '%,member_code.ilike.%' + qs + '%');
-    q = q.order('points', { ascending: false }).limit(60);
+    const sp = String(_mbSort || 'points.desc').split('.');
+    q = q.order(sp[0] || 'points', { ascending: sp[1] === 'asc', nullsFirst: false }).limit(60);
     const { data, error } = await q;
     if (error) throw error;
     _mbResults = data || [];
@@ -35602,14 +35613,14 @@ async function mbHandleFile(ev) {
       tel: col('ເບີໂທລະສັບ', 'เบอร์โทรศัพท์', 'tel', 'telephone', 'phone'),
       mobile: col('ເບີມືຖື', 'เบอร์มือถือ', 'mobile'),
       address: col('ທີ່ຢູ່ແບບເຕັມ', 'fulladdress', 'ທີ່ຢູ່', 'ที่อยู่', 'address'),
-      points: col('ແຕ້ມທີ່ມີ', 'ແຕ້ມ', 'แต้ม', 'point', 'points')
+      points: col('ແຕ້ມທີ່ມີ', 'ແຕ້ມ', 'แต้ม', 'ຄະແນນ', 'คะแนน', 'point', 'points', 'score')
     };
     if (C.code < 0) C.code = colInc('ລະຫັດ', 'รหัส', 'code');
     if (C.name < 0) C.name = colInc('ຊື່', 'ชื่อ', 'name');
     if (C.tel < 0) C.tel = colInc('ໂທ', 'โทร', 'tel', 'phone');
     if (C.mobile < 0) C.mobile = colInc('ມືຖື', 'มือถือ', 'mobile');
     if (C.address < 0) C.address = colInc('ຢູ່', 'ที่อยู่', 'address');
-    if (C.points < 0) C.points = colInc('ແຕ້ມ', 'แต้ม', 'point');
+    if (C.points < 0) C.points = colInc('ແຕ້ມ', 'แต้ม', 'ຄະແນນ', 'คะแนน', 'point', 'score');
     if (C.code < 0) {
       try { alert('⛔ ' + (isLao ? 'ຫາຄໍລໍາ ລະຫັດລູກຄ້າ ບໍ່ເຫັນ' : 'หาคอลัมน์ รหัสลูกค้า ไม่เจอ') + '\n\n' + header.map((h, i) => i + ': ' + h).join('\n')); } catch (e) {}
       set('<div style="color:var(--rose-500);font-weight:700;">⛔ ' + (isLao ? 'ຫາຄໍລໍາ ລະຫັດລູກຄ້າ ບໍ່ເຫັນ' : 'หาคอลัมน์ รหัสลูกค้า ไม่เจอ') + '</div>');
@@ -35636,7 +35647,16 @@ async function mbHandleFile(ev) {
     const dups = list.length - _mbUploadParsed.length;
     const tc = {}; _mbUploadParsed.forEach(x => { tc[x.member_type] = (tc[x.member_type] || 0) + 1; });
     const noPoints = C.points < 0;
+    // 🔧 diagnostic: โชว์ว่าคอลัมน์ไหน map เป็นอะไร + ค่าแต้มดิบตัวอย่าง + code ตัวอย่าง (ดูค่าจริงก่อนสรุป)
+    const mapInfo = [['code', 'รหัส'], ['name', 'ชื่อ'], ['tel', 'โทร'], ['mobile', 'มือถือ'], ['address', 'ที่อยู่'], ['points', 'แต้ม']]
+      .map(function (p) { const k = p[0]; return p[1] + '→' + (C[k] >= 0 ? ('#' + C[k] + ' ' + escapeHtml(String(header[C[k]] || ''))) : '✗'); }).join('<br>');
+    let rawPts = '✗';
+    if (C.points >= 0) { const sv = rows.slice(1, 400).map(function (r) { return r && r[C.points]; }).find(function (v) { return v != null && String(v).trim() !== ''; }); rawPts = (sv != null) ? String(sv) : '(ว่างทุกแถว)'; }
+    const sampleCode = (_mbUploadParsed[0] && _mbUploadParsed[0].member_code) || '';
+    console.log('[FS] Membership import — headers:', header, '| map:', C, '| rawPointsSample:', rawPts, '| sampleCode:', sampleCode, '| typeCounts:', tc);
+    const diagHtml = '<div style="margin-top:9px;font-size:10.5px;color:var(--slate-500);background:var(--slate-50);border-radius:7px;padding:9px;line-height:1.7;"><b>🔧 คอลัมน์ที่จับได้:</b><br>' + mapInfo + '<br><b>ตัวอย่าง:</b> code="' + escapeHtml(String(sampleCode)) + '" · แต้มดิบ="' + escapeHtml(rawPts) + '"</div>';
     set('<div style="background:var(--emerald-50);border-radius:7px;padding:10px;font-size:12px;color:var(--slate-700);line-height:1.6;">✅ ' + (isLao ? 'ອ່ານສຳເລັດ' : 'อ่านสำเร็จ') + '<br>• ' + (isLao ? 'ທັງໝົດ' : 'ทั้งหมด') + ': <b>' + _mbUploadParsed.length.toLocaleString() + '</b>' + (dups ? ' <span style="color:var(--amber-600);">(dup -' + dups + ')</span>' : '') + '<br>• ' + Object.keys(tc).map(k => mbTypeLabel(k) + ': ' + tc[k]).join(' · ') + (skipped ? '<br>• <span style="color:var(--amber-600);">skip no-code: ' + skipped + '</span>' : '') + (noPoints ? '<br>• <span style="color:var(--rose-600);font-weight:700;">⚠️ ' + (isLao ? 'ຫາຄໍລໍາ ແຕ້ມ ບໍ່ເຫັນ → ຈະບັນທຶກ 0' : 'หาคอลัมน์ แต้ม ไม่เจอ → จะบันทึก 0') + '</span>' : '') + '</div>'
+      + diagHtml
       + '<button onclick="mbExecuteUpload()" id="mbExecBtn" style="width:100%;margin-top:11px;background:var(--violet-500);color:white;border:none;padding:12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">💾 ' + (isLao ? 'ບັນທຶກເຂົ້າລະບົບ' : 'บันทึกเข้าระบบ') + '</button>');
   } catch (e) { set('<div style="color:var(--rose-500);">Error: ' + escapeHtml(e.message) + '</div>'); }
 }
@@ -35686,7 +35706,7 @@ async function mbReconcileSignups() {
   return matched;
 }
 window.renderMembershipPage = renderMembershipPage; window.mbInit = mbInit; window.mbSetTab = mbSetTab;
-window.mbSearchDebounce = mbSearchDebounce; window.mbSearch = mbSearch; window.mbSetType = mbSetType; window.mbSetBiz = mbSetBiz;
+window.mbSearchDebounce = mbSearchDebounce; window.mbSearch = mbSearch; window.mbSetType = mbSetType; window.mbSetBiz = mbSetBiz; window.mbSetSort = mbSetSort;
 window.mbOpenUpload = mbOpenUpload; window.mbHandleFile = mbHandleFile; window.mbExecuteUpload = mbExecuteUpload;
 window.mbSignupSave = mbSignupSave; window.mbLoadSignups = mbLoadSignups; window.mbExportSignups = mbExportSignups;
 window.mbMarkRegistered = mbMarkRegistered; window.mbDeleteSignup = mbDeleteSignup; window.mbAddBizType = mbAddBizType;
