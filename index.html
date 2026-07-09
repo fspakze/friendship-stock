@@ -35273,10 +35273,15 @@ let _mbUploadRunning = false;
 
 function mbCanUpload() { return user && MB_UPLOAD_ROLES.includes(user.role); }
 
-function mbTypeFromCode(code) {
-  const c = String(code || '').trim().toUpperCase();
+// ประเภทลูกค้า derive จาก "คำนำหน้าชื่อ Name (ຊື່ລູກຄ້າ)" (Ball 2026-07-09) เช่น "AFLP บ.xxx" → AFLP
+// ต้องเป็น token จริง (ตามด้วยเว้นวรรค/ตัวเลข/อักษรลาว-ไทย/ท้ายสุด) กันคำปกติเช่น "REPUBLIC" ถูกจับผิดเป็น REP
+function mbTypeFrom(str) {
+  const c = String(str || '').trim().toUpperCase();
   const pref = ['AFLP', 'WSDP', 'WSP', 'REP'];   // WSDP ก่อน WSP กันชนกัน
-  for (const p of pref) { if (c.startsWith(p)) return p; }
+  for (const p of pref) {
+    if (c === p) return p;
+    if (c.startsWith(p)) { const nx = c.charAt(p.length); if (nx === '' || /[^A-Z]/.test(nx)) return p; }
+  }
   return 'GENERAL';
 }
 function mbTypeLabel(t) {
@@ -35621,6 +35626,16 @@ async function mbHandleFile(ev) {
     if (C.mobile < 0) C.mobile = colInc('ມືຖື', 'มือถือ', 'mobile');
     if (C.address < 0) C.address = colInc('ຢູ່', 'ที่อยู่', 'address');
     if (C.points < 0) C.points = colInc('ແຕ້ມ', 'แต้ม', 'ຄະແນນ', 'คะแนน', 'point', 'score');
+    // 🎯 แต้ม: หัวจริง = "Point (ແຕ້ມທີ່ມີ)" ที่ column R (index 17) — Ball ยืนยัน 2026-07-09
+    //    จับแบบ "มีทั้ง point + ແຕ້ມ" ก่อน (กันชนคอลัมน์ชื่อ "Point" อื่นที่ว่าง/เป็น 0) → สุดท้าย fallback column R ถ้ามีตัวเลข
+    {
+      const hasNum = ci => ci >= 0 && header.length > ci && rows.slice(1, 400).some(r => r && mpCleanNum(r[ci]) != null);
+      let pc = header.findIndex(h => { const n = norm(h); return n.indexOf('point') >= 0 && n.indexOf('ແຕ້ມ') >= 0; });
+      if (pc < 0) pc = header.findIndex(h => norm(h).indexOf('ແຕ້ມທີ່ມີ') >= 0);
+      if (pc < 0) pc = C.points;
+      if (!hasNum(pc) && hasNum(17)) pc = 17;   // column R (Ball)
+      C.points = pc;
+    }
     if (C.code < 0) {
       try { alert('⛔ ' + (isLao ? 'ຫາຄໍລໍາ ລະຫັດລູກຄ້າ ບໍ່ເຫັນ' : 'หาคอลัมน์ รหัสลูกค้า ไม่เจอ') + '\n\n' + header.map((h, i) => i + ': ' + h).join('\n')); } catch (e) {}
       set('<div style="color:var(--rose-500);font-weight:700;">⛔ ' + (isLao ? 'ຫາຄໍລໍາ ລະຫັດລູກຄ້າ ບໍ່ເຫັນ' : 'หาคอลัมน์ รหัสลูกค้า ไม่เจอ') + '</div>');
@@ -35632,14 +35647,15 @@ async function mbHandleFile(ev) {
       const r = rows[i]; if (!r || !r.length) continue;
       const code = mpCleanStr(r[C.code]);
       if (!code) { skipped++; continue; }
+      const nm = C.name >= 0 ? mpCleanStr(r[C.name]) : null;
       list.push({
         member_code: code,
-        name: C.name >= 0 ? mpCleanStr(r[C.name]) : null,
+        name: nm,
         tel: C.tel >= 0 ? mpCleanStr(r[C.tel]) : null,
         mobile: C.mobile >= 0 ? mpCleanStr(r[C.mobile]) : null,
         address: C.address >= 0 ? mpCleanStr(r[C.address]) : null,
         points: C.points >= 0 ? (mpCleanNum(r[C.points]) || 0) : 0,
-        member_type: mbTypeFromCode(code)
+        member_type: mbTypeFrom(nm)   // ⭐ derive จากคำนำหน้า "ชื่อ" ไม่ใช่ member_code (Ball 2026-07-09)
       });
     }
     const map = new Map(); list.forEach(x => map.set(x.member_code, x));
@@ -35653,8 +35669,10 @@ async function mbHandleFile(ev) {
     let rawPts = '✗';
     if (C.points >= 0) { const sv = rows.slice(1, 400).map(function (r) { return r && r[C.points]; }).find(function (v) { return v != null && String(v).trim() !== ''; }); rawPts = (sv != null) ? String(sv) : '(ว่างทุกแถว)'; }
     const sampleCode = (_mbUploadParsed[0] && _mbUploadParsed[0].member_code) || '';
+    const sampleName = (_mbUploadParsed[0] && _mbUploadParsed[0].name) || '';
+    const sampleType = (_mbUploadParsed[0] && _mbUploadParsed[0].member_type) || '';
     console.log('[FS] Membership import — headers:', header, '| map:', C, '| rawPointsSample:', rawPts, '| sampleCode:', sampleCode, '| typeCounts:', tc);
-    const diagHtml = '<div style="margin-top:9px;font-size:10.5px;color:var(--slate-500);background:var(--slate-50);border-radius:7px;padding:9px;line-height:1.7;"><b>🔧 คอลัมน์ที่จับได้:</b><br>' + mapInfo + '<br><b>ตัวอย่าง:</b> code="' + escapeHtml(String(sampleCode)) + '" · แต้มดิบ="' + escapeHtml(rawPts) + '"</div>';
+    const diagHtml = '<div style="margin-top:9px;font-size:10.5px;color:var(--slate-500);background:var(--slate-50);border-radius:7px;padding:9px;line-height:1.7;"><b>🔧 คอลัมน์ที่จับได้:</b><br>' + mapInfo + '<br><b>ตัวอย่าง:</b> ชื่อ="' + escapeHtml(String(sampleName)) + '" → ประเภท=' + escapeHtml(String(sampleType)) + '<br>code="' + escapeHtml(String(sampleCode)) + '" · แต้มดิบ="' + escapeHtml(rawPts) + '"</div>';
     set('<div style="background:var(--emerald-50);border-radius:7px;padding:10px;font-size:12px;color:var(--slate-700);line-height:1.6;">✅ ' + (isLao ? 'ອ່ານສຳເລັດ' : 'อ่านสำเร็จ') + '<br>• ' + (isLao ? 'ທັງໝົດ' : 'ทั้งหมด') + ': <b>' + _mbUploadParsed.length.toLocaleString() + '</b>' + (dups ? ' <span style="color:var(--amber-600);">(dup -' + dups + ')</span>' : '') + '<br>• ' + Object.keys(tc).map(k => mbTypeLabel(k) + ': ' + tc[k]).join(' · ') + (skipped ? '<br>• <span style="color:var(--amber-600);">skip no-code: ' + skipped + '</span>' : '') + (noPoints ? '<br>• <span style="color:var(--rose-600);font-weight:700;">⚠️ ' + (isLao ? 'ຫາຄໍລໍາ ແຕ້ມ ບໍ່ເຫັນ → ຈະບັນທຶກ 0' : 'หาคอลัมน์ แต้ม ไม่เจอ → จะบันทึก 0') + '</span>' : '') + '</div>'
       + diagHtml
       + '<button onclick="mbExecuteUpload()" id="mbExecBtn" style="width:100%;margin-top:11px;background:var(--violet-500);color:white;border:none;padding:12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">💾 ' + (isLao ? 'ບັນທຶກເຂົ້າລະບົບ' : 'บันทึกเข้าระบบ') + '</button>');
