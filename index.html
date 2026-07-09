@@ -8859,6 +8859,8 @@ async function loadCycleCount() {
 let _prcProduct = null;
 let _prcRows = [];
 function prcCanFix() { return ['ctl', 'bcs', 'admin', 'scc'].includes((user && user.role) || ''); }
+// ลบ/แก้ไข/อัปเดตราคา รายการตรวจราคาป้าย — admin/scc (super) เท่านั้น (Ball 2026-07-08)
+function prcCanManage() { return ['admin', 'scc'].includes((user && user.role) || ''); }
 
 function renderPriceCheckPage() {
   const isLao = lang === 'lo';
