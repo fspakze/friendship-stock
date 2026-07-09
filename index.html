@@ -7521,11 +7521,13 @@ async function mpHandleFileSelected(ev) {
     }
     // 🛡️ กันลบราคาเดิม: ถ้าหาคอลัมน์ราคาไม่เจอ หรือ ค่าว่างทั้งคอลัมน์ (50 แถวแรกไม่มีเลข) → ยกเลิก import (ไม่ให้เขียน null ทับราคาเดิม 28,860 ตัว) + โชว์หัวคอลัมน์ (Ball 2026-07-08)
     const _priceHasData = COL.sell_price >= 0 && rows.slice(1, 50).some(r => r && mpCleanNum(r[COL.sell_price]) != null);
-    console.log('[FS] Master import — headers:', header, '| price col:', COL.sell_price, '=', header[COL.sell_price], '| hasData:', _priceHasData);
+    const _rawSample = COL.sell_price >= 0 ? (rows.slice(1, 50).map(r => r && r[COL.sell_price]).find(v => v != null && String(v).trim() !== '') ?? '(ว่างทุกแถว)') : '-';
+    console.log('[FS] Master import — headers:', header, '| price col:', COL.sell_price, '=', header[COL.sell_price], '| hasData:', _priceHasData, '| rawSample:', _rawSample);
     if (!_priceHasData) {
       try {
-        alert('⛔ ยกเลิก import — ป้องกันลบราคาเดิม!\n\nหาคอลัมน์ราคาไม่เจอ หรือค่าว่างทั้งคอลัมน์\nคอลัมน์ราคาที่จับได้: ' + (COL.sell_price >= 0 ? ('#' + COL.sell_price + ' = "' + header[COL.sell_price] + '"') : 'ไม่พบ')
-          + '\n\nหัวคอลัมน์ทั้งหมด (ส่งภาพนี้ให้ Anya):\n' + header.map((h, i) => i + ': ' + h).join('\n'));
+        alert('⛔ ยกเลิก import — ป้องกันลบราคาเดิม!\n\nคอลัมน์ราคาที่จับได้: ' + (COL.sell_price >= 0 ? ('#' + COL.sell_price + ' = "' + header[COL.sell_price] + '"') : 'ไม่พบ')
+          + '\nค่าดิบตัวอย่างในคอลัมน์ราคา: "' + _rawSample + '"   ← ส่งค่านี้ให้ Anya'
+          + '\n\nหัวคอลัมน์ทั้งหมด:\n' + header.map((h, i) => i + ': ' + h).join('\n'));
       } catch (e) {}
       setStatus('<div style="color:var(--rose-500);font-weight:700;">⛔ ' + (isLao ? 'ຍົກເລີກ import — ຫາຄໍລໍາລາຄາບໍ່ເຫັນ (ກັນລຶບລາຄາເກົ່າ)' : 'ยกเลิก import — หาคอลัมน์ราคาไม่เจอ (กันลบราคาเดิม)') + '</div>');
       return;
@@ -7628,8 +7630,10 @@ function mpCleanStr(v) {
 
 function mpCleanNum(v) {
   if (v == null) return null;
-  const s = String(v).trim();
+  let s = String(v).trim();
   if (s === '' || s.toLowerCase() === 'nan') return null;
+  // ⭐ ตัด comma (48,000) + ช่องว่าง + สัญลักษณ์เงิน (₭ ฿ LAK/kip) ก่อนแปลงเลข — กันราคาที่มี , อ่านไม่ได้ (Ball 2026-07-08)
+  s = s.replace(/[,\s₭฿]/g, '').replace(/(lak|kip)/gi, '');
   const n = Number(s);
   return isFinite(n) ? n : null;
 }
