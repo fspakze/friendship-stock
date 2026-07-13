@@ -2856,6 +2856,8 @@ async function toggleCountMenu() {
 
 
 async function afterLogin() {
+  // 📅 เริ่ม session เข้าใช้งานรอบใหม่ (login จริง) — refresh จะ resume รอบเดิมแทน
+  if (typeof accessSessionStart === 'function') accessSessionStart();
   // CTL, BCS, Admin, SCC ไม่ต้องเลือก Zone/Location (ดูภาพรวม + ควบคุม)
   // Counter, Verifier, Staff, Audit ต้องเลือก (ต้องสแกนนับ)
   const needsZone = ['counter', 'verifier', 'audit'].includes(user.role);
@@ -3964,8 +3966,9 @@ async function logout() {
     logActivity('logout', `${user.role} ออกจากระบบ`);
   }
 
-  // 🟢 ออฟไลน์ทันที (ก่อน clear user) — หยุด heartbeat + ลบแถว presence
+  // 🟢 ออฟไลน์ทันที (ก่อน clear user) — หยุด heartbeat + ลบแถว presence + ปิด session (set logout_at)
   try { if (typeof presenceOffline === 'function') await presenceOffline(); } catch (e) {}
+  try { if (typeof accessSessionEnd === 'function') await accessSessionEnd(); } catch (e) {}
   
   // 🔌 Cleanup realtime channels (ป้องกัน leak + cross-user notification)
   try {
@@ -35830,19 +35833,51 @@ async function presenceBeat() {
       last_seen: nowIso
     }, { onConflict: 'user_id' });
   } catch (e) {}
-  // 📅 ประวัติรายวัน — 1 แถวต่อ คน/วัน · ไม่ใส่ first_seen (insert ใช้ default now, update ไม่ทับ) · access_day = วันท้องถิ่น
+  // 📅 ประวัติเข้าใช้งานระดับรอบ — อัปเดต last_seen ของ session ปัจจุบัน (สร้างตอน login/resume)
+  if (_accessSessionId) {
+    try { await sb.from('access_sessions').update({ last_seen: nowIso }).eq('id', _accessSessionId); } catch (e) {}
+  }
+}
+// ---------- session เข้าใช้งาน (1 รอบ = login→logout) ----------
+let _accessSessionId = null;
+async function accessSessionStart() {
+  if (!user || !user.id) return;
+  const nowIso = new Date().toISOString();
+  const day = localDayKey(new Date());
   try {
-    await sb.from('daily_access').upsert({
+    const { data, error } = await sb.from('access_sessions').insert({
       user_id: user.id,
-      access_day: localDayKey(new Date()),
       username: user.username || null,
       full_name: user.full_name || null,
       role: user.role || null,
       branch_id: (branch && branch.id) || null,
       branch_code: (branch && branch.code) || null,
+      access_day: day,
+      login_at: nowIso,
       last_seen: nowIso
-    }, { onConflict: 'user_id,access_day' });
+    }).select('id').single();
+    if (!error && data) {
+      _accessSessionId = data.id;
+      try { localStorage.setItem('fs_access_sid', String(data.id)); localStorage.setItem('fs_access_day', day); } catch (e) {}
+    }
   } catch (e) {}
+}
+// refresh หน้า: จำ session เดิม (ถ้าเป็นวันเดียวกัน) ไม่นับเป็นรอบใหม่ · ข้ามวัน/ไม่มี = เริ่มรอบใหม่
+function accessSessionResume() {
+  try {
+    const sid = localStorage.getItem('fs_access_sid');
+    const day = localStorage.getItem('fs_access_day');
+    if (sid && day === localDayKey(new Date())) { _accessSessionId = parseInt(sid, 10) || null; }
+  } catch (e) {}
+  if (!_accessSessionId) accessSessionStart();
+}
+async function accessSessionEnd() {
+  if (_accessSessionId && user) {
+    const nowIso = new Date().toISOString();
+    try { await sb.from('access_sessions').update({ logout_at: nowIso, last_seen: nowIso }).eq('id', _accessSessionId); } catch (e) {}
+  }
+  _accessSessionId = null;
+  try { localStorage.removeItem('fs_access_sid'); localStorage.removeItem('fs_access_day'); } catch (e) {}
 }
 function presenceStart() {
   if (!user || !user.id) return;
@@ -35940,11 +35975,33 @@ function renderAccessLogPage() {
     + '<input type="date" id="accessDayInput" value="' + escapeHtml(_accessDay) + '" onchange="accessSetDay(this.value)" style="flex:1;min-width:0;padding:10px 12px;border:1px solid var(--slate-300);border-radius:10px;font-size:14px;box-sizing:border-box;">'
     + '<button onclick="accessExport()" style="background:var(--emerald-600);color:white;border:none;border-radius:10px;padding:10px 14px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;">📥 Export</button>'
     + '</div>'
+    + '<div id="accessControls" style="margin-bottom:10px;"></div>'
     + '<div id="accessList"><div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div></div>'
     + '</div>';
 }
-function accessSetDay(v) { _accessDay = v || localDayKey(new Date()); loadAccessLog(); }
+function accessSetDay(v) { _accessDay = v || localDayKey(new Date()); _accessUserFilter = 'ALL'; loadAccessLog(); }
+function accessSetUser(v) { _accessUserFilter = v || 'ALL'; accessRender(); }
+function accessSetSort(v) { _accessSort = v || 'login.asc'; accessRender(); }
+function accessDurSec(s) { const end = s.logout_at || s.last_seen; if (!s.login_at || !end) return 0; return Math.max(0, Math.floor((new Date(end).getTime() - new Date(s.login_at).getTime()) / 1000)); }
 let _accessRows = [];
+let _accessUserFilter = 'ALL';
+let _accessSort = 'login.asc';
+function accessRenderControls() {
+  const el = document.getElementById('accessControls'); if (!el) return;
+  const isLao = lang === 'lo';
+  const seen = new Map();
+  _accessRows.forEach(r => { if (!seen.has(String(r.user_id))) seen.set(String(r.user_id), r.full_name || r.username || String(r.user_id)); });
+  let uopts = '<option value="ALL">' + (isLao ? 'ທຸກຄົນ' : 'ทุกคน') + ' (' + seen.size + ')</option>';
+  Array.from(seen.entries()).forEach(function (e) { uopts += '<option value="' + escapeHtml(e[0]) + '"' + (String(_accessUserFilter) === e[0] ? ' selected' : '') + '>' + escapeHtml(e[1]) + '</option>'; });
+  const sopt = (v, th, lo) => '<option value="' + v + '"' + (_accessSort === v ? ' selected' : '') + '>' + (isLao ? lo : th) + '</option>';
+  const st = 'flex:1;min-width:0;padding:9px 10px;border:1px solid var(--slate-200);border-radius:9px;font-size:12.5px;background:white;font-weight:700;color:var(--slate-700);';
+  el.innerHTML = '<div style="display:flex;gap:7px;">'
+    + '<select onchange="accessSetUser(this.value)" style="' + st + '">' + uopts + '</select>'
+    + '<select onchange="accessSetSort(this.value)" style="' + st + '">'
+    + sopt('login.asc', 'เข้า เก่า→ล่าสุด', 'ເຂົ້າ ເກົ່າ→ຫຼ້າສຸດ') + sopt('login.desc', 'เข้า ล่าสุด→เก่า', 'ເຂົ້າ ຫຼ້າສຸດ→ເກົ່າ')
+    + sopt('name.asc', 'ชื่อ', 'ຊື່') + sopt('dur.desc', 'ระยะเวลามาก→น้อย', 'ໄລຍະເວລາຫຼາຍ→ໜ້ອຍ')
+    + '</select></div>';
+}
 async function loadAccessLog() {
   const box = document.getElementById('accessList');
   if (!box) return;
@@ -35952,50 +36009,78 @@ async function loadAccessLog() {
   if (!_accessDay) _accessDay = localDayKey(new Date());
   box.innerHTML = '<div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>';
   try {
-    const rows = await fetchAllQuery(() => sb.from('daily_access').select('*').eq('access_day', _accessDay).order('first_seen'));
+    const rows = await fetchAllQuery(() => sb.from('access_sessions').select('*').eq('access_day', _accessDay).order('login_at'));
     _accessRows = rows || [];
-    if (!_accessRows.length) { box.innerHTML = '<div style="text-align:center;color:var(--slate-400);padding:34px;font-size:13px;">' + (isLao ? 'ວັນນີ້ບໍ່ມີໃຜເຂົ້າໃຊ້' : 'วันนี้ไม่มีใครเข้าใช้') + '</div>'; return; }
-    const card = u => '<div style="border:1px solid var(--slate-200);border-radius:11px;padding:11px 13px;margin-bottom:8px;background:white;">'
-      + '<div style="display:flex;align-items:center;gap:9px;">'
-      + '<div style="flex:1;min-width:0;">'
-      + '<div style="font-size:14px;font-weight:800;color:var(--slate-900);line-height:1.3;">' + escapeHtml(u.full_name || u.username || '?') + '</div>'
-      + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + escapeHtml(String(u.role || '').toUpperCase()) + (u.branch_code ? ' · 🏪 ' + escapeHtml(u.branch_code) : '') + '</div>'
-      + '</div>'
-      + '<div style="text-align:right;font-size:11px;color:var(--slate-600);white-space:nowrap;">'
-      + '<div>🟢 ' + presenceTimeHM(u.first_seen) + ' → ' + presenceTimeHM(u.last_seen) + '</div>'
-      + '<div style="color:var(--slate-400);font-size:10px;margin-top:2px;">' + presenceDur(u.first_seen, u.last_seen) + '</div>'
-      + '</div>'
-      + '</div>'
-      + '</div>';
-    box.innerHTML = '<div style="font-size:12.5px;font-weight:800;color:var(--slate-700);margin-bottom:9px;">👥 ' + _accessRows.length + ' ' + (isLao ? 'ຄົນ' : 'คน') + '</div>' + _accessRows.map(card).join('');
+    accessRenderControls();
+    accessRender();
   } catch (e) {
     box.innerHTML = '<div style="color:var(--rose-500);padding:14px;font-size:12px;">Error: ' + escapeHtml(e.message) + '</div>';
   }
 }
+function accessRender() {
+  const box = document.getElementById('accessList');
+  if (!box) return;
+  const isLao = lang === 'lo';
+  let rows = _accessRows.slice();
+  if (_accessUserFilter !== 'ALL') rows = rows.filter(r => String(r.user_id) === String(_accessUserFilter));
+  const parts = String(_accessSort || 'login.asc').split('.');
+  const sc = parts[0], sd = parts[1];
+  rows.sort((a, b) => {
+    if (sc === 'name') return String(a.full_name || a.username || '').localeCompare(String(b.full_name || b.username || ''));
+    if (sc === 'dur') return accessDurSec(b) - accessDurSec(a);
+    const ta = new Date(a.login_at).getTime(), tb = new Date(b.login_at).getTime();
+    return sd === 'desc' ? tb - ta : ta - tb;
+  });
+  if (!rows.length) { box.innerHTML = '<div style="text-align:center;color:var(--slate-400);padding:34px;font-size:13px;">' + (isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล') + '</div>'; return; }
+  const users = new Set(rows.map(r => String(r.user_id))).size;
+  const card = s => {
+    const online = !s.logout_at && (Date.now() - new Date(s.last_seen).getTime() <= PRESENCE_ONLINE_MS);
+    const stale = !s.logout_at && !online;
+    const endTxt = s.logout_at ? presenceTimeHM(s.logout_at) : (online ? '🟢' : presenceTimeHM(s.last_seen) + ' ⚠️');
+    const badge = online ? '<span style="font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:20px;background:#dcfce7;color:#15803d;">' + (isLao ? 'ອອນລາຍ' : 'ออนไลน์') + '</span>' : (stale ? '<span style="font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:20px;background:#fef3c7;color:#b45309;">' + (isLao ? 'ຄ້າງ' : 'ค้าง') + '</span>' : '');
+    return '<div style="border:1px solid var(--slate-200);border-radius:11px;padding:11px 13px;margin-bottom:8px;background:white;">'
+      + '<div style="display:flex;align-items:center;gap:9px;">'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;"><span style="font-size:14px;font-weight:800;color:var(--slate-900);">' + escapeHtml(s.full_name || s.username || '?') + '</span>' + badge + '</div>'
+      + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + escapeHtml(String(s.role || '').toUpperCase()) + (s.branch_code ? ' · 🏪 ' + escapeHtml(s.branch_code) : '') + '</div>'
+      + '</div>'
+      + '<div style="text-align:right;font-size:11px;color:var(--slate-600);white-space:nowrap;">'
+      + '<div>' + presenceTimeHM(s.login_at) + ' → ' + endTxt + '</div>'
+      + '<div style="color:var(--slate-400);font-size:10px;margin-top:2px;">' + presenceDur(s.login_at, s.logout_at || s.last_seen) + '</div>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  };
+  box.innerHTML = '<div style="font-size:12.5px;font-weight:800;color:var(--slate-700);margin-bottom:9px;">📋 ' + rows.length + ' ' + (isLao ? 'ຮອບ' : 'รอบ') + ' · 👥 ' + users + ' ' + (isLao ? 'ຄົນ' : 'คน') + '</div>' + rows.map(card).join('');
+}
 function accessExport() {
   const isLao = lang === 'lo';
-  if (!_accessRows || !_accessRows.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
+  let rows = (_accessRows || []).slice();
+  if (_accessUserFilter !== 'ALL') rows = rows.filter(r => String(r.user_id) === String(_accessUserFilter));
+  if (!rows.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
   if (typeof XLSX === 'undefined') { showToast('XLSX not loaded', 'error'); return; }
   try {
-    const data = _accessRows.map(u => ({
+    const data = rows.map(s => ({
       'วันที่': _accessDay,
-      'ชื่อ': u.full_name || u.username || '',
-      'Username': u.username || '',
-      'Role': u.role || '',
-      'สาขา': u.branch_code || u.branch_id || '',
-      'เข้าครั้งแรก': presenceTimeHM(u.first_seen),
-      'ล่าสุด': presenceTimeHM(u.last_seen),
-      'ระยะเวลา': presenceDur(u.first_seen, u.last_seen)
+      'ชื่อ': s.full_name || s.username || '',
+      'Username': s.username || '',
+      'Role': s.role || '',
+      'สาขา': s.branch_code || s.branch_id || '',
+      'เข้า (Login)': presenceTimeHM(s.login_at),
+      'ออก (Logout)': s.logout_at ? presenceTimeHM(s.logout_at) : (isLao ? 'ຄ້າງ' : 'ค้าง'),
+      'ล่าสุด': presenceTimeHM(s.last_seen),
+      'ระยะเวลา': presenceDur(s.login_at, s.logout_at || s.last_seen)
     }));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), 'access');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), 'sessions');
     XLSX.writeFile(wb, 'access-' + _accessDay + '.xlsx');
-    if (typeof logActivity === 'function') logActivity('access_export', _accessDay + ' · ' + _accessRows.length + ' คน');
-    showToast('✅ ' + _accessRows.length, 'success');
+    if (typeof logActivity === 'function') logActivity('access_export', _accessDay + ' · ' + rows.length + ' รอบ');
+    showToast('✅ ' + rows.length, 'success');
   } catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
 window.renderOnlineUsersPage = renderOnlineUsersPage; window.loadOnlineUsers = loadOnlineUsers;
 window.renderAccessLogPage = renderAccessLogPage; window.loadAccessLog = loadAccessLog; window.accessSetDay = accessSetDay; window.accessExport = accessExport;
+window.accessSetUser = accessSetUser; window.accessSetSort = accessSetSort;
 
 // ==================== 🔄 อัพเดท (Update Hub) ====================
 const UPDATE_HUB_ITEMS = [
@@ -36280,7 +36365,10 @@ if (typeof isPWAMode === 'function') {
       // โหลด zones+locations เสมอ
       await loadZonesAndLocations();
       await loadAppSettings();
-      
+
+      // 📅 refresh หน้า = resume session รอบเดิม (ถ้าวันเดียวกัน) ไม่นับเป็นรอบใหม่
+      if (typeof accessSessionResume === 'function') accessSessionResume();
+
       // เช็ค use_zones ของ branch (per-branch toggle)
       const branchUseZones = branch?.use_zones !== false;
       
