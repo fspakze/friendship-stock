@@ -35927,12 +35927,18 @@ async function poLoadDashboard() {
   const { data, error } = await sb.rpc('rpc_po_dashboard');
   if (error) { box.innerHTML = ''; return; }
   const d = data || {}; const bs = d.by_status || {};
-  const active = Object.keys(bs).reduce((a, k) => a + ((k === 'closed' || k === 'cancelled') ? 0 : (Number(bs[k]) || 0)), 0);
-  const card = (label, val, color) => '<div style="flex:1;background:white;border:1px solid var(--slate-200);border-radius:12px;padding:11px 8px;text-align:center;"><div style="font-size:21px;font-weight:900;color:' + color + ';line-height:1;">' + val + '</div><div style="font-size:10px;color:var(--slate-500);font-weight:700;margin-top:4px;">' + label + '</div></div>';
-  box.innerHTML = '<div style="display:flex;gap:8px;">'
-    + card(isLao ? 'ກຳລັງດຳເນີນ' : 'กำลังดำเนิน', active, 'var(--fs-blue)')
+  const waiting = Object.keys(bs).reduce((a, k) => a + ((k === 'closed' || k === 'cancelled') ? 0 : (Number(bs[k]) || 0)), 0); // กำลังรอรับ = ยังไม่ปิด/ยกเลิก
+  const received = Number(bs['closed']) || 0; // รับแล้ว = ปิดใบ
+  const card = (label, val, color) => '<div style="flex:1;background:white;border:1px solid var(--slate-200);border-radius:12px;padding:11px 6px;text-align:center;"><div style="font-size:21px;font-weight:900;color:' + color + ';line-height:1;">' + val + '</div><div style="font-size:10px;color:var(--slate-500);font-weight:700;margin-top:4px;">' + label + '</div></div>';
+  const valCard = (label, val, sym, color) => '<div style="flex:1;background:white;border:1px solid var(--slate-200);border-radius:12px;padding:11px 8px;text-align:center;overflow:hidden;"><div style="font-size:15px;font-weight:900;color:' + color + ';line-height:1.15;word-break:break-all;">' + poFmtNum(val) + ' ' + sym + '</div><div style="font-size:10px;color:var(--slate-500);font-weight:700;margin-top:4px;">' + label + '</div></div>';
+  box.innerHTML = '<div style="display:flex;gap:8px;margin-bottom:8px;">'
+    + card(isLao ? 'ກຳລັງລໍຮັບ' : 'กำลังรอรับ', waiting, 'var(--fs-blue)')
+    + card(isLao ? 'ຮັບແລ້ວ' : 'รับแล้ว', received, '#22c55e')
     + card(isLao ? 'ເກີນກຳນົດ' : 'เกินกำหนด', d.overdue || 0, '#ef4444')
-    + card(isLao ? 'ມູນຄ່າລໍຮັບ' : 'มูลค่ารอรับ', poFmtNum(d.pending_value || 0), '#f59e0b')
+    + '</div>'
+    + '<div style="display:flex;gap:8px;">'
+    + valCard(isLao ? 'ມູນຄ່າລໍຮັບ (ບາດ)' : 'มูลค่ารอรับ (บาท)', d.pending_value_thb || 0, '฿', '#f59e0b')
+    + valCard(isLao ? 'ມູນຄ່າລໍຮັບ (ກີບ)' : 'มูลค่ารอรับ (กีบ)', d.pending_value_lak || 0, '₭', '#f59e0b')
     + '</div>';
 }
 function poRenderChips() {
