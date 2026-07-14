@@ -9302,6 +9302,7 @@ async function prcRenderList() {
         + '<input type="checkbox" ' + (allSelected ? 'checked' : '') + ' onchange="prcToggleSelAll()" style="width:16px;height:16px;accent-color:var(--fs-blue);">'
         + (isLao ? 'ເລືອກທັງໝົດ' : 'เลือกทั้งหมด') + (_prcDateFilter ? ' (' + _prcDateFilter + ')' : '')
         + '</label>'
+        + (_prcSel.size ? '<button onclick="ptagPrintSelected()" style="background:var(--fs-blue);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:11.5px;font-weight:800;cursor:pointer;white-space:nowrap;">🖨️ ' + (isLao ? 'ພິມ' : 'พิมพ์') + ' ' + _prcSel.size + '</button>' : '')
         + (_prcSel.size ? '<button onclick="prcMarkFixedBulk()" style="background:var(--fs-green);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:11.5px;font-weight:800;cursor:pointer;white-space:nowrap;">✓ ' + (isLao ? 'ຕິດ/ແກ້ແລ້ວ' : 'ติด/แก้แล้ว') + ' ' + _prcSel.size + '</button>' : '')
         + '</div>';
     }
@@ -9346,6 +9347,11 @@ async function prcRenderList() {
       if (r.fixed) action = `<button onclick="prcUnfix(${r.id})" style="background:var(--slate-100);color:var(--slate-600);border:1px solid var(--slate-300);border-radius:7px;padding:8px 10px;font-size:11px;font-weight:800;cursor:pointer;flex-shrink:0;">↩ ${isLao ? 'ຍັງບໍ່ຕິດ' : 'ยังไม่ติด'}</button>`;
       else if (!r.is_match) action = `<button onclick="prcMarkFixed(${r.id})" style="background:var(--fs-green);color:white;border:none;border-radius:7px;padding:8px 11px;font-size:11px;font-weight:800;cursor:pointer;flex-shrink:0;">✓ ${isNoTag ? (isLao ? 'ຕິດແລ້ວ' : 'ติดแล้ว') : (isLao ? 'ແກ້ແລ້ວ' : 'แก้แล้ว')}</button>`;
     }
+    // 🖨️ พิมพ์ป้าย — เฉพาะรายการที่ยังไม่ติด (ราคาผิด/ไม่มีป้าย)
+    let printBtn = '';
+    if (!r.is_match && !r.fixed) {
+      printBtn = `<button onclick="ptagPrintOne(${r.id})" title="${isLao ? 'ພິມປ້າຍ' : 'พิมพ์ป้าย'}" style="background:var(--fs-blue-tint);color:var(--fs-blue);border:1px solid var(--violet-300);border-radius:7px;padding:8px 9px;font-size:12px;cursor:pointer;flex-shrink:0;">🖨️</button>`;
+    }
     // admin ลบ/แก้ไขรายการ (Ball 2026-07-08)
     let adminBtns = '';
     if (prcCanManage()) {
@@ -9361,7 +9367,7 @@ async function prcRenderList() {
         ${noteHtml}
         ${fixedByHtml}
       </div>
-      ${action}${adminBtns}
+      ${printBtn}${action}${adminBtns}
     </div>`;
   };
 
@@ -35809,6 +35815,218 @@ window.mbSearchDebounce = mbSearchDebounce; window.mbSearch = mbSearch; window.m
 window.mbOpenUpload = mbOpenUpload; window.mbHandleFile = mbHandleFile; window.mbExecuteUpload = mbExecuteUpload;
 window.mbSignupSave = mbSignupSave; window.mbLoadSignups = mbLoadSignups; window.mbExportSignups = mbExportSignups;
 window.mbMarkRegistered = mbMarkRegistered; window.mbDeleteSignup = mbDeleteSignup; window.mbAddBizType = mbAddBizType;
+
+// ==================== 🖨️ พิมพ์ป้ายราคา (ptag*) ====================
+// พิมพ์ป้ายราคาจากรายการตรวจป้าย (ราคาผิด/ไม่มีป้าย) · เทมเพลตปรับได้ (ขนาด/ฟอนต์/ช่องที่โชว์) เก็บใน app_settings
+// บาร์โค้ด Code128 สแกนได้ (โหลด JsBarcode ตอนพิมพ์ · ถ้าเน็ตล่ม fallback เป็นตัวเลข) · 2 โหมด: ทีละป้าย / แผ่น A4
+const PTAG_KEY = 'prc_tag_cfg';
+// ค่าเริ่มต้นตามสเปกจริงของ Ball (2026-07-09): ฉลาก 6.6×3.89cm, ขอบบน 1.7cm ซ้าย 0.5cm ระยะห่าง 0 (A4 = 3 คอลัมน์ × 7 แถว)
+const PTAG_DEFAULT = { w: 66, h: 38.9, pageTop: 8, pageLeft: 5, nameSize: 11, priceSize: 31, barHeight: 22, codeSize: 8, unitSize: 9, locSize: 13, unitLabel: 'Kip/Unit', dateLabel: 'FS.EX', showName: true, showBarcode: true, showPrice: true, showUnitLabel: true, showDate: true, showLocation: true, showHeader: true };
+function ptagToday() { const d = new Date(); const p = n => String(n).padStart(2, '0'); return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear(); }
+let _ptagCfg = null;
+let _ptagItems = [];
+let _ptagMode = 'single';
+async function ptagLoadCfg(force) {
+  if (_ptagCfg && !force) return _ptagCfg;
+  try {
+    const { data } = await sb.from('app_settings').select('value').eq('key', PTAG_KEY).maybeSingle();
+    let saved = {};
+    if (data && data.value) { try { saved = JSON.parse(data.value); } catch (e) {} }
+    _ptagCfg = Object.assign({}, PTAG_DEFAULT, saved);
+  } catch (e) { _ptagCfg = Object.assign({}, PTAG_DEFAULT); }
+  return _ptagCfg;
+}
+async function ptagSaveCfg() {
+  try { await sb.from('app_settings').upsert({ key: PTAG_KEY, value: JSON.stringify(_ptagCfg || PTAG_DEFAULT), updated_at: new Date().toISOString(), updated_by: (user && user.id) || null }, { onConflict: 'key' }); } catch (e) {}
+}
+function ptagEnsureLib(cb) {
+  if (window.JsBarcode) return cb(true);
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';
+  s.onload = function () { cb(!!window.JsBarcode); };
+  s.onerror = function () { cb(false); };
+  document.head.appendChild(s);
+}
+function ptagItemFromPrc(r) {
+  // location เริ่มต้น = location_code (16E02) · จะถูกแทนด้วย position_code เต็ม (16E02-1-1-8) ใน ptagResolveLocations
+  return { barcode: r.barcode || '', name: r.product_name || r.barcode || '', price: Number(r.system_price) || 0, unit: r.unit_label || '', location: r.location_code || '', locCode: r.location_code || '' };
+}
+// เติมโค้ด Pan-O-Gram เต็ม (position_code = location_code-shelf-seq-total) จาก pan_o_grams ของสาขาปัจจุบัน
+async function ptagResolveLocations(items) {
+  try {
+    if (!branch || !items || !items.length) return;
+    const bcs = Array.from(new Set(items.map(function (i) { return i.barcode; }).filter(Boolean)));
+    if (!bcs.length) return;
+    const rows = [];
+    for (let i = 0; i < bcs.length; i += 200) {
+      const part = bcs.slice(i, i + 200);
+      const { data } = await sb.from('pan_o_grams').select('barcode,location_code,position_code').eq('branch_id', branch.id).in('barcode', part);
+      if (data) rows.push.apply(rows, data);
+    }
+    const byBc = {};
+    rows.forEach(function (r) { (byBc[r.barcode] = byBc[r.barcode] || []).push(r); });
+    items.forEach(function (it) {
+      const list = byBc[it.barcode];
+      if (!list || !list.length) return;   // ไม่มีใน Pan-O-Gram → คง location_code เดิม (fallback)
+      let pick = it.locCode ? list.find(function (r) { return r.location_code === it.locCode; }) : null;
+      pick = pick || list[0];
+      if (pick && pick.position_code) it.location = pick.position_code;
+      else if (pick && pick.location_code) it.location = pick.location_code;
+    });
+  } catch (e) {}
+}
+function ptagTagHtml(item, cfg, fill) {
+  const c = cfg || PTAG_DEFAULT;
+  const price = new Intl.NumberFormat('th-TH').format(Number(item.price) || 0);
+  const wCss = fill ? 'width:100%;' : 'width:' + c.w + 'mm;';
+  let html = '<div class="ptag" style="' + wCss + 'height:' + c.h + 'mm;box-sizing:border-box;border:0.35mm solid #000;margin:-0.175mm;padding:1.3mm 2mm;display:flex;flex-direction:column;background:white;color:#000;overflow:hidden;">';
+  // 1) ชื่อ (บน-ซ้าย, ไม่เกิน 2 บรรทัด)
+  if (c.showName) html += '<div style="font-size:' + c.nameSize + 'px;font-weight:700;line-height:1.12;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">' + escapeHtml(item.name || '') + '</div>';
+  // 2) ราคาใหญ่ (กลาง)
+  if (c.showPrice) html += '<div style="flex:1;display:flex;align-items:center;justify-content:center;min-height:0;"><span style="font-size:' + c.priceSize + 'px;font-weight:900;line-height:1;">' + price + '</span></div>';
+  else html += '<div style="flex:1;"></div>';
+  // 3) ล่าง: ซ้าย = FS.EX วันที่ + บาร์โค้ด+เลข · ขวา = Kip/Unit
+  html += '<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:2mm;">';
+  html += '<div style="min-width:0;overflow:hidden;">';
+  if (c.showDate && c.dateLabel) html += '<div style="font-size:6px;line-height:1;margin-bottom:0.4mm;">' + escapeHtml(c.dateLabel) + ' : ' + ptagToday() + '</div>';
+  if (c.showBarcode) html += '<svg class="ptag-bc" data-code="' + escapeHtml(item.barcode || '') + '"></svg>';
+  else html += '<div style="font-family:monospace;font-size:' + c.codeSize + 'px;">' + escapeHtml(item.barcode || '') + '</div>';
+  html += '</div>';
+  // ขวาล่าง: Kip/Unit (เล็ก) + Location (ตำแหน่ง Pan-O-Gram, ตัวเด่น)
+  let right = '';
+  if (c.showUnitLabel && c.unitLabel) right += '<div style="font-size:' + c.unitSize + 'px;line-height:1.1;">' + escapeHtml(c.unitLabel) + '</div>';
+  if (c.showLocation && item.location) right += '<div style="font-size:' + c.locSize + 'px;font-weight:800;line-height:1.15;">' + escapeHtml(item.location) + '</div>';
+  if (right) html += '<div style="text-align:right;white-space:nowrap;flex-shrink:0;">' + right + '</div>';
+  html += '</div></div>';
+  return html;
+}
+function ptagBuildHtml(cfg, mode) {
+  const c = cfg || PTAG_DEFAULT;
+  const isLao = lang === 'lo';
+  if (mode === 'single') {
+    return '<div class="ptag-single">' + _ptagItems.map(function (it) { return ptagTagHtml(it, c, false); }).join('') + '</div>';
+  }
+  const header = c.showHeader ? '<div class="ptag-head" style="text-align:center;font-weight:800;font-size:12px;margin-bottom:2mm;">Friendship · ' + (isLao ? 'ລາຄາປົກກະຕິ' : 'ราคาปกติ') + ' · Update ' + ptagToday() + '</div>' : '';
+  // แผ่น A4: ฉลากขนาดคงที่ (w mm) เรียงต่อกัน flex-wrap — จำนวนต่อแถวคำนวณเองตามความกว้างฉลาก (66mm → 3 คอลัมน์)
+  return header + '<div class="ptag-sheet" style="display:flex;flex-wrap:wrap;align-content:flex-start;">' + _ptagItems.map(function (it) { return ptagTagHtml(it, c, false); }).join('') + '</div>';
+}
+function ptagRenderBarcodes(root, cfg, ok) {
+  const c = cfg || PTAG_DEFAULT;
+  const svgs = root.querySelectorAll('svg.ptag-bc');
+  if (ok && window.JsBarcode) {
+    svgs.forEach(function (el) { try { JsBarcode(el, el.dataset.code || ' ', { format: 'CODE128', displayValue: true, fontSize: c.codeSize, height: c.barHeight, width: 0.9, margin: 0 }); el.style.maxWidth = '100%'; el.style.height = 'auto'; } catch (e) {} });
+  } else {
+    svgs.forEach(function (el) { el.outerHTML = '<div style="font-family:monospace;text-align:center;font-size:' + c.codeSize + 'px;">' + escapeHtml(el.dataset.code || '') + '</div>'; });
+  }
+}
+function ptagOpenPrint(items) {
+  if (!items || !items.length) { showToast(lang === 'lo' ? 'ບໍ່ມີລາຍການ' : 'ไม่มีรายการ', 'warning'); return; }
+  _ptagItems = items;
+  ptagLoadCfg().then(function () {
+    const isLao = lang === 'lo';
+    const modeBtn = (m, th, lo) => '<button onclick="ptagSetMode(\'' + m + '\')" id="ptagMode_' + m + '" style="flex:1;padding:9px;border:none;border-radius:9px;font-size:12.5px;font-weight:800;cursor:pointer;background:' + (_ptagMode === m ? 'var(--fs-blue)' : 'var(--slate-100)') + ';color:' + (_ptagMode === m ? 'white' : 'var(--slate-600)') + ';">' + (isLao ? lo : th) + '</button>';
+    showModal(
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px;"><h3 style="font-size:15px;margin:0;">🖨️ ' + (isLao ? 'ພິມປ້າຍລາຄາ' : 'พิมพ์ป้ายราคา') + ' (' + items.length + ')</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
+      + '<div style="display:flex;gap:6px;margin-bottom:10px;">' + modeBtn('single', 'ทีละป้าย', 'ທີລະປ້າຍ') + modeBtn('sheet', 'แผ่น A4', 'ແຜ່ນ A4') + '</div>'
+      + '<div style="display:flex;gap:6px;margin-bottom:11px;">'
+      + '<button onclick="ptagDoPrint()" style="flex:1;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;">🖨️ ' + (isLao ? 'ພິມ' : 'พิมพ์') + '</button>'
+      + (prcCanManage() ? '<button onclick="ptagOpenSettings()" style="background:var(--slate-100);border:1px solid var(--slate-200);border-radius:9px;padding:11px 13px;font-size:13px;font-weight:800;cursor:pointer;">⚙️ ' + (isLao ? 'ຕັ້ງຄ່າ' : 'ตั้งค่า') + '</button>' : '')
+      + '</div>'
+      + '<div style="font-size:11px;color:var(--slate-400);margin-bottom:8px;">' + (isLao ? 'ຕົວຢ່າງ:' : 'ตัวอย่าง:') + '</div>'
+      + '<div id="ptagPreview" style="background:var(--slate-100);border-radius:9px;padding:12px;max-height:48vh;overflow:auto;"></div>'
+    );
+    ptagRenderPreview();
+  });
+}
+function ptagSetMode(m) {
+  _ptagMode = m;
+  ['single', 'sheet'].forEach(function (x) { const b = document.getElementById('ptagMode_' + x); if (b) { const on = x === m; b.style.background = on ? 'var(--fs-blue)' : 'var(--slate-100)'; b.style.color = on ? 'white' : 'var(--slate-600)'; } });
+  ptagRenderPreview();
+}
+function ptagRenderPreview() {
+  const box = document.getElementById('ptagPreview'); if (!box) return;
+  const cfg = _ptagCfg || PTAG_DEFAULT;
+  box.style.background = 'white';
+  box.innerHTML = ptagBuildHtml(cfg, _ptagMode);
+  ptagEnsureLib(function (ok) { ptagRenderBarcodes(box, cfg, ok); });
+}
+function ptagEnsurePrintArea() {
+  let a = document.getElementById('ptagPrintArea');
+  if (!a) { a = document.createElement('div'); a.id = 'ptagPrintArea'; document.body.appendChild(a); }
+  if (!document.getElementById('ptagBaseCss')) {
+    const st = document.createElement('style'); st.id = 'ptagBaseCss';
+    st.textContent = '#ptagPrintArea{display:none;}@media print{body.ptag-printing *{visibility:hidden!important;}body.ptag-printing #ptagPrintArea,body.ptag-printing #ptagPrintArea *{visibility:visible!important;}body.ptag-printing #ptagPrintArea{display:block!important;position:absolute;left:0;top:0;width:100%;}.ptag{page-break-inside:avoid;}}';
+    document.head.appendChild(st);
+  }
+  return a;
+}
+function ptagDoPrint() {
+  const cfg = _ptagCfg || PTAG_DEFAULT;
+  const area = ptagEnsurePrintArea();
+  let ps = document.getElementById('ptagPageCss');
+  if (!ps) { ps = document.createElement('style'); ps.id = 'ptagPageCss'; document.head.appendChild(ps); }
+  if (_ptagMode === 'single') {
+    ps.textContent = '@media print{@page{size:' + cfg.w + 'mm ' + cfg.h + 'mm;margin:0;}#ptagPrintArea .ptag{page-break-after:always;margin:0!important;}}';
+    area.innerHTML = _ptagItems.map(function (it) { return ptagTagHtml(it, cfg, false); }).join('');
+  } else {
+    ps.textContent = '@media print{@page{size:A4;margin:' + (cfg.pageTop || 8) + 'mm 0mm 0mm ' + (cfg.pageLeft || 5) + 'mm;}}';
+    area.innerHTML = ptagBuildHtml(cfg, 'sheet');
+  }
+  ptagEnsureLib(function (ok) {
+    ptagRenderBarcodes(area, cfg, ok);
+    document.body.classList.add('ptag-printing');
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.body.classList.remove('ptag-printing'); area.innerHTML = ''; }, 400);
+    }, ok ? 250 : 60);
+  });
+}
+function ptagOpenSettings() {
+  const c = _ptagCfg || PTAG_DEFAULT; const isLao = lang === 'lo';
+  const num = (k, label) => '<label style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:7px;">' + label + '<input id="ptag_' + k + '" type="number" step="0.5" value="' + c[k] + '" style="width:82px;padding:6px 8px;border:1px solid var(--slate-300);border-radius:7px;font-size:13px;text-align:right;"></label>';
+  const chk = (k, label) => '<label style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:7px;"><input id="ptag_' + k + '" type="checkbox" ' + (c[k] ? 'checked' : '') + ' style="width:16px;height:16px;">' + label + '</label>';
+  const txt = (k, label) => '<label style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:7px;">' + label + '<input id="ptag_' + k + '" type="text" value="' + escapeHtml(String(c[k] == null ? '' : c[k])) + '" style="width:120px;padding:6px 8px;border:1px solid var(--slate-300);border-radius:7px;font-size:13px;text-align:right;"></label>';
+  showModal(
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><h3 style="font-size:15px;margin:0;">⚙️ ' + (isLao ? 'ຕັ້ງຄ່າປ້າຍ' : 'ตั้งค่าป้าย') + '</h3><button onclick="ptagBackToPrint()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
+    + '<div style="max-height:64vh;overflow:auto;">'
+    + '<div style="font-size:11px;font-weight:800;color:var(--slate-400);margin:2px 0 8px;">' + (isLao ? 'ຂະໜາດຟຼາກ + ຂອບ A4 (mm)' : 'ขนาดป้าย + ขอบ A4 (มม.)') + '</div>'
+    + num('w', (isLao ? 'ຟຼາກກວ້າງ' : 'ป้ายกว้าง')) + num('h', (isLao ? 'ຟຼາກສູງ' : 'ป้ายสูง')) + num('pageTop', (isLao ? 'ຂອບເທິງ A4' : 'ขอบบน A4')) + num('pageLeft', (isLao ? 'ຂອບຊ້າຍ A4' : 'ขอบซ้าย A4'))
+    + '<div style="font-size:11px;font-weight:800;color:var(--slate-400);margin:10px 0 8px;">' + (isLao ? 'ຂະໜາດຕົວອັກສອນ / ຄວາມສູງ (px)' : 'ขนาดตัวอักษร / ความสูง (px)') + '</div>'
+    + num('nameSize', (isLao ? 'ຊື່' : 'ชื่อ')) + num('priceSize', (isLao ? 'ລາຄາ' : 'ราคา')) + num('barHeight', (isLao ? 'ຄວາມສູງບາໂຄດ' : 'ความสูงบาร์โค้ด')) + num('codeSize', (isLao ? 'ເລກບາໂຄດ' : 'เลขบาร์โค้ด')) + num('unitSize', 'Kip/Unit') + num('locSize', 'Location')
+    + '<div style="font-size:11px;font-weight:800;color:var(--slate-400);margin:10px 0 8px;">' + (isLao ? 'ຂໍ້ຄວາມ' : 'ข้อความ') + '</div>'
+    + txt('unitLabel', (isLao ? 'ປ້າຍໜ່ວຍ (ຂວາລ່າງ)' : 'ป้ายหน่วย (ขวาล่าง)')) + txt('dateLabel', (isLao ? 'ປ້າຍວັນທີ (ຊ້າຍລ່າງ)' : 'ป้ายวันที่ (ซ้ายล่าง)'))
+    + '<div style="font-size:11px;font-weight:800;color:var(--slate-400);margin:10px 0 8px;">' + (isLao ? 'ສະແດງ' : 'แสดง') + '</div>'
+    + chk('showName', (isLao ? 'ຊື່ສິນຄ້າ' : 'ชื่อสินค้า')) + chk('showBarcode', (isLao ? 'ບາໂຄດ' : 'บาร์โค้ด')) + chk('showPrice', (isLao ? 'ລາຄາ' : 'ราคา')) + chk('showLocation', (isLao ? 'Location (ຕຳແໜ່ງ Pan-O-Gram)' : 'Location (ตำแหน่ง Pan-O-Gram)')) + chk('showUnitLabel', 'Kip/Unit') + chk('showDate', (isLao ? 'ວັນທີ (FS.EX)' : 'วันที่ (FS.EX)')) + chk('showHeader', (isLao ? 'ຫົວກະດາດ A4' : 'หัวกระดาษ A4'))
+    + '</div>'
+    + '<button onclick="ptagSaveSettings()" style="width:100%;margin-top:10px;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">💾 ' + (isLao ? 'ບັນທຶກ' : 'บันทึก') + '</button>'
+  );
+}
+function ptagBackToPrint() { ptagOpenPrint(_ptagItems); }
+async function ptagSaveSettings() {
+  const c = _ptagCfg || (_ptagCfg = Object.assign({}, PTAG_DEFAULT));
+  ['w', 'h', 'pageTop', 'pageLeft', 'nameSize', 'priceSize', 'barHeight', 'codeSize', 'unitSize', 'locSize'].forEach(function (k) { const el = document.getElementById('ptag_' + k); if (el) { const v = parseFloat(el.value); if (!isNaN(v) && v >= 0) c[k] = v; } });
+  ['unitLabel', 'dateLabel'].forEach(function (k) { const el = document.getElementById('ptag_' + k); if (el) c[k] = el.value; });
+  ['showName', 'showBarcode', 'showPrice', 'showLocation', 'showUnitLabel', 'showDate', 'showHeader'].forEach(function (k) { const el = document.getElementById('ptag_' + k); if (el) c[k] = !!el.checked; });
+  await ptagSaveCfg();
+  showToast(lang === 'lo' ? '✅ ບັນທຶກແລ້ວ' : '✅ บันทึกแล้ว', 'success');
+  ptagOpenPrint(_ptagItems);
+}
+async function ptagPrintOne(prcId) {
+  const r = (typeof _prcRows !== 'undefined' ? _prcRows : []).find(function (x) { return x.id === prcId; });
+  if (!r) { showToast(lang === 'lo' ? 'ບໍ່ພົບ' : 'ไม่พบรายการ', 'error'); return; }
+  const items = [ptagItemFromPrc(r)];
+  await ptagResolveLocations(items);
+  ptagOpenPrint(items);
+}
+async function ptagPrintSelected() {
+  const rows = (typeof _prcRows !== 'undefined' ? _prcRows : []).filter(function (r) { return _prcSel.has(r.id); });
+  if (!rows.length) { showToast(lang === 'lo' ? 'ຍັງບໍ່ໄດ້ເລືອກ' : 'ยังไม่ได้เลือก', 'warning'); return; }
+  const items = rows.map(ptagItemFromPrc);
+  await ptagResolveLocations(items);
+  ptagOpenPrint(items);
+}
+window.ptagPrintOne = ptagPrintOne; window.ptagPrintSelected = ptagPrintSelected; window.ptagSetMode = ptagSetMode;
+window.ptagDoPrint = ptagDoPrint; window.ptagOpenSettings = ptagOpenSettings; window.ptagSaveSettings = ptagSaveSettings; window.ptagBackToPrint = ptagBackToPrint;
 
 // ==================== 🟢 PRESENCE / ใครออนไลน์ (presence*) ====================
 // heartbeat: ทุก user ที่ล็อกอิน upsert last_seen ทุก 40 วิ · admin ดูคนที่ last_seen ภายใน 2 นาที = ออนไลน์
