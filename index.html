@@ -35832,8 +35832,11 @@ window.mbMarkRegistered = mbMarkRegistered; window.mbDeleteSignup = mbDeleteSign
 // สิทธิ์ผูก "ไอดี": Buyer=จัดซื้อภายใน · DC=จัดซื้อภายนอก · admin/scc/it=ควบคุมเต็ม
 // ⚠️ ยังไม่เห็น username จริง — ปรับ pattern จับไอดีได้ที่ 2 const ล่างนี้
 const PO_BUYER_RE = /buyer/i;   // ไอดีจัดซื้อภายใน
-const PO_DC_RE    = /dc/i;      // ไอดีจัดซื้อภายนอก
+const PO_DC_RE    = /dc/i;      // ไอดีจัดซื้อภายนอก (เช่น Counter-DC-Men)
 const PO_SUPER = ['admin', 'scc', 'it'];
+// ไอดีที่เปิดสิทธิ์เข้าหน้า PO-tracking (Ball 2026-07-14) — role counter ที่เป็นทีมจัดซื้อ (เก็บ lowercase)
+// เพิ่ม/ลบ ไอดีได้ที่ลิสต์นี้ · ได้สิทธิ์ระดับ buyer (ตั้งวัน/รับของ/ยกเลิกได้) · Counter-DC-Men เข้าเป็น dc อัตโนมัติ
+const PO_ACCESS_USERS = ['counter-alee', 'counter-it-jar', 'counter-khao', 'counter-lea', 'counter-pui', 'counter-dc-men'];
 // mirror ของ po_role_permissions (RPC เป็นตัวตัดสินจริง — อันนี้ใช้แค่ตัดสินใจว่าจะโชว์ปุ่มไหน)
 const PO_PERMS = {
   buyer: ['sent_ext', 'sent_supplier', 'confirmed', 'shipped', 'receiving', 'cancelled'],
@@ -35852,16 +35855,17 @@ let _poReceiveItems = [];
 function poActorRole(u) {
   u = u || user; if (!u) return '';
   if (PO_SUPER.includes(u.role)) return u.role;
-  const un = String(u.username || '');
+  const un = String(u.username || '').toLowerCase();
+  if (PO_DC_RE.test(un)) return 'dc';                        // Counter-DC-Men → จัดซื้อภายนอก
   if (PO_BUYER_RE.test(un)) return 'buyer';
-  if (PO_DC_RE.test(un)) return 'dc';
+  if (PO_ACCESS_USERS.includes(un)) return 'buyer';          // ไอดีที่เปิดสิทธิ์ → ระดับ buyer
   return u.role;
 }
 function poCanAccess(u) {
   u = u || user; if (!u) return false;
   if (PO_SUPER.includes(u.role)) return true;
-  const un = String(u.username || '');
-  return PO_BUYER_RE.test(un) || PO_DC_RE.test(un);
+  const un = String(u.username || '').toLowerCase();
+  return PO_ACCESS_USERS.includes(un) || PO_BUYER_RE.test(un) || PO_DC_RE.test(un);
 }
 function poHasPerm(to) {
   const r = poActorRole();
