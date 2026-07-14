@@ -35898,7 +35898,8 @@ function renderPOTrackPage() {
     + '<div style="display:flex;align-items:center;gap:9px;margin-bottom:12px;">'
     + '<button onclick="goPage(getHomePage())" style="border:1px solid var(--slate-200);background:white;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
     + '<h2 style="font-size:18px;font-weight:800;color:var(--slate-800);margin:0;">🛒 PO Tracking</h2>'
-    + '<button onclick="poOpenCreate()" style="margin-left:auto;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:8px 13px;font-size:12.5px;font-weight:800;cursor:pointer;">＋ ' + (isLao ? 'ເປີດ PO' : 'เปิด PO') + '</button>'
+    + '<button onclick="poOpenImport()" style="margin-left:auto;background:var(--slate-100);color:var(--slate-700);border:1px solid var(--slate-200);border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:800;cursor:pointer;">📥 Sheet</button>'
+    + '<button onclick="poOpenCreate()" style="background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:8px 13px;font-size:12.5px;font-weight:800;cursor:pointer;">＋ ' + (isLao ? 'ເປີດ PO' : 'เปิด PO') + '</button>'
     + '</div>'
     + '<div id="poDash" style="margin-bottom:12px;"></div>'
     + '<div style="display:flex;gap:6px;margin-bottom:10px;">'
@@ -35913,7 +35914,7 @@ function renderPOTrackPage() {
     + '<div id="poList"></div>'
     + '</div>';
 }
-function poInit() { poRenderChips(); poLoadDashboard(); poLoadList(); }
+function poInit() { poRenderChips(); poLoadDashboard(); poLoadList(); poLoadWbCfg(); }
 async function poLoadDashboard() {
   const box = document.getElementById('poDash'); if (!box) return;
   const isLao = lang === 'lo';
@@ -36045,6 +36046,14 @@ async function poLookup(idx) {
       const cat = document.getElementById('poCategory'); if (cat && !cat.value.trim() && data.category) cat.value = data.category;
     }
   } catch (e) {}
+  // ราคาต่อหน่วย = ต้นทุนล่าสุดจาก purchase_history (แบบเดียวกับต้นทุนสินค้าในแอป)
+  try {
+    const pr = document.getElementById('poPrice_' + idx);
+    if (pr && !String(pr.value).trim()) {
+      const { data: ph } = await sb.from('purchase_history').select('unit_price').eq('barcode', bc).order('buy_date', { ascending: false }).limit(1).maybeSingle();
+      if (ph && ph.unit_price) pr.value = Number(ph.unit_price);
+    }
+  } catch (e) {}
 }
 async function poSubmitCreate() {
   const isLao = lang === 'lo';
@@ -36084,6 +36093,7 @@ async function poOpenDetail(id) {
 function poRenderDetail(d) {
   const isLao = lang === 'lo';
   const h = d.header, items = d.items || [], log = d.log || [], receipts = d.receipts || [];
+  _poCurrentHeader = h;
   const sm = poStatusMeta(h.status);
   let actions = '';
   poNextStatuses(h.po_type, h.status).forEach(to => {
@@ -36127,9 +36137,18 @@ async function poAdvance(id, to) {
   const isLao = lang === 'lo';
   let note = null;
   if (to === 'cancelled') { if (!confirm(isLao ? 'ຢືນຢັນຍົກເລີກໃບນີ້?' : 'ยืนยันยกเลิกใบนี้?')) return; }
-  const { error } = await sb.rpc('rpc_po_advance_status', { p_po_id: id, p_to: to, p_user: poActor(), p_role: poActorRole(), p_note: note, p_photo: null, p_date: null });
+  const { data, error } = await sb.rpc('rpc_po_advance_status', { p_po_id: id, p_to: to, p_user: poActor(), p_role: poActorRole(), p_note: note, p_photo: null, p_date: null });
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   showToast('✅ ' + escapeHtml(poStatusLabel(to)), 'success');
+  // เขียนวันที่/สถานะกลับ Google Sheet (เฉพาะ PO ที่ import มา + ตั้ง URL ไว้)
+  const h = _poCurrentHeader;
+  if (h && h.id === id && h.source_month) {
+    const col = { sent_ext: 12, sent_supplier: 15, confirmed: 17, shipped: 18 }[to];
+    const upd = {};
+    if (col != null) upd[col] = poToSheetDate((data && data.date) || null);
+    if (to === 'cancelled') upd[22] = isLao ? 'ຍົກເລີກ' : 'ยกเลิก';
+    if (Object.keys(upd).length) poWriteback({ token: _poWbToken, sheet: poSheetName(h.po_type, h.source_month), po_no: h.po_no, updates: upd });
+  }
   poOpenDetail(id); poLoadDashboard(); poLoadList();
 }
 
@@ -36142,6 +36161,7 @@ async function poOpenReceive(id) {
   const items = (data.items || []).filter(i => i.line_status !== 'complete');
   if (!items.length) { closeModal(); showToast(isLao ? 'ຮັບຄົບທຸກລາຍການແລ້ວ' : 'รับครบทุกรายการแล้ว', 'info'); return; }
   _poReceiveItems = items.map(i => i.id);
+  _poReceiveMeta = items.map(i => ({ id: i.id, barcode: i.barcode || '', prev: Number(i.qty_received) || 0, ordered: Number(i.qty_ordered) || 0 }));
   const cs = 'padding:8px 10px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;box-sizing:border-box;';
   const rows = items.map(i => {
     const remain = (Number(i.qty_ordered) || 0) - (Number(i.qty_received) || 0);
@@ -36166,10 +36186,215 @@ async function poSubmitReceive(id) {
   closeModal();
   const st = data && data.status;
   showToast('✅ ' + (st === 'closed' ? (isLao ? 'ຮັບຄົບ ປິດໃບແລ້ວ' : 'รับครบ ปิดใบแล้ว') : (isLao ? 'ບັນທຶກຮັບແລ້ວ' : 'บันทึกรับแล้ว')), 'success');
+  // เขียนจำนวนรับ/สถานะ/วันรับ กลับ Google Sheet (เฉพาะ PO ที่ import + ตั้ง URL)
+  const h = _poCurrentHeader;
+  if (h && h.id === id && h.source_month) {
+    const sheetItems = [];
+    receipts.forEach(rc => {
+      const meta = (_poReceiveMeta || []).find(m => m.id === rc.po_item_id);
+      if (meta && meta.barcode) {
+        const nt = (meta.prev || 0) + rc.qty;
+        const stTxt = (meta.ordered > 0 && nt >= meta.ordered) ? (isLao ? 'ຮັບຄົບ' : 'รับครบ') : (isLao ? 'ຮັບບໍ່ຄົບ' : 'รับไม่ครบ');
+        const it = { barcode: meta.barcode }; it[21] = nt; it[22] = stTxt;
+        sheetItems.push(it);
+      }
+    });
+    const upd = {}; upd[20] = ptagToday(); // วันรับสินค้าจริง (DD/MM/YYYY)
+    poWriteback({ token: _poWbToken, sheet: poSheetName(h.po_type, h.source_month), po_no: h.po_no, updates: upd, items: sheetItems });
+  }
   poInit();
 }
 
+// ---------- นำเข้าจาก Google Sheet (PO_TRACKER รายเดือน) ----------
+const PO_SHEET_ID = '1UG4vvyfXu0CV23Ybf94Si7wc6FYwyr0o3PtYRJFneeQ';
+const PO_SHEET_EXT = 'PO_TRACKER_ภายนอก';   // ต่อท้าย ' MM' → PO_TRACKER_ภายนอก 07
+const PO_SHEET_INT = 'PO_TRACKER_ภายใน';    // ต่อท้าย ' MM'
+// ตำแหน่งคอลัมน์ (0-based) ตามชีตจริง (verify แล้ว 2026-07-14) — แถว 0 = หัวตาราง, ข้อมูลเริ่มแถว 1
+const PO_COL = { po_no: 0, date: 1, opener: 2, cat: 3, barcode: 4, name: 5, type: 7, qty: 8, unit: 9, price: 10, sentExt: 12, extBuyer: 13, supplier: 14, sentSup: 15, appt: 16, shipped: 18, note: 19, received: 20, qtyRcv: 21, status: 22 };
+let _poImportData = null;
+function poCurMonth() { return String(new Date().getMonth() + 1).padStart(2, '0'); }
+function poNum(s) { const n = parseFloat(String(s == null ? '' : s).replace(/[,\s ₭]/g, '')); return isNaN(n) ? 0 : n; }
+function poParseDate(s) {
+  s = String(s || '').trim(); if (!s) return null;
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);                 // ISO YYYY-MM-DD (เผื่อ cell เป็น date)
+  if (m) return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+  m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);        // DD/MM/YYYY หรือ DD-MM-YYYY (หรือ .)
+  if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+  return null;
+}
+async function poFetchSheet(name) {
+  const url = 'https://docs.google.com/spreadsheets/d/' + PO_SHEET_ID + '/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent(name);
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const t = await r.text();
+  if (/^\s*</.test(t)) throw new Error('no sheet: ' + name); // ได้ HTML = ไม่พบชีต/ไม่ public
+  const wb = XLSX.read(t, { type: 'string' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+}
+function poParseSheet(rows, poType, sourceMonth) {
+  const groups = {}, order = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i] || [];
+    const no = String(r[PO_COL.po_no] || '').trim();
+    if (!/\/\d+\s*$/.test(no)) continue; // ต้องลงท้าย /เลข (กันแถวหัว/ว่าง)
+    if (!groups[no]) {
+      groups[no] = {
+        po_no: no, po_type: poType, source_month: sourceMonth,
+        created_by: String(r[PO_COL.opener] || '').trim() || null,
+        category: String(r[PO_COL.cat] || '').trim() || null,
+        supplier_name: String(r[PO_COL.supplier] || '').trim() || null,
+        ext_buyer: String(r[PO_COL.extBuyer] || '').trim() || null,
+        note: String(r[PO_COL.note] || '').trim() || null,
+        date_created: poParseDate(r[PO_COL.date]),
+        date_sent_ext: poParseDate(r[PO_COL.sentExt]),
+        date_sent_supplier: poParseDate(r[PO_COL.sentSup]),
+        appointment_date: poParseDate(r[PO_COL.appt]),
+        date_shipped: poParseDate(r[PO_COL.shipped]),
+        date_received: poParseDate(r[PO_COL.received]),
+        items: []
+      };
+      order.push(no);
+    }
+    const nm = String(r[PO_COL.name] || '').trim();
+    const qty = poNum(r[PO_COL.qty]);
+    if (!nm || qty <= 0) continue;
+    groups[no].items.push({
+      barcode: String(r[PO_COL.barcode] || '').trim(),
+      product_name: nm,
+      unit: String(r[PO_COL.unit] || '').trim() || null,
+      qty_ordered: qty,
+      unit_price: poNum(r[PO_COL.price]),
+      qty_received: poNum(r[PO_COL.qtyRcv])
+    });
+  }
+  const list = order.map(no => groups[no]).filter(g => g.items.length);
+  list.forEach(g => {
+    const totO = g.items.reduce((a, i) => a + i.qty_ordered, 0);
+    const totR = g.items.reduce((a, i) => a + i.qty_received, 0);
+    g.status = (totO > 0 && totR >= totO) ? 'closed' : (totR > 0 ? 'receiving' : (g.date_shipped ? 'shipped' : (g.date_sent_supplier ? 'sent_supplier' : (g.date_sent_ext ? 'sent_ext' : 'draft'))));
+  });
+  return list;
+}
+async function poEnrichCosts(list) {
+  const bcs = Array.from(new Set([].concat.apply([], list.map(p => p.items.map(i => i.barcode))).filter(b => b)));
+  if (!bcs.length) return;
+  const map = {}; const CH = 1000;
+  for (let i = 0; i < bcs.length; i += CH) {
+    try { const { data } = await sb.rpc('rpc_po_latest_costs', { p_barcodes: bcs.slice(i, i + CH) }); if (data) Object.assign(map, data); } catch (e) {}
+  }
+  list.forEach(p => p.items.forEach(it => { const c = map[it.barcode]; if (c != null && Number(c) > 0) it.unit_price = Number(c); }));
+}
+function poOpenImport() {
+  const isLao = lang === 'lo';
+  const mm = poCurMonth();
+  const html = '<div style="padding:16px 15px;">'
+    + '<div style="font-size:16px;font-weight:800;color:var(--slate-800);margin-bottom:6px;">📥 ' + (isLao ? 'ດຶງຈາກ Google Sheet' : 'ดึงจาก Google Sheet') + '</div>'
+    + '<div style="font-size:11.5px;color:var(--slate-500);margin-bottom:12px;">' + (isLao ? 'ດຶງ PO_TRACKER ພາຍນອກ + ພາຍໃນ ຂອງເດືອນທີ່ເລືອກ' : 'ดึง PO_TRACKER ภายนอก + ภายใน ของเดือนที่เลือก') + '</div>'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span style="font-size:12.5px;font-weight:700;color:var(--slate-600);">' + (isLao ? 'ເດືອນ (MM)' : 'เดือน (MM)') + '</span><input id="poImMonth" value="' + mm + '" inputmode="numeric" maxlength="2" style="width:70px;padding:9px 12px;border:1px solid var(--slate-300);border-radius:9px;font-size:14px;text-align:center;box-sizing:border-box;"><span style="font-size:11px;color:var(--slate-400);">' + (new Date().getFullYear()) + '</span></div>'
+    + '<div id="poImResult"></div>'
+    + '<div style="display:flex;gap:9px;margin-top:12px;"><button onclick="closeModal()" style="flex:1;border:1px solid var(--slate-200);background:white;border-radius:10px;padding:12px;font-weight:700;color:var(--slate-600);cursor:pointer;">' + (isLao ? 'ປິດ' : 'ปิด') + '</button><button id="poImFetchBtn" onclick="poImportFetch()" style="flex:2;border:none;background:var(--fs-blue);color:white;border-radius:10px;padding:12px;font-weight:800;cursor:pointer;">🔎 ' + (isLao ? 'ດຶງຂໍ້ມູນ' : 'ดึงข้อมูล') + '</button></div>'
+    + (['admin', 'scc'].includes((user && user.role) || '') ? '<div style="text-align:center;margin-top:10px;"><button onclick="poWbConfig()" style="background:none;border:none;color:var(--slate-400);font-size:11.5px;font-weight:700;cursor:pointer;text-decoration:underline;">⚙️ ' + (isLao ? 'ຕັ້ງຄ່າ ຂຽນກັບ Sheet' : 'ตั้งค่า เขียนกลับ Sheet') + '</button></div>' : '')
+    + '</div>';
+  showModal(html);
+}
+async function poImportFetch() {
+  const isLao = lang === 'lo';
+  const mmEl = document.getElementById('poImMonth');
+  const mm = String(mmEl ? mmEl.value : '').trim().padStart(2, '0');
+  if (!/^\d{2}$/.test(mm)) { showToast(isLao ? 'ໃສ່ເດືອນ 2 ຫຼັກ (ເຊັ່ນ 07)' : 'ใส่เดือน 2 หลัก (เช่น 07)', 'warning'); return; }
+  const box = document.getElementById('poImResult'); const btn = document.getElementById('poImFetchBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  if (box) box.innerHTML = '<div style="text-align:center;padding:16px;"><div class="loader" style="margin:0 auto;"></div></div>';
+  const sm = new Date().getFullYear() + '-' + mm;
+  try {
+    const [extRows, intRows] = await Promise.all([
+      poFetchSheet(PO_SHEET_EXT + ' ' + mm).catch(e => ({ __err: e.message })),
+      poFetchSheet(PO_SHEET_INT + ' ' + mm).catch(e => ({ __err: e.message }))
+    ]);
+    const ext = Array.isArray(extRows) ? poParseSheet(extRows, 'external', sm) : [];
+    const int = Array.isArray(intRows) ? poParseSheet(intRows, 'internal', sm) : [];
+    await poEnrichCosts(ext.concat(int)); // ราคาต่อหน่วย = ต้นทุนล่าสุด (purchase_history) ทับราคาชีตถ้ามี
+    _poImportData = { external: ext, internal: int, month: sm };
+    const cnt = list => ({ po: list.length, items: list.reduce((a, g) => a + g.items.length, 0) });
+    const ce = cnt(ext), ci = cnt(int);
+    const errE = (!Array.isArray(extRows) && extRows && extRows.__err) ? extRows.__err : '';
+    const errI = (!Array.isArray(intRows) && intRows && intRows.__err) ? intRows.__err : '';
+    const rowLine = (label, c) => '<div style="display:flex;justify-content:space-between;padding:4px 0;"><span>' + label + '</span><b>' + c.po + ' ' + (isLao ? 'ໃບ' : 'ใบ') + ' / ' + c.items + ' ' + (isLao ? 'ລາຍການ' : 'รายการ') + '</b></div>';
+    const total = ce.po + ci.po;
+    if (box) box.innerHTML = '<div style="background:#f8fafc;border-radius:10px;padding:12px;font-size:13px;">'
+      + rowLine(isLao ? 'ນອກປະເທດ' : 'นอกประเทศ', ce)
+      + rowLine(isLao ? 'ພາຍໃນ' : 'ในประเทศ', ci)
+      + (errE ? '<div style="color:var(--rose-500);font-size:11px;margin-top:4px;">' + (isLao ? 'ນອກ' : 'นอก') + ': ' + escapeHtml(errE) + '</div>' : '')
+      + (errI ? '<div style="color:var(--rose-500);font-size:11px;margin-top:4px;">' + (isLao ? 'ໃນ' : 'ใน') + ': ' + escapeHtml(errI) + '</div>' : '')
+      + (total > 0 ? '<button onclick="poImportConfirm()" style="width:100%;margin-top:10px;border:none;background:#22c55e;color:white;border-radius:9px;padding:11px;font-weight:800;cursor:pointer;">✅ ' + (isLao ? 'ຢືນຢັນນຳເຂົ້າ' : 'ยืนยันนำเข้า') + ' (' + total + ' ' + (isLao ? 'ໃບ' : 'ใบ') + ')</button>' : '<div style="color:var(--slate-400);text-align:center;margin-top:8px;font-size:12px;">' + (isLao ? 'ບໍ່ພົບຂໍ້ມູນ' : 'ไม่พบข้อมูล') + '</div>')
+      + '</div>';
+  } catch (e) { if (box) box.innerHTML = '<div style="color:var(--rose-500);padding:12px;font-size:12px;">Error: ' + escapeHtml(e.message) + '</div>'; }
+  if (btn) { btn.disabled = false; btn.textContent = '🔎 ' + (isLao ? 'ດຶງຂໍ້ມູນ' : 'ดึงข้อมูล'); }
+}
+async function poImportConfirm() {
+  const isLao = lang === 'lo';
+  if (!_poImportData) return;
+  const all = (_poImportData.external || []).concat(_poImportData.internal || []);
+  if (!all.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
+  const box = document.getElementById('poImResult');
+  if (box) box.innerHTML = '<div style="text-align:center;padding:16px;"><div class="loader" style="margin:0 auto;"></div><div style="font-size:12px;color:var(--slate-500);margin-top:8px;">' + (isLao ? 'ກຳລັງນຳເຂົ້າ...' : 'กำลังนำเข้า...') + '</div></div>';
+  let ins = 0, upd = 0, err = '';
+  const CH = 30;
+  try {
+    for (let i = 0; i < all.length; i += CH) {
+      const { data, error } = await sb.rpc('rpc_po_import', { p_user: poActor(), p_pos: all.slice(i, i + CH) });
+      if (error) { err = error.message; break; }
+      ins += (data && data.inserted) || 0; upd += (data && data.updated) || 0;
+    }
+  } catch (e) { err = e.message; }
+  if (err) { if (box) box.innerHTML = '<div style="color:var(--rose-500);padding:12px;font-size:12px;">Error: ' + escapeHtml(err) + '</div>'; return; }
+  closeModal();
+  showToast('✅ ' + (isLao ? 'ນຳເຂົ້າ ' : 'นำเข้า ') + ins + (isLao ? ' ໃໝ່ / ' : ' ใหม่ / ') + upd + (isLao ? ' ອັບເດດ' : ' อัปเดต'), 'success');
+  poInit();
+}
+
+// ---------- เขียนกลับ Google Sheet (opt-in ผ่าน Apps Script Web App — ดู po_sheet_writeback.gs) ----------
+let _poWbUrl = '', _poWbToken = '', _poCurrentHeader = null, _poReceiveMeta = [];
+async function poLoadWbCfg() {
+  try {
+    const { data } = await sb.from('app_settings').select('key,value').in('key', ['po_writeback_url', 'po_writeback_token']);
+    (data || []).forEach(r => { if (r.key === 'po_writeback_url') _poWbUrl = r.value || ''; if (r.key === 'po_writeback_token') _poWbToken = r.value || ''; });
+  } catch (e) {}
+}
+function poSheetName(poType, sm) { const mm = String(sm || '').slice(5, 7); if (!mm) return ''; return (poType === 'internal' ? PO_SHEET_INT : PO_SHEET_EXT) + ' ' + mm; }
+function poToSheetDate(iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? (m[3] + '/' + m[2] + '/' + m[1]) : String(iso || ''); }
+function poWriteback(payload) {
+  if (!_poWbUrl) return; // ปิดอยู่ (ยังไม่ตั้ง URL) = ไม่เขียนออก
+  try { fetch(_poWbUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) }); } catch (e) {}
+}
+function poWbConfig() {
+  const isLao = lang === 'lo';
+  const html = '<div style="padding:16px 15px;">'
+    + '<div style="font-size:15px;font-weight:800;color:var(--slate-800);margin-bottom:6px;">⚙️ ' + (isLao ? 'ຕັ້ງຄ່າ ຂຽນກັບ Google Sheet' : 'ตั้งค่า เขียนกลับ Google Sheet') + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-500);margin-bottom:10px;line-height:1.5;">' + (isLao ? 'ວາງ URL ຂອງ Apps Script Web App (ດີ deploy ຕາມໄຟລ໌ po_sheet_writeback.gs)' : 'วาง URL ของ Apps Script Web App (ดู deploy ในไฟล์ po_sheet_writeback.gs)') + '</div>'
+    + '<input id="poWbUrlIn" value="' + escapeHtml(_poWbUrl || '') + '" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%;padding:10px 12px;border:1px solid var(--slate-300);border-radius:9px;font-size:12px;box-sizing:border-box;margin-bottom:8px;">'
+    + '<input id="poWbTokenIn" value="' + escapeHtml(_poWbToken || '') + '" placeholder="' + (isLao ? 'ໂທເຄັນ (ຖ້າຕັ້ງໄວ້)' : 'โทเคน (ถ้าตั้งในสคริปต์)') + '" style="width:100%;padding:10px 12px;border:1px solid var(--slate-300);border-radius:9px;font-size:12px;box-sizing:border-box;margin-bottom:10px;">'
+    + '<div style="display:flex;gap:9px;"><button onclick="poOpenImport()" style="flex:1;border:1px solid var(--slate-200);background:white;border-radius:10px;padding:11px;font-weight:700;color:var(--slate-600);cursor:pointer;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button><button onclick="poWbSave()" style="flex:2;border:none;background:var(--fs-blue);color:white;border-radius:10px;padding:11px;font-weight:800;cursor:pointer;">💾 ' + (isLao ? 'ບັນທຶກ' : 'บันทึก') + '</button></div>'
+    + '<div style="font-size:10.5px;color:var(--slate-400);margin-top:8px;">' + (isLao ? 'ວ່າງ = ປິດການຂຽນກັບ (ໃຊ້ໄດ້ຢ່າງດຽວ import)' : 'ว่าง = ปิดการเขียนกลับ (ใช้ได้แค่ import)') + '</div>'
+    + '</div>';
+  showModal(html);
+}
+async function poWbSave() {
+  const isLao = lang === 'lo';
+  const url = String((document.getElementById('poWbUrlIn') || {}).value || '').trim();
+  const tok = String((document.getElementById('poWbTokenIn') || {}).value || '').trim();
+  try {
+    await sb.from('app_settings').upsert({ key: 'po_writeback_url', value: url, updated_at: new Date().toISOString(), updated_by: (user && user.id) || null }, { onConflict: 'key' });
+    await sb.from('app_settings').upsert({ key: 'po_writeback_token', value: tok, updated_at: new Date().toISOString(), updated_by: (user && user.id) || null }, { onConflict: 'key' });
+    _poWbUrl = url; _poWbToken = tok;
+    showToast('✅ ' + (isLao ? 'ບັນທຶກແລ້ວ' : 'บันทึกแล้ว'), 'success'); closeModal();
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+
 window.renderPOTrackPage = renderPOTrackPage; window.poInit = poInit;
+window.poOpenImport = poOpenImport; window.poImportFetch = poImportFetch; window.poImportConfirm = poImportConfirm;
+window.poWbConfig = poWbConfig; window.poWbSave = poWbSave;
 window.poSetStatus = poSetStatus; window.poSetType = poSetType; window.poSearchDebounce = poSearchDebounce;
 window.poOpenCreate = poOpenCreate; window.poSyncPrefix = poSyncPrefix; window.poAddItemRow = poAddItemRow; window.poRemoveItemRow = poRemoveItemRow; window.poLookup = poLookup; window.poSubmitCreate = poSubmitCreate;
 window.poOpenDetail = poOpenDetail; window.poAdvance = poAdvance; window.poOpenReceive = poOpenReceive; window.poSubmitReceive = poSubmitReceive;
