@@ -36159,7 +36159,19 @@ function poRenderDetail(d) {
   const info = (label, val) => val ? '<div style="display:flex;gap:8px;font-size:12px;margin-top:4px;"><span style="color:var(--slate-400);min-width:82px;">' + label + '</span><span style="color:var(--slate-800);font-weight:600;flex:1;">' + escapeHtml(String(val)) + '</span></div>' : '';
   const itemsHtml = items.map(i => {
     const ls = i.line_status; const lc = ls === 'complete' ? '#22c55e' : (ls === 'partial' ? '#f59e0b' : '#94a3b8');
-    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--slate-100);"><div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:600;color:var(--slate-800);">' + escapeHtml(i.product_name || '') + '</div><div style="font-size:10.5px;color:var(--slate-400);">' + escapeHtml(i.barcode || '') + '</div></div><div style="text-align:right;"><div style="font-size:12px;font-weight:700;color:' + lc + ';">' + poFmtNum(i.qty_received) + '/' + poFmtNum(i.qty_ordered) + ' ' + escapeHtml(i.unit || '') + '</div><div style="font-size:10.5px;color:var(--slate-400);">' + poFmtNum(i.amount) + '</div></div></div>';
+    const bcEnc = encodeURIComponent(i.barcode || '');
+    const extEnc = encodeURIComponent(i.note_ext || '').replace(/'/g, '%27');
+    const intEnc = encodeURIComponent(i.note || '').replace(/'/g, '%27');
+    const extLine = i.note_ext ? '<div style="font-size:10.5px;color:#6366f1;margin-top:2px;font-weight:600;">📤 ' + (isLao ? 'ນອກ' : 'นอก') + ': ' + escapeHtml(i.note_ext) + '</div>' : '';
+    const intLine = i.note ? '<div style="font-size:10.5px;color:#f59e0b;margin-top:2px;font-weight:600;">📥 ' + (isLao ? 'ໃນ' : 'ใน') + ': ' + escapeHtml(i.note) + '</div>' : '';
+    const hasNote = i.note || i.note_ext;
+    return '<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--slate-100);">'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:12.5px;font-weight:600;color:var(--slate-800);">' + escapeHtml(i.product_name || '')
+      + ' <button onclick="poItemNote(\'' + i.id + '\',\'' + bcEnc + '\',\'' + extEnc + '\',\'' + intEnc + '\')" style="background:' + (hasNote ? '#fef3c7' : 'var(--fs-blue)') + ';color:' + (hasNote ? '#b45309' : 'white') + ';border:none;border-radius:5px;padding:0 7px;font-size:13px;font-weight:900;cursor:pointer;vertical-align:middle;">+</button></div>'
+      + '<div style="font-size:10.5px;color:var(--slate-400);">' + escapeHtml(i.barcode || '') + '</div>' + extLine + intLine + '</div>'
+      + '<div style="text-align:right;flex-shrink:0;"><div style="font-size:12px;font-weight:700;color:' + lc + ';">' + poFmtNum(i.qty_received) + '/' + poFmtNum(i.qty_ordered) + ' ' + escapeHtml(i.unit || '') + '</div><div style="font-size:10.5px;color:var(--slate-400);">' + poFmtNum(i.amount) + '</div></div>'
+      + '</div>';
   }).join('');
   const rcptHtml = receipts.length ? receipts.map(r => '<div style="font-size:11px;color:var(--slate-500);padding:3px 0;">📥 ' + poFmtNum(r.qty) + ' · ' + escapeHtml(r.doc_no || '-') + ' · ' + poFmtDT(r.created_at) + ' · ' + escapeHtml(r.received_by || '') + '</div>').join('') : '';
   const timeline = log.map(l => { const tm = poStatusMeta(l.to_status); return '<div style="display:flex;gap:9px;margin-bottom:9px;"><div style="width:10px;height:10px;border-radius:50%;background:' + tm.c + ';margin-top:4px;flex-shrink:0;"></div><div style="flex:1;"><div style="font-size:12.5px;font-weight:700;color:var(--slate-800);">' + escapeHtml(poStatusLabel(l.to_status)) + '</div><div style="font-size:10.5px;color:var(--slate-400);">' + escapeHtml(l.action_by || '') + ' · ' + poFmtDT(l.created_at) + '</div>' + (l.note ? '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + escapeHtml(l.note) + '</div>' : '') + '</div></div>'; }).join('');
@@ -36249,6 +36261,32 @@ async function poSetCoord(id, val) {
   }
   showToast('✅ ' + (isLao ? 'ບັນທຶກ' : 'บันทึก'), 'success');
 }
+function poItemNote(itemId, bcEnc, extEnc, intEnc) {
+  const isLao = lang === 'lo';
+  const barcode = decodeURIComponent(bcEnc || '');
+  const ext = decodeURIComponent(extEnc || ''), intv = decodeURIComponent(intEnc || '');
+  const ta = (id, label, val, color) => '<div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:700;color:' + color + ';margin-bottom:4px;">' + label + '</label><textarea id="' + id + '" rows="2" placeholder="' + (isLao ? 'ເຊັ່ນ ຍົກເລີກຂາຍ' : 'เช่น ยกเลิกขาย') + '" style="width:100%;padding:9px 11px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;box-sizing:border-box;resize:vertical;">' + escapeHtml(val) + '</textarea></div>';
+  showModal('<div style="padding:16px 15px;">'
+    + '<div style="font-size:15px;font-weight:800;color:var(--slate-800);margin-bottom:2px;">📝 ' + (isLao ? 'ໝາຍເຫດສິນຄ້າ' : 'หมายเหตุสินค้า') + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-400);margin-bottom:12px;font-family:monospace;">' + escapeHtml(barcode) + '</div>'
+    + ta('poNoteExt', '📤 ' + (isLao ? 'ຈັດຊື້ພາຍນອກ (col 19)' : 'จัดซื้อภายนอก (col 19)'), ext, '#6366f1')
+    + ta('poNoteInt', '📥 ' + (isLao ? 'ຈັດຊື້ພາຍໃນ (col 23)' : 'จัดซื้อภายใน (col 23)'), intv, '#f59e0b')
+    + '<div style="display:flex;gap:9px;margin-top:6px;"><button onclick="closeModal()" style="flex:1;border:1px solid var(--slate-200);background:white;border-radius:10px;padding:11px;font-weight:700;color:var(--slate-600);cursor:pointer;">' + (isLao ? 'ຍົກເລີກ' : 'ยกเลิก') + '</button><button onclick="poSaveItemNote(\'' + itemId + '\',\'' + encodeURIComponent(barcode) + '\')" style="flex:2;border:none;background:var(--fs-blue);color:white;border-radius:10px;padding:11px;font-weight:800;cursor:pointer;">💾 ' + (isLao ? 'ບັນທຶກ' : 'บันทึก') + '</button></div>'
+    + '</div>');
+}
+async function poSaveItemNote(itemId, bcEnc) {
+  const isLao = lang === 'lo';
+  const barcode = decodeURIComponent(bcEnc || '');
+  const ext = String((document.getElementById('poNoteExt') || {}).value || '').trim();
+  const intv = String((document.getElementById('poNoteInt') || {}).value || '').trim();
+  const { error } = await sb.rpc('rpc_po_set_item_notes', { p_item_id: itemId, p_note_ext: ext, p_note_int: intv, p_user: poActor() });
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  const h = _poCurrentHeader;
+  if (h && h.source_month && barcode) { const it = { barcode: barcode }; it[19] = ext; it[23] = intv; poWriteback({ token: _poWbToken, sheet: poSheetName(h.po_type, h.source_month), po_no: h.po_no, items: [it] }); }
+  closeModal();
+  showToast('✅ ' + (isLao ? 'ບັນທຶກໝາຍເຫດ' : 'บันทึกหมายเหตุ'), 'success');
+  if (h && h.id) poOpenDetail(h.id);
+}
 
 // ---------- รับสินค้า ----------
 async function poOpenReceive(id) {
@@ -36308,7 +36346,7 @@ const PO_SHEET_ID = '1UG4vvyfXu0CV23Ybf94Si7wc6FYwyr0o3PtYRJFneeQ';
 const PO_SHEET_EXT = 'PO_TRACKER_ภายนอก';   // ต่อท้าย ' MM' → PO_TRACKER_ภายนอก 07
 const PO_SHEET_INT = 'PO_TRACKER_ภายใน';    // ต่อท้าย ' MM'
 // ตำแหน่งคอลัมน์ (0-based) ตามชีตจริง (verify แล้ว 2026-07-14) — แถว 0 = หัวตาราง, ข้อมูลเริ่มแถว 1
-const PO_COL = { po_no: 0, date: 1, opener: 2, cat: 3, barcode: 4, name: 5, type: 7, qty: 8, unit: 9, price: 10, sentExt: 12, extBuyer: 13, supplier: 14, sentSup: 15, appt: 16, coord: 17, shipped: 18, note: 19, received: 20, qtyRcv: 21, status: 22 };
+const PO_COL = { po_no: 0, date: 1, opener: 2, cat: 3, barcode: 4, name: 5, type: 7, qty: 8, unit: 9, price: 10, sentExt: 12, extBuyer: 13, supplier: 14, sentSup: 15, appt: 16, coord: 17, shipped: 18, extNote: 19, received: 20, qtyRcv: 21, status: 22, intNote: 23 };
 // ตัวเลือก "ระหว่างประสานสั่งซื้อ" (col 17 ในชีต) — ค่าต้องตรงชีตเป๊ะ (ใช้ write-back)
 const PO_COORD_OPTS = ['รอส่ง PO ให้ Supplier', 'ระหว่างประสานสั่งซื้อ', 'อยู่ระหว่างจัดส่งจาก Sup.', 'รอรับสินค้าเข้าระบบ', 'รับเข้าระบบแล้ว', 'ส่งออกแล้ว', 'ค้างเครดิต', 'รอชำระเงิน'];
 let _poImportData = null;
@@ -36347,7 +36385,7 @@ function poParseSheet(rows, poType, sourceMonth) {
         category: String(r[PO_COL.cat] || '').trim() || null,
         supplier_name: String(r[PO_COL.supplier] || '').trim() || null,
         ext_buyer: String(r[PO_COL.extBuyer] || '').trim() || null,
-        note: String(r[PO_COL.note] || '').trim() || null,
+        note: null, // header note ไม่มีในชีต (col 19/23 เป็นหมายเหตุรายสินค้า)
         date_created: poParseDate(r[PO_COL.date]),
         date_sent_ext: poParseDate(r[PO_COL.sentExt]),
         date_sent_supplier: poParseDate(r[PO_COL.sentSup]),
@@ -36367,7 +36405,9 @@ function poParseSheet(rows, poType, sourceMonth) {
       unit: String(r[PO_COL.unit] || '').trim() || null,
       qty_ordered: qty,
       unit_price: poNum(r[PO_COL.price]),
-      qty_received: poNum(r[PO_COL.qtyRcv])
+      qty_received: poNum(r[PO_COL.qtyRcv]),
+      note: String(r[PO_COL.intNote] || '').trim() || null,     // ภายใน (col 23)
+      note_ext: String(r[PO_COL.extNote] || '').trim() || null  // ภายนอก (col 19)
     });
   }
   const list = order.map(no => groups[no]).filter(g => g.items.length);
@@ -36503,7 +36543,7 @@ window.poOpenImport = poOpenImport; window.poImportFetch = poImportFetch; window
 window.poWbConfig = poWbConfig; window.poWbSave = poWbSave;
 window.poSetStatus = poSetStatus; window.poSetType = poSetType; window.poSetBuyer = poSetBuyer; window.poSearchDebounce = poSearchDebounce;
 window.poOpenCreate = poOpenCreate; window.poSyncPrefix = poSyncPrefix; window.poAddItemRow = poAddItemRow; window.poRemoveItemRow = poRemoveItemRow; window.poLookup = poLookup; window.poSubmitCreate = poSubmitCreate;
-window.poOpenDetail = poOpenDetail; window.poAdvance = poAdvance; window.poOpenReceive = poOpenReceive; window.poSubmitReceive = poSubmitReceive; window.poSetCurrency = poSetCurrency; window.poSetDate = poSetDate; window.poSetCoord = poSetCoord;
+window.poOpenDetail = poOpenDetail; window.poAdvance = poAdvance; window.poOpenReceive = poOpenReceive; window.poSubmitReceive = poSubmitReceive; window.poSetCurrency = poSetCurrency; window.poSetDate = poSetDate; window.poSetCoord = poSetCoord; window.poItemNote = poItemNote; window.poSaveItemNote = poSaveItemNote;
 window.poCanAccess = poCanAccess; window.poActorRole = poActorRole;
 
 // ==================== 🖨️ พิมพ์ป้ายราคา (ptag*) ====================
