@@ -35840,7 +35840,7 @@ const PO_PERMS = {
   dc:    ['sent_supplier', 'confirmed', 'shipped', 'receiving', 'cancelled'],
   _all:  ['sent_ext', 'sent_supplier', 'confirmed', 'shipped', 'receiving', 'closed', 'cancelled']
 };
-const PO_STATUS_ORDER = ['draft', 'sent_ext', 'sent_supplier', 'confirmed', 'shipped', 'receiving', 'closed'];
+const PO_STATUS_ORDER = ['draft', 'sent_ext', 'sent_supplier', 'shipped', 'receiving', 'closed'];
 let _poFilterStatus = null, _poFilterType = null, _poFilterBuyer = null, _poSearch = '', _poSearchTimer = null;
 // จัดซื้อ = segment ก่อนเลขท้ายใน po_no (PS/FS/IN/N/0041 → 'N', PS/FS/OUT/AL/001 → 'AL')
 function poBuyerFromNo(no) { const p = String(no || '').split('/'); return p.length >= 2 ? String(p[p.length - 2]).trim() : ''; }
@@ -36127,7 +36127,6 @@ function poRenderDetail(d) {
   dateFields.push(['appointment_date', isLao ? 'ວັນນັດຮັບ' : 'วันนัดรับ', false]);
   if (h.po_type === 'external') dateFields.push(['date_sent_ext', isLao ? 'ສົ່ງຈັດຊື້ນອກ' : 'ส่งจัดซื้อภายนอก', true]);
   dateFields.push(['date_sent_supplier', isLao ? 'ສົ່ງຊັບພລາຍເອີ' : 'ส่งซัพพลายเออร์', true]);
-  dateFields.push(['date_confirmed', isLao ? 'ຢືນຢັນແລ້ວ' : 'ยืนยันแล้ว', true]);
   dateFields.push(['date_shipped', isLao ? 'ຈັດສົ່ງແລ້ວ' : 'จัดส่งแล้ว', true]);
   dateFields.push(['date_received', isLao ? 'ວັນຮັບຈິງ' : 'วันรับจริง', true]);
   const dateRows = dateFields.map(f => {
@@ -36137,6 +36136,11 @@ function poRenderDetail(d) {
     return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' + dot + '<span style="font-size:12px;color:var(--slate-600);font-weight:700;flex:1;">' + label + '</span><input type="date" value="' + v + '" onchange="poSetDate(\'' + h.id + '\',\'' + key + '\',this.value)" style="width:148px;padding:7px 9px;border:1px solid var(--slate-300);border-radius:8px;font-size:12.5px;box-sizing:border-box;"></div>';
   }).join('');
   const dateSection = '<div style="background:#f8fafc;border-radius:11px;padding:11px;margin-bottom:12px;"><div style="font-size:12px;font-weight:800;color:var(--slate-700);margin-bottom:8px;">📅 ' + (isLao ? 'ວັນທີແຕ່ລະຂັ້ນ (ສະຖານະໄລ່ຕາມ)' : 'วันที่แต่ละขั้น (สถานะไล่ตามลำดับ)') + '</div>' + dateRows + '</div>';
+  // ระหว่างประสานสั่งซื้อ (dropdown จากชีต col 17) — เฉพาะภายนอก
+  const coordCur = h.coord_status || '';
+  const coordSection = (h.po_type === 'external')
+    ? '<div style="background:#f8fafc;border-radius:11px;padding:11px;margin-bottom:12px;"><div style="font-size:12px;font-weight:800;color:var(--slate-700);margin-bottom:6px;">🔄 ' + (isLao ? 'ລະຫວ່າງປະສານສັ່ງຊື້' : 'ระหว่างประสานสั่งซื้อ') + '</div><select onchange="poSetCoord(\'' + h.id + '\',this.value)" style="width:100%;padding:9px 11px;border:1px solid var(--slate-300);border-radius:9px;font-size:12.5px;box-sizing:border-box;background:white;"><option value="">' + (isLao ? '- ບໍ່ລະບຸ -' : '- ไม่ระบุ -') + '</option>' + PO_COORD_OPTS.map(o => '<option value="' + escapeHtml(o) + '"' + (o === coordCur ? ' selected' : '') + '>' + escapeHtml(o) + '</option>').join('') + '</select></div>'
+    : '';
   let actions = '';
   if (['sent_supplier', 'confirmed', 'shipped', 'receiving'].includes(h.status) && poHasPerm('receiving')) actions += '<button onclick="poOpenReceive(\'' + h.id + '\')" style="background:#14b8a6;color:white;border:none;border-radius:9px;padding:9px 12px;font-size:12px;font-weight:800;cursor:pointer;">📥 ' + (isLao ? 'ຮັບສິນຄ້າ' : 'รับสินค้า') + '</button>';
   if (!['closed', 'cancelled'].includes(h.status) && poHasPerm('cancelled')) actions += '<button onclick="poAdvance(\'' + h.id + '\',\'cancelled\')" style="background:white;color:#ef4444;border:1px solid #fecaca;border-radius:9px;padding:9px 12px;font-size:12px;font-weight:800;cursor:pointer;">✕ ' + (isLao ? 'ຍົກເລີກ' : 'ยกเลิก') + '</button>';
@@ -36173,6 +36177,7 @@ function poRenderDetail(d) {
     + '</div>'
     + curCtl
     + dateSection
+    + coordSection
     + (actions ? '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px;">' + actions + '</div>' : '')
     + '<div style="font-size:12.5px;font-weight:800;color:var(--slate-700);margin-bottom:4px;">📦 ' + (isLao ? 'ລາຍການສິນຄ້າ' : 'รายการสินค้า') + ' (' + items.length + ')</div>'
     + '<div style="margin-bottom:14px;">' + itemsHtml + '</div>'
@@ -36215,11 +36220,22 @@ async function poSetDate(id, field, val) {
   // เขียนวันที่กลับ Google Sheet (เฉพาะ PO ที่ import + ตั้ง URL)
   const h = _poCurrentHeader;
   if (h && h.id === id && h.source_month) {
-    const col = { date_sent_ext: 12, date_sent_supplier: 15, date_confirmed: 17, date_shipped: 18, date_received: 20, appointment_date: 16 }[field];
+    const col = { date_sent_ext: 12, date_sent_supplier: 15, date_shipped: 18, date_received: 20, appointment_date: 16 }[field];
     if (col != null) { const upd = {}; upd[col] = d ? poToSheetDate(d) : ''; poWriteback({ token: _poWbToken, sheet: poSheetName(h.po_type, h.source_month), po_no: h.po_no, updates: upd }); }
   }
   showToast('✅ ' + (isLao ? 'ບັນທຶກວັນທີ' : 'บันทึกวันที่') + ((data && data.status) ? ' · ' + poStatusLabel(data.status) : ''), 'success');
   poOpenDetail(id); poLoadList(); poLoadDashboard();
+}
+async function poSetCoord(id, val) {
+  const isLao = lang === 'lo';
+  const { error } = await sb.rpc('rpc_po_set_coord', { p_po_id: id, p_value: val || '', p_user: poActor() });
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  const h = _poCurrentHeader;
+  if (h && h.id === id) {
+    h.coord_status = val || null;
+    if (h.source_month) { const upd = {}; upd[17] = val || ''; poWriteback({ token: _poWbToken, sheet: poSheetName(h.po_type, h.source_month), po_no: h.po_no, updates: upd }); }
+  }
+  showToast('✅ ' + (isLao ? 'ບັນທຶກ' : 'บันทึก'), 'success');
 }
 
 // ---------- รับสินค้า ----------
@@ -36280,7 +36296,9 @@ const PO_SHEET_ID = '1UG4vvyfXu0CV23Ybf94Si7wc6FYwyr0o3PtYRJFneeQ';
 const PO_SHEET_EXT = 'PO_TRACKER_ภายนอก';   // ต่อท้าย ' MM' → PO_TRACKER_ภายนอก 07
 const PO_SHEET_INT = 'PO_TRACKER_ภายใน';    // ต่อท้าย ' MM'
 // ตำแหน่งคอลัมน์ (0-based) ตามชีตจริง (verify แล้ว 2026-07-14) — แถว 0 = หัวตาราง, ข้อมูลเริ่มแถว 1
-const PO_COL = { po_no: 0, date: 1, opener: 2, cat: 3, barcode: 4, name: 5, type: 7, qty: 8, unit: 9, price: 10, sentExt: 12, extBuyer: 13, supplier: 14, sentSup: 15, appt: 16, shipped: 18, note: 19, received: 20, qtyRcv: 21, status: 22 };
+const PO_COL = { po_no: 0, date: 1, opener: 2, cat: 3, barcode: 4, name: 5, type: 7, qty: 8, unit: 9, price: 10, sentExt: 12, extBuyer: 13, supplier: 14, sentSup: 15, appt: 16, coord: 17, shipped: 18, note: 19, received: 20, qtyRcv: 21, status: 22 };
+// ตัวเลือก "ระหว่างประสานสั่งซื้อ" (col 17 ในชีต) — ค่าต้องตรงชีตเป๊ะ (ใช้ write-back)
+const PO_COORD_OPTS = ['รอส่ง PO ให้ Supplier', 'ระหว่างประสานสั่งซื้อ', 'อยู่ระหว่างจัดส่งจาก Sup.', 'รอรับสินค้าเข้าระบบ', 'รับเข้าระบบแล้ว', 'ส่งออกแล้ว', 'ค้างเครดิต', 'รอชำระเงิน'];
 let _poImportData = null;
 function poCurMonth() { return String(new Date().getMonth() + 1).padStart(2, '0'); }
 function poNum(s) { const n = parseFloat(String(s == null ? '' : s).replace(/[,\s ₭]/g, '')); return isNaN(n) ? 0 : n; }
@@ -36312,6 +36330,7 @@ function poParseSheet(rows, poType, sourceMonth) {
       groups[no] = {
         po_no: no, po_type: poType, source_month: sourceMonth,
         currency: poType === 'external' ? 'THB' : 'LAK', // ภายนอก = บาท เสมอ · ภายใน = กีบ (ปรับได้ในแอป)
+        coord_status: String(r[PO_COL.coord] || '').trim() || null, // ระหว่างประสานสั่งซื้อ (col 17)
         created_by: String(r[PO_COL.opener] || '').trim() || null,
         category: String(r[PO_COL.cat] || '').trim() || null,
         supplier_name: String(r[PO_COL.supplier] || '').trim() || null,
@@ -36343,7 +36362,11 @@ function poParseSheet(rows, poType, sourceMonth) {
   list.forEach(g => {
     const totO = g.items.reduce((a, i) => a + i.qty_ordered, 0);
     const totR = g.items.reduce((a, i) => a + i.qty_received, 0);
-    g.status = (totO > 0 && totR >= totO) ? 'closed' : (totR > 0 ? 'receiving' : (g.date_shipped ? 'shipped' : (g.date_sent_supplier ? 'sent_supplier' : (g.date_sent_ext ? 'sent_ext' : 'draft'))));
+    // strict date-driven: มีจำนวนรับแต่ไม่มีวันรับ = ยังไม่นับว่ารับ (ไล่ตามวันที่ล่าสุดที่ระบุ)
+    g.status = g.date_received ? ((totO > 0 && totR >= totO) ? 'closed' : 'receiving')
+      : (g.date_shipped ? 'shipped'
+      : (g.date_sent_supplier ? 'sent_supplier'
+      : (g.date_sent_ext ? 'sent_ext' : 'draft')));
   });
   return list;
 }
@@ -36468,7 +36491,7 @@ window.poOpenImport = poOpenImport; window.poImportFetch = poImportFetch; window
 window.poWbConfig = poWbConfig; window.poWbSave = poWbSave;
 window.poSetStatus = poSetStatus; window.poSetType = poSetType; window.poSetBuyer = poSetBuyer; window.poSearchDebounce = poSearchDebounce;
 window.poOpenCreate = poOpenCreate; window.poSyncPrefix = poSyncPrefix; window.poAddItemRow = poAddItemRow; window.poRemoveItemRow = poRemoveItemRow; window.poLookup = poLookup; window.poSubmitCreate = poSubmitCreate;
-window.poOpenDetail = poOpenDetail; window.poAdvance = poAdvance; window.poOpenReceive = poOpenReceive; window.poSubmitReceive = poSubmitReceive; window.poSetCurrency = poSetCurrency; window.poSetDate = poSetDate;
+window.poOpenDetail = poOpenDetail; window.poAdvance = poAdvance; window.poOpenReceive = poOpenReceive; window.poSubmitReceive = poSubmitReceive; window.poSetCurrency = poSetCurrency; window.poSetDate = poSetDate; window.poSetCoord = poSetCoord;
 window.poCanAccess = poCanAccess; window.poActorRole = poActorRole;
 
 // ==================== 🖨️ พิมพ์ป้ายราคา (ptag*) ====================
