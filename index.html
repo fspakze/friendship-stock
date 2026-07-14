@@ -35827,7 +35827,7 @@ window.mbOpenUpload = mbOpenUpload; window.mbHandleFile = mbHandleFile; window.m
 window.mbSignupSave = mbSignupSave; window.mbLoadSignups = mbLoadSignups; window.mbExportSignups = mbExportSignups;
 window.mbMarkRegistered = mbMarkRegistered; window.mbDeleteSignup = mbDeleteSignup; window.mbAddBizType = mbAddBizType;
 
-// ==================== 🛒 PO Tracking (po*) — ติดตามใบสั่งซื้อ ใน/นอกประเทศ ====================
+// ==================== 🛒 PO Tracking (po*) — ติดตามใบสั่งซื้อ ภายใน/ภายนอก ====================
 // backend: po_tracking.sql (6 ตาราง + 6 RPC · RLS deny-all → เข้าผ่าน RPC เท่านั้น)
 // สิทธิ์ผูก "ไอดี": Buyer=จัดซื้อภายใน · DC=จัดซื้อภายนอก · admin/scc/it=ควบคุมเต็ม
 // ⚠️ ยังไม่เห็น username จริง — ปรับ pattern จับไอดีได้ที่ 2 const ล่างนี้
@@ -35841,7 +35841,11 @@ const PO_PERMS = {
   _all:  ['sent_ext', 'sent_supplier', 'confirmed', 'shipped', 'receiving', 'closed', 'cancelled']
 };
 const PO_STATUS_ORDER = ['draft', 'sent_ext', 'sent_supplier', 'confirmed', 'shipped', 'receiving', 'closed'];
-let _poFilterStatus = null, _poFilterType = null, _poSearch = '', _poSearchTimer = null;
+let _poFilterStatus = null, _poFilterType = null, _poFilterBuyer = null, _poSearch = '', _poSearchTimer = null;
+// จัดซื้อ = segment ก่อนเลขท้ายใน po_no (PS/FS/IN/N/0041 → 'N', PS/FS/OUT/AL/001 → 'AL')
+function poBuyerFromNo(no) { const p = String(no || '').split('/'); return p.length >= 2 ? String(p[p.length - 2]).trim() : ''; }
+// key เรียงตามเลข PO: prefix (ตัวอักษร) ก่อน แล้วเลขท้ายแบบตัวเลข
+function poNoSortKey(no) { const m = String(no || '').match(/^(.*?)(\d+)\s*$/); return m ? [m[1], parseInt(m[2], 10)] : [String(no || ''), 0]; }
 let _poCreateItems = [{}];
 let _poReceiveItems = [];
 
@@ -35880,7 +35884,7 @@ function poStatusMeta(s) {
   return M[s] || { th: s, lo: s, c: '#94a3b8' };
 }
 function poStatusLabel(s) { const m = poStatusMeta(s); return (lang === 'lo') ? m.lo : m.th; }
-function poTypeLabel(t) { const isLao = lang === 'lo'; return t === 'internal' ? (isLao ? 'ພາຍໃນປະເທດ' : 'ในประเทศ') : (isLao ? 'ຕ່າງປະເທດ' : 'นอกประเทศ'); }
+function poTypeLabel(t) { const isLao = lang === 'lo'; return t === 'internal' ? (isLao ? 'ພາຍໃນປະເທດ' : 'ภายใน') : (isLao ? 'ຕ່າງປະເທດ' : 'ภายนอก'); }
 function poFmtNum(n) { return (Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
 function poFmtDT(ts) { if (!ts) return ''; try { const d = new Date(ts); const p = n => String(n).padStart(2, '0'); return p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); } catch (e) { return ''; } }
 function poNextStatuses(poType, status) {
@@ -35898,18 +35902,20 @@ function renderPOTrackPage() {
     + '<div style="display:flex;align-items:center;gap:9px;margin-bottom:12px;">'
     + '<button onclick="goPage(getHomePage())" style="border:1px solid var(--slate-200);background:white;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
     + '<h2 style="font-size:18px;font-weight:800;color:var(--slate-800);margin:0;">🛒 PO Tracking</h2>'
-    + '<button onclick="poOpenImport()" style="margin-left:auto;background:var(--slate-100);color:var(--slate-700);border:1px solid var(--slate-200);border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:800;cursor:pointer;">📥 Sheet</button>'
-    + '<button onclick="poOpenCreate()" style="background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:8px 13px;font-size:12.5px;font-weight:800;cursor:pointer;">＋ ' + (isLao ? 'ເປີດ PO' : 'เปิด PO') + '</button>'
+    + '<button onclick="poOpenImport()" style="margin-left:auto;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:8px 13px;font-size:12.5px;font-weight:800;cursor:pointer;">📥 ' + (isLao ? 'ດຶງຈາກ Sheet' : 'ดึงจาก Sheet') + '</button>'
+    // ปุ่ม "เปิด PO" ซ่อนไว้ก่อน (Ball 2026-07-14) — ใช้ import จาก Google Sheet เป็นหลัก · เปิดกลับได้ที่นี่:
+    // + '<button onclick="poOpenCreate()" style="...">＋ ' + (isLao ? 'ເປີດ PO' : 'เปิด PO') + '</button>'
     + '</div>'
     + '<div id="poDash" style="margin-bottom:12px;"></div>'
-    + '<div style="display:flex;gap:6px;margin-bottom:10px;">'
-    + '<select id="poFType" onchange="poSetType(this.value)" style="width:120px;padding:9px 10px;border:1px solid var(--slate-200);border-radius:9px;font-size:12.5px;background:white;font-weight:700;color:var(--slate-700);">'
+    + '<div style="display:flex;gap:6px;margin-bottom:8px;">'
+    + '<select id="poFType" onchange="poSetType(this.value)" style="flex:1;min-width:0;padding:9px 10px;border:1px solid var(--slate-200);border-radius:9px;font-size:12.5px;background:white;font-weight:700;color:var(--slate-700);">'
     + '<option value="">' + (isLao ? 'ທຸກປະເພດ' : 'ทุกประเภท') + '</option>'
-    + '<option value="external">' + (isLao ? 'ຕ່າງປະເທດ' : 'นอกประเทศ') + '</option>'
-    + '<option value="internal">' + (isLao ? 'ພາຍໃນ' : 'ในประเทศ') + '</option>'
+    + '<option value="external">' + (isLao ? 'ຕ່າງປະເທດ' : 'ภายนอก') + '</option>'
+    + '<option value="internal">' + (isLao ? 'ພາຍໃນ' : 'ภายใน') + '</option>'
     + '</select>'
-    + '<input id="poSearch" oninput="poSearchDebounce()" placeholder="' + (isLao ? 'ຄົ້ນຫາ ເລກ PO / ຊັບ' : 'ค้นหา เลข PO / ซัพ') + '" style="flex:1;min-width:0;padding:9px 12px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;box-sizing:border-box;">'
+    + '<select id="poFBuyer" onchange="poSetBuyer(this.value)" style="flex:1;min-width:0;padding:9px 10px;border:1px solid var(--slate-200);border-radius:9px;font-size:12.5px;background:white;font-weight:700;color:var(--slate-700);"><option value="">' + (isLao ? 'ທຸກຈັດຊື້' : 'ทุกจัดซื้อ') + '</option></select>'
     + '</div>'
+    + '<input id="poSearch" oninput="poSearchDebounce()" placeholder="' + (isLao ? 'ຄົ້ນຫາ ເລກ PO / ຊັບ' : 'ค้นหา เลข PO / ซัพ') + '" style="width:100%;padding:9px 12px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;box-sizing:border-box;margin-bottom:10px;">'
     + '<div id="poStatusChips" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;"></div>'
     + '<div id="poList"></div>'
     + '</div>';
@@ -35939,14 +35945,26 @@ function poRenderChips() {
 }
 function poSetStatus(s) { _poFilterStatus = s; poRenderChips(); poLoadList(); }
 function poSetType(v) { _poFilterType = v || null; poLoadList(); }
+function poSetBuyer(v) { _poFilterBuyer = v || null; poLoadList(); }
 function poSearchDebounce() { clearTimeout(_poSearchTimer); _poSearchTimer = setTimeout(() => { const i = document.getElementById('poSearch'); _poSearch = i ? i.value.trim() : ''; poLoadList(); }, 300); }
+function poFillBuyerOptions(rows) {
+  const sel = document.getElementById('poFBuyer'); if (!sel) return;
+  const isLao = lang === 'lo';
+  const buyers = Array.from(new Set(rows.map(r => poBuyerFromNo(r.po_no)).filter(b => b))).sort();
+  if (_poFilterBuyer && !buyers.includes(_poFilterBuyer)) _poFilterBuyer = null; // ตัวที่เลือกไม่มีในชุดนี้แล้ว
+  sel.innerHTML = '<option value="">' + (isLao ? 'ທຸກຈັດຊື້' : 'ทุกจัดซื้อ') + '</option>'
+    + buyers.map(b => '<option value="' + escapeHtml(b) + '"' + (b === _poFilterBuyer ? ' selected' : '') + '>' + escapeHtml(b) + '</option>').join('');
+}
 async function poLoadList() {
   const box = document.getElementById('poList'); if (!box) return;
   const isLao = lang === 'lo';
   box.innerHTML = '<div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>';
-  const { data, error } = await sb.rpc('rpc_po_list', { p_status: _poFilterStatus, p_type: _poFilterType, p_search: _poSearch || null, p_limit: 80, p_offset: 0 });
+  const { data, error } = await sb.rpc('rpc_po_list', { p_status: _poFilterStatus, p_type: _poFilterType, p_search: _poSearch || null, p_limit: 1000, p_offset: 0 });
   if (error) { box.innerHTML = '<div style="color:var(--rose-500);padding:14px;font-size:12px;">Error: ' + escapeHtml(error.message) + '</div>'; return; }
-  const rows = data || [];
+  let rows = data || [];
+  poFillBuyerOptions(rows); // สร้างตัวเลือกจัดซื้อจากชุดนี้ (ตาม filter ประเภท/สถานะ/ค้นหา)
+  if (_poFilterBuyer) rows = rows.filter(r => poBuyerFromNo(r.po_no) === _poFilterBuyer);
+  rows.sort((a, b) => { const ka = poNoSortKey(a.po_no), kb = poNoSortKey(b.po_no); if (ka[0] < kb[0]) return -1; if (ka[0] > kb[0]) return 1; return ka[1] - kb[1]; }); // เรียงตามเลข PO
   if (!rows.length) { box.innerHTML = '<div style="text-align:center;color:var(--slate-400);padding:30px;font-size:13px;">📭 ' + (isLao ? 'ບໍ່ພົບໃບສັ່ງຊື້' : 'ไม่พบใบสั่งซื้อ') + '</div>'; return; }
   box.innerHTML = rows.map(poCard).join('');
 }
@@ -35981,13 +35999,13 @@ function poOpenCreate() {
   const inStyle = 'width:100%;padding:10px 12px;border:1px solid var(--slate-300);border-radius:9px;font-size:13.5px;box-sizing:border-box;';
   const html = '<div style="padding:16px 15px;max-height:84vh;overflow-y:auto;">'
     + '<div style="font-size:16px;font-weight:800;color:var(--slate-800);margin-bottom:12px;">🛒 ' + (isLao ? 'ເປີດໃບສັ່ງຊື້' : 'เปิดใบสั่งซื้อ') + '</div>'
-    + '<div style="margin-bottom:10px;">' + lbl(isLao ? 'ປະເພດ' : 'ประเภท') + '<select id="poType" onchange="poSyncPrefix()" style="' + inStyle + '"><option value="external">' + (isLao ? 'ນອກປະເທດ' : 'นอกประเทศ') + '</option><option value="internal">' + (isLao ? 'ພາຍໃນປະເທດ' : 'ในประเทศ') + '</option></select></div>'
+    + '<div style="margin-bottom:10px;">' + lbl(isLao ? 'ປະເພດ' : 'ประเภท') + '<select id="poType" onchange="poSyncPrefix()" style="' + inStyle + '"><option value="external">' + (isLao ? 'ນອກປະເທດ' : 'ภายนอก') + '</option><option value="internal">' + (isLao ? 'ພາຍໃນປະເທດ' : 'ภายใน') + '</option></select></div>'
     + '<div style="margin-bottom:10px;">' + lbl(isLao ? 'ຄຳນຳໜ້າເລກ PO' : 'คำนำหน้าเลข PO') + '<input id="poNoPrefix" value="PS/FS/OUT/AL" style="' + inStyle + '"></div>'
     + '<div style="margin-bottom:10px;">' + lbl(isLao ? 'ຊັບພລາຍເອີ' : 'ซัพพลายเออร์') + '<input id="poSupplier" placeholder="' + (isLao ? 'ຊື່ຊັບ' : 'ชื่อซัพ') + '" style="' + inStyle + '"></div>'
     + '<div style="margin-bottom:10px;">' + lbl(isLao ? 'ໝວດ' : 'หมวด') + '<input id="poCategory" placeholder="' + (isLao ? 'ເຊັ່ນ ຂະໜົມ' : 'เช่น ขนม') + '" style="' + inStyle + '"></div>'
     + '<div style="display:flex;gap:8px;margin-bottom:10px;">'
     + '<div style="flex:1;">' + lbl(isLao ? 'ວັນນັດຮັບ' : 'วันนัดรับ') + '<input id="poApptDate" type="date" style="' + inStyle + '"></div>'
-    + '<div style="width:115px;">' + lbl(isLao ? 'ສະກຸນເງິນ' : 'สกุลเงิน') + '<select id="poCurrency" style="' + inStyle + '">' + ['LAK', 'THB', 'USD', 'CNY'].map(c => '<option value="' + c + '">' + c + '</option>').join('') + '</select></div>'
+    + '<div style="width:125px;">' + lbl(isLao ? 'ສະກຸນເງິນ' : 'สกุลเงิน') + '<select id="poCurrency" style="' + inStyle + '"><option value="THB">' + (isLao ? 'ບາດ (THB)' : 'บาท (THB)') + '</option><option value="LAK">' + (isLao ? 'ກີບ (LAK)' : 'กีบ (LAK)') + '</option></select></div>'
     + '</div>'
     + '<div style="margin:12px 0 6px;font-size:12.5px;font-weight:800;color:var(--slate-700);display:flex;align-items:center;">📦 ' + (isLao ? 'ລາຍການສິນຄ້າ' : 'รายการสินค้า') + '<button onclick="poAddItemRow()" style="margin-left:auto;background:var(--fs-blue);color:white;border:none;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:800;cursor:pointer;">＋ ' + (isLao ? 'ເພີ່ມ' : 'เพิ่ม') + '</button></div>'
     + '<div id="poItemRows"></div>'
@@ -35998,12 +36016,21 @@ function poOpenCreate() {
     + '</div></div>';
   showModal(html);
   poRenderItemRows();
+  poSyncPrefix(); // ตั้งค่าเริ่มต้น: ภายนอก → ล็อค THB
 }
 function poSyncPrefix() {
   const t = document.getElementById('poType'); const p = document.getElementById('poNoPrefix');
-  if (!t || !p) return;
-  if (t.value === 'internal' && (p.value === '' || /OUT/.test(p.value))) p.value = 'PS/FS/IN/AL';
-  else if (t.value === 'external' && (p.value === '' || /IN\/AL/.test(p.value))) p.value = 'PS/FS/OUT/AL';
+  if (!t) return;
+  if (p) {
+    if (t.value === 'internal' && (p.value === '' || /OUT/.test(p.value))) p.value = 'PS/FS/IN/AL';
+    else if (t.value === 'external' && (p.value === '' || /IN\/AL/.test(p.value))) p.value = 'PS/FS/OUT/AL';
+  }
+  // สกุลเงิน: ภายนอก = บาท (THB) เสมอ (ล็อค) · ภายใน = เลือก บาท/กีบ ได้
+  const cur = document.getElementById('poCurrency');
+  if (cur) {
+    if (t.value === 'external') { cur.value = 'THB'; cur.disabled = true; }
+    else { cur.disabled = false; }
+  }
 }
 function poRenderItemRows() {
   const box = document.getElementById('poItemRows'); if (!box) return;
@@ -36095,10 +36122,22 @@ function poRenderDetail(d) {
   const h = d.header, items = d.items || [], log = d.log || [], receipts = d.receipts || [];
   _poCurrentHeader = h;
   const sm = poStatusMeta(h.status);
+  // สถานะไล่ตามวันที่ (date-driven) — ระบุวันแต่ละขั้น แล้ว rpc_po_set_date คำนวณสถานะเอง
+  const dateFields = [];
+  dateFields.push(['appointment_date', isLao ? 'ວັນນັດຮັບ' : 'วันนัดรับ', false]);
+  if (h.po_type === 'external') dateFields.push(['date_sent_ext', isLao ? 'ສົ່ງຈັດຊື້ນອກ' : 'ส่งจัดซื้อภายนอก', true]);
+  dateFields.push(['date_sent_supplier', isLao ? 'ສົ່ງຊັບພລາຍເອີ' : 'ส่งซัพพลายเออร์', true]);
+  dateFields.push(['date_confirmed', isLao ? 'ຢືນຢັນແລ້ວ' : 'ยืนยันแล้ว', true]);
+  dateFields.push(['date_shipped', isLao ? 'ຈັດສົ່ງແລ້ວ' : 'จัดส่งแล้ว', true]);
+  dateFields.push(['date_received', isLao ? 'ວັນຮັບຈິງ' : 'วันรับจริง', true]);
+  const dateRows = dateFields.map(f => {
+    const key = f[0], label = f[1], stage = f[2];
+    const v = h[key] ? String(h[key]).slice(0, 10) : '';
+    const dot = stage ? '<span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + (v ? '#22c55e' : 'var(--slate-300)') + ';"></span>' : '<span style="width:8px;flex-shrink:0;"></span>';
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' + dot + '<span style="font-size:12px;color:var(--slate-600);font-weight:700;flex:1;">' + label + '</span><input type="date" value="' + v + '" onchange="poSetDate(\'' + h.id + '\',\'' + key + '\',this.value)" style="width:148px;padding:7px 9px;border:1px solid var(--slate-300);border-radius:8px;font-size:12.5px;box-sizing:border-box;"></div>';
+  }).join('');
+  const dateSection = '<div style="background:#f8fafc;border-radius:11px;padding:11px;margin-bottom:12px;"><div style="font-size:12px;font-weight:800;color:var(--slate-700);margin-bottom:8px;">📅 ' + (isLao ? 'ວັນທີແຕ່ລະຂັ້ນ (ສະຖານະໄລ່ຕາມ)' : 'วันที่แต่ละขั้น (สถานะไล่ตามลำดับ)') + '</div>' + dateRows + '</div>';
   let actions = '';
-  poNextStatuses(h.po_type, h.status).forEach(to => {
-    if (poHasPerm(to)) { const m = poStatusMeta(to); actions += '<button onclick="poAdvance(\'' + h.id + '\',\'' + to + '\')" style="background:' + m.c + ';color:white;border:none;border-radius:9px;padding:9px 12px;font-size:12px;font-weight:800;cursor:pointer;">→ ' + escapeHtml(poStatusLabel(to)) + '</button>'; }
-  });
   if (['sent_supplier', 'confirmed', 'shipped', 'receiving'].includes(h.status) && poHasPerm('receiving')) actions += '<button onclick="poOpenReceive(\'' + h.id + '\')" style="background:#14b8a6;color:white;border:none;border-radius:9px;padding:9px 12px;font-size:12px;font-weight:800;cursor:pointer;">📥 ' + (isLao ? 'ຮັບສິນຄ້າ' : 'รับสินค้า') + '</button>';
   if (!['closed', 'cancelled'].includes(h.status) && poHasPerm('cancelled')) actions += '<button onclick="poAdvance(\'' + h.id + '\',\'cancelled\')" style="background:white;color:#ef4444;border:1px solid #fecaca;border-radius:9px;padding:9px 12px;font-size:12px;font-weight:800;cursor:pointer;">✕ ' + (isLao ? 'ຍົກເລີກ' : 'ยกเลิก') + '</button>';
   const info = (label, val) => val ? '<div style="display:flex;gap:8px;font-size:12px;margin-top:4px;"><span style="color:var(--slate-400);min-width:82px;">' + label + '</span><span style="color:var(--slate-800);font-weight:600;flex:1;">' + escapeHtml(String(val)) + '</span></div>' : '';
@@ -36108,6 +36147,15 @@ function poRenderDetail(d) {
   }).join('');
   const rcptHtml = receipts.length ? receipts.map(r => '<div style="font-size:11px;color:var(--slate-500);padding:3px 0;">📥 ' + poFmtNum(r.qty) + ' · ' + escapeHtml(r.doc_no || '-') + ' · ' + poFmtDT(r.created_at) + ' · ' + escapeHtml(r.received_by || '') + '</div>').join('') : '';
   const timeline = log.map(l => { const tm = poStatusMeta(l.to_status); return '<div style="display:flex;gap:9px;margin-bottom:9px;"><div style="width:10px;height:10px;border-radius:50%;background:' + tm.c + ';margin-top:4px;flex-shrink:0;"></div><div style="flex:1;"><div style="font-size:12.5px;font-weight:700;color:var(--slate-800);">' + escapeHtml(poStatusLabel(l.to_status)) + '</div><div style="font-size:10.5px;color:var(--slate-400);">' + escapeHtml(l.action_by || '') + ' · ' + poFmtDT(l.created_at) + '</div>' + (l.note ? '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + escapeHtml(l.note) + '</div>' : '') + '</div></div>'; }).join('');
+  // สกุลเงิน: ภายใน = ปุ่มเลือก บาท/กีบ · ภายนอก = บาท เสมอ (แสดงคงที่)
+  const curLabel = c => c === 'THB' ? (isLao ? 'ບາດ' : 'บาท') : (isLao ? 'ກີບ' : 'กีบ');
+  let curCtl;
+  if (h.po_type === 'internal') {
+    const cbtn = c => { const on = (h.currency || 'LAK') === c; return '<button onclick="poSetCurrency(\'' + h.id + '\',\'' + c + '\')" style="border:1px solid ' + (on ? 'var(--fs-blue)' : 'var(--slate-200)') + ';background:' + (on ? 'var(--fs-blue)' : 'white') + ';color:' + (on ? 'white' : 'var(--slate-600)') + ';border-radius:8px;padding:5px 14px;font-size:12px;font-weight:800;cursor:pointer;">' + curLabel(c) + '</button>'; };
+    curCtl = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span style="font-size:12px;color:var(--slate-500);font-weight:700;">' + (isLao ? 'ສະກຸນເງິນ' : 'สกุลเงิน') + '</span>' + cbtn('THB') + cbtn('LAK') + '</div>';
+  } else {
+    curCtl = '<div style="font-size:12px;color:var(--slate-600);margin-bottom:12px;"><span style="color:var(--slate-500);font-weight:700;">' + (isLao ? 'ສະກຸນເງິນ' : 'สกุลเงิน') + '</span> <b>' + (isLao ? 'ບາດ (THB)' : 'บาท (THB)') + '</b></div>';
+  }
   const html = '<div style="padding:15px 14px;max-height:85vh;overflow-y:auto;">'
     + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">'
     + '<span style="font-size:17px;font-weight:900;color:var(--slate-900);">' + escapeHtml(h.po_no || '') + '</span>'
@@ -36120,10 +36168,11 @@ function poRenderDetail(d) {
     + info(isLao ? 'ໝວດ' : 'หมวด', h.category)
     + info(isLao ? 'ຜູ້ເປີດ' : 'ผู้เปิด', h.created_by)
     + info(isLao ? 'ຈັດຊື້ນອກ' : 'จัดซื้อนอก', h.ext_buyer)
-    + info(isLao ? 'ວັນນັດຮັບ' : 'วันนัดรับ', h.appointment_date)
     + info(isLao ? 'ມູນຄ່າ' : 'มูลค่า', poFmtNum(h.total_amount) + ' ' + (h.currency || ''))
     + (h.note ? info(isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ', h.note) : '')
     + '</div>'
+    + curCtl
+    + dateSection
     + (actions ? '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px;">' + actions + '</div>' : '')
     + '<div style="font-size:12.5px;font-weight:800;color:var(--slate-700);margin-bottom:4px;">📦 ' + (isLao ? 'ລາຍການສິນຄ້າ' : 'รายการสินค้า') + ' (' + items.length + ')</div>'
     + '<div style="margin-bottom:14px;">' + itemsHtml + '</div>'
@@ -36150,6 +36199,27 @@ async function poAdvance(id, to) {
     if (Object.keys(upd).length) poWriteback({ token: _poWbToken, sheet: poSheetName(h.po_type, h.source_month), po_no: h.po_no, updates: upd });
   }
   poOpenDetail(id); poLoadDashboard(); poLoadList();
+}
+async function poSetCurrency(id, cur) {
+  const isLao = lang === 'lo';
+  const { error } = await sb.rpc('rpc_po_set_currency', { p_po_id: id, p_currency: cur, p_user: poActor() });
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  showToast('✅ ' + (cur === 'THB' ? (isLao ? 'ບາດ' : 'บาท') : (isLao ? 'ກີບ' : 'กีบ')), 'success');
+  poOpenDetail(id); poLoadList();
+}
+async function poSetDate(id, field, val) {
+  const isLao = lang === 'lo';
+  const d = val || null; // '' → null (ล้างวันที่ = สถานะถอยตามลำดับ)
+  const { data, error } = await sb.rpc('rpc_po_set_date', { p_po_id: id, p_field: field, p_date: d, p_user: poActor() });
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  // เขียนวันที่กลับ Google Sheet (เฉพาะ PO ที่ import + ตั้ง URL)
+  const h = _poCurrentHeader;
+  if (h && h.id === id && h.source_month) {
+    const col = { date_sent_ext: 12, date_sent_supplier: 15, date_confirmed: 17, date_shipped: 18, date_received: 20, appointment_date: 16 }[field];
+    if (col != null) { const upd = {}; upd[col] = d ? poToSheetDate(d) : ''; poWriteback({ token: _poWbToken, sheet: poSheetName(h.po_type, h.source_month), po_no: h.po_no, updates: upd }); }
+  }
+  showToast('✅ ' + (isLao ? 'ບັນທຶກວັນທີ' : 'บันทึกวันที่') + ((data && data.status) ? ' · ' + poStatusLabel(data.status) : ''), 'success');
+  poOpenDetail(id); poLoadList(); poLoadDashboard();
 }
 
 // ---------- รับสินค้า ----------
@@ -36241,6 +36311,7 @@ function poParseSheet(rows, poType, sourceMonth) {
     if (!groups[no]) {
       groups[no] = {
         po_no: no, po_type: poType, source_month: sourceMonth,
+        currency: poType === 'external' ? 'THB' : 'LAK', // ภายนอก = บาท เสมอ · ภายใน = กีบ (ปรับได้ในแอป)
         created_by: String(r[PO_COL.opener] || '').trim() || null,
         category: String(r[PO_COL.cat] || '').trim() || null,
         supplier_name: String(r[PO_COL.supplier] || '').trim() || null,
@@ -36323,8 +36394,8 @@ async function poImportFetch() {
     const rowLine = (label, c) => '<div style="display:flex;justify-content:space-between;padding:4px 0;"><span>' + label + '</span><b>' + c.po + ' ' + (isLao ? 'ໃບ' : 'ใบ') + ' / ' + c.items + ' ' + (isLao ? 'ລາຍການ' : 'รายการ') + '</b></div>';
     const total = ce.po + ci.po;
     if (box) box.innerHTML = '<div style="background:#f8fafc;border-radius:10px;padding:12px;font-size:13px;">'
-      + rowLine(isLao ? 'ນອກປະເທດ' : 'นอกประเทศ', ce)
-      + rowLine(isLao ? 'ພາຍໃນ' : 'ในประเทศ', ci)
+      + rowLine(isLao ? 'ນອກປະເທດ' : 'ภายนอก', ce)
+      + rowLine(isLao ? 'ພາຍໃນ' : 'ภายใน', ci)
       + (errE ? '<div style="color:var(--rose-500);font-size:11px;margin-top:4px;">' + (isLao ? 'ນອກ' : 'นอก') + ': ' + escapeHtml(errE) + '</div>' : '')
       + (errI ? '<div style="color:var(--rose-500);font-size:11px;margin-top:4px;">' + (isLao ? 'ໃນ' : 'ใน') + ': ' + escapeHtml(errI) + '</div>' : '')
       + (total > 0 ? '<button onclick="poImportConfirm()" style="width:100%;margin-top:10px;border:none;background:#22c55e;color:white;border-radius:9px;padding:11px;font-weight:800;cursor:pointer;">✅ ' + (isLao ? 'ຢືນຢັນນຳເຂົ້າ' : 'ยืนยันนำเข้า') + ' (' + total + ' ' + (isLao ? 'ໃບ' : 'ใบ') + ')</button>' : '<div style="color:var(--slate-400);text-align:center;margin-top:8px;font-size:12px;">' + (isLao ? 'ບໍ່ພົບຂໍ້ມູນ' : 'ไม่พบข้อมูล') + '</div>')
@@ -36395,9 +36466,9 @@ async function poWbSave() {
 window.renderPOTrackPage = renderPOTrackPage; window.poInit = poInit;
 window.poOpenImport = poOpenImport; window.poImportFetch = poImportFetch; window.poImportConfirm = poImportConfirm;
 window.poWbConfig = poWbConfig; window.poWbSave = poWbSave;
-window.poSetStatus = poSetStatus; window.poSetType = poSetType; window.poSearchDebounce = poSearchDebounce;
+window.poSetStatus = poSetStatus; window.poSetType = poSetType; window.poSetBuyer = poSetBuyer; window.poSearchDebounce = poSearchDebounce;
 window.poOpenCreate = poOpenCreate; window.poSyncPrefix = poSyncPrefix; window.poAddItemRow = poAddItemRow; window.poRemoveItemRow = poRemoveItemRow; window.poLookup = poLookup; window.poSubmitCreate = poSubmitCreate;
-window.poOpenDetail = poOpenDetail; window.poAdvance = poAdvance; window.poOpenReceive = poOpenReceive; window.poSubmitReceive = poSubmitReceive;
+window.poOpenDetail = poOpenDetail; window.poAdvance = poAdvance; window.poOpenReceive = poOpenReceive; window.poSubmitReceive = poSubmitReceive; window.poSetCurrency = poSetCurrency; window.poSetDate = poSetDate;
 window.poCanAccess = poCanAccess; window.poActorRole = poActorRole;
 
 // ==================== 🖨️ พิมพ์ป้ายราคา (ptag*) ====================
