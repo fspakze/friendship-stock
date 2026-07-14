@@ -4722,7 +4722,8 @@ const PAGE_META = {
   promotion: { iconSvg: '<path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>', labelTh: '🎁 Promotion', labelLo: '🎁 Promotion', page: 'promotion' },
   panogram: { iconSvg: '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/>', labelTh: '📐 Pan-O-Gram', labelLo: '📐 Pan-O-Gram', page: 'panogram' },
   menumanage: { iconSvg: '<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="2" fill="currentColor" stroke="none"/>', labelTh: 'จัดการเมนู', labelLo: 'ຈັດການເມນູ', page: 'menumanage' },
-  rolemenu: { iconSvg: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>', labelTh: 'สิทธิ์ตามตำแหน่ง', labelLo: 'ສິດຕາມຕຳແໜ່ງ', page: 'rolemenu' }
+  rolemenu: { iconSvg: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>', labelTh: 'สิทธิ์ตามตำแหน่ง', labelLo: 'ສິດຕາມຕຳແໜ່ງ', page: 'rolemenu' },
+  potrack: { iconSvg: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/><path d="M9 10h6M12 7v6"/>', labelTh: '🛒 PO Tracking', labelLo: '🛒 PO Tracking', page: 'potrack' }
 };
 
 /**
@@ -4863,6 +4864,13 @@ function wtFilterMenuCfg(cfg, role) {
       if (granted.length) {
         drawerGroups = drawerGroups.concat([{ titleTh: '👤 สิทธิ์เพิ่มเติม', titleLo: '👤 ສິດເພີ່ມເຕີມ', items: granted }]);
       }
+    }
+  }
+  // 🛒 PO Tracking — เห็นเฉพาะ admin/scc/it + ไอดี Buyer/DC (จัดซื้อ) · แทรกท้ายลิ้นชักตามตัวตน
+  if (user && user.role === role && typeof poCanAccess === 'function') {
+    const _poPresent = new Set(bottomTabs.concat(drawerGroups.reduce((a, g) => a.concat(g.items), [])));
+    if (poCanAccess(user) && !_poPresent.has('potrack')) {
+      drawerGroups = drawerGroups.concat([{ titleTh: '🛒 จัดซื้อ (PO)', titleLo: '🛒 ຈັດຊື້ (PO)', items: ['potrack'] }]);
     }
   }
   return { bottomTabs, drawerGroups };
@@ -5216,8 +5224,11 @@ function goPage(page) {
   } else if (page === 'scdailylog') {
     c.innerHTML = renderScDailyLogPage();
     setTimeout(() => loadScDailyLogs(), 50);
+  } else if (page === 'potrack') {
+    c.innerHTML = renderPOTrackPage();
+    setTimeout(() => poInit(), 30);
   }
-  
+
   updateTbBadge();
   updateIssueBadge();
   updateDocBadge();
@@ -35815,6 +35826,354 @@ window.mbSearchDebounce = mbSearchDebounce; window.mbSearch = mbSearch; window.m
 window.mbOpenUpload = mbOpenUpload; window.mbHandleFile = mbHandleFile; window.mbExecuteUpload = mbExecuteUpload;
 window.mbSignupSave = mbSignupSave; window.mbLoadSignups = mbLoadSignups; window.mbExportSignups = mbExportSignups;
 window.mbMarkRegistered = mbMarkRegistered; window.mbDeleteSignup = mbDeleteSignup; window.mbAddBizType = mbAddBizType;
+
+// ==================== 🛒 PO Tracking (po*) — ติดตามใบสั่งซื้อ ใน/นอกประเทศ ====================
+// backend: po_tracking.sql (6 ตาราง + 6 RPC · RLS deny-all → เข้าผ่าน RPC เท่านั้น)
+// สิทธิ์ผูก "ไอดี": Buyer=จัดซื้อภายใน · DC=จัดซื้อภายนอก · admin/scc/it=ควบคุมเต็ม
+// ⚠️ ยังไม่เห็น username จริง — ปรับ pattern จับไอดีได้ที่ 2 const ล่างนี้
+const PO_BUYER_RE = /buyer/i;   // ไอดีจัดซื้อภายใน
+const PO_DC_RE    = /dc/i;      // ไอดีจัดซื้อภายนอก
+const PO_SUPER = ['admin', 'scc', 'it'];
+// mirror ของ po_role_permissions (RPC เป็นตัวตัดสินจริง — อันนี้ใช้แค่ตัดสินใจว่าจะโชว์ปุ่มไหน)
+const PO_PERMS = {
+  buyer: ['sent_ext', 'sent_supplier', 'confirmed', 'shipped', 'receiving', 'cancelled'],
+  dc:    ['sent_supplier', 'confirmed', 'shipped', 'receiving', 'cancelled'],
+  _all:  ['sent_ext', 'sent_supplier', 'confirmed', 'shipped', 'receiving', 'closed', 'cancelled']
+};
+const PO_STATUS_ORDER = ['draft', 'sent_ext', 'sent_supplier', 'confirmed', 'shipped', 'receiving', 'closed'];
+let _poFilterStatus = null, _poFilterType = null, _poSearch = '', _poSearchTimer = null;
+let _poCreateItems = [{}];
+let _poReceiveItems = [];
+
+function poActorRole(u) {
+  u = u || user; if (!u) return '';
+  if (PO_SUPER.includes(u.role)) return u.role;
+  const un = String(u.username || '');
+  if (PO_BUYER_RE.test(un)) return 'buyer';
+  if (PO_DC_RE.test(un)) return 'dc';
+  return u.role;
+}
+function poCanAccess(u) {
+  u = u || user; if (!u) return false;
+  if (PO_SUPER.includes(u.role)) return true;
+  const un = String(u.username || '');
+  return PO_BUYER_RE.test(un) || PO_DC_RE.test(un);
+}
+function poHasPerm(to) {
+  const r = poActorRole();
+  if (PO_SUPER.includes(r)) return PO_PERMS._all.includes(to);
+  return (PO_PERMS[r] || []).includes(to);
+}
+function poActor() { return (user && (user.full_name || user.username)) || 'unknown'; }
+
+function poStatusMeta(s) {
+  const M = {
+    draft:         { th: 'ร่าง',              lo: 'ຮ່າງ',              c: '#94a3b8' },
+    sent_ext:      { th: 'ส่งจัดซื้อนอก',     lo: 'ສົ່ງຈັດຊື້ນອກ',     c: '#6366f1' },
+    sent_supplier: { th: 'ส่งซัพพลายเออร์',   lo: 'ສົ່ງຊັບພລາຍເອີ',    c: '#8b5cf6' },
+    confirmed:     { th: 'ยืนยันแล้ว',        lo: 'ຢືນຢັນແລ້ວ',        c: '#0ea5e9' },
+    shipped:       { th: 'จัดส่งแล้ว',        lo: 'ຈັດສົ່ງແລ້ວ',       c: '#f59e0b' },
+    receiving:     { th: 'กำลังรับ',          lo: 'ກຳລັງຮັບ',          c: '#14b8a6' },
+    closed:        { th: 'ปิดใบ (ครบ)',       lo: 'ປິດໃບ (ຄົບ)',       c: '#22c55e' },
+    cancelled:     { th: 'ยกเลิก',            lo: 'ຍົກເລີກ',           c: '#ef4444' }
+  };
+  return M[s] || { th: s, lo: s, c: '#94a3b8' };
+}
+function poStatusLabel(s) { const m = poStatusMeta(s); return (lang === 'lo') ? m.lo : m.th; }
+function poTypeLabel(t) { const isLao = lang === 'lo'; return t === 'internal' ? (isLao ? 'ພາຍໃນປະເທດ' : 'ในประเทศ') : (isLao ? 'ຕ່າງປະເທດ' : 'นอกประเทศ'); }
+function poFmtNum(n) { return (Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+function poFmtDT(ts) { if (!ts) return ''; try { const d = new Date(ts); const p = n => String(n).padStart(2, '0'); return p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); } catch (e) { return ''; } }
+function poNextStatuses(poType, status) {
+  const T = {
+    external: { draft: ['sent_ext'], sent_ext: ['sent_supplier'], sent_supplier: ['confirmed', 'shipped'], confirmed: ['shipped'] },
+    internal: { draft: ['sent_supplier'], sent_supplier: ['confirmed', 'shipped'], confirmed: ['shipped'] }
+  };
+  return ((T[poType] || {})[status]) || [];
+}
+
+// ---------- หน้าหลัก: Dashboard + List ----------
+function renderPOTrackPage() {
+  const isLao = lang === 'lo';
+  return '<div style="padding:14px 13px 90px;max-width:640px;margin:0 auto;">'
+    + '<div style="display:flex;align-items:center;gap:9px;margin-bottom:12px;">'
+    + '<button onclick="goPage(getHomePage())" style="border:1px solid var(--slate-200);background:white;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
+    + '<h2 style="font-size:18px;font-weight:800;color:var(--slate-800);margin:0;">🛒 PO Tracking</h2>'
+    + '<button onclick="poOpenCreate()" style="margin-left:auto;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:8px 13px;font-size:12.5px;font-weight:800;cursor:pointer;">＋ ' + (isLao ? 'ເປີດ PO' : 'เปิด PO') + '</button>'
+    + '</div>'
+    + '<div id="poDash" style="margin-bottom:12px;"></div>'
+    + '<div style="display:flex;gap:6px;margin-bottom:10px;">'
+    + '<select id="poFType" onchange="poSetType(this.value)" style="width:120px;padding:9px 10px;border:1px solid var(--slate-200);border-radius:9px;font-size:12.5px;background:white;font-weight:700;color:var(--slate-700);">'
+    + '<option value="">' + (isLao ? 'ທຸກປະເພດ' : 'ทุกประเภท') + '</option>'
+    + '<option value="external">' + (isLao ? 'ຕ່າງປະເທດ' : 'นอกประเทศ') + '</option>'
+    + '<option value="internal">' + (isLao ? 'ພາຍໃນ' : 'ในประเทศ') + '</option>'
+    + '</select>'
+    + '<input id="poSearch" oninput="poSearchDebounce()" placeholder="' + (isLao ? 'ຄົ້ນຫາ ເລກ PO / ຊັບ' : 'ค้นหา เลข PO / ซัพ') + '" style="flex:1;min-width:0;padding:9px 12px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;box-sizing:border-box;">'
+    + '</div>'
+    + '<div id="poStatusChips" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;"></div>'
+    + '<div id="poList"></div>'
+    + '</div>';
+}
+function poInit() { poRenderChips(); poLoadDashboard(); poLoadList(); }
+async function poLoadDashboard() {
+  const box = document.getElementById('poDash'); if (!box) return;
+  const isLao = lang === 'lo';
+  const { data, error } = await sb.rpc('rpc_po_dashboard');
+  if (error) { box.innerHTML = ''; return; }
+  const d = data || {}; const bs = d.by_status || {};
+  const active = Object.keys(bs).reduce((a, k) => a + ((k === 'closed' || k === 'cancelled') ? 0 : (Number(bs[k]) || 0)), 0);
+  const card = (label, val, color) => '<div style="flex:1;background:white;border:1px solid var(--slate-200);border-radius:12px;padding:11px 8px;text-align:center;"><div style="font-size:21px;font-weight:900;color:' + color + ';line-height:1;">' + val + '</div><div style="font-size:10px;color:var(--slate-500);font-weight:700;margin-top:4px;">' + label + '</div></div>';
+  box.innerHTML = '<div style="display:flex;gap:8px;">'
+    + card(isLao ? 'ກຳລັງດຳເນີນ' : 'กำลังดำเนิน', active, 'var(--fs-blue)')
+    + card(isLao ? 'ເກີນກຳນົດ' : 'เกินกำหนด', d.overdue || 0, '#ef4444')
+    + card(isLao ? 'ມູນຄ່າລໍຮັບ' : 'มูลค่ารอรับ', poFmtNum(d.pending_value || 0), '#f59e0b')
+    + '</div>';
+}
+function poRenderChips() {
+  const box = document.getElementById('poStatusChips'); if (!box) return;
+  const isLao = lang === 'lo';
+  const mk = (val, label) => '<button onclick="poSetStatus(' + (val ? ('\'' + val + '\'') : 'null') + ')" id="poChip_' + (val || 'ALL') + '" style="padding:6px 12px;border-radius:20px;border:1px solid ' + ((_poFilterStatus === val) ? 'var(--fs-blue)' : 'var(--slate-200)') + ';background:' + ((_poFilterStatus === val) ? 'var(--fs-blue)' : 'white') + ';color:' + ((_poFilterStatus === val) ? 'white' : 'var(--slate-600)') + ';font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;">' + label + '</button>';
+  let h = mk(null, isLao ? 'ທັງໝົດ' : 'ทั้งหมด');
+  PO_STATUS_ORDER.concat(['cancelled']).forEach(s => { h += mk(s, poStatusLabel(s)); });
+  box.innerHTML = h;
+}
+function poSetStatus(s) { _poFilterStatus = s; poRenderChips(); poLoadList(); }
+function poSetType(v) { _poFilterType = v || null; poLoadList(); }
+function poSearchDebounce() { clearTimeout(_poSearchTimer); _poSearchTimer = setTimeout(() => { const i = document.getElementById('poSearch'); _poSearch = i ? i.value.trim() : ''; poLoadList(); }, 300); }
+async function poLoadList() {
+  const box = document.getElementById('poList'); if (!box) return;
+  const isLao = lang === 'lo';
+  box.innerHTML = '<div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>';
+  const { data, error } = await sb.rpc('rpc_po_list', { p_status: _poFilterStatus, p_type: _poFilterType, p_search: _poSearch || null, p_limit: 80, p_offset: 0 });
+  if (error) { box.innerHTML = '<div style="color:var(--rose-500);padding:14px;font-size:12px;">Error: ' + escapeHtml(error.message) + '</div>'; return; }
+  const rows = data || [];
+  if (!rows.length) { box.innerHTML = '<div style="text-align:center;color:var(--slate-400);padding:30px;font-size:13px;">📭 ' + (isLao ? 'ບໍ່ພົບໃບສັ່ງຊື້' : 'ไม่พบใบสั่งซื้อ') + '</div>'; return; }
+  box.innerHTML = rows.map(poCard).join('');
+}
+function poCard(r) {
+  const isLao = lang === 'lo';
+  const sm = poStatusMeta(r.status);
+  const qtyO = Number(r.qty_ordered) || 0, qtyR = Number(r.qty_received) || 0;
+  const pct = qtyO > 0 ? Math.round(qtyR / qtyO * 100) : 0;
+  const overdue = r.is_overdue;
+  return '<div onclick="poOpenDetail(\'' + r.id + '\')" style="border:1px solid ' + (overdue ? '#fecaca' : 'var(--slate-200)') + ';border-radius:13px;padding:13px;margin-bottom:10px;background:white;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.03);">'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">'
+    + '<span style="font-size:14.5px;font-weight:800;color:var(--slate-900);">' + escapeHtml(r.po_no || '') + '</span>'
+    + '<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;background:' + sm.c + '22;color:' + sm.c + ';">' + escapeHtml(poStatusLabel(r.status)) + '</span>'
+    + '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--slate-100);color:var(--slate-500);">' + escapeHtml(poTypeLabel(r.po_type)) + '</span>'
+    + (overdue ? '<span style="font-size:10px;font-weight:800;color:#ef4444;margin-left:auto;">⚠️ ' + (isLao ? 'ເກີນກຳນົດ' : 'เกินกำหนด') + '</span>' : '')
+    + '</div>'
+    + '<div style="font-size:12.5px;color:var(--slate-700);font-weight:600;">' + escapeHtml(r.supplier_name || (isLao ? '(ບໍ່ລະບຸຊັບ)' : '(ไม่ระบุซัพ)')) + '</div>'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-top:8px;font-size:11px;color:var(--slate-500);flex-wrap:wrap;">'
+    + '<span>📦 ' + (r.item_count || 0) + ' ' + (isLao ? 'ລາຍການ' : 'รายการ') + '</span>'
+    + '<span>💰 ' + poFmtNum(r.total_amount) + ' ' + escapeHtml(r.currency || '') + '</span>'
+    + (r.appointment_date ? '<span>📅 ' + escapeHtml(r.appointment_date) + '</span>' : '')
+    + '</div>'
+    + (qtyO > 0 ? '<div style="margin-top:8px;"><div style="height:6px;background:var(--slate-100);border-radius:6px;overflow:hidden;"><div style="height:100%;width:' + pct + '%;background:' + sm.c + ';"></div></div><div style="font-size:10px;color:var(--slate-400);margin-top:3px;">' + (isLao ? 'ຮັບແລ້ວ' : 'รับแล้ว') + ' ' + poFmtNum(qtyR) + '/' + poFmtNum(qtyO) + ' (' + pct + '%)</div></div>' : '')
+    + '</div>';
+}
+
+// ---------- เปิด PO ----------
+function poOpenCreate() {
+  const isLao = lang === 'lo';
+  _poCreateItems = [{}];
+  const lbl = t => '<label style="display:block;font-size:11.5px;font-weight:700;color:var(--slate-600);margin-bottom:4px;">' + t + '</label>';
+  const inStyle = 'width:100%;padding:10px 12px;border:1px solid var(--slate-300);border-radius:9px;font-size:13.5px;box-sizing:border-box;';
+  const html = '<div style="padding:16px 15px;max-height:84vh;overflow-y:auto;">'
+    + '<div style="font-size:16px;font-weight:800;color:var(--slate-800);margin-bottom:12px;">🛒 ' + (isLao ? 'ເປີດໃບສັ່ງຊື້' : 'เปิดใบสั่งซื้อ') + '</div>'
+    + '<div style="margin-bottom:10px;">' + lbl(isLao ? 'ປະເພດ' : 'ประเภท') + '<select id="poType" onchange="poSyncPrefix()" style="' + inStyle + '"><option value="external">' + (isLao ? 'ນອກປະເທດ' : 'นอกประเทศ') + '</option><option value="internal">' + (isLao ? 'ພາຍໃນປະເທດ' : 'ในประเทศ') + '</option></select></div>'
+    + '<div style="margin-bottom:10px;">' + lbl(isLao ? 'ຄຳນຳໜ້າເລກ PO' : 'คำนำหน้าเลข PO') + '<input id="poNoPrefix" value="PS/FS/OUT/AL" style="' + inStyle + '"></div>'
+    + '<div style="margin-bottom:10px;">' + lbl(isLao ? 'ຊັບພລາຍເອີ' : 'ซัพพลายเออร์') + '<input id="poSupplier" placeholder="' + (isLao ? 'ຊື່ຊັບ' : 'ชื่อซัพ') + '" style="' + inStyle + '"></div>'
+    + '<div style="margin-bottom:10px;">' + lbl(isLao ? 'ໝວດ' : 'หมวด') + '<input id="poCategory" placeholder="' + (isLao ? 'ເຊັ່ນ ຂະໜົມ' : 'เช่น ขนม') + '" style="' + inStyle + '"></div>'
+    + '<div style="display:flex;gap:8px;margin-bottom:10px;">'
+    + '<div style="flex:1;">' + lbl(isLao ? 'ວັນນັດຮັບ' : 'วันนัดรับ') + '<input id="poApptDate" type="date" style="' + inStyle + '"></div>'
+    + '<div style="width:115px;">' + lbl(isLao ? 'ສະກຸນເງິນ' : 'สกุลเงิน') + '<select id="poCurrency" style="' + inStyle + '">' + ['LAK', 'THB', 'USD', 'CNY'].map(c => '<option value="' + c + '">' + c + '</option>').join('') + '</select></div>'
+    + '</div>'
+    + '<div style="margin:12px 0 6px;font-size:12.5px;font-weight:800;color:var(--slate-700);display:flex;align-items:center;">📦 ' + (isLao ? 'ລາຍການສິນຄ້າ' : 'รายการสินค้า') + '<button onclick="poAddItemRow()" style="margin-left:auto;background:var(--fs-blue);color:white;border:none;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:800;cursor:pointer;">＋ ' + (isLao ? 'ເພີ່ມ' : 'เพิ่ม') + '</button></div>'
+    + '<div id="poItemRows"></div>'
+    + '<div style="margin-bottom:10px;">' + lbl(isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ') + '<input id="poNote" style="' + inStyle + '"></div>'
+    + '<div style="display:flex;gap:9px;margin-top:14px;">'
+    + '<button onclick="closeModal()" style="flex:1;border:1px solid var(--slate-200);background:white;border-radius:10px;padding:12px;font-weight:700;color:var(--slate-600);cursor:pointer;">' + (isLao ? 'ຍົກເລີກ' : 'ยกเลิก') + '</button>'
+    + '<button onclick="poSubmitCreate()" style="flex:2;border:none;background:var(--fs-blue);color:white;border-radius:10px;padding:12px;font-weight:800;cursor:pointer;">💾 ' + (isLao ? 'ບັນທຶກ' : 'บันทึก') + '</button>'
+    + '</div></div>';
+  showModal(html);
+  poRenderItemRows();
+}
+function poSyncPrefix() {
+  const t = document.getElementById('poType'); const p = document.getElementById('poNoPrefix');
+  if (!t || !p) return;
+  if (t.value === 'internal' && (p.value === '' || /OUT/.test(p.value))) p.value = 'PS/FS/IN/AL';
+  else if (t.value === 'external' && (p.value === '' || /IN\/AL/.test(p.value))) p.value = 'PS/FS/OUT/AL';
+}
+function poRenderItemRows() {
+  const box = document.getElementById('poItemRows'); if (!box) return;
+  const isLao = lang === 'lo';
+  const cs = 'padding:8px 10px;border:1px solid var(--slate-300);border-radius:8px;font-size:12.5px;box-sizing:border-box;';
+  box.innerHTML = _poCreateItems.map((it, idx) => {
+    return '<div style="border:1px solid var(--slate-200);border-radius:10px;padding:10px;margin-bottom:8px;background:#f8fafc;">'
+      + '<div style="display:flex;gap:6px;margin-bottom:6px;">'
+      + '<input id="poBc_' + idx + '" onblur="poLookup(' + idx + ')" value="' + escapeHtml(it.barcode || '') + '" placeholder="' + (isLao ? 'ບາໂຄດ' : 'บาร์โค้ด') + '" style="flex:1;' + cs + '">'
+      + (_poCreateItems.length > 1 ? '<button onclick="poRemoveItemRow(' + idx + ')" style="background:#fee2e2;color:#ef4444;border:none;border-radius:8px;padding:0 11px;font-size:15px;font-weight:800;cursor:pointer;">✕</button>' : '')
+      + '</div>'
+      + '<input id="poNm_' + idx + '" value="' + escapeHtml(it.name || '') + '" placeholder="' + (isLao ? 'ຊື່ສິນຄ້າ' : 'ชื่อสินค้า') + '" style="width:100%;' + cs + 'margin-bottom:6px;">'
+      + '<div style="display:flex;gap:6px;">'
+      + '<input id="poUnit_' + idx + '" value="' + escapeHtml(it.unit || '') + '" placeholder="' + (isLao ? 'ໜ່ວຍ' : 'หน่วย') + '" style="width:78px;' + cs + '">'
+      + '<input id="poQty_' + idx + '" inputmode="decimal" value="' + escapeHtml(it.qty || '') + '" placeholder="' + (isLao ? 'ຈຳນວນ' : 'จำนวน') + '" style="flex:1;' + cs + '">'
+      + '<input id="poPrice_' + idx + '" inputmode="decimal" value="' + escapeHtml(it.price || '') + '" placeholder="' + (isLao ? 'ລາຄາ/ໜ່ວຍ' : 'ราคา/หน่วย') + '" style="flex:1;' + cs + '">'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+function poSnapshotRows() {
+  _poCreateItems = _poCreateItems.map((_, idx) => ({
+    barcode: (document.getElementById('poBc_' + idx) || {}).value || '',
+    name: (document.getElementById('poNm_' + idx) || {}).value || '',
+    unit: (document.getElementById('poUnit_' + idx) || {}).value || '',
+    qty: (document.getElementById('poQty_' + idx) || {}).value || '',
+    price: (document.getElementById('poPrice_' + idx) || {}).value || ''
+  }));
+}
+function poAddItemRow() { poSnapshotRows(); _poCreateItems.push({}); poRenderItemRows(); }
+function poRemoveItemRow(idx) { poSnapshotRows(); _poCreateItems.splice(idx, 1); if (!_poCreateItems.length) _poCreateItems = [{}]; poRenderItemRows(); }
+async function poLookup(idx) {
+  const bcEl = document.getElementById('poBc_' + idx); if (!bcEl) return;
+  const bc = String(bcEl.value || '').trim(); if (!bc) return;
+  const nm = document.getElementById('poNm_' + idx); if (nm && nm.value.trim()) return;
+  try {
+    const { data } = await sb.from('master_products').select('name_th,name_lo,category').eq('barcode', bc).maybeSingle();
+    if (data && nm) {
+      nm.value = ((lang === 'lo') ? (data.name_lo || data.name_th) : (data.name_th || data.name_lo)) || '';
+      const cat = document.getElementById('poCategory'); if (cat && !cat.value.trim() && data.category) cat.value = data.category;
+    }
+  } catch (e) {}
+}
+async function poSubmitCreate() {
+  const isLao = lang === 'lo';
+  poSnapshotRows();
+  const type = (document.getElementById('poType') || {}).value || 'external';
+  const prefix = String((document.getElementById('poNoPrefix') || {}).value || '').trim();
+  const supplier = String((document.getElementById('poSupplier') || {}).value || '').trim();
+  const category = String((document.getElementById('poCategory') || {}).value || '').trim();
+  const appt = (document.getElementById('poApptDate') || {}).value || null;
+  const currency = (document.getElementById('poCurrency') || {}).value || 'LAK';
+  const note = String((document.getElementById('poNote') || {}).value || '').trim();
+  if (!prefix) { showToast(isLao ? 'ໃສ່ຄຳນຳໜ້າເລກ PO' : 'ใส่คำนำหน้าเลข PO', 'warning'); return; }
+  const items = [];
+  for (const it of _poCreateItems) {
+    const bc = String(it.barcode || '').trim(); const nm = String(it.name || '').trim();
+    const qty = parseFloat(it.qty); const price = parseFloat(it.price) || 0;
+    if (!nm && !bc) continue;
+    if (!nm) { showToast(isLao ? 'ໃສ່ຊື່ສິນຄ້າໃຫ້ຄົບ' : 'ใส่ชื่อสินค้าให้ครบ', 'warning'); return; }
+    if (!(qty > 0)) { showToast(isLao ? 'ຈຳນວນຕ້ອງ > 0' : 'จำนวนต้อง > 0', 'warning'); return; }
+    items.push({ barcode: bc || null, product_name: nm, unit: String(it.unit || '').trim() || null, qty_ordered: qty, unit_price: price });
+  }
+  if (!items.length) { showToast(isLao ? 'ຕ້ອງມີຢ່າງໜ້ອຍ 1 ລາຍການ' : 'ต้องมีอย่างน้อย 1 รายการ', 'warning'); return; }
+  const { data, error } = await sb.rpc('rpc_po_create', { p_type: type, p_no_prefix: prefix, p_supplier: supplier || null, p_category: category || null, p_appt_date: appt || null, p_currency: currency, p_note: note || null, p_user: poActor(), p_items: items });
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  closeModal();
+  showToast('✅ ' + (isLao ? 'ເປີດ PO ' : 'เปิด PO ') + ((data && data.po_no) ? data.po_no : ''), 'success');
+  poInit();
+}
+
+// ---------- รายละเอียด + Timeline ----------
+async function poOpenDetail(id) {
+  showModal('<div style="padding:34px;text-align:center;"><div class="loader" style="margin:0 auto;"></div></div>');
+  const { data, error } = await sb.rpc('rpc_po_detail', { p_po_id: id });
+  if (error || !data || !data.header) { showToast('Error: ' + ((error && error.message) || 'not found'), 'error'); closeModal(); return; }
+  poRenderDetail(data);
+}
+function poRenderDetail(d) {
+  const isLao = lang === 'lo';
+  const h = d.header, items = d.items || [], log = d.log || [], receipts = d.receipts || [];
+  const sm = poStatusMeta(h.status);
+  let actions = '';
+  poNextStatuses(h.po_type, h.status).forEach(to => {
+    if (poHasPerm(to)) { const m = poStatusMeta(to); actions += '<button onclick="poAdvance(\'' + h.id + '\',\'' + to + '\')" style="background:' + m.c + ';color:white;border:none;border-radius:9px;padding:9px 12px;font-size:12px;font-weight:800;cursor:pointer;">→ ' + escapeHtml(poStatusLabel(to)) + '</button>'; }
+  });
+  if (['sent_supplier', 'confirmed', 'shipped', 'receiving'].includes(h.status) && poHasPerm('receiving')) actions += '<button onclick="poOpenReceive(\'' + h.id + '\')" style="background:#14b8a6;color:white;border:none;border-radius:9px;padding:9px 12px;font-size:12px;font-weight:800;cursor:pointer;">📥 ' + (isLao ? 'ຮັບສິນຄ້າ' : 'รับสินค้า') + '</button>';
+  if (!['closed', 'cancelled'].includes(h.status) && poHasPerm('cancelled')) actions += '<button onclick="poAdvance(\'' + h.id + '\',\'cancelled\')" style="background:white;color:#ef4444;border:1px solid #fecaca;border-radius:9px;padding:9px 12px;font-size:12px;font-weight:800;cursor:pointer;">✕ ' + (isLao ? 'ຍົກເລີກ' : 'ยกเลิก') + '</button>';
+  const info = (label, val) => val ? '<div style="display:flex;gap:8px;font-size:12px;margin-top:4px;"><span style="color:var(--slate-400);min-width:82px;">' + label + '</span><span style="color:var(--slate-800);font-weight:600;flex:1;">' + escapeHtml(String(val)) + '</span></div>' : '';
+  const itemsHtml = items.map(i => {
+    const ls = i.line_status; const lc = ls === 'complete' ? '#22c55e' : (ls === 'partial' ? '#f59e0b' : '#94a3b8');
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--slate-100);"><div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:600;color:var(--slate-800);">' + escapeHtml(i.product_name || '') + '</div><div style="font-size:10.5px;color:var(--slate-400);">' + escapeHtml(i.barcode || '') + '</div></div><div style="text-align:right;"><div style="font-size:12px;font-weight:700;color:' + lc + ';">' + poFmtNum(i.qty_received) + '/' + poFmtNum(i.qty_ordered) + ' ' + escapeHtml(i.unit || '') + '</div><div style="font-size:10.5px;color:var(--slate-400);">' + poFmtNum(i.amount) + '</div></div></div>';
+  }).join('');
+  const rcptHtml = receipts.length ? receipts.map(r => '<div style="font-size:11px;color:var(--slate-500);padding:3px 0;">📥 ' + poFmtNum(r.qty) + ' · ' + escapeHtml(r.doc_no || '-') + ' · ' + poFmtDT(r.created_at) + ' · ' + escapeHtml(r.received_by || '') + '</div>').join('') : '';
+  const timeline = log.map(l => { const tm = poStatusMeta(l.to_status); return '<div style="display:flex;gap:9px;margin-bottom:9px;"><div style="width:10px;height:10px;border-radius:50%;background:' + tm.c + ';margin-top:4px;flex-shrink:0;"></div><div style="flex:1;"><div style="font-size:12.5px;font-weight:700;color:var(--slate-800);">' + escapeHtml(poStatusLabel(l.to_status)) + '</div><div style="font-size:10.5px;color:var(--slate-400);">' + escapeHtml(l.action_by || '') + ' · ' + poFmtDT(l.created_at) + '</div>' + (l.note ? '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + escapeHtml(l.note) + '</div>' : '') + '</div></div>'; }).join('');
+  const html = '<div style="padding:15px 14px;max-height:85vh;overflow-y:auto;">'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">'
+    + '<span style="font-size:17px;font-weight:900;color:var(--slate-900);">' + escapeHtml(h.po_no || '') + '</span>'
+    + '<span style="font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px;background:' + sm.c + '22;color:' + sm.c + ';">' + escapeHtml(poStatusLabel(h.status)) + '</span>'
+    + '<button onclick="closeModal()" style="margin-left:auto;background:var(--slate-100);border:none;border-radius:8px;width:32px;height:32px;font-size:16px;cursor:pointer;color:var(--slate-500);">✕</button>'
+    + '</div>'
+    + '<div style="background:#f8fafc;border-radius:11px;padding:11px;margin-bottom:12px;">'
+    + info(isLao ? 'ປະເພດ' : 'ประเภท', poTypeLabel(h.po_type))
+    + info(isLao ? 'ຊັບ' : 'ซัพ', h.supplier_name)
+    + info(isLao ? 'ໝວດ' : 'หมวด', h.category)
+    + info(isLao ? 'ຜູ້ເປີດ' : 'ผู้เปิด', h.created_by)
+    + info(isLao ? 'ຈັດຊື້ນອກ' : 'จัดซื้อนอก', h.ext_buyer)
+    + info(isLao ? 'ວັນນັດຮັບ' : 'วันนัดรับ', h.appointment_date)
+    + info(isLao ? 'ມູນຄ່າ' : 'มูลค่า', poFmtNum(h.total_amount) + ' ' + (h.currency || ''))
+    + (h.note ? info(isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ', h.note) : '')
+    + '</div>'
+    + (actions ? '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px;">' + actions + '</div>' : '')
+    + '<div style="font-size:12.5px;font-weight:800;color:var(--slate-700);margin-bottom:4px;">📦 ' + (isLao ? 'ລາຍການສິນຄ້າ' : 'รายการสินค้า') + ' (' + items.length + ')</div>'
+    + '<div style="margin-bottom:14px;">' + itemsHtml + '</div>'
+    + (rcptHtml ? '<div style="font-size:12.5px;font-weight:800;color:var(--slate-700);margin-bottom:4px;">🧾 ' + (isLao ? 'ປະຫວັດຮັບ' : 'ประวัติรับ') + '</div><div style="margin-bottom:14px;">' + rcptHtml + '</div>' : '')
+    + '<div style="font-size:12.5px;font-weight:800;color:var(--slate-700);margin-bottom:8px;">🕘 Timeline</div>'
+    + '<div>' + timeline + '</div>'
+    + '</div>';
+  showModal(html);
+}
+async function poAdvance(id, to) {
+  const isLao = lang === 'lo';
+  let note = null;
+  if (to === 'cancelled') { if (!confirm(isLao ? 'ຢືນຢັນຍົກເລີກໃບນີ້?' : 'ยืนยันยกเลิกใบนี้?')) return; }
+  const { error } = await sb.rpc('rpc_po_advance_status', { p_po_id: id, p_to: to, p_user: poActor(), p_role: poActorRole(), p_note: note, p_photo: null, p_date: null });
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  showToast('✅ ' + escapeHtml(poStatusLabel(to)), 'success');
+  poOpenDetail(id); poLoadDashboard(); poLoadList();
+}
+
+// ---------- รับสินค้า ----------
+async function poOpenReceive(id) {
+  const isLao = lang === 'lo';
+  showModal('<div style="padding:34px;text-align:center;"><div class="loader" style="margin:0 auto;"></div></div>');
+  const { data, error } = await sb.rpc('rpc_po_detail', { p_po_id: id });
+  if (error || !data || !data.header) { showToast('Error: ' + ((error && error.message) || '-'), 'error'); closeModal(); return; }
+  const items = (data.items || []).filter(i => i.line_status !== 'complete');
+  if (!items.length) { closeModal(); showToast(isLao ? 'ຮັບຄົບທຸກລາຍການແລ້ວ' : 'รับครบทุกรายการแล้ว', 'info'); return; }
+  _poReceiveItems = items.map(i => i.id);
+  const cs = 'padding:8px 10px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;box-sizing:border-box;';
+  const rows = items.map(i => {
+    const remain = (Number(i.qty_ordered) || 0) - (Number(i.qty_received) || 0);
+    return '<div style="border:1px solid var(--slate-200);border-radius:9px;padding:9px;margin-bottom:7px;"><div style="font-size:12.5px;font-weight:700;color:var(--slate-800);margin-bottom:5px;">' + escapeHtml(i.product_name || '') + '</div><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:11px;color:var(--slate-400);white-space:nowrap;">' + (isLao ? 'ຄ້າງ' : 'ค้าง') + ' ' + poFmtNum(remain) + '</span><input id="poRcv_' + i.id + '" inputmode="decimal" value="' + remain + '" placeholder="' + (isLao ? 'ຮັບ' : 'รับ') + '" style="flex:1;' + cs + '"></div></div>';
+  }).join('');
+  const html = '<div style="padding:16px 15px;max-height:84vh;overflow-y:auto;">'
+    + '<div style="font-size:16px;font-weight:800;color:var(--slate-800);margin-bottom:6px;">📥 ' + (isLao ? 'ຮັບສິນຄ້າ' : 'รับสินค้า') + ' ' + escapeHtml(data.header.po_no || '') + '</div>'
+    + '<div style="margin:6px 0 12px;"><label style="display:block;font-size:11.5px;font-weight:700;color:var(--slate-600);margin-bottom:4px;">' + (isLao ? 'ເລກເອກະສານ (Doc No.)' : 'เลขเอกสาร (Doc No.)') + '</label><input id="poRcvDoc" placeholder="DOC-..." style="width:100%;' + cs + '"></div>'
+    + rows
+    + '<div style="display:flex;gap:9px;margin-top:12px;"><button onclick="closeModal()" style="flex:1;border:1px solid var(--slate-200);background:white;border-radius:10px;padding:12px;font-weight:700;color:var(--slate-600);cursor:pointer;">' + (isLao ? 'ຍົກເລີກ' : 'ยกเลิก') + '</button><button onclick="poSubmitReceive(\'' + id + '\')" style="flex:2;border:none;background:#14b8a6;color:white;border-radius:10px;padding:12px;font-weight:800;cursor:pointer;">💾 ' + (isLao ? 'ບັນທຶກຮັບ' : 'บันทึกรับ') + '</button></div>'
+    + '</div>';
+  showModal(html);
+}
+async function poSubmitReceive(id) {
+  const isLao = lang === 'lo';
+  const doc = String((document.getElementById('poRcvDoc') || {}).value || '').trim();
+  const receipts = [];
+  (_poReceiveItems || []).forEach(iid => { const el = document.getElementById('poRcv_' + iid); const q = el ? parseFloat(el.value) : 0; if (q > 0) receipts.push({ po_item_id: iid, qty: q }); });
+  if (!receipts.length) { showToast(isLao ? 'ໃສ່ຈຳນວນຮັບ' : 'ใส่จำนวนรับ', 'warning'); return; }
+  const { data, error } = await sb.rpc('rpc_po_receive', { p_po_id: id, p_user: poActor(), p_role: poActorRole(), p_doc_no: doc || null, p_date: null, p_source: 'manual', p_receipts: receipts });
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  closeModal();
+  const st = data && data.status;
+  showToast('✅ ' + (st === 'closed' ? (isLao ? 'ຮັບຄົບ ປິດໃບແລ້ວ' : 'รับครบ ปิดใบแล้ว') : (isLao ? 'ບັນທຶກຮັບແລ້ວ' : 'บันทึกรับแล้ว')), 'success');
+  poInit();
+}
+
+window.renderPOTrackPage = renderPOTrackPage; window.poInit = poInit;
+window.poSetStatus = poSetStatus; window.poSetType = poSetType; window.poSearchDebounce = poSearchDebounce;
+window.poOpenCreate = poOpenCreate; window.poSyncPrefix = poSyncPrefix; window.poAddItemRow = poAddItemRow; window.poRemoveItemRow = poRemoveItemRow; window.poLookup = poLookup; window.poSubmitCreate = poSubmitCreate;
+window.poOpenDetail = poOpenDetail; window.poAdvance = poAdvance; window.poOpenReceive = poOpenReceive; window.poSubmitReceive = poSubmitReceive;
+window.poCanAccess = poCanAccess; window.poActorRole = poActorRole;
 
 // ==================== 🖨️ พิมพ์ป้ายราคา (ptag*) ====================
 // พิมพ์ป้ายราคาจากรายการตรวจป้าย (ราคาผิด/ไม่มีป้าย) · เทมเพลตปรับได้ (ขนาด/ฟอนต์/ช่องที่โชว์) เก็บใน app_settings
