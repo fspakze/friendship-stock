@@ -35972,12 +35972,25 @@ function ptagDoPrint() {
     ps.textContent = '@media print{@page{size:A4;margin:' + (cfg.pageTop || 8) + 'mm 0mm 0mm ' + (cfg.pageLeft || 5) + 'mm;}}';
     area.innerHTML = ptagBuildHtml(cfg, 'sheet');
   }
+  // ตั้งชื่อไฟล์ PDF = "Print Price label DD-MM-YYYY" (เบราว์เซอร์ใช้ document.title เป็นชื่อไฟล์ตอน Save as PDF)
+  const prevTitle = document.title;
+  const fileTitle = 'Print Price label ' + ptagToday().replace(/\//g, '-');
+  let restored = false;
+  const ptagRestore = function () {
+    if (restored) return; restored = true;
+    document.body.classList.remove('ptag-printing');
+    area.innerHTML = '';
+    document.title = prevTitle;
+    window.onafterprint = null;
+  };
   ptagEnsureLib(function (ok) {
     ptagRenderBarcodes(area, cfg, ok);
     document.body.classList.add('ptag-printing');
+    document.title = fileTitle;
     setTimeout(function () {
+      window.onafterprint = ptagRestore;
       window.print();
-      setTimeout(function () { document.body.classList.remove('ptag-printing'); area.innerHTML = ''; }, 400);
+      setTimeout(ptagRestore, 2000);   // fallback ถ้า onafterprint ไม่ยิง
     }, ok ? 250 : 60);
   });
 }
