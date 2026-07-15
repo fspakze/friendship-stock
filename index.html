@@ -36810,6 +36810,7 @@ async function presenceBeat() {
   // 📅 ประวัติเข้าใช้งานระดับรอบ — อัปเดต last_seen ของ session ปัจจุบัน (สร้างตอน login/resume)
   if (_accessSessionId) {
     try { await sb.from('access_sessions').update({ last_seen: nowIso }).eq('id', _accessSessionId); } catch (e) {}
+    try { localStorage.setItem('fs_access_seen', String(Date.now())); } catch (e) {} // เก็บเวลาล่าสุดไว้เทียบตอน resume
   }
 }
 // ---------- session เข้าใช้งาน (1 รอบ = login→logout) ----------
@@ -36832,16 +36833,20 @@ async function accessSessionStart() {
     }).select('id').single();
     if (!error && data) {
       _accessSessionId = data.id;
-      try { localStorage.setItem('fs_access_sid', String(data.id)); localStorage.setItem('fs_access_day', day); } catch (e) {}
+      try { localStorage.setItem('fs_access_sid', String(data.id)); localStorage.setItem('fs_access_day', day); localStorage.setItem('fs_access_seen', String(Date.now())); } catch (e) {}
     }
   } catch (e) {}
 }
-// refresh หน้า: จำ session เดิม (ถ้าเป็นวันเดียวกัน) ไม่นับเป็นรอบใหม่ · ข้ามวัน/ไม่มี = เริ่มรอบใหม่
+// refresh หน้า: จำ session เดิม (วันเดียวกัน + ห่างล่าสุด ≤ 10 นาที) ไม่นับเป็นรอบใหม่
+// ข้ามวัน / ห่างเกิน 10 นาที (ปิดแอปแล้วเปิดใหม่ทีหลัง) / ไม่มี = เริ่มรอบใหม่
+const ACCESS_RESUME_GAP_MS = 10 * 60 * 1000; // 10 นาที
 function accessSessionResume() {
   try {
     const sid = localStorage.getItem('fs_access_sid');
     const day = localStorage.getItem('fs_access_day');
-    if (sid && day === localDayKey(new Date())) { _accessSessionId = parseInt(sid, 10) || null; }
+    const seen = parseInt(localStorage.getItem('fs_access_seen') || '0', 10);
+    const fresh = seen && (Date.now() - seen) <= ACCESS_RESUME_GAP_MS;
+    if (sid && day === localDayKey(new Date()) && fresh) { _accessSessionId = parseInt(sid, 10) || null; }
   } catch (e) {}
   if (!_accessSessionId) accessSessionStart();
 }
@@ -36851,7 +36856,7 @@ async function accessSessionEnd() {
     try { await sb.from('access_sessions').update({ logout_at: nowIso, last_seen: nowIso }).eq('id', _accessSessionId); } catch (e) {}
   }
   _accessSessionId = null;
-  try { localStorage.removeItem('fs_access_sid'); localStorage.removeItem('fs_access_day'); } catch (e) {}
+  try { localStorage.removeItem('fs_access_sid'); localStorage.removeItem('fs_access_day'); localStorage.removeItem('fs_access_seen'); } catch (e) {}
 }
 function presenceStart() {
   if (!user || !user.id) return;
