@@ -36616,6 +36616,24 @@ function ptagItemFromPrc(r) {
   // location เริ่มต้น = location_code (16E02) · จะถูกแทนด้วย position_code เต็ม (16E02-1-1-8) ใน ptagResolveLocations
   return { barcode: r.barcode || '', name: r.product_name || r.barcode || '', price: Number(r.system_price) || 0, unit: r.unit_label || '', location: r.location_code || '', locCode: r.location_code || '' };
 }
+// โหมดลาว: เติมชื่อลาวจาก master ให้ป้ายที่เก็บชื่อไทยไว้ตอนสแกน
+// (price_checks.product_name ถูกแช่แข็งตามภาษาของ "คนที่สแกน" ตอนนั้น — บรรทัด ~9021)
+// ต้องใช้ logic เดียวกับหน้าตรวจราคาป้าย (nameLoMap ~9349) ไม่งั้นป้ายที่พิมพ์ ≠ ที่เห็นบนจอ
+// ⚠️ ถ้าแก้ที่นี่ อย่าลืมดูบรรทัด ~9349 ด้วย — 2 จุดนี้ต้องตรงกันเสมอ
+async function ptagResolveNames(items) {
+  try {
+    if (lang !== 'lo' || !items || !items.length) return;
+    const bcs = Array.from(new Set(items.map(function (i) { return i.barcode; }).filter(Boolean)));
+    if (!bcs.length) return;
+    const map = {};
+    for (let i = 0; i < bcs.length; i += 200) {   // chunk กัน .in() ยาวเกิน
+      const part = bcs.slice(i, i + 200);
+      const { data } = await sb.from('master_products').select('barcode,name_lo').in('barcode', part);
+      (data || []).forEach(function (m) { if (m.name_lo) map[m.barcode] = m.name_lo; });
+    }
+    items.forEach(function (it) { if (map[it.barcode]) it.name = map[it.barcode]; });
+  } catch (e) {}   // หาไม่ได้ = คงชื่อเดิมไว้ ดีกว่าป้ายว่าง
+}
 // เติมโค้ด Pan-O-Gram เต็ม (position_code = location_code-shelf-seq-total) จาก pan_o_grams ของสาขาปัจจุบัน
 async function ptagResolveLocations(items) {
   try {
@@ -36793,6 +36811,7 @@ async function ptagPrintOne(prcId) {
   const r = (typeof _prcRows !== 'undefined' ? _prcRows : []).find(function (x) { return x.id === prcId; });
   if (!r) { showToast(lang === 'lo' ? 'ບໍ່ພົບ' : 'ไม่พบรายการ', 'error'); return; }
   const items = [ptagItemFromPrc(r)];
+  await ptagResolveNames(items);
   await ptagResolveLocations(items);
   ptagOpenPrint(items);
 }
@@ -36800,6 +36819,7 @@ async function ptagPrintSelected() {
   const rows = (typeof _prcRows !== 'undefined' ? _prcRows : []).filter(function (r) { return _prcSel.has(r.id); });
   if (!rows.length) { showToast(lang === 'lo' ? 'ຍັງບໍ່ໄດ້ເລືອກ' : 'ยังไม่ได้เลือก', 'warning'); return; }
   const items = rows.map(ptagItemFromPrc);
+  await ptagResolveNames(items);
   await ptagResolveLocations(items);
   ptagOpenPrint(items);
 }
