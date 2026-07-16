@@ -4619,6 +4619,8 @@ const MENU_CONFIG = {
   counter: {
     bottomTabs: ['stockcheck', 'pricecheck', 'scan', 'gapscan', 'history'],
     drawerGroups: [
+      // 📚 คู่มือ SOP: เปิดเมนูให้ทุกตำแหน่งแล้ว (Ball 2026-07-16) — เห็นเฉพาะฉบับที่ sop_docs.roles อนุญาต
+      { titleTh: '📚 คู่มือ', titleLo: '📚 ຄູ່ມື', items: ['sop'] },
       { titleTh: '📐 Pan-O-Gram', titleLo: '📐 Pan-O-Gram', items: ['panogram'] },
       { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport', 'docsign'] },
       { titleTh: '🍽️ HORECA', titleLo: '🍽️ HORECA', items: ['horeca', 'membership'] },
@@ -4628,6 +4630,7 @@ const MENU_CONFIG = {
   verifier: {
     bottomTabs: ['stockcheck', 'pricecheck', 'tiebreaker', 'scan', 'history'],
     drawerGroups: [
+      { titleTh: '📚 คู่มือ', titleLo: '📚 ຄູ່ມື', items: ['sop'] },
       { titleTh: '📐 Pan-O-Gram', titleLo: '📐 Pan-O-Gram', items: ['panogram'] },
       { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport', 'docsign'] },
       { titleTh: '🍽️ HORECA', titleLo: '🍽️ HORECA', items: ['horeca', 'membership'] },
@@ -4638,6 +4641,7 @@ const MENU_CONFIG = {
     // audit = เมนูเดียวกับ counter (Ball 2026-07-08) · การนับยังเป็นฝั่ง verifier (count_role='verifier')
     bottomTabs: ['stockcheck', 'pricecheck', 'scan', 'gapscan', 'history'],
     drawerGroups: [
+      { titleTh: '📚 คู่มือ', titleLo: '📚 ຄູ່ມື', items: ['sop'] },
       { titleTh: '📐 Pan-O-Gram', titleLo: '📐 Pan-O-Gram', items: ['panogram'] },
       { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport', 'docsign'] },
       { titleTh: '🍽️ HORECA', titleLo: '🍽️ HORECA', items: ['horeca', 'membership'] },
@@ -4648,6 +4652,7 @@ const MENU_CONFIG = {
     // IT — อัพเดทข้อมูล + ควบคุมการนับสต๊อก (ทุกสาขา, เปิด/ปิดรอบนับได้) (Ball 2026-07-08) · ไม่ใช่ manager เต็มตัว (ไม่มี users/branch/HORECA cost/backup/reset)
     bottomTabs: ['stockcheck', 'workflow', 'tiebreaker', 'gapreport'],
     drawerGroups: [
+      { titleTh: '📚 คู่มือ', titleLo: '📚 ຄູ່ມື', items: ['sop'] },
       { titleTh: '🔢 ควบคุมการนับ', titleLo: '🔢 ຄວບຄຸມການນັບ', items: ['scan', 'panogram', 'floormap'] },
       { titleTh: 'รายงานนับ', titleLo: 'ລາຍງານນັບ', items: ['dashboard', 'variance', 'performance', 'health', 'kpi', 'history'] },
       { titleTh: '🔄 อัปเดตข้อมูล', titleLo: '🔄 ອັບເດດຂໍ້ມູນ', items: ['updatehub', 'settings'] },
@@ -4658,6 +4663,7 @@ const MENU_CONFIG = {
   ctl: {
     bottomTabs: ['stockcheck', 'docsign', 'gapscan', 'pricecheck', 'tiebreaker', 'workflow'],
     drawerGroups: [
+      { titleTh: '📚 คู่มือ', titleLo: '📚 ຄູ່ມື', items: ['sop'] },
       { titleTh: '📐 Pan-O-Gram', titleLo: '📐 Pan-O-Gram', items: ['panogram', 'floormap'] },
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'shrinkage', 'checklist', 'templog', 'workreport', 'worktrack'] },
       { titleTh: '📝 งานรายวัน SC', titleLo: '📝 ງານປະຈຳວັນ SC', items: ['scdaily', 'scdailylog'] },
@@ -4670,6 +4676,7 @@ const MENU_CONFIG = {
   bcs: {
     bottomTabs: ['stockcheck', 'pricecheck', 'gapreport'],
     drawerGroups: [
+      { titleTh: '📚 คู่มือ', titleLo: '📚 ຄູ່ມື', items: ['sop'] },
       { titleTh: '📐 Pan-O-Gram', titleLo: '📐 Pan-O-Gram', items: ['panogram', 'floormap'] },
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'shrinkage', 'checklist', 'templog', 'workreport', 'worktrack', 'tiebreaker'] },
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
@@ -4685,7 +4692,7 @@ const MENU_CONFIG = {
   admin: {
     bottomTabs: ['stockcheck', 'pricecheck', 'gapreport'],
     drawerGroups: [
-      // 📚 คู่มือ SOP: ตอนนี้เปิดให้ admin เท่านั้น (Ball 2026-07-16) — จะเปิดตามตำแหน่งทีหลัง
+      // 📚 คู่มือ SOP: เปิดเมนูให้ทุกตำแหน่งแล้ว (Ball 2026-07-16) — admin เห็นทุกฉบับเสมอ, ตำแหน่งอื่นเห็นเฉพาะฉบับที่ sop_docs.roles อนุญาต
       { titleTh: '📚 คู่มือ', titleLo: '📚 ຄູ່ມື', items: ['sop'] },
       { titleTh: '🔢 การนับสต๊อก', titleLo: '🔢 ການນັບສະຕ໋ອກ', items: ['panogram', 'floormap', 'scan', 'tiebreaker', 'workflow', 'performance', 'variance', 'dashboard'] },
       { titleTh: '🛒 งานสต๊อก', titleLo: '🛒 ງານສະຕ໋ອກ', items: ['gapscan', 'expirytrack', 'shrinkage'] },
@@ -4704,6 +4711,7 @@ const MENU_CONFIG = {
   scc: {
     bottomTabs: ['stockcheck', 'pricecheck', 'gapreport'],
     drawerGroups: [
+      { titleTh: '📚 คู่มือ', titleLo: '📚 ຄູ່ມື', items: ['sop'] },
       { titleTh: '📐 Pan-O-Gram', titleLo: '📐 Pan-O-Gram', items: ['panogram', 'floormap'] },
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'shrinkage', 'checklist', 'templog', 'workreport', 'worktrack', 'tiebreaker'] },
       { titleTh: '📋 Daily Brief', titleLo: '📋 Daily Brief', items: ['dailybrief', 'brieflog'] },
@@ -9157,9 +9165,9 @@ async function sopLoadDocs() {
   return true;
 }
 
-// ตอนนี้เปิดให้ admin เท่านั้น (Ball สั่งชัด 2026-07-16 "ตอนนี้ให้แสดงเฉพาะ Admin ก่อน")
-// ภายหลังจะเปิดตามตำแหน่ง = ใส่ role ลงคอลัมน์ roles ของตาราง sop_docs (ไม่ต้องแก้โค้ด)
-// (เมนู 'sop' อยู่ใน MENU_CONFIG.admin อย่างเดียว = ด่านที่ 1 · ฟังก์ชันนี้ = ด่านที่ 2)
+// admin เห็นทุกฉบับเสมอ · ตำแหน่งอื่นเห็นเฉพาะฉบับที่มี role ตัวเองอยู่ในคอลัมน์ roles ของตาราง sop_docs
+// เปิดให้ตำแหน่งไหนอ่านฉบับไหน = ใส่ role ลงคอลัมน์ roles (ไม่ต้องแก้โค้ด/ไม่ต้อง push)
+// (เมนู 'sop' อยู่ใน MENU_CONFIG ของทุกตำแหน่งแล้ว (Ball 2026-07-16) = ด่านที่ 1 · ฟังก์ชันนี้ = ด่านที่ 2)
 function sopCanSee(d) {
   const role = (user && user.role) || '';
   if (role === 'admin') return true;
