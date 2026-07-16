@@ -204,6 +204,15 @@
   .fs-tile:active { background: var(--fs-fill2); }
   .fs-tile svg { width: 22px; height: 22px; color: var(--fs-blue); stroke-width: 1.8; }
   .fs-tile.fs-tile-danger svg { color: var(--fs-red); }
+  /* ===== ตรวจราคาป้าย — การ์ดรายการ =====
+     ปัญหาเดิม: ปุ่ม (🖨️/ติดแล้ว/✏️/🗑️) ตั้ง flex-shrink:0 อยู่แถวเดียวกับชื่อสินค้า
+     บนจอ ~375px ปุ่มกินไป ~270px เหลือให้ชื่อ ~105px → ชื่อแตก 3 บรรทัด อ่านไม่ออก
+     แก้: จอแคบให้กลุ่มปุ่มตกลงบรรทัดใหม่ (ชิดขวา) ชื่อได้ความกว้างเต็มบรรทัดบน
+     หมายเหตุ: ห้ามใส่ flex ผ่าน inline style ที่ .prc-acts — inline จะชนะ @media */
+  .prc-acts { display: flex; gap: 6px; align-items: center; }
+  @media (max-width: 560px) {
+    .prc-acts { flex: 1 1 100%; justify-content: flex-end; }
+  }
   /* ช่องสแกนกะทัดรัด (เฉพาะหน้าเช็คสต๊อก) — เตี้ยลง + กรอบมุมฟ้า + เส้นสแกน */
   .scan-frame.fs-scan { aspect-ratio: 16/10; border-radius: 14px; }
   .fs-scan-cnr { position: absolute; width: 22px; height: 22px; border: 2.5px solid var(--fs-scan-blue); pointer-events: none; z-index: 2; }
@@ -9379,7 +9388,9 @@ async function prcRenderList() {
       adminBtns = `<button onclick="prcEditOpen(${r.id})" title="${isLao ? 'ແກ້ໄຂ' : 'แก้ไข'}" style="background:var(--slate-100);color:var(--slate-600);border:1px solid var(--slate-300);border-radius:7px;padding:8px 9px;font-size:12px;cursor:pointer;flex-shrink:0;">✏️</button>`
         + `<button onclick="prcDelete(${r.id})" title="${isLao ? 'ລຶບ' : 'ลบ'}" style="background:#fff1f2;color:#e11d48;border:1px solid #fecdd3;border-radius:7px;padding:8px 9px;font-size:12px;cursor:pointer;flex-shrink:0;">🗑️</button>`;
     }
-    return `<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ${edge};border-radius:9px;padding:9px 11px;margin-bottom:5px;display:flex;align-items:center;gap:9px;${r.fixed ? 'opacity:.75;' : ''}">
+    // กลุ่มปุ่ม — ถ้าไม่มีปุ่มเลย (ไม่มีสิทธิ์) ต้องไม่ render div ว่าง ไม่งั้นบนมือถือจะกินแถวเปล่า
+    const actsHtml = (printBtn || action || adminBtns) ? `<div class="prc-acts">${printBtn}${action}${adminBtns}</div>` : '';
+    return `<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ${edge};border-radius:9px;padding:9px 11px;margin-bottom:5px;display:flex;align-items:center;flex-wrap:wrap;gap:9px;${r.fixed ? 'opacity:.75;' : ''}">
       ${checkbox}
       <div style="flex:1;min-width:0;">
         <div style="font-size:12px;font-weight:700;color:var(--slate-900);">${escapeHtml(dispName)}${fixedBadge}</div>
@@ -9388,7 +9399,7 @@ async function prcRenderList() {
         ${noteHtml}
         ${fixedByHtml}
       </div>
-      ${printBtn}${action}${adminBtns}
+      ${actsHtml}
     </div>`;
   };
 
