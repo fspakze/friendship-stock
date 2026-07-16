@@ -9150,7 +9150,7 @@ let SOP_DOCS = [];
 let _sopLoaded = false;
 async function sopLoadDocs() {
   if (_sopLoaded) return true;
-  const { data, error } = await sb.from('sop_docs').select('id,name,grp,icon,roles,blocks').order('sort_order');
+  const { data, error } = await sb.from('sop_docs').select('id,name,name_lo,grp,icon,roles,blocks,blocks_lo').order('sort_order');
   if (error) { console.error('[FS] sopLoadDocs:', error.message); return false; }
   SOP_DOCS = data || [];
   _sopLoaded = true;
@@ -9167,19 +9167,25 @@ function sopCanSee(d) {
 }
 function sopVisibleDocs() { return SOP_DOCS.filter(sopCanSee); }
 
-// ข้อความทั้งหมดของเอกสาร (ไว้ค้นหา + ประมาณเวลาอ่าน)
+// เนื้อหาที่จะโชว์ตามภาษาที่เลือกในแอป — ฉบับไหนยังไม่มีคำแปลลาว fallback เป็นไทย (ไม่พัง)
+function sopDocName(d) { return (lang === 'lo' && d.name_lo) ? d.name_lo : d.name; }
+function sopDocBlocks(d) { return (lang === 'lo' && d.blocks_lo && d.blocks_lo.length) ? d.blocks_lo : d.blocks; }
+function sopHasLo(d) { return !!(d.blocks_lo && d.blocks_lo.length); }
+
+// ข้อความทั้งหมดของเอกสาร (ไว้ค้นหา + ประมาณเวลาอ่าน) — cache แยกต่อภาษา กันโชว์ผลค้นหาภาษาเก่าตอนสลับภาษา
 function sopPlainText(d) {
-  if (d._txt) return d._txt;
+  const key = '_txt_' + lang;
+  if (d[key]) return d[key];
   const parts = [];
-  d.blocks.forEach(function (b) {
+  sopDocBlocks(d).forEach(function (b) {
     if (b.text) parts.push(b.text);
     if (b.items) parts.push(b.items.join(' '));
     if (b.rows) b.rows.forEach(function (r) { parts.push(r.join(' ')); });
   });
-  d._txt = parts.join(' ');
-  return d._txt;
+  d[key] = parts.join(' ');
+  return d[key];
 }
-// ไทยอ่านราว ~300 ตัวอักษร/นาที
+// อ่านราว ~300 ตัวอักษร/นาที
 function sopReadMin(d) { return Math.max(1, Math.round(sopPlainText(d).length / 300)); }
 
 // เนื้อหาโหลดจาก Supabase → ต้องรอก่อนถึงจะ render รายการได้
@@ -9208,7 +9214,7 @@ function sopListHtml(q) {
   const term = (q || '').trim().toLowerCase();
   let docs = sopVisibleDocs();
   if (term) docs = docs.filter(function (d) {
-    return (d.name || '').toLowerCase().indexOf(term) !== -1 || sopPlainText(d).toLowerCase().indexOf(term) !== -1;
+    return (sopDocName(d) || '').toLowerCase().indexOf(term) !== -1 || sopPlainText(d).toLowerCase().indexOf(term) !== -1;
   });
 
   const groups = [
@@ -9218,7 +9224,7 @@ function sopListHtml(q) {
 
   let html = '<div style="margin-bottom:12px;">'
     + '<h2 style="font-size:var(--fs-t1);color:var(--fs-ink);margin:0 0 4px;font-weight:800;">📚 ' + (isLao ? 'ຄູ່ມືການປະຕິບັດງານ (SOP)' : 'คู่มือการปฏิบัติงาน (SOP)') + '</h2>'
-    + '<p style="font-size:var(--fs-t5);color:var(--fs-ink2);margin:0;">' + (isLao ? 'ເລືອກຄູ່ມືເພື່ອອ່ານ — ເອກະສານເປັນພາສາໄທ' : 'เลือกคู่มือที่ต้องการอ่าน') + '</p>'
+    + '<p style="font-size:var(--fs-t5);color:var(--fs-ink2);margin:0;">' + (isLao ? 'ເລືອກຄູ່ມືທີ່ຕ້ອງການອ່ານ' : 'เลือกคู่มือที่ต้องการอ่าน') + '</p>'
     + '</div>';
 
   html += '<input id="sopSearch" type="text" value="' + escapeHtml(q || '') + '" oninput="sopSearch(this.value)" placeholder="' + (isLao ? '🔍 ຄົ້ນຫາໃນຄູ່ມືທັງໝົດ...' : '🔍 ค้นหาในคู่มือทั้งหมด...') + '" style="width:100%;padding:11px 13px;border:1.5px solid var(--slate-300);border-radius:var(--fs-r2);font-size:var(--fs-t4);box-sizing:border-box;margin-bottom:14px;">';
@@ -9239,7 +9245,7 @@ function sopListHtml(q) {
       html += '<button onclick="sopOpen(\'' + d.id + '\')" style="display:flex;align-items:center;gap:11px;text-align:left;width:100%;background:var(--fs-card);border:1px solid var(--fs-hair);border-radius:var(--fs-r2);padding:12px 13px;cursor:pointer;">'
         + '<span style="font-size:22px;flex-shrink:0;">' + d.icon + '</span>'
         + '<span style="flex:1;min-width:0;">'
-        + '<span style="display:block;font-size:var(--fs-t3);font-weight:700;color:var(--fs-ink);line-height:1.4;">' + escapeHtml(d.name) + '</span>'
+        + '<span style="display:block;font-size:var(--fs-t3);font-weight:700;color:var(--fs-ink);line-height:1.4;">' + escapeHtml(sopDocName(d)) + '</span>'
         + '<span style="display:block;font-size:var(--fs-t5);color:var(--fs-ink3);margin-top:2px;">⏱ ' + (isLao ? 'ອ່ານ ~' : 'อ่าน ~') + sopReadMin(d) + ' ' + (isLao ? 'ນາທີ' : 'นาที') + '</span>'
         + '</span>'
         + '<span style="color:var(--fs-chev);font-size:18px;flex-shrink:0;">›</span>'
@@ -9284,23 +9290,25 @@ function sopOpen(id) {
   if (!d || !sopCanSee(d)) { showToast(isLao ? 'ບໍ່ມີສິດເບິ່ງເອກະສານນີ້' : 'ไม่มีสิทธิ์ดูเอกสารนี้', 'warning'); return; }
   const root = document.getElementById('sopRoot');
   if (!root) return;
+  const blocks = sopDocBlocks(d);
 
   // สารบัญจากหัวข้อใหญ่
   const toc = [];
-  d.blocks.forEach(function (b, i) { if (b.t === 'h2') toc.push({ i: i, text: b.text }); });
+  blocks.forEach(function (b, i) { if (b.t === 'h2') toc.push({ i: i, text: b.text }); });
 
   let html = '<div class="sop-doc" id="sopDoc" style="--sop-scale:' + sopScale() + ';">'
     + '<div class="sop-bar">'
     + '<button onclick="sopBackToList()" style="background:var(--fs-fill2);border:none;border-radius:var(--fs-r1);padding:7px 11px;font-size:var(--fs-t4);font-weight:700;color:var(--fs-blue);cursor:pointer;flex-shrink:0;">‹ ' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
-    + '<span style="flex:1;min-width:0;font-size:var(--fs-t5);font-weight:700;color:var(--fs-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + d.icon + ' ' + escapeHtml(d.name) + '</span>'
+    + '<span style="flex:1;min-width:0;font-size:var(--fs-t5);font-weight:700;color:var(--fs-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + d.icon + ' ' + escapeHtml(sopDocName(d)) + '</span>'
     + '<button onclick="sopSetScale(-1)" title="' + (isLao ? 'ຕົວອັກສອນນ້ອຍລົງ' : 'ตัวอักษรเล็กลง') + '" style="background:var(--fs-fill2);border:none;border-radius:var(--fs-r1);width:32px;height:30px;font-size:12px;font-weight:800;color:var(--fs-ink);cursor:pointer;flex-shrink:0;">ก-</button>'
     + '<span id="sopScaleLbl" style="font-size:10px;color:var(--fs-ink3);font-weight:700;min-width:30px;text-align:center;flex-shrink:0;">' + Math.round(sopScale() * 100) + '%</span>'
     + '<button onclick="sopSetScale(1)" title="' + (isLao ? 'ຕົວອັກສອນໃຫຍ່ຂຶ້ນ' : 'ตัวอักษรใหญ่ขึ้น') + '" style="background:var(--fs-fill2);border:none;border-radius:var(--fs-r1);width:32px;height:30px;font-size:16px;font-weight:800;color:var(--fs-ink);cursor:pointer;flex-shrink:0;">ก+</button>'
     + '<div class="sop-prog" id="sopProg"></div>'
     + '</div>';
 
-  html += '<h1 style="font-size:calc(var(--fs-t1) * var(--sop-scale));font-weight:800;color:var(--fs-ink);line-height:1.4;margin:16px 0 3px;">' + escapeHtml(d.name) + '</h1>'
-    + '<div style="font-size:var(--fs-t5);color:var(--fs-ink3);margin-bottom:14px;">⏱ ' + (isLao ? 'ອ່ານ ~' : 'อ่าน ~') + sopReadMin(d) + ' ' + (isLao ? 'ນາທີ' : 'นาที') + ' · ' + toc.length + ' ' + (isLao ? 'ຫົວຂໍ້' : 'หัวข้อ') + '</div>';
+  html += '<h1 style="font-size:calc(var(--fs-t1) * var(--sop-scale));font-weight:800;color:var(--fs-ink);line-height:1.4;margin:16px 0 3px;">' + escapeHtml(sopDocName(d)) + '</h1>'
+    + '<div style="font-size:var(--fs-t5);color:var(--fs-ink3);margin-bottom:14px;">⏱ ' + (isLao ? 'ອ່ານ ~' : 'อ่าน ~') + sopReadMin(d) + ' ' + (isLao ? 'ນາທີ' : 'นาที') + ' · ' + toc.length + ' ' + (isLao ? 'ຫົວຂໍ້' : 'หัวข้อ')
+    + (isLao && !sopHasLo(d) ? ' · <span style="color:var(--amber-700);font-weight:700;">⚠️ ' + 'ຍັງບໍ່ມີສະບັບພາສາລາວ (ສະແດງເປັນໄທ)' + '</span>' : '') + '</div>';
 
   if (toc.length > 1) {
     html += '<div style="background:var(--fs-fill2);border-radius:var(--fs-r2);margin-bottom:18px;overflow:hidden;">'
@@ -9313,7 +9321,7 @@ function sopOpen(id) {
       + '</div></div>';
   }
 
-  html += sopBlocksHtml(d.blocks);
+  html += sopBlocksHtml(blocks);
   html += '<div style="height:24px;"></div></div>';
   root.innerHTML = html;
   window.scrollTo(0, 0);
