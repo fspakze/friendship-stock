@@ -24934,9 +24934,9 @@ function bmForm(b) {
     + '<input class="form-input" id="bmCode" value="' + bmEsc(v.code || '') + '" placeholder="เช่น SALAKHAM, EXP-TRADING"></div>'
     + '<div class="form-group"><label class="form-label">' + (isLao ? 'ປະເພດສາຂາ' : 'ประเภทสาขา') + ' *</label>'
     + '<select class="form-input" id="bmType">' + typeOpts + '</select></div>'
-    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ຊື່ສາຂາ (ไทย)' : 'ชื่อสาขา (ไทย)') + ' *</label>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ຊື່ສາຂາ (ໄທ)' : 'ชื่อสาขา (ไทย)') + ' *</label>'
     + '<input class="form-input" id="bmNameTh" value="' + bmEsc(v.name_th || '') + '"></div>'
-    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ຊື່ສາຂາ (ลาว)' : 'ชื่อสาขา (ลาว)') + '</label>'
+    + '<div class="form-group"><label class="form-label">' + (isLao ? 'ຊື່ສາຂາ (ລາວ)' : 'ชื่อสาขา (ลาว)') + '</label>'
     + '<input class="form-input" id="bmNameLo" value="' + bmEsc(v.name_lo || '') + '"></div>'
     + '<label style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--slate-50);border-radius:9px;cursor:pointer;margin-top:4px;">'
     + '<input type="checkbox" id="bmZones"' + (zonesOn ? ' checked' : '') + ' style="width:18px;height:18px;accent-color:var(--teal-500);">'
@@ -34940,12 +34940,15 @@ function cmpUpdateDiff() {
 
 function cmpOnPhoto(e) { const files = Array.from(e.target.files || []); e.target.value = ''; files.forEach(f => wrCompressImage(f, (blob, dataUrl) => { _cmpPhotos.push({ blob, dataUrl }); cmpRenderPhotos(); })); }
 function cmpRenderPhotos() {
+  const isLao = lang === 'lo';
   const pv = document.getElementById('cmpPhotoPreview'); if (!pv) return;
   pv.innerHTML = _cmpPhotos.map((p, i) =>
     '<div style="position:relative;width:74px;height:74px;border-radius:9px;overflow:hidden;border:1px solid var(--slate-200);">'
     + '<img src="' + p.dataUrl + '" style="width:100%;height:100%;object-fit:cover;">'
-    + '<button type="button" onclick="cmpRotatePhoto(' + i + ')" title="หมุน" style="position:absolute;bottom:2px;left:2px;background:rgba(15,23,42,0.6);color:white;border:none;height:20px;padding:0 6px;border-radius:10px;font-size:11px;cursor:pointer;">🔄</button>'
-    + '<button type="button" onclick="cmpRemovePhoto(' + i + ')" style="position:absolute;top:2px;right:2px;background:rgba(225,29,72,0.9);color:white;border:none;width:19px;height:19px;border-radius:50%;font-size:11px;line-height:1;cursor:pointer;">✕</button></div>'
+    // ปุ่มบนรูปย่อ 74px: ขยายจาก 19–20px → 28px (เดิมเล็กกว่านิ้วโป้ง กดพลาดง่าย)
+    // 44px ตามมาตรฐานทำไม่ได้ — จะบังรูปเกินครึ่ง · 28px คือจุดสมดุลบนรูปย่อขนาดนี้
+    + '<button type="button" onclick="cmpRotatePhoto(' + i + ')" title="' + (isLao ? 'ໝຸນ' : 'หมุน') + '" style="position:absolute;bottom:2px;left:2px;background:rgba(15,23,42,0.6);color:white;border:none;height:28px;padding:0 9px;border-radius:14px;font-size:13px;cursor:pointer;">🔄</button>'
+    + '<button type="button" onclick="cmpRemovePhoto(' + i + ')" title="' + (isLao ? 'ລຶບ' : 'ลบ') + '" style="position:absolute;top:2px;right:2px;background:rgba(225,29,72,0.9);color:white;border:none;width:28px;height:28px;border-radius:50%;font-size:13px;line-height:1;cursor:pointer;">✕</button></div>'
   ).join('');
 }
 function cmpRemovePhoto(i) { _cmpPhotos.splice(i, 1); cmpRenderPhotos(); }
