@@ -97,6 +97,15 @@
     --fs-red-ink: #d70015;
     --fs-purple: #5856d6; --fs-purple-ink: #4240b5; --fs-purple-tint: #eeeeff;
     --fs-scan-blue: #0a84ff;
+    /* ===== FS TYPE SCALE v5 — 5 บทบาท · พื้นขั้นต่ำ 12px =====
+       เหตุผลของพื้น 12px: ไทย/ลาวมีสระ+วรรณยุกต์ซ้อนได้ 2 ชั้น (เช่น ที่ ນີ້) — เล็กกว่านี้
+       บนมือถือกลางแสงจ้าในร้านจะอ่านไม่ออก · เพิ่มน้ำหนัก (font-weight) แทนการเพิ่มขนาดใหม่
+       ห้ามเพิ่มค่าที่ 6 — ถ้าอยากได้ระดับใหม่ ให้ใช้ weight/สี แทน */
+    --fs-t1: 22px;   /* display  — หัวหน้าเพจ */
+    --fs-t2: 18px;   /* heading  — หัวข้อ section */
+    --fs-t3: 15px;   /* lead     — ชื่อสินค้า / ตัวเลขเด่น */
+    --fs-t4: 13px;   /* body     — ข้อความทั่วไป / ปุ่ม */
+    --fs-t5: 12px;   /* meta     — บาร์โค้ด / ป้ายกำกับ / วันที่ (ขั้นต่ำ) */
   }
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { overflow-x: hidden; }
@@ -34714,46 +34723,46 @@ function renderCmpPage() {
   if (!_cmpStore) {
     // ── ขั้นที่ 1: เลือก/สร้างร้านคู่แข่ง (เข้าร่วมร้านที่คนอื่นกำลังสำรวจได้) ──
     top = '<div style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.04);margin-bottom:11px;">'
-      + '<div style="font-size:13px;font-weight:700;color:var(--slate-700);margin-bottom:7px;">🏬 ' + (isLao ? 'ສຳຫຼວດຮ້ານໃໝ່' : 'สำรวจร้านใหม่') + '</div>'
-      + '<input id="cmpStoreInput" placeholder="' + (isLao ? 'ຊື່ຮ້ານຄູ່ແຂ່ງ' : 'ชื่อร้านคู่แข่ง') + '" onkeydown="if(event.key===\'Enter\')cmpStartSession()" style="width:100%;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:15px;margin-bottom:10px;">'
-      + '<button onclick="cmpStartSession()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:11px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;">' + (isLao ? 'ເລີ່ມທຽບລາຄາ →' : 'เริ่มเทียบราคา →') + '</button>'
+      + '<div style="font-size:var(--fs-t4);font-weight:700;color:var(--slate-700);margin-bottom:7px;">🏬 ' + (isLao ? 'ສຳຫຼວດຮ້ານໃໝ່' : 'สำรวจร้านใหม่') + '</div>'
+      + '<input id="cmpStoreInput" placeholder="' + (isLao ? 'ຊື່ຮ້ານຄູ່ແຂ່ງ' : 'ชื่อร้านคู่แข่ง') + '" onkeydown="if(event.key===\'Enter\')cmpStartSession()" style="width:100%;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:var(--fs-t3);margin-bottom:10px;">'
+      + '<button onclick="cmpStartSession()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:11px;padding:13px;font-size:var(--fs-t3);font-weight:800;cursor:pointer;">' + (isLao ? 'ເລີ່ມທຽບລາຄາ →' : 'เริ่มเทียบราคา →') + '</button>'
       + '</div>'
-      + '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:7px;">👥 ' + (isLao ? 'ຮ້ານທີ່ກຳລັງສຳຫຼວດ — ແຕະເພື່ອເຂົ້າຮ່ວມ' : 'ร้านที่กำลังสำรวจ — แตะเพื่อเข้าร่วม') + '</div>'
+      + '<div style="font-size:var(--fs-t5);font-weight:700;color:var(--slate-600);margin-bottom:7px;">👥 ' + (isLao ? 'ຮ້ານທີ່ກຳລັງສຳຫຼວດ — ແຕະເພື່ອເຂົ້າຮ່ວມ' : 'ร้านที่กำลังสำรวจ — แตะเพื่อเข้าร่วม') + '</div>'
       + '<div id="cmpStoreList"><div style="text-align:center;padding:14px;"><div class="loader"></div></div></div>';
   } else {
     // ── ขั้นที่ 2: กำลังเทียบกับร้านนี้ ──
     top = '<div style="display:flex;align-items:center;gap:8px;background:var(--teal-50);border:1px solid var(--teal-200);border-radius:11px;padding:11px 13px;margin-bottom:11px;">'
       + '<span style="font-size:18px;">🏬</span>'
-      + '<div style="flex:1;min-width:0;"><div style="font-size:9.5px;color:var(--teal-700);">' + (isLao ? 'ກຳລັງທຽບກັບ' : 'กำลังเทียบกับ') + '</div><div style="font-size:15px;font-weight:800;color:var(--teal-800);line-height:1.2;">' + cmpEsc(_cmpStore) + '</div></div>'
-      + '<button onclick="cmpEndSession()" style="border:none;background:var(--teal-600);color:white;border-radius:9px;padding:9px 13px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;">✓ ' + (isLao ? 'ເສັດ/ຮ້ານໃໝ່' : 'เสร็จ/ร้านใหม่') + '</button>'
+      + '<div style="flex:1;min-width:0;"><div style="font-size:var(--fs-t5);color:var(--teal-700);">' + (isLao ? 'ກຳລັງທຽບກັບ' : 'กำลังเทียบกับ') + '</div><div style="font-size:var(--fs-t3);font-weight:800;color:var(--teal-800);line-height:1.2;">' + cmpEsc(_cmpStore) + '</div></div>'
+      + '<button onclick="cmpEndSession()" style="border:none;background:var(--teal-600);color:white;border-radius:9px;padding:9px 13px;font-size:var(--fs-t4);font-weight:800;cursor:pointer;white-space:nowrap;">✓ ' + (isLao ? 'ເສັດ/ຮ້ານໃໝ່' : 'เสร็จ/ร้านใหม่') + '</button>'
       + '</div>'
       + '<div style="display:flex;gap:7px;margin-bottom:11px;">'
-      + '<input id="cmpBarcode" inputmode="text" placeholder="' + (isLao ? 'ບາໂຄ້ດ / ຊື່ສິນຄ້າ' : 'บาร์โค้ด / ชื่อสินค้า') + '" onkeydown="if(event.key===\'Enter\')cmpLookup()" style="flex:1;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:14px;font-family:monospace;">'
+      + '<input id="cmpBarcode" inputmode="text" placeholder="' + (isLao ? 'ບາໂຄ້ດ / ຊື່ສິນຄ້າ' : 'บาร์โค้ด / ชื่อสินค้า') + '" onkeydown="if(event.key===\'Enter\')cmpLookup()" style="flex:1;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:var(--fs-t3);font-family:monospace;">'
       + '<button id="cmpMic" onclick="fsVoiceToInput(\'cmpBarcode\',\'cmpMic\',cmpLookup)" title="' + (isLao ? 'ເວົ້າເພື່ອຄົ້ນຫາ' : 'พูดเพื่อค้นหา') + '" style="border:1.5px solid var(--slate-300);background:white;color:var(--slate-700);border-radius:10px;padding:0 14px;font-size:18px;cursor:pointer;">🎤</button>'
       + '<button onclick="cmpStartScan()" style="border:none;background:var(--fs-blue);color:white;border-radius:10px;padding:0 15px;font-size:18px;cursor:pointer;">📷</button>'
-      + '<button onclick="cmpLookup()" style="border:none;background:var(--slate-700);color:white;border-radius:10px;padding:0 15px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? 'ຄົ້ນ' : 'ค้นหา') + '</button>'
+      + '<button onclick="cmpLookup()" style="border:none;background:var(--slate-700);color:white;border-radius:10px;padding:0 15px;font-size:var(--fs-t4);font-weight:700;cursor:pointer;">' + (isLao ? 'ຄົ້ນ' : 'ค้นหา') + '</button>'
       + '</div>'
       + '<div id="cmpInfo"></div>';
   }
   return '<div style="padding:14px 13px 90px;max-width:560px;margin:0 auto;">'
     + '<div style="display:flex;align-items:center;gap:9px;margin-bottom:12px;">'
-    + '<button onclick="goPage(getHomePage())" style="border:1px solid var(--slate-200);background:white;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
+    + '<button onclick="goPage(getHomePage())" style="border:1px solid var(--slate-200);background:white;border-radius:10px;padding:8px 14px;font-size:var(--fs-t4);font-weight:700;color:var(--slate-600);cursor:pointer;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
     + '</div>'
-    + '<h2 style="font-size:19px;font-weight:800;color:var(--slate-800);margin:0 0 3px;">🆚 ' + (isLao ? 'ທຽບລາຄາຄູ່ແຂ່ງ' : 'เทียบราคาคู่แข่ง') + '</h2>'
-    + '<div style="font-size:12px;color:var(--slate-500);margin-bottom:13px;">' + (isLao ? 'ເລືອກຮ້ານ → ສະແກນ → ໃສ່ລາຄາຄູ່ແຂ່ງ → ບັນທຶກ' : 'เลือกร้าน → สแกน → ใส่ราคาคู่แข่ง → บันทึก') + '</div>'
+    + '<h2 style="font-size:var(--fs-t1);font-weight:800;color:var(--slate-800);margin:0 0 3px;">🆚 ' + (isLao ? 'ທຽບລາຄາຄູ່ແຂ່ງ' : 'เทียบราคาคู่แข่ง') + '</h2>'
+    + '<div style="font-size:var(--fs-t5);color:var(--slate-500);margin-bottom:13px;">' + (isLao ? 'ເລືອກຮ້ານ → ສະແກນ → ໃສ່ລາຄາຄູ່ແຂ່ງ → ບັນທຶກ' : 'เลือกร้าน → สแกน → ใส่ราคาคู่แข่ง → บันทึก') + '</div>'
     + top
     + '<div style="border-top:1px solid var(--slate-200);margin:18px 0 13px;"></div>'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;gap:8px;flex-wrap:wrap;">'
-    + '<h3 style="font-size:15px;font-weight:800;color:var(--slate-800);margin:0;">📋 ' + (isLao ? 'ລາຍການ' : 'รายการ') + '</h3>'
+    + '<h3 style="font-size:var(--fs-t2);font-weight:800;color:var(--slate-800);margin:0;">📋 ' + (isLao ? 'ລາຍການ' : 'รายการ') + '</h3>'
     + '<div style="display:flex;gap:7px;">'
-    + '<button onclick="cmpExport()" style="border:1px solid var(--emerald-300);background:var(--emerald-50);color:var(--emerald-700);border-radius:9px;padding:8px 12px;font-size:12.5px;font-weight:800;cursor:pointer;">⬇️ Excel</button>'
-    + '<button onclick="cmpExportPdf()" style="border:1px solid var(--rose-300);background:var(--rose-50);color:var(--rose-600);border-radius:9px;padding:8px 12px;font-size:12.5px;font-weight:800;cursor:pointer;">📄 PDF</button>'
+    + '<button onclick="cmpExport()" style="border:1px solid var(--emerald-300);background:var(--emerald-50);color:var(--emerald-700);border-radius:9px;padding:8px 12px;font-size:var(--fs-t4);font-weight:800;cursor:pointer;">⬇️ Excel</button>'
+    + '<button onclick="cmpExportPdf()" style="border:1px solid var(--rose-300);background:var(--rose-50);color:var(--rose-600);border-radius:9px;padding:8px 12px;font-size:var(--fs-t4);font-weight:800;cursor:pointer;">📄 PDF</button>'
     + '</div>'
     + '</div>'
     // ตัวจัดเรียง
     + '<div style="display:flex;align-items:center;gap:7px;margin-bottom:11px;">'
-    + '<span style="font-size:11.5px;color:var(--slate-500);font-weight:700;">↕️ ' + (isLao ? 'ຈັດຮຽງ' : 'จัดเรียง') + '</span>'
-    + '<select id="cmpSortSel" onchange="cmpSetSort(this.value)" style="flex:1;border:1.5px solid var(--slate-200);border-radius:9px;padding:8px 10px;font-size:12.5px;font-weight:700;color:var(--slate-700);background:white;">'
+    + '<span style="font-size:var(--fs-t5);color:var(--slate-500);font-weight:700;">↕️ ' + (isLao ? 'ຈັດຮຽງ' : 'จัดเรียง') + '</span>'
+    + '<select id="cmpSortSel" onchange="cmpSetSort(this.value)" style="flex:1;border:1.5px solid var(--slate-200);border-radius:9px;padding:8px 10px;font-size:var(--fs-t4);font-weight:700;color:var(--slate-700);background:white;">'
     + '<option value="recent"' + (_cmpSort === 'recent' ? ' selected' : '') + '>' + (isLao ? 'ໃໝ່ສຸດ' : 'ล่าสุด') + '</option>'
     + '<option value="category"' + (_cmpSort === 'category' ? ' selected' : '') + '>' + (isLao ? 'ປະເພດສິນຄ້າ' : 'ประเภทสินค้า') + '</option>'
     + '<option value="diff"' + (_cmpSort === 'diff' ? ' selected' : '') + '>' + (isLao ? 'ສ່ວນຕ່າງ (ຫຼາຍ→ໜ້ອຍ)' : 'ส่วนต่าง (มาก→น้อย)') + '</option>'
@@ -34785,13 +34794,13 @@ async function cmpLoadStores() {
     if (r.created_at > map[s].last) map[s].last = r.created_at;
   });
   const stores = Object.values(map).sort((a, b) => (b.last || '').localeCompare(a.last || ''));
-  if (!stores.length) { wrap.innerHTML = '<div style="text-align:center;color:var(--slate-400);font-size:12px;padding:14px;">' + (isLao ? 'ຍັງບໍ່ມີຮ້ານທີ່ສຳຫຼວດ' : 'ยังไม่มีร้านที่สำรวจ') + '</div>'; return; }
+  if (!stores.length) { wrap.innerHTML = '<div style="text-align:center;color:var(--slate-400);font-size:var(--fs-t5);padding:14px;">' + (isLao ? 'ຍັງບໍ່ມີຮ້ານທີ່ສຳຫຼວດ' : 'ยังไม่มีร้านที่สำรวจ') + '</div>'; return; }
   wrap.innerHTML = stores.map(s =>
     '<button onclick="cmpJoinStore(decodeURIComponent(\'' + encodeURIComponent(s.store).replace(/'/g, '%27') + '\'))" style="width:100%;text-align:left;border:1px solid var(--teal-200);background:var(--teal-50);border-radius:10px;padding:11px 13px;margin-bottom:7px;cursor:pointer;display:flex;align-items:center;gap:10px;">'
     + '<span style="font-size:17px;">🏬</span>'
-    + '<span style="flex:1;min-width:0;"><span style="font-size:14px;font-weight:800;color:var(--teal-800);display:block;line-height:1.3;">' + cmpEsc(s.store) + '</span>'
-    + '<span style="font-size:10.5px;color:var(--teal-700);">' + s.count + (isLao ? ' ລາຍການ · ' : ' รายการ · ') + '👥 ' + Array.from(s.people).map(cmpEsc).join(', ') + '</span></span>'
-    + '<span style="font-size:12px;font-weight:800;color:var(--teal-600);white-space:nowrap;">' + (isLao ? 'ເຂົ້າຮ່ວມ →' : 'เข้าร่วม →') + '</span>'
+    + '<span style="flex:1;min-width:0;"><span style="font-size:var(--fs-t3);font-weight:800;color:var(--teal-800);display:block;line-height:1.3;">' + cmpEsc(s.store) + '</span>'
+    + '<span style="font-size:var(--fs-t5);color:var(--teal-700);">' + s.count + (isLao ? ' ລາຍການ · ' : ' รายการ · ') + '👥 ' + Array.from(s.people).map(cmpEsc).join(', ') + '</span></span>'
+    + '<span style="font-size:var(--fs-t5);font-weight:800;color:var(--teal-600);white-space:nowrap;">' + (isLao ? 'ເຂົ້າຮ່ວມ →' : 'เข้าร่วม →') + '</span>'
     + '</button>'
   ).join('');
 }
@@ -34832,14 +34841,14 @@ async function cmpSearchByName(term) {
     rows = data || [];
   } catch (e) {}
   if (!info) return;
-  if (!rows.length) { info.innerHTML = '<div style="background:var(--amber-50);border:1.5px solid var(--amber-300);border-radius:11px;padding:14px;text-align:center;color:var(--amber-700);font-size:13px;font-weight:700;">🔍 ' + (isLao ? 'ບໍ່ພົບສິນຄ້າຊື່' : 'ไม่พบสินค้าชื่อ') + ' "' + cmpEsc(term) + '"</div>'; _cmpProduct = null; return; }
-  info.innerHTML = '<div style="font-size:11.5px;color:var(--slate-500);margin-bottom:7px;">' + (isLao ? 'ພົບ ' : 'พบ ') + rows.length + (isLao ? ' ລາຍການ — ແຕະເພື່ອເລືອກ' : ' รายการ — แตะเพื่อเลือก') + '</div>'
+  if (!rows.length) { info.innerHTML = '<div style="background:var(--amber-50);border:1.5px solid var(--amber-300);border-radius:11px;padding:14px;text-align:center;color:var(--amber-700);font-size:var(--fs-t4);font-weight:700;">🔍 ' + (isLao ? 'ບໍ່ພົບສິນຄ້າຊື່' : 'ไม่พบสินค้าชื่อ') + ' "' + cmpEsc(term) + '"</div>'; _cmpProduct = null; return; }
+  info.innerHTML = '<div style="font-size:var(--fs-t5);color:var(--slate-500);margin-bottom:7px;">' + (isLao ? 'ພົບ ' : 'พบ ') + rows.length + (isLao ? ' ລາຍການ — ແຕະເພື່ອເລືອກ' : ' รายการ — แตะเพื่อเลือก') + '</div>'
     + '<div style="display:flex;flex-direction:column;gap:6px;">'
     + rows.map(r => {
         const nm = isLao ? (r.name_lo || r.name_th || '?') : (r.name_th || r.name_lo || '?');
         return '<button onclick="cmpPickProduct(\'' + cmpEsc(r.barcode) + '\')" style="text-align:left;border:1px solid var(--slate-200);background:white;border-radius:10px;padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;">'
-          + '<span style="min-width:0;"><span style="font-size:13px;font-weight:700;color:var(--slate-800);display:block;line-height:1.3;">' + cmpEsc(nm) + '</span><span style="font-size:10px;color:var(--slate-400);font-family:monospace;">' + cmpEsc(r.barcode || '') + (r.category ? ' · ' + cmpEsc(r.category) : '') + '</span></span>'
-          + '<span style="font-size:13px;font-weight:800;color:var(--teal-700);font-family:\'Space Grotesk\',monospace;white-space:nowrap;">' + cmpNum(r.sell_price || 0) + ' ₭</span>'
+          + '<span style="min-width:0;"><span style="font-size:var(--fs-t4);font-weight:700;color:var(--slate-800);display:block;line-height:1.3;">' + cmpEsc(nm) + '</span><span style="font-size:var(--fs-t5);color:var(--slate-400);font-family:monospace;">' + cmpEsc(r.barcode || '') + (r.category ? ' · ' + cmpEsc(r.category) : '') + '</span></span>'
+          + '<span style="font-size:var(--fs-t4);font-weight:800;color:var(--teal-700);font-family:\'Space Grotesk\',monospace;white-space:nowrap;">' + cmpNum(r.sell_price || 0) + ' ₭</span>'
           + '</button>';
       }).join('')
     + '</div>';
@@ -34862,7 +34871,7 @@ async function cmpLookupBarcode(bc) {
   } catch (e) {}
   let lastBuy = null, lastSale = null;
   try { const { data: ps } = await sb.from('product_status').select('last_buy,last_sale').eq('barcode', bc).maybeSingle(); if (ps) { lastBuy = ps.last_buy; lastSale = ps.last_sale; } } catch (e) {}
-  if (!name) { info.innerHTML = '<div style="background:var(--rose-50);border:1.5px solid var(--rose-300);border-radius:11px;padding:14px;text-align:center;color:var(--rose-700);font-size:13px;font-weight:700;">⚠️ ' + (isLao ? 'ບໍ່ພົບສິນຄ້າ' : 'ไม่พบสินค้า') + ': <code>' + cmpEsc(bc) + '</code></div>'; _cmpProduct = null; return; }
+  if (!name) { info.innerHTML = '<div style="background:var(--rose-50);border:1.5px solid var(--rose-300);border-radius:11px;padding:14px;text-align:center;color:var(--rose-700);font-size:var(--fs-t4);font-weight:700;">⚠️ ' + (isLao ? 'ບໍ່ພົບສິນຄ້າ' : 'ไม่พบสินค้า') + ': <code>' + cmpEsc(bc) + '</code></div>'; _cmpProduct = null; return; }
   // ⭐ กันซ้ำ: สินค้านี้ถูกเทียบในร้านนี้แล้วหรือยัง (ของใครก็ได้ในทีม)
   _cmpDup = null;
   try {
@@ -34871,11 +34880,11 @@ async function cmpLookupBarcode(bc) {
   } catch (e) {}
   _cmpProduct = { barcode: bc, name, fs_price: price, stock, last_buy: lastBuy, last_sale: lastSale, category };
   _cmpPhotos = [];
-  const cell = (label, val, color) => '<div style="background:var(--slate-50);border-radius:9px;padding:9px 11px;"><div style="font-size:9.5px;color:var(--slate-500);margin-bottom:2px;">' + label + '</div><div style="font-size:14px;font-weight:800;color:' + (color || 'var(--slate-800)') + ';font-family:\'Space Grotesk\',monospace;">' + val + '</div></div>';
+  const cell = (label, val, color) => '<div style="background:var(--slate-50);border-radius:9px;padding:9px 11px;"><div style="font-size:var(--fs-t5);color:var(--slate-500);margin-bottom:2px;">' + label + '</div><div style="font-size:var(--fs-t3);font-weight:800;color:' + (color || 'var(--slate-800)') + ';font-family:\'Space Grotesk\',monospace;">' + val + '</div></div>';
   let html = '<div style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,0.04);">'
-    + '<div style="font-size:14px;font-weight:800;color:var(--slate-800);line-height:1.3;margin-bottom:2px;">' + cmpEsc(name) + '</div>'
-    + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;margin-bottom:3px;">' + cmpEsc(bc) + '</div>'
-    + (category ? '<div style="display:inline-block;font-size:10px;font-weight:700;color:var(--violet-700);background:var(--violet-50);border-radius:6px;padding:2px 8px;margin-bottom:9px;">🏷️ ' + cmpEsc(category) + '</div>' : '')
+    + '<div style="font-size:var(--fs-t3);font-weight:800;color:var(--slate-800);line-height:1.3;margin-bottom:2px;">' + cmpEsc(name) + '</div>'
+    + '<div style="font-size:var(--fs-t5);color:var(--slate-400);font-family:monospace;margin-bottom:3px;">' + cmpEsc(bc) + '</div>'
+    + (category ? '<div style="display:inline-block;font-size:var(--fs-t5);font-weight:700;color:var(--violet-700);background:var(--violet-50);border-radius:6px;padding:2px 8px;margin-bottom:9px;">🏷️ ' + cmpEsc(category) + '</div>' : '')
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:9px 0 13px;">'
     + cell((isLao ? 'ລາຄາຂາຍ (FS)' : 'ราคาขาย (FS)'), cmpNum(price) + ' ₭', 'var(--teal-700)')
     + cell((isLao ? 'ສະຕ໋ອກ' : 'สต๊อก'), cmpNum(stock) + (unit ? ' ' + cmpEsc(unit) : ''))
@@ -34885,23 +34894,23 @@ async function cmpLookupBarcode(bc) {
   if (_cmpDup) {
     // มีคนเทียบแล้ว → กันซ้ำ ไม่ให้บันทึกอีก
     html += '<div style="background:var(--rose-50);border:1.5px solid var(--rose-300);border-radius:11px;padding:13px;text-align:center;">'
-      + '<div style="font-size:13px;font-weight:800;color:var(--rose-700);margin-bottom:3px;">⚠️ ' + (isLao ? 'ສິນຄ້ານີ້ຖືກທຽບແລ້ວໃນຮ້ານນີ້' : 'สินค้านี้ถูกเทียบแล้วในร้านนี้') + '</div>'
-      + '<div style="font-size:12px;color:var(--rose-600);">' + (isLao ? 'ໂດຍ' : 'โดย') + ' ' + cmpEsc(_cmpDup.created_by_name || '?') + ' · ' + (isLao ? 'ຄູ່ແຂ່ງ' : 'คู่แข่ง') + ' ' + cmpNum(_cmpDup.competitor_price) + ' ₭</div>'
-      + '<div style="font-size:11px;color:var(--slate-500);margin-top:6px;">' + (isLao ? 'ກັນຊ້ຳ — ບໍ່ຕ້ອງທຽບອີກ (ແກ້ທີ່ລາຍການດ້ານລຸ່ມຖ້າຜິດ)' : 'กันซ้ำ — ไม่ต้องเทียบอีก (แก้ที่รายการด้านล่างถ้าผิด)') + '</div>'
+      + '<div style="font-size:var(--fs-t4);font-weight:800;color:var(--rose-700);margin-bottom:3px;">⚠️ ' + (isLao ? 'ສິນຄ້ານີ້ຖືກທຽບແລ້ວໃນຮ້ານນີ້' : 'สินค้านี้ถูกเทียบแล้วในร้านนี้') + '</div>'
+      + '<div style="font-size:var(--fs-t5);color:var(--rose-600);">' + (isLao ? 'ໂດຍ' : 'โดย') + ' ' + cmpEsc(_cmpDup.created_by_name || '?') + ' · ' + (isLao ? 'ຄູ່ແຂ່ງ' : 'คู่แข่ง') + ' ' + cmpNum(_cmpDup.competitor_price) + ' ₭</div>'
+      + '<div style="font-size:var(--fs-t5);color:var(--slate-500);margin-top:6px;">' + (isLao ? 'ກັນຊ້ຳ — ບໍ່ຕ້ອງທຽບອີກ (ແກ້ທີ່ລາຍການດ້ານລຸ່ມຖ້າຜິດ)' : 'กันซ้ำ — ไม่ต้องเทียบอีก (แก้ที่รายการด้านล่างถ้าผิด)') + '</div>'
       + '</div>';
   } else {
-    html += '<div style="font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:5px;">💰 ' + (isLao ? 'ລາຄາຄູ່ແຂ່ງ' : 'ราคาคู่แข่ง') + '</div>'
-      + '<input id="cmpCompPrice" inputmode="decimal" placeholder="0" oninput="cmpUpdateDiff()" style="width:100%;border:1.5px solid var(--amber-300);border-radius:10px;padding:12px;font-size:16px;font-weight:800;font-family:\'Space Grotesk\',monospace;color:var(--amber-700);margin-bottom:4px;">'
-      + '<div id="cmpDiff" style="font-size:12px;font-weight:700;min-height:16px;margin-bottom:11px;"></div>'
+    html += '<div style="font-size:var(--fs-t5);font-weight:700;color:var(--slate-600);margin-bottom:5px;">💰 ' + (isLao ? 'ລາຄາຄູ່ແຂ່ງ' : 'ราคาคู่แข่ง') + '</div>'
+      + '<input id="cmpCompPrice" inputmode="decimal" placeholder="0" oninput="cmpUpdateDiff()" style="width:100%;border:1.5px solid var(--amber-300);border-radius:10px;padding:12px;font-size:var(--fs-t2);font-weight:800;font-family:\'Space Grotesk\',monospace;color:var(--amber-700);margin-bottom:4px;">'
+      + '<div id="cmpDiff" style="font-size:var(--fs-t5);font-weight:700;min-height:16px;margin-bottom:11px;"></div>'
       + '<input type="file" id="cmpPhotoFile" accept="image/*" multiple style="display:none;" onchange="cmpOnPhoto(event)">'
       + '<input type="file" id="cmpPhotoCam" accept="image/*" capture="environment" style="display:none;" onchange="cmpOnPhoto(event)">'
       + '<div style="display:flex;gap:8px;margin-bottom:7px;">'
-      + '<button type="button" onclick="document.getElementById(\'cmpPhotoFile\').click()" style="flex:1;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:11px;font-size:12.5px;font-weight:700;color:var(--slate-600);cursor:pointer;">📁 ' + (isLao ? 'ເລືອກຮູບ' : 'เลือกรูป') + '</button>'
-      + '<button type="button" onclick="document.getElementById(\'cmpPhotoCam\').click()" style="flex:1;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:11px;font-size:12.5px;font-weight:700;color:var(--slate-600);cursor:pointer;">📷 ' + (isLao ? 'ຖ່າຍຮູບ' : 'ถ่ายรูป') + '</button>'
+      + '<button type="button" onclick="document.getElementById(\'cmpPhotoFile\').click()" style="flex:1;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:11px;font-size:var(--fs-t4);font-weight:700;color:var(--slate-600);cursor:pointer;">📁 ' + (isLao ? 'ເລືອກຮູບ' : 'เลือกรูป') + '</button>'
+      + '<button type="button" onclick="document.getElementById(\'cmpPhotoCam\').click()" style="flex:1;border:1.5px dashed var(--slate-300);background:var(--slate-50);border-radius:10px;padding:11px;font-size:var(--fs-t4);font-weight:700;color:var(--slate-600);cursor:pointer;">📷 ' + (isLao ? 'ຖ່າຍຮູບ' : 'ถ่ายรูป') + '</button>'
       + '</div>'
       + '<div id="cmpPhotoPreview" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px;"></div>'
-      + '<textarea id="cmpNote" rows="2" placeholder="' + (isLao ? 'ໝາຍເຫດ' : 'หมายเหตุเพิ่มเติม') + '" style="width:100%;border:1.5px solid var(--slate-200);border-radius:10px;padding:11px;font-size:13px;resize:vertical;margin-bottom:12px;"></textarea>'
-      + '<button onclick="cmpSave()" id="cmpSaveBtn" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;">✓ ' + (isLao ? 'ບັນທຶກ' : 'บันทึก') + '</button>';
+      + '<textarea id="cmpNote" rows="2" placeholder="' + (isLao ? 'ໝາຍເຫດ' : 'หมายเหตุเพิ่มเติม') + '" style="width:100%;border:1.5px solid var(--slate-200);border-radius:10px;padding:11px;font-size:var(--fs-t4);resize:vertical;margin-bottom:12px;"></textarea>'
+      + '<button onclick="cmpSave()" id="cmpSaveBtn" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:12px;padding:14px;font-size:var(--fs-t3);font-weight:800;cursor:pointer;">✓ ' + (isLao ? 'ບັນທຶກ' : 'บันทึก') + '</button>';
   }
   html += '</div>';
   info.innerHTML = html;
@@ -34988,7 +34997,7 @@ async function cmpLoadList() {
     const { data, error } = await sb.from('competitor_prices').select('*').eq('branch_id', branch.id).order('created_at', { ascending: false }).limit(1000);
     if (error) throw error;
     _cmpData = data || [];
-  } catch (e) { wrap.innerHTML = '<div style="text-align:center;color:var(--rose-600);font-size:12px;padding:14px;">Error: ' + cmpEsc(e.message || e) + '</div>'; return; }
+  } catch (e) { wrap.innerHTML = '<div style="text-align:center;color:var(--rose-600);font-size:var(--fs-t5);padding:14px;">Error: ' + cmpEsc(e.message || e) + '</div>'; return; }
   cmpRenderList();
 }
 
@@ -34998,7 +35007,7 @@ function cmpRenderList() {
   const wrap = document.getElementById('cmpList');
   if (!wrap) return;
   const rows = _cmpData || [];
-  if (!rows.length) { wrap.innerHTML = '<div style="text-align:center;color:var(--slate-400);font-size:13px;padding:22px;">' + (isLao ? 'ຍັງບໍ່ມີລາຍການ' : 'ยังไม่มีรายการ') + '</div>'; return; }
+  if (!rows.length) { wrap.innerHTML = '<div style="text-align:center;color:var(--slate-400);font-size:var(--fs-t4);padding:22px;">' + (isLao ? 'ຍັງບໍ່ມີລາຍການ' : 'ยังไม่มีรายการ') + '</div>'; return; }
   const canDel = (r) => (['admin', 'scc', 'bcs'].includes((user && user.role) || '')) || (r.created_by === user.id);
   // จัดกลุ่มตามร้าน
   const groups = {};
@@ -35012,8 +35021,8 @@ function cmpRenderList() {
   storeKeys.forEach(store => {
     const items = cmpSortRows(groups[store]);
     html += '<div style="display:flex;align-items:center;gap:7px;margin:15px 0 8px;padding:8px 11px;background:var(--teal-50);border-radius:9px;">'
-      + '<span style="font-size:15px;">🏬</span><span style="font-size:14px;font-weight:800;color:var(--teal-800);flex:1;">' + cmpEsc(store) + '</span>'
-      + '<span style="font-size:11px;font-weight:700;color:var(--teal-600);">' + items.length + (isLao ? ' ລາຍການ' : ' รายการ') + '</span></div>';
+      + '<span style="font-size:15px;">🏬</span><span style="font-size:var(--fs-t3);font-weight:800;color:var(--teal-800);flex:1;">' + cmpEsc(store) + '</span>'
+      + '<span style="font-size:var(--fs-t5);font-weight:700;color:var(--teal-600);">' + items.length + (isLao ? ' ລາຍການ' : ' รายการ') + '</span></div>';
     items.forEach(r => {
       const diff = (r.fs_price || 0) - (r.competitor_price || 0);
       const diffTxt = diff > 0 ? '<span style="color:var(--rose-600);">▲ ' + cmpNum(Math.abs(diff)) + '</span>' : (diff < 0 ? '<span style="color:var(--emerald-600);">▼ ' + cmpNum(Math.abs(diff)) + '</span>' : '<span style="color:var(--slate-400);">=</span>');
@@ -35021,11 +35030,11 @@ function cmpRenderList() {
       html += '<div style="background:white;border:1px solid var(--slate-200);border-radius:11px;padding:11px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;">'
         + photo
         + '<div style="flex:1;min-width:0;">'
-        + '<div style="font-size:13px;font-weight:700;color:var(--slate-800);line-height:1.3;">' + cmpEsc(r.product_name || '') + '</div>'
-        + '<div style="font-size:10px;color:var(--slate-400);font-family:monospace;margin-bottom:3px;">' + cmpEsc(r.barcode || '') + (r.category ? ' · 🏷️ ' + cmpEsc(r.category) : '') + '</div>'
-        + '<div style="font-size:12px;color:var(--slate-600);">FS <b style="font-family:\'Space Grotesk\',monospace;">' + cmpNum(r.fs_price) + '</b> · ' + (isLao ? 'ຄູ່ແຂ່ງ' : 'คู่แข่ง') + ' <b style="font-family:\'Space Grotesk\',monospace;color:var(--amber-700);">' + cmpNum(r.competitor_price) + '</b> · ' + diffTxt + '</div>'
-        + (r.note ? '<div style="font-size:11px;color:var(--slate-500);margin-top:3px;">📝 ' + cmpEsc(r.note) + '</div>' : '')
-        + '<div style="font-size:10px;color:var(--slate-400);margin-top:3px;">' + cmpEsc(r.created_by_name || '') + ' · ' + cmpFmtDate(r.created_at) + '</div>'
+        + '<div style="font-size:var(--fs-t4);font-weight:700;color:var(--slate-800);line-height:1.3;">' + cmpEsc(r.product_name || '') + '</div>'
+        + '<div style="font-size:var(--fs-t5);color:var(--slate-400);font-family:monospace;margin-bottom:3px;">' + cmpEsc(r.barcode || '') + (r.category ? ' · 🏷️ ' + cmpEsc(r.category) : '') + '</div>'
+        + '<div style="font-size:var(--fs-t4);color:var(--slate-600);">FS <b style="font-family:\'Space Grotesk\',monospace;">' + cmpNum(r.fs_price) + '</b> · ' + (isLao ? 'ຄູ່ແຂ່ງ' : 'คู่แข่ง') + ' <b style="font-family:\'Space Grotesk\',monospace;color:var(--amber-700);">' + cmpNum(r.competitor_price) + '</b> · ' + diffTxt + '</div>'
+        + (r.note ? '<div style="font-size:var(--fs-t5);color:var(--slate-500);margin-top:3px;">📝 ' + cmpEsc(r.note) + '</div>' : '')
+        + '<div style="font-size:var(--fs-t5);color:var(--slate-400);margin-top:3px;">' + cmpEsc(r.created_by_name || '') + ' · ' + cmpFmtDate(r.created_at) + '</div>'
         + '</div>'
         + (canDel(r) ? '<button onclick="cmpDelete(\'' + r.id + '\')" style="border:none;background:var(--rose-50);color:var(--rose-600);border-radius:7px;width:28px;height:28px;font-size:13px;cursor:pointer;flex-shrink:0;">🗑️</button>' : '')
         + '</div>';
