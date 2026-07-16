@@ -9061,7 +9061,7 @@ function prcNoTagOpen() {
   if (f) { f.style.display = 'block'; const inp = document.getElementById('prcNtNote'); if (inp) inp.focus(); }
 }
 // พูดเพื่อพิมพ์ลงช่อง input/textarea ใดๆ — ใช้ Web Speech API + ภาษาที่เลือกไว้ร่วมกับหน้าค้นหาสินค้า (scVoiceLang) · ใช้ร่วมทุกฟอร์ม (ตรวจราคาป้าย/แจ้งงาน/Daily Brief)
-function fsVoiceToInput(inputId, btnId) {
+function fsVoiceToInput(inputId, btnId, afterCb) {
   const isLao = lang === 'lo';
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { showToast(isLao ? 'ບຣາວເຊີບໍ່ຮອງຮັບການເວົ້າ — ພິມແທນ' : 'เบราว์เซอร์ไม่รองรับการพูด — พิมพ์แทนนะคะ', 'warning'); return; }
@@ -9082,6 +9082,7 @@ function fsVoiceToInput(inputId, btnId) {
       box.value = cur ? (cur + ' ' + said.trim()) : said.trim();
       box.focus();
     }
+    if (typeof afterCb === 'function') { try { afterCb(); } catch (e) {} }
   };
   rec.onerror = (ev) => { done(); showToast((isLao ? 'ຟັງບໍ່ໄດ້ຍິນ ລອງໃໝ່' : 'ฟังไม่ชัด ลองใหม่นะคะ') + (ev.error ? ' (' + ev.error + ')' : ''), 'warning'); };
   rec.onend = done;
@@ -34728,6 +34729,7 @@ function renderCmpPage() {
       + '</div>'
       + '<div style="display:flex;gap:7px;margin-bottom:11px;">'
       + '<input id="cmpBarcode" inputmode="text" placeholder="' + (isLao ? 'ບາໂຄ້ດ / ຊື່ສິນຄ້າ' : 'บาร์โค้ด / ชื่อสินค้า') + '" onkeydown="if(event.key===\'Enter\')cmpLookup()" style="flex:1;border:1.5px solid var(--slate-200);border-radius:10px;padding:12px;font-size:14px;font-family:monospace;">'
+      + '<button id="cmpMic" onclick="fsVoiceToInput(\'cmpBarcode\',\'cmpMic\',cmpLookup)" title="' + (isLao ? 'ເວົ້າເພື່ອຄົ້ນຫາ' : 'พูดเพื่อค้นหา') + '" style="border:1.5px solid var(--slate-300);background:white;color:var(--slate-700);border-radius:10px;padding:0 14px;font-size:18px;cursor:pointer;">🎤</button>'
       + '<button onclick="cmpStartScan()" style="border:none;background:var(--fs-blue);color:white;border-radius:10px;padding:0 15px;font-size:18px;cursor:pointer;">📷</button>'
       + '<button onclick="cmpLookup()" style="border:none;background:var(--slate-700);color:white;border-radius:10px;padding:0 15px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? 'ຄົ້ນ' : 'ค้นหา') + '</button>'
       + '</div>'
