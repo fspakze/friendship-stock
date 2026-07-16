@@ -232,7 +232,8 @@
   .sop-tr-1 { font-size: calc(var(--fs-t3) * var(--sop-scale)); font-weight: 700; color: var(--fs-ink); line-height: 1.6; }
   .sop-cell { display: flex; gap: 8px; padding: 4px 0; align-items: baseline; }
   .sop-cell + .sop-cell { border-top: 1px dashed var(--fs-hair); }
-  .sop-k { font-size: calc(var(--fs-t5) * var(--sop-scale)); font-weight: 700; color: var(--fs-ink3); flex: 0 0 34%; min-width: 0; line-height: 1.5; }
+  /* 34% ล้วน = จอคอมกว้างๆ หัวข้อกับเนื้อหาห่างกันมาก (Ball แจ้ง 2026-07-16) → คุมเพดานไว้ที่ 150px */
+  .sop-k { font-size: calc(var(--fs-t5) * var(--sop-scale)); font-weight: 700; color: var(--fs-ink3); flex: 0 0 clamp(88px, 34%, 150px); min-width: 0; line-height: 1.5; }
   .sop-v { font-size: calc(var(--fs-t4) * var(--sop-scale)); color: var(--slate-700); flex: 1; min-width: 0; line-height: 1.65; white-space: pre-line; }
   .sop-lead { font-size: calc(var(--fs-t4) * var(--sop-scale)); font-weight: 700; color: var(--fs-blue); margin-bottom: 4px; line-height: 1.5; }
   /* ช่องสแกนกะทัดรัด (เฉพาะหน้าเช็คสต๊อก) — เตี้ยลง + กรอบมุมฟ้า + เส้นสแกน */
