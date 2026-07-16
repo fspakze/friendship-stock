@@ -9168,9 +9168,15 @@ async function sopLoadDocs() {
 // admin เห็นทุกฉบับเสมอ · ตำแหน่งอื่นเห็นเฉพาะฉบับที่มี role ตัวเองอยู่ในคอลัมน์ roles ของตาราง sop_docs
 // เปิดให้ตำแหน่งไหนอ่านฉบับไหน = ใส่ role ลงคอลัมน์ roles (ไม่ต้องแก้โค้ด/ไม่ต้อง push)
 // (เมนู 'sop' อยู่ใน MENU_CONFIG ของทุกตำแหน่งแล้ว (Ball 2026-07-16) = ด่านที่ 1 · ฟังก์ชันนี้ = ด่านที่ 2)
+// key ที่ใช้เก็บ override รายฉบับใน _menuUserOverride[userId] (คนละ namespace กับ pageKey ปกติ กันชนกัน)
+function sopOvKey(docId) { return 'sop_doc:' + docId; }
 function sopCanSee(d) {
   const role = (user && user.role) || '';
   if (role === 'admin') return true;
+  const ov = myMenuOverride();
+  const k = sopOvKey(d.id);
+  if (ov[k] === true) return true;   // เปิดเพิ่มเฉพาะคนนี้ (ทับ role ที่ปกติไม่เห็น)
+  if (ov[k] === false) return false; // ปิดเฉพาะคนนี้ (ทับ role ที่ปกติเห็น)
   return !!(d && d.roles && d.roles.indexOf(role) !== -1);
 }
 function sopVisibleDocs() { return SOP_DOCS.filter(sopCanSee); }
@@ -25811,13 +25817,14 @@ function upRoleDefaultPages(role) {
   if (s.has('horeca')) s.add('promotion');
   return s;
 }
-function openUserPermModal(userId) {
+async function openUserPermModal(userId) {
   const isLao = lang === 'lo';
   if ((user && user.role) !== 'admin') { showToast(isLao ? 'ສະເພາະ admin' : 'เฉพาะ admin', 'warning'); return; }
   const u = (_allUsers || []).find(x => x.id === userId);
   if (!u) { showToast(isLao ? 'ບໍ່ພົບຜູ້ໃຊ້' : 'ไม่พบผู้ใช้', 'error'); return; }
   _upTarget = { id: u.id, username: u.username, full_name: u.full_name, role: u.role };
   try { _upCfg = JSON.parse(JSON.stringify(_menuUserOverride[u.id] || {})); } catch (e) { _upCfg = {}; }
+  await sopLoadDocs(); // โหลดรายชื่อฉบับ SOP ไว้ก่อน render (idempotent — โหลดครั้งเดียวพอ)
   showModal(`
     <h3 style="display:flex;align-items:center;gap:7px;">🔐 ${isLao ? 'ສິດເຂົ້າໃຊ້ສະເພາະຄົນ' : 'สิทธิ์เข้าใช้เฉพาะคน'}</h3>
     <div style="background:var(--fs-fill2,#f1f5f9);border-radius:9px;padding:9px 12px;margin-bottom:10px;">
@@ -25872,6 +25879,35 @@ function upRender() {
   html += has.map(pk => rowHtml(pk, 'revoke')).join('') || '<div style="font-size:11px;color:var(--slate-400);margin-bottom:8px;">—</div>';
   html += '<div style="font-size:11px;font-weight:800;color:var(--emerald-600,#059669);margin:13px 0 6px;">✓ ' + (isLao ? 'ໜ້າທີ່ຕຳແໜ່ງນີ້ບໍ່ມີ (ເປີດເພີ່ມໃຫ້ຄົນນີ້ໄດ້)' : 'หน้าที่ตำแหน่งนี้ไม่มี (เปิดเพิ่มให้คนนี้ได้)') + ' (' + notHas.length + ')</div>';
   html += notHas.map(pk => rowHtml(pk, 'grant')).join('') || '<div style="font-size:11px;color:var(--slate-400);">—</div>';
+
+  // 📚 คู่มือ SOP รายฉบับ — override ทับ sop_docs.roles เฉพาะคนนี้ (Ball สั่ง 2026-07-16)
+  const sopRowHtml = (d, kind) => {
+    const label = sopDocName(d);
+    const k = sopOvKey(d.id);
+    const ov = _upCfg[k];
+    const active = kind === 'revoke' ? (ov === false) : (ov === true);
+    const onColor = kind === 'revoke' ? 'var(--fs-red,#e11d48)' : 'var(--emerald-500,#10b981)';
+    const btnLabel = kind === 'revoke'
+      ? (active ? '🚫 ' + (isLao ? 'ປິດຢູ່' : 'ปิดอยู่') : (isLao ? 'ປິດ' : 'ปิด'))
+      : (active ? '✓ ' + (isLao ? 'ເປີດຢູ່' : 'เปิดอยู่') : (isLao ? 'ເປີດ' : 'เปิด'));
+    return '<div style="background:white;border:1px solid var(--slate-200);border-left:3px solid ' + (active ? onColor : 'var(--slate-200)') + ';border-radius:9px;padding:9px 11px;margin-bottom:6px;display:flex;align-items:center;gap:9px;">'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:12.5px;font-weight:800;color:var(--slate-800);">' + d.icon + ' ' + escapeHtml(label) + '</div>'
+      + '</div>'
+      + '<button type="button" onclick="upToggleSop(\'' + d.id + '\',\'' + kind + '\')" style="flex-shrink:0;background:' + (active ? onColor : 'var(--slate-100)') + ';color:' + (active ? 'white' : 'var(--slate-500)') + ';border:none;border-radius:8px;padding:7px 13px;font-size:11.5px;font-weight:800;cursor:pointer;white-space:nowrap;">' + btnLabel + '</button>'
+      + '</div>';
+  };
+  const sopDocs = (SOP_DOCS || []).filter(d => {
+    if (!q) return true;
+    return (sopDocName(d) || '').toLowerCase().includes(q) || (d.name || '').toLowerCase().includes(q);
+  });
+  const sopHas = sopDocs.filter(d => (d.roles || []).indexOf(_upTarget.role) !== -1);
+  const sopNot = sopDocs.filter(d => (d.roles || []).indexOf(_upTarget.role) === -1);
+  html += '<div style="font-size:11px;font-weight:800;color:var(--fs-red,#e11d48);margin:16px 0 6px;border-top:1px solid var(--slate-200);padding-top:12px;">🚫 📚 ' + (isLao ? 'ຄູ່ມື SOP ທີ່ຕຳແໜ່ງນີ້ເຫັນ (ປິດສະເພາະຄົນໄດ້)' : 'คู่มือ SOP ที่ตำแหน่งนี้เห็น (ปิดเฉพาะคนได้)') + ' (' + sopHas.length + ')</div>';
+  html += sopHas.map(d => sopRowHtml(d, 'revoke')).join('') || '<div style="font-size:11px;color:var(--slate-400);margin-bottom:8px;">—</div>';
+  html += '<div style="font-size:11px;font-weight:800;color:var(--emerald-600,#059669);margin:13px 0 6px;">✓ 📚 ' + (isLao ? 'ຄູ່ມື SOP ທີ່ຕຳແໜ່ງນີ້ບໍ່ເຫັນ (ເປີດເພີ່ມໃຫ້ຄົນນີ້ໄດ້)' : 'คู่มือ SOP ที่ตำแหน่งนี้ไม่เห็น (เปิดเพิ่มให้คนนี้ได้)') + ' (' + sopNot.length + ')</div>';
+  html += sopNot.map(d => sopRowHtml(d, 'grant')).join('') || '<div style="font-size:11px;color:var(--slate-400);">—</div>';
+
   el.innerHTML = html;
 }
 function upToggle(pk, kind) {
@@ -25880,15 +25916,30 @@ function upToggle(pk, kind) {
   else { if (ov === true) delete _upCfg[pk]; else _upCfg[pk] = true; }
   upRender();
 }
+function upToggleSop(docId, kind) {
+  const k = sopOvKey(docId);
+  const ov = _upCfg[k];
+  if (kind === 'revoke') { if (ov === false) delete _upCfg[k]; else _upCfg[k] = false; }
+  else { if (ov === true) delete _upCfg[k]; else _upCfg[k] = true; }
+  upRender();
+}
 async function upSave() {
   const isLao = lang === 'lo';
   if ((user && user.role) !== 'admin') { showToast(isLao ? 'ສະເພາະ admin' : 'เฉพาะ admin', 'warning'); return; }
   if (!_upTarget) return;
   const def = upRoleDefaultPages(_upTarget.role);
   // เก็บเฉพาะ override ที่ "ต่างจากค่าตามตำแหน่ง" จริง (false บนหน้าที่ปกติมี / true บนหน้าที่ปกติไม่มี)
+  // คีย์ 'sop_doc:<id>' เช็ค default จาก sop_docs.roles แทน (คนละแหล่งกับหน้าเมนูปกติ)
   const clean = {};
   Object.keys(_upCfg).forEach(k => {
     const v = _upCfg[k];
+    if (k.indexOf('sop_doc:') === 0) {
+      const doc = (SOP_DOCS || []).find(d => d.id === k.slice(8));
+      const roleHas = !!(doc && doc.roles && doc.roles.indexOf(_upTarget.role) !== -1);
+      if (v === false && roleHas) clean[k] = false;
+      else if (v === true && !roleHas) clean[k] = true;
+      return;
+    }
     if (v === false && def.has(k)) clean[k] = false;
     else if (v === true && !def.has(k)) clean[k] = true;
   });
