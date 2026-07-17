@@ -14805,6 +14805,7 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
         </div>
         <div style="font-size:12px;color:var(--fs-ink3);font-family:'Space Grotesk',monospace;margin-top:3px;">${prod.barcode}</div>
       </div>
+      <div id="scMdBanner"></div>
 
       <div style="display:flex;">
         <div style="flex:1;padding:14px 16px;text-align:center;border-right:1px solid var(--fs-hair);">
@@ -14853,6 +14854,7 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
     </div>
   `;
   scLoadPromoBadge(prod.barcode);   // เช็คว่าสินค้านี้อยู่ใน HORECA catalog + มีโปร → แสดง badge มุมขวา
+  scLoadMdBadge(prod.barcode);      // เช็คว่าสินค้านี้มีบาร์ Markdown คู่กัน (888+บาร์โค้ด) + มีสต๊อกไหม → แจ้งเตือน
 }
 
 // แสดง badge "สินค้าโปรโมชั่น + ราคา" ที่มุมขวาชื่อสินค้า ถ้าสินค้านี้มีในแคตตาล็อก HORECA และตั้งราคาโปรไว้ (กดดู catalog ได้ถ้ามีสิทธิ์)
@@ -14883,6 +14885,26 @@ async function scLoadPromoBadge(barcode) {
     window._scPromoJump = { set: row.catalog_set, bc: String(barcode) };
     const inner = '🏷️ ' + (isLao ? 'ໂປຣ' : 'โปร') + ' ' + lab + Number(promo).toLocaleString() + '₭' + (can ? ' ›' : '');
     el.innerHTML = '<span ' + (can ? 'onclick="hcJumpFromBadge()" ' : '') + 'title="' + (isLao ? 'ສິນຄ້າໂປຣໂມຊັນ' : 'สินค้าโปรโมชั่น') + '" style="display:inline-flex;align-items:center;gap:4px;background:#fff1f2;color:#e11d48;border:1px solid var(--rose-200);border-radius:999px;padding:3px 10px;font-size:11px;font-weight:800;white-space:nowrap;' + (can ? 'cursor:pointer;' : '') + '">' + inner + '</span>';
+  } catch (e) {}
+}
+
+// เช็คว่าสินค้านี้มีบาร์ Markdown คู่กันไหม (กฎบาร์โค้ด: 888 + บาร์โค้ดปกติ, เฉพาะบาร์เลขล้วน — เหมือน expDoMarkdown ~33942) ถ้ามีสต๊อก > 0 → แจ้งเตือนใต้ชื่อสินค้า
+async function scLoadMdBadge(barcode) {
+  const box = document.getElementById('scMdBanner');
+  if (!box || !barcode || !branch) return;
+  const bcStr = String(barcode);
+  if (!/^\d+$/.test(bcStr)) return;   // กฎ 888+บาร์โค้ด ใช้ได้เฉพาะบาร์เลขล้วน (สินค้าทั่วไป)
+  const mdBc = '888' + bcStr;
+  try {
+    const { data } = await sb.from('products').select('pos_qty,unit_lo,unit_th').eq('barcode', mdBc).eq('branch_id', branch.id).eq('is_active', true).maybeSingle();
+    if (String(window._scLastBarcode || '') !== bcStr) return;   // กันผลตอบช้าจากสแกนก่อนหน้า ไปโผล่บนการ์ดสินค้าตัวใหม่ (เหมือน scLoadPromoBadge)
+    if (!data || !(Number(data.pos_qty) > 0)) return;
+    const isLao = lang === 'lo';
+    const unit = isLao ? (data.unit_lo || 'pcs') : (data.unit_th || data.unit_lo || 'ชิ้น');
+    box.innerHTML = '<div style="background:var(--rose-50);border:1px solid var(--rose-200);border-radius:9px;padding:9px 12px;margin:9px 16px;font-size:11.5px;color:var(--rose-600);font-weight:700;display:flex;align-items:center;gap:7px;">'
+      + '<span style="font-size:15px;">🏷️</span>'
+      + '<span>' + (isLao ? 'ມີສະຕ໋ອກ Markdown (' + mdBc + '): ' : 'มีสต๊อก Markdown (' + mdBc + '): ') + '<b>' + Number(data.pos_qty).toLocaleString() + ' ' + unit + '</b></span>'
+      + '</div>';
   } catch (e) {}
 }
 
