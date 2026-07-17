@@ -14858,7 +14858,7 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
     </div>
   `;
   scLoadPromoBadge(prod.barcode);   // เช็คว่าสินค้านี้อยู่ใน HORECA catalog + มีโปร → แสดง badge มุมขวา
-  scLoadMdBadge(prod.barcode, ps && ps.barcode_markdown);   // เช็คว่าสินค้านี้มีบาร์ Markdown คู่กัน + มีสต๊อกไหม → แจ้งเตือน
+  scLoadMdBadge(prod.barcode, ps && ps.barcode_markdown, prod.name_th, prod.name_lo);   // เช็คว่าสินค้านี้มีบาร์ Markdown คู่กัน + มีสต๊อกไหม → แจ้งเตือน
 }
 
 // แสดง badge "สินค้าโปรโมชั่น + ราคา" ที่มุมขวาชื่อสินค้า ถ้าสินค้านี้มีในแคตตาล็อก HORECA และตั้งราคาโปรไว้ (กดดู catalog ได้ถ้ามีสิทธิ์)
@@ -14892,27 +14892,40 @@ async function scLoadPromoBadge(barcode) {
   } catch (e) {}
 }
 
-// เช็คว่าสินค้านี้มีบาร์ Markdown คู่กันไหม (Ball 2026-07-17: แหล่งจริง = คอลัมน์ "Barcode Markdown" ในไฟล์ Status สินค้า → เก็บไว้ที่ product_status.barcode_markdown ตอนอัปโหลด
-// ส่งมาจาก ps.barcode_markdown ที่โหลดมาแล้วใน renderStockCheckResult — ถ้ายังไม่มี (สินค้านั้นยังไม่ได้อยู่ในไฟล์ Status ที่อัปโหลดล่าสุด) → fallback เดากฎเดิม 888+บาร์โค้ด เฉพาะบาร์เลขล้วน (เหมือน expDoMarkdown ~33942)
+// เช็คว่าสินค้านี้มีบาร์ Markdown คู่กันไหม — ไล่หา 3 ชั้นตามลำดับความน่าเชื่อถือ (Ball 2026-07-17):
+// 1) mdBcFromStatus = คอลัมน์ "Barcode Markdown" จริงจากไฟล์ Status (ps.barcode_markdown ที่โหลดมาแล้วใน renderStockCheckResult) — แม่นสุด
+// 2) ถ้าไม่มี (สินค้ายังไม่อยู่ในไฟล์ Status ที่อัปโหลดล่าสุด) + บาร์เลขล้วน → fallback เดากฎเดิม 888+บาร์โค้ด (เหมือน expDoMarkdown ~33942)
+// 3) ถ้ายังหาไม่เจอ + มีชื่อสินค้า → สินค้า fresh: หาโดยชื่อต่อท้ายด้วย " MD" (Ball ยืนยัน + ตรวจจริงใน DB: barcode "0695"↔"6950" ชื่อต่างกันแค่ต่อท้าย " MD")
 // ถ้ามีสต๊อก > 0 → แจ้งเตือนใต้ชื่อสินค้า
-async function scLoadMdBadge(barcode, mdBcFromStatus) {
+async function scLoadMdBadge(barcode, mdBcFromStatus, nameTh, nameLo) {
   const box = document.getElementById('scMdBanner');
   if (!box || !barcode || !branch) return;
   const bcStr = String(barcode);
-  let mdBc = mdBcFromStatus ? String(mdBcFromStatus) : null;
-  if (!mdBc) {
-    if (!/^\d+$/.test(bcStr)) return;   // fallback กฎ 888+บาร์โค้ด ใช้ได้เฉพาะบาร์เลขล้วน (สินค้าทั่วไป)
-    mdBc = '888' + bcStr;
-  }
   try {
-    const { data } = await sb.from('products').select('pos_qty,unit_lo,unit_th').eq('barcode', mdBc).eq('branch_id', branch.id).eq('is_active', true).maybeSingle();
+    let row = null;
+    const mdBcHint = mdBcFromStatus ? String(mdBcFromStatus) : null;
+    if (mdBcHint) {
+      const { data } = await sb.from('products').select('pos_qty,unit_lo,unit_th,barcode').eq('barcode', mdBcHint).eq('branch_id', branch.id).eq('is_active', true).maybeSingle();
+      row = data || null;
+    } else if (/^\d+$/.test(bcStr)) {
+      const { data } = await sb.from('products').select('pos_qty,unit_lo,unit_th,barcode').eq('barcode', '888' + bcStr).eq('branch_id', branch.id).eq('is_active', true).maybeSingle();
+      row = data || null;
+    }
+    if (!row && nameTh) {
+      const { data } = await sb.from('products').select('pos_qty,unit_lo,unit_th,barcode').eq('name_th', nameTh + ' MD').eq('branch_id', branch.id).eq('is_active', true).maybeSingle();
+      row = data || null;
+    }
+    if (!row && nameLo) {
+      const { data } = await sb.from('products').select('pos_qty,unit_lo,unit_th,barcode').eq('name_lo', nameLo + ' MD').eq('branch_id', branch.id).eq('is_active', true).maybeSingle();
+      row = data || null;
+    }
     if (String(window._scLastBarcode || '') !== bcStr) return;   // กันผลตอบช้าจากสแกนก่อนหน้า ไปโผล่บนการ์ดสินค้าตัวใหม่ (เหมือน scLoadPromoBadge)
-    if (!data || !(Number(data.pos_qty) > 0)) return;
+    if (!row || !(Number(row.pos_qty) > 0)) return;
     const isLao = lang === 'lo';
-    const unit = isLao ? (data.unit_lo || 'pcs') : (data.unit_th || data.unit_lo || 'ชิ้น');
+    const unit = isLao ? (row.unit_lo || 'pcs') : (row.unit_th || row.unit_lo || 'ชิ้น');
     box.innerHTML = '<div style="background:var(--rose-50);border:1px solid var(--rose-200);border-radius:9px;padding:9px 12px;margin:9px 16px;font-size:11.5px;color:var(--rose-600);font-weight:700;display:flex;align-items:center;gap:7px;">'
       + '<span style="font-size:15px;">🏷️</span>'
-      + '<span>' + (isLao ? 'ມີສະຕ໋ອກ Markdown (' + mdBc + '): ' : 'มีสต๊อก Markdown (' + mdBc + '): ') + '<b>' + Number(data.pos_qty).toLocaleString() + ' ' + unit + '</b></span>'
+      + '<span>' + (isLao ? 'ມີສະຕ໋ອກ Markdown (' + row.barcode + '): ' : 'มีสต๊อก Markdown (' + row.barcode + '): ') + '<b>' + Number(row.pos_qty).toLocaleString() + ' ' + unit + '</b></span>'
       + '</div>';
   } catch (e) {}
 }
