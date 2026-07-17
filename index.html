@@ -7028,6 +7028,7 @@ async function psHandleFile(ev) {
 
     const COL = {
       barcode: findCol('Barcode'),
+      barcodeMd: findCol('Barcode Markdown'),
       name: findCol('รายละเอียด'),
       buyer: findCol('จัดซื้อ'),
       top2026: findCol('TOP\n2026', 'TOP2026'),
@@ -7063,6 +7064,7 @@ async function psHandleFile(ev) {
       branchCols.forEach(bc => { const v = psCleanNum(r[bc.idx]); if (v != null) bAvg[bc.name] = v; });
       seen[barcode] = {
         barcode,
+        barcode_markdown: COL.barcodeMd >= 0 ? psCleanStr(r[COL.barcodeMd]) : null,
         name: COL.name >= 0 ? psCleanStr(r[COL.name]) : null,
         buyer: COL.buyer >= 0 ? psCleanStr(r[COL.buyer]) : null,
         top_2026: COL.top2026 >= 0 ? psCleanStr(r[COL.top2026]) : null,
@@ -7081,10 +7083,12 @@ async function psHandleFile(ev) {
     // debug: นับว่า parse วันที่ได้กี่รายการ + เจอ column ไหม
     const nBuy = data.filter(x => x.last_buy).length;
     const nSale = data.filter(x => x.last_sale).length;
+    const nMd = data.filter(x => x.barcode_markdown).length;
     const dateInfo = (isLao ? 'ຄໍລຳວັນທີ: ' : 'คอลัมน์วันที่: ')
       + (COL.lastBuy >= 0 ? '✓ ' + (isLao ? 'ຊື້' : 'ซื้อ') : '✗ ' + (isLao ? 'ບໍ່ພົບ ซื้อล่าสุด' : 'ไม่พบ ซื้อล่าสุด'))
       + ' · ' + (COL.lastSale >= 0 ? '✓ ' + (isLao ? 'ຂາຍ' : 'ขาย') : '✗ ' + (isLao ? 'ບໍ່ພົບ ขายล่าสุด' : 'ไม่พบ ขายล่าสุด'))
-      + ' · ' + (isLao ? 'ມີຄ່າ ' : 'มีค่า ') + nBuy + '/' + nSale;
+      + ' · ' + (isLao ? 'ມີຄ່າ ' : 'มีค่า ') + nBuy + '/' + nSale
+      + ' · ' + (isLao ? 'Barcode Markdown: ' : 'Barcode Markdown: ') + (COL.barcodeMd >= 0 ? '✓ (' + nMd + ' ' + (isLao ? 'ລາຍການ' : 'รายการ') + ')' : '✗ ' + (isLao ? 'ບໍ່ພົບຄໍລຳ' : 'ไม่พบคอลัมน์'));
 
     // batch upsert
     let done = 0, failed = 0;
@@ -14854,7 +14858,7 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
     </div>
   `;
   scLoadPromoBadge(prod.barcode);   // เช็คว่าสินค้านี้อยู่ใน HORECA catalog + มีโปร → แสดง badge มุมขวา
-  scLoadMdBadge(prod.barcode);      // เช็คว่าสินค้านี้มีบาร์ Markdown คู่กัน (888+บาร์โค้ด) + มีสต๊อกไหม → แจ้งเตือน
+  scLoadMdBadge(prod.barcode, ps && ps.barcode_markdown);   // เช็คว่าสินค้านี้มีบาร์ Markdown คู่กัน + มีสต๊อกไหม → แจ้งเตือน
 }
 
 // แสดง badge "สินค้าโปรโมชั่น + ราคา" ที่มุมขวาชื่อสินค้า ถ้าสินค้านี้มีในแคตตาล็อก HORECA และตั้งราคาโปรไว้ (กดดู catalog ได้ถ้ามีสิทธิ์)
@@ -14888,13 +14892,18 @@ async function scLoadPromoBadge(barcode) {
   } catch (e) {}
 }
 
-// เช็คว่าสินค้านี้มีบาร์ Markdown คู่กันไหม (กฎบาร์โค้ด: 888 + บาร์โค้ดปกติ, เฉพาะบาร์เลขล้วน — เหมือน expDoMarkdown ~33942) ถ้ามีสต๊อก > 0 → แจ้งเตือนใต้ชื่อสินค้า
-async function scLoadMdBadge(barcode) {
+// เช็คว่าสินค้านี้มีบาร์ Markdown คู่กันไหม (Ball 2026-07-17: แหล่งจริง = คอลัมน์ "Barcode Markdown" ในไฟล์ Status สินค้า → เก็บไว้ที่ product_status.barcode_markdown ตอนอัปโหลด
+// ส่งมาจาก ps.barcode_markdown ที่โหลดมาแล้วใน renderStockCheckResult — ถ้ายังไม่มี (สินค้านั้นยังไม่ได้อยู่ในไฟล์ Status ที่อัปโหลดล่าสุด) → fallback เดากฎเดิม 888+บาร์โค้ด เฉพาะบาร์เลขล้วน (เหมือน expDoMarkdown ~33942)
+// ถ้ามีสต๊อก > 0 → แจ้งเตือนใต้ชื่อสินค้า
+async function scLoadMdBadge(barcode, mdBcFromStatus) {
   const box = document.getElementById('scMdBanner');
   if (!box || !barcode || !branch) return;
   const bcStr = String(barcode);
-  if (!/^\d+$/.test(bcStr)) return;   // กฎ 888+บาร์โค้ด ใช้ได้เฉพาะบาร์เลขล้วน (สินค้าทั่วไป)
-  const mdBc = '888' + bcStr;
+  let mdBc = mdBcFromStatus ? String(mdBcFromStatus) : null;
+  if (!mdBc) {
+    if (!/^\d+$/.test(bcStr)) return;   // fallback กฎ 888+บาร์โค้ด ใช้ได้เฉพาะบาร์เลขล้วน (สินค้าทั่วไป)
+    mdBc = '888' + bcStr;
+  }
   try {
     const { data } = await sb.from('products').select('pos_qty,unit_lo,unit_th').eq('barcode', mdBc).eq('branch_id', branch.id).eq('is_active', true).maybeSingle();
     if (String(window._scLastBarcode || '') !== bcStr) return;   // กันผลตอบช้าจากสแกนก่อนหน้า ไปโผล่บนการ์ดสินค้าตัวใหม่ (เหมือน scLoadPromoBadge)
