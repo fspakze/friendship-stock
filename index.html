@@ -14671,10 +14671,10 @@ async function scLookup() {
     // ⭐ ไม่มีในสต๊อคสาขา → ดึงจากดาต้ากลาง (master_products) แล้วแสดงสต๊อค = 0
     const { data: mp } = await sb
       .from('master_products')
-      .select('barcode, name_lo, name_th, unit_lo, sell_price, brand, category')
+      .select('barcode, name_lo, name_th, unit_lo, sell_price, sell_price_2, brand, category')
       .eq('barcode', searchBc)
       .maybeSingle();
-    
+
     if (mp) {
       const isLao2 = lang === 'lo';
       // map ให้เข้ารูปแบบเดียวกับ products (pos_qty = 0, ไม่มี id สาขา)
@@ -14687,6 +14687,7 @@ async function scLookup() {
         unit_th: mp.unit_lo, // master มีหน่วยเดียว ใช้ร่วมกัน
         pos_qty: 0,
         sell_price: mp.sell_price,
+        _masterSellPrice2: mp.sell_price_2,
         _fromMaster: true
       };
       _scCurrentProduct = prodFromMaster;
@@ -14716,10 +14717,12 @@ async function scLookup() {
     sb.from('pan_o_grams').select('location_code').eq('product_id', prod.id).eq('branch_id', branch.id).limit(1).maybeSingle(),
     sb.from('stock_counts').select('counted_qty, created_at, users!user_id(full_name)').eq('product_id', prod.id).eq('branch_id', branch.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     sb.from('product_status').select('*').eq('barcode', searchBc).maybeSingle(),
-    sb.from('master_products').select('sell_price').eq('barcode', searchBc).maybeSingle()
+    sb.from('master_products').select('sell_price, sell_price_2').eq('barcode', searchBc).maybeSingle()
   ]);
   // ⭐ Ball 2026-07-08: ราคาขายในการ์ดใช้ "ราคาขาย 1" จาก Master (ราคากลาง) ถ้ามี — ราคาสาขาจาก POS มักเพี้ยน
   if (mpRes?.data && Number(mpRes.data.sell_price) > 0) prod._masterSellPrice = Number(mpRes.data.sell_price);
+  // ⭐ Ball 2026-07-17: ราคาขาย 2 (Master) = ราคาสมาชิก — โชว์เฉพาะตอนถูกกว่าราคาขาย 1 จริง
+  if (mpRes?.data && Number(mpRes.data.sell_price_2) > 0) prod._masterSellPrice2 = Number(mpRes.data.sell_price_2);
 
   renderStockCheckResult(prod, pogRes?.data, countRes?.data, statusRes?.data);
 }
@@ -14735,6 +14738,8 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
   const posQty = prod.pos_qty || 0;
   // ⭐ ราคาขาย 1 (Master/ราคากลาง) ถ้ามี — ไม่งั้น fallback ราคาสาขา (Ball 2026-07-08)
   const sellPrice = (prod._masterSellPrice != null ? prod._masterSellPrice : prod.sell_price) || 0;
+  // ⭐ ราคาขาย 2 (Master) = ราคาสมาชิก — โชว์เฉพาะตอนถูกกว่าราคาขาย 1 จริง (Ball 2026-07-17)
+  const memberPrice = (prod._masterSellPrice2 > 0 && prod._masterSellPrice2 < sellPrice) ? prod._masterSellPrice2 : null;
   // สถานะสต๊อกสาขานี้ (ใช้ระบบเดิม psCalcStatus ตาม DOH/ยอดขาย) → ลงสีตัวเลข POS
   const _bAvg = (ps && ps.branch_avg) ? ps.branch_avg[psBranchKey(ps.branch_avg)] : null;
   const stPos = ps ? psCalcStatus(posQty, _bAvg || 0) : null;
@@ -14821,6 +14826,7 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
         <div style="flex:1;padding:14px 16px;text-align:center;display:flex;flex-direction:column;justify-content:center;">
           <div style="font-size:11px;color:var(--fs-ink3);margin-bottom:5px;">${T('sc_sell_price')}</div>
           <div style="font-size:20px;font-weight:600;color:var(--fs-ink);font-family:'Space Grotesk',sans-serif;font-variant-numeric:tabular-nums;">${Number(sellPrice).toLocaleString()} ₭</div>
+          ${memberPrice ? `<div style="margin-top:6px;font-size:12px;font-weight:700;color:var(--violet-700);font-variant-numeric:tabular-nums;">👤 ${isLao ? 'ລາຄາສະມາຊິກ' : 'ราคาสมาชิก'} ${Number(memberPrice).toLocaleString()} ₭</div>` : ''}
         </div>
       </div>
 
