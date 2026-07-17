@@ -6671,6 +6671,18 @@ function psCalcStatus(stock, avg) {
   return { key: 'onhand', th: 'Onhand', color: '#34c759', ink: '#248a3d', bg: '#e8f8ee', doh: doh };
 }
 
+// ป้าย Aging (Fast/Slow/Dead) จากคอลัมน์ "Aging_ALLStore" (col 21) ในไฟล์ Status — สถานะความไวขายจริงจากไฟล์ ต่างจาก psCalcStatus ที่คำนวณเองจาก Stock/AVG
+function psAgingChip(aging) {
+  if (!aging) return '';
+  const v = String(aging).trim();
+  const vl = v.toLowerCase();
+  let bg = 'var(--slate-100)', ink = 'var(--slate-500)', icon = '📊';
+  if (vl === 'fast') { bg = '#e8f8ee'; ink = '#248a3d'; icon = '⚡'; }
+  else if (vl === 'slow') { bg = '#fff2e0'; ink = '#c2670a'; icon = '🐢'; }
+  else if (vl === 'dead') { bg = '#f2f2f7'; ink = '#3c3c43'; icon = '💀'; }
+  return '<span style="font-size:11px;font-weight:700;color:' + ink + ';background:' + bg + ';border-radius:7px;padding:3px 9px;">' + icon + ' Aging: ' + escapeHtml(v) + '</span>';
+}
+
 function psStatusBadge(st, sub) {
   var ink = st.ink || st.color;
   return '<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:' + ink + ';background:' + st.bg + ';border-radius:999px;padding:5px 11px;">'
@@ -6887,6 +6899,7 @@ function psBuildStatusCard(ps, posQty) {
   if (ps.buyer) {
     chips += '<span style="font-size:11px;font-weight:700;color:var(--sky-700);background:var(--sky-50);border-radius:7px;padding:3px 9px;">🛒 ' + (isLao ? 'ຈັດຊື້' : 'จัดซื้อ') + ': ' + ps.buyer + '</span>';
   }
+  chips += psAgingChip(ps.aging);
 
   const fmtAvg = v => v != null ? Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—';
   // วันที่ซื้อ/ขายล่าสุด (แสดง dd/mm/yyyy)
@@ -7034,12 +7047,15 @@ async function psHandleFile(ev) {
       top2026: findCol('TOP\n2026', 'TOP2026'),
       avgAll: findCol('AVG\nSale_ALLStore', 'AVGSale_ALLStore'),
       stockAll: findCol('Stock_ALL'),
+      aging: findCol('Aging_ALLStore', 'Aging'),
       lastBuy: findCol('ซื้อล่าสุด'),
       lastSale: findCol('ขายล่าสุด'),
       inOut: findCol('ภายนอก/ใน', 'ภายนอก/ภายใน', 'ພາຍນອກ/ໃນ', 'in_out'),
     };
     // ⭐ fallback: ถ้าไม่เจอ header ใช้คอลัมน์ K (index 10) ตามที่ Ball ระบุ
     if (COL.inOut < 0 && header.length > 10) COL.inOut = 10;
+    // ⭐ fallback: Aging_ALLStore = column 21 (index 20) ตามที่ Ball ระบุ
+    if (COL.aging < 0 && header.length > 20) COL.aging = 20;
     if (COL.barcode < 0) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ພົບຄໍລຳ Barcode' : 'ไม่พบคอลัมน์ Barcode') + '</div>'); return; }
 
     // หา column AVG Sale ของทุกสาขา: ขึ้นต้นด้วย AVG...Sale_ หรือ Avg Sale_ (ยกเว้น ALLStore)
@@ -7070,6 +7086,7 @@ async function psHandleFile(ev) {
         top_2026: COL.top2026 >= 0 ? psCleanStr(r[COL.top2026]) : null,
         avg_allstore: COL.avgAll >= 0 ? psCleanNum(r[COL.avgAll]) : null,
         stock_allstore: COL.stockAll >= 0 ? psCleanNum(r[COL.stockAll]) : null,
+        aging: COL.aging >= 0 ? psCleanStr(r[COL.aging]) : null,
         last_buy: COL.lastBuy >= 0 ? psCleanDate(r[COL.lastBuy]) : null,
         last_sale: COL.lastSale >= 0 ? psCleanDate(r[COL.lastSale]) : null,
         // ⭐ ภายใน/ภายนอก — ພາຍໃນ→ภายใน, อื่นๆ(ว่าง/รอแก้ไข/ยกเลิก)→ภายนอก (ตามเอกสาร Lead/Cycle)
@@ -7084,11 +7101,13 @@ async function psHandleFile(ev) {
     const nBuy = data.filter(x => x.last_buy).length;
     const nSale = data.filter(x => x.last_sale).length;
     const nMd = data.filter(x => x.barcode_markdown).length;
+    const nAging = data.filter(x => x.aging).length;
     const dateInfo = (isLao ? 'ຄໍລຳວັນທີ: ' : 'คอลัมน์วันที่: ')
       + (COL.lastBuy >= 0 ? '✓ ' + (isLao ? 'ຊື້' : 'ซื้อ') : '✗ ' + (isLao ? 'ບໍ່ພົບ ซื้อล่าสุด' : 'ไม่พบ ซื้อล่าสุด'))
       + ' · ' + (COL.lastSale >= 0 ? '✓ ' + (isLao ? 'ຂາຍ' : 'ขาย') : '✗ ' + (isLao ? 'ບໍ່ພົບ ขายล่าสุด' : 'ไม่พบ ขายล่าสุด'))
       + ' · ' + (isLao ? 'ມີຄ່າ ' : 'มีค่า ') + nBuy + '/' + nSale
-      + ' · ' + (isLao ? 'Barcode Markdown: ' : 'Barcode Markdown: ') + (COL.barcodeMd >= 0 ? '✓ (' + nMd + ' ' + (isLao ? 'ລາຍການ' : 'รายการ') + ')' : '✗ ' + (isLao ? 'ບໍ່ພົບຄໍລຳ' : 'ไม่พบคอลัมน์'));
+      + ' · ' + (isLao ? 'Barcode Markdown: ' : 'Barcode Markdown: ') + (COL.barcodeMd >= 0 ? '✓ (' + nMd + ' ' + (isLao ? 'ລາຍການ' : 'รายการ') + ')' : '✗ ' + (isLao ? 'ບໍ່ພົບຄໍລຳ' : 'ไม่พบคอลัมน์'))
+      + ' · Aging: ' + (COL.aging >= 0 ? '✓ (' + nAging + ' ' + (isLao ? 'ລາຍການ' : 'รายการ') + ')' : '✗ ' + (isLao ? 'ບໍ່ພົບຄໍລຳ' : 'ไม่พบคอลัมน์'));
 
     // batch upsert
     let done = 0, failed = 0;
