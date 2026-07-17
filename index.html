@@ -36938,25 +36938,52 @@ window.poCanAccess = poCanAccess; window.poActorRole = poActorRole;
 // ==================== 🖨️ พิมพ์ป้ายราคา (ptag*) ====================
 // พิมพ์ป้ายราคาจากรายการตรวจป้าย (ราคาผิด/ไม่มีป้าย) · เทมเพลตปรับได้ (ขนาด/ฟอนต์/ช่องที่โชว์) เก็บใน app_settings
 // บาร์โค้ด Code128 สแกนได้ (โหลด JsBarcode ตอนพิมพ์ · ถ้าเน็ตล่ม fallback เป็นตัวเลข) · 2 โหมด: ทีละป้าย / แผ่น A4
-const PTAG_KEY = 'prc_tag_cfg';
+const PTAG_KEY = 'prc_tag_cfg';        // โปรไฟล์ Super (คีย์เดิม กันข้อมูลที่เคยตั้งไว้หาย)
+const PTAG_KEY_MINI = 'prc_tag_cfg_mini';   // โปรไฟล์ Minimart (คีย์ใหม่ แยกอิสระจาก Super)
+const PTAG_PROFILES = { super: PTAG_KEY, mini: PTAG_KEY_MINI };
 // ค่าเริ่มต้นตามสเปกจริงของ Ball (2026-07-09): ฉลาก 6.6×3.89cm, ขอบบน 1.7cm ซ้าย 0.5cm ระยะห่าง 0 (A4 = 3 คอลัมน์ × 7 แถว)
 const PTAG_DEFAULT = { w: 66, h: 38.9, pageTop: 8, pageLeft: 5, nameSize: 11, priceSize: 31, barHeight: 22, codeSize: 8, unitSize: 9, locSize: 13, unitLabel: 'Kip/Unit', dateLabel: 'FS.EX', showName: true, showBarcode: true, showPrice: true, showUnitLabel: true, showDate: true, showLocation: true, showHeader: true };
+// ค่าเริ่มต้าน Minimart ตามสเปกจริงของ Ball (2026-07-17, สกรีนช็อต "Edit Page Position"): ฉลาก 5.5×2.7cm, ขอบบน 1.1cm ซ้าย 2.3cm
+// ⚠️ ขนาดกระดาษ/ฉลาก (w,h,pageTop,pageLeft) = ตัวเลขจริงที่ Ball ให้มา · ขนาดฟอนต์/บาร์โค้ด (nameSize..locSize) = สเกลลงตามสัดส่วน Super (×0.694 = อัตราส่วนความสูงฉลาก) เป็นจุดเริ่มต้นเท่านั้น ยังไม่ได้ทดสอบพิมพ์จริง — ต้องลองพิมพ์แล้วปรับใน "⚙️ ตั้งค่า" อีกที
+const PTAG_DEFAULT_MINI = { w: 55, h: 27, pageTop: 11, pageLeft: 23, nameSize: 8, priceSize: 22, barHeight: 15, codeSize: 6, unitSize: 6, locSize: 9, unitLabel: 'Kip/Unit', dateLabel: 'FS.EX', showName: true, showBarcode: true, showPrice: true, showUnitLabel: true, showDate: true, showLocation: true, showHeader: true };
 function ptagToday() { const d = new Date(); const p = n => String(n).padStart(2, '0'); return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear(); }
 let _ptagCfg = null;
+let _ptagCfgProfile = null;   // โปรไฟล์ที่ _ptagCfg ปัจจุบันเป็นตัวแทนอยู่ (กัน cache ค้างข้ามโปรไฟล์)
+let _ptagProfile = (function () { try { return localStorage.getItem('ptag_profile') || 'super'; } catch (e) { return 'super'; } })();
 let _ptagItems = [];
 let _ptagMode = 'single';
+function ptagDefaultFor(profile) { return profile === 'mini' ? PTAG_DEFAULT_MINI : PTAG_DEFAULT; }
 async function ptagLoadCfg(force) {
-  if (_ptagCfg && !force) return _ptagCfg;
+  if (_ptagCfg && _ptagCfgProfile === _ptagProfile && !force) return _ptagCfg;
+  const key = PTAG_PROFILES[_ptagProfile] || PTAG_KEY;
+  const dflt = ptagDefaultFor(_ptagProfile);
   try {
-    const { data } = await sb.from('app_settings').select('value').eq('key', PTAG_KEY).maybeSingle();
+    const { data } = await sb.from('app_settings').select('value').eq('key', key).maybeSingle();
     let saved = {};
     if (data && data.value) { try { saved = JSON.parse(data.value); } catch (e) {} }
-    _ptagCfg = Object.assign({}, PTAG_DEFAULT, saved);
-  } catch (e) { _ptagCfg = Object.assign({}, PTAG_DEFAULT); }
+    _ptagCfg = Object.assign({}, dflt, saved);
+  } catch (e) { _ptagCfg = Object.assign({}, dflt); }
+  _ptagCfgProfile = _ptagProfile;
   return _ptagCfg;
 }
 async function ptagSaveCfg() {
-  try { await sb.from('app_settings').upsert({ key: PTAG_KEY, value: JSON.stringify(_ptagCfg || PTAG_DEFAULT), updated_at: new Date().toISOString(), updated_by: (user && user.id) || null }, { onConflict: 'key' }); } catch (e) {}
+  const key = PTAG_PROFILES[_ptagProfile] || PTAG_KEY;
+  try { await sb.from('app_settings').upsert({ key: key, value: JSON.stringify(_ptagCfg || ptagDefaultFor(_ptagProfile)), updated_at: new Date().toISOString(), updated_by: (user && user.id) || null }, { onConflict: 'key' }); } catch (e) {}
+}
+function ptagSetProfile(p) {
+  if (p !== 'super' && p !== 'mini') return;
+  if (p === _ptagProfile) return;
+  _ptagProfile = p;
+  try { localStorage.setItem('ptag_profile', p); } catch (e) {}
+  ptagLoadCfg().then(function () { ptagRenderProfileBtns(); ptagRenderPreview(); });
+}
+function ptagRenderProfileBtns() {
+  ['super', 'mini'].forEach(function (p) {
+    const b = document.getElementById('ptagProfile_' + p); if (!b) return;
+    const on = p === _ptagProfile;
+    b.style.background = on ? 'var(--fs-blue)' : 'var(--slate-100)';
+    b.style.color = on ? 'white' : 'var(--slate-600)';
+  });
 }
 function ptagEnsureLib(cb) {
   if (window.JsBarcode) return cb(true);
@@ -37062,8 +37089,11 @@ function ptagOpenPrint(items) {
   ptagLoadCfg().then(function () {
     const isLao = lang === 'lo';
     const modeBtn = (m, th, lo) => '<button onclick="ptagSetMode(\'' + m + '\')" id="ptagMode_' + m + '" style="flex:1;padding:9px;border:none;border-radius:9px;font-size:12.5px;font-weight:800;cursor:pointer;background:' + (_ptagMode === m ? 'var(--fs-blue)' : 'var(--slate-100)') + ';color:' + (_ptagMode === m ? 'white' : 'var(--slate-600)') + ';">' + (isLao ? lo : th) + '</button>';
+    const profBtn = (p, label) => '<button onclick="ptagSetProfile(\'' + p + '\')" id="ptagProfile_' + p + '" style="flex:1;padding:8px;border:none;border-radius:9px;font-size:12px;font-weight:800;cursor:pointer;background:' + (_ptagProfile === p ? 'var(--fs-blue)' : 'var(--slate-100)') + ';color:' + (_ptagProfile === p ? 'white' : 'var(--slate-600)') + ';">' + label + '</button>';
     showModal(
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px;"><h3 style="font-size:15px;margin:0;">🖨️ ' + (isLao ? 'ພິມປ້າຍລາຄາ' : 'พิมพ์ป้ายราคา') + ' (' + items.length + ')</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
+      + '<div style="font-size:11px;font-weight:800;color:var(--slate-400);margin-bottom:5px;">' + (isLao ? 'ຂະໜາດປ້າຍ' : 'ขนาดป้าย') + '</div>'
+      + '<div style="display:flex;gap:6px;margin-bottom:10px;">' + profBtn('super', '🏬 Super') + profBtn('mini', '🏪 Minimart') + '</div>'
       + '<div style="display:flex;gap:6px;margin-bottom:10px;">' + modeBtn('single', 'ทีละป้าย', 'ທີລະປ້າຍ') + modeBtn('sheet', 'แผ่น A4', 'ແຜ່ນ A4') + '</div>'
       + '<div style="display:flex;gap:6px;margin-bottom:11px;">'
       + '<button onclick="ptagDoPrint()" style="flex:1;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;">🖨️ ' + (isLao ? 'ພິມ' : 'พิมพ์') + '</button>'
@@ -37136,8 +37166,9 @@ function ptagOpenSettings() {
   const num = (k, label) => '<label style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:7px;">' + label + '<input id="ptag_' + k + '" type="number" step="0.5" value="' + c[k] + '" style="width:82px;padding:6px 8px;border:1px solid var(--slate-300);border-radius:7px;font-size:13px;text-align:right;"></label>';
   const chk = (k, label) => '<label style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:7px;"><input id="ptag_' + k + '" type="checkbox" ' + (c[k] ? 'checked' : '') + ' style="width:16px;height:16px;">' + label + '</label>';
   const txt = (k, label) => '<label style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:700;color:var(--slate-600);margin-bottom:7px;">' + label + '<input id="ptag_' + k + '" type="text" value="' + escapeHtml(String(c[k] == null ? '' : c[k])) + '" style="width:120px;padding:6px 8px;border:1px solid var(--slate-300);border-radius:7px;font-size:13px;text-align:right;"></label>';
+  const profLabel = _ptagProfile === 'mini' ? '🏪 Minimart' : '🏬 Super';
   showModal(
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><h3 style="font-size:15px;margin:0;">⚙️ ' + (isLao ? 'ຕັ້ງຄ່າປ້າຍ' : 'ตั้งค่าป้าย') + '</h3><button onclick="ptagBackToPrint()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><h3 style="font-size:15px;margin:0;">⚙️ ' + (isLao ? 'ຕັ້ງຄ່າປ້າຍ' : 'ตั้งค่าป้าย') + ' — ' + profLabel + '</h3><button onclick="ptagBackToPrint()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
     + '<div style="max-height:64vh;overflow:auto;">'
     + '<div style="font-size:11px;font-weight:800;color:var(--slate-400);margin:2px 0 8px;">' + (isLao ? 'ຂະໜາດຟຼາກ + ຂອບ A4 (mm)' : 'ขนาดป้าย + ขอบ A4 (มม.)') + '</div>'
     + num('w', (isLao ? 'ຟຼາກກວ້າງ' : 'ป้ายกว้าง')) + num('h', (isLao ? 'ຟຼາກສູງ' : 'ป้ายสูง')) + num('pageTop', (isLao ? 'ຂອບເທິງ A4' : 'ขอบบน A4')) + num('pageLeft', (isLao ? 'ຂອບຊ້າຍ A4' : 'ขอบซ้าย A4'))
@@ -37179,6 +37210,7 @@ async function ptagPrintSelected() {
 }
 window.ptagPrintOne = ptagPrintOne; window.ptagPrintSelected = ptagPrintSelected; window.ptagSetMode = ptagSetMode;
 window.ptagDoPrint = ptagDoPrint; window.ptagOpenSettings = ptagOpenSettings; window.ptagSaveSettings = ptagSaveSettings; window.ptagBackToPrint = ptagBackToPrint;
+window.ptagSetProfile = ptagSetProfile;
 
 // ==================== 🟢 PRESENCE / ใครออนไลน์ (presence*) ====================
 // heartbeat: ทุก user ที่ล็อกอิน upsert last_seen ทุก 40 วิ · admin ดูคนที่ last_seen ภายใน 2 นาที = ออนไลน์
