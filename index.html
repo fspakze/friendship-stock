@@ -1746,6 +1746,7 @@ let lang = localStorage.getItem('lang') || 'lo';
 let user = null;
 let branch = null;
 let zone = null;
+let _actorAuthHash = null;   // hash รหัสผ่านของคนที่ login รอบนี้ (เก็บชั่วคราวใน memory เท่านั้น ไม่เซฟ localStorage) — ใช้ยืนยันตัวตอนเรียก RPC จัดการ user
 let loc = null;
 
 // ผู้ใช้ที่ให้เข้าได้ "ทุกสาขา" เป็นรายบุคคล (นอกเหนือ role admin/scc/bcs/it) — เทียบ username แบบไม่สนพิมพ์เล็กใหญ่
@@ -2713,6 +2714,7 @@ async function login() {
     }
     
     user = userData;
+    _actorAuthHash = hash;   // เก็บ hash ไว้ยืนยันตัวตอนจัดการ user (admin) — memory เท่านั้น เคลียร์ตอน logout
     // Staff เลิกใช้แล้ว → map เป็น counter (Ball 2026-07-08) กัน user เก่าใน DB เมนูว่าง
     if (user && user.role === 'staff') user.role = 'counter';
     log('User found:', user.username, 'role:', user.role, 'user.branch_id:', user.branch_id);
@@ -2745,9 +2747,9 @@ async function login() {
     }
     branch = br;
     
-    // ถ้า user ไม่มี branch_id (ตอนสมัครครั้งแรก) → set ให้
+    // ถ้า user ไม่มี branch_id (ตอนสมัครครั้งแรก) → set ให้ ผ่าน RPC (เขียน users ตรงไม่ได้แล้ว — ปิดช่องโหว่)
     if (!user.branch_id && !isAdminRole) {
-      await sb.from('users').update({ branch_id: branch.id }).eq('id', user.id);
+      try { await sb.rpc('rpc_set_own_branch', { p_username: user.username, p_hash: hash, p_branch_id: branch.id }); } catch (e) {}
       user.branch_id = branch.id;
     }
     
@@ -4031,6 +4033,7 @@ async function logout() {
   localStorage.removeItem('fs_branch');
   localStorage.removeItem('fs_context');
   user = null; zone = null; loc = null; branch = null; session = null;
+  _actorAuthHash = null;   // ล้าง hash ยืนยันตัว ตอน logout
   if (html5QrCode) { try { await html5QrCode.stop(); } catch(e){} }
   document.getElementById('step-zone').classList.remove('active');
   document.getElementById('step-login').classList.add('active');
@@ -26085,32 +26088,36 @@ async function saveUser() {
     return;
   }
   
+  if (!id && !password) {
+    errEl.textContent = 'Password required';
+    errEl.classList.add('show');
+    return;
+  }
   try {
-    if (id) {
-      const upd = { 
-        username, 
-        full_name: fullName, 
-        role, 
-        branch_id: branchId,
-        updated_at: new Date().toISOString() 
-      };
-      if (password) upd.password_hash = await hashPassword(password);
-      if (isActiveEl) upd.is_active = isActiveEl.value === 'true';
-      const { error } = await sb.from('users').update(upd).eq('id', id);
-      if (error) throw error;
-    } else {
-      if (!password) {
-        errEl.textContent = 'Password required';
-        errEl.classList.add('show');
-        return;
-      }
-      const hash = await hashPassword(password);
-      const { error } = await sb.from('users').insert({
-        username, password_hash: hash, full_name: fullName, role,
-        language: 'lo', is_active: true,
-        branch_id: branchId || branch?.id
-      });
-      if (error) throw error;
+    // 🔒 เขียน users ตรงไม่ได้แล้ว (ถอนสิทธิ์ปิดช่องโหว่) → ผ่าน RPC ที่ต้องยืนยันรหัส admin ก่อน
+    // ยืนยันตัว admin: ใช้ hash จากตอน login รอบนี้ · ถ้าเป็น session auto-login (ไม่มี hash) → ให้กรอกรหัสยืนยัน
+    let actorHash = _actorAuthHash;
+    if (!actorHash) {
+      const pw = prompt(lang === 'lo' ? 'ຢືນຢັນລະຫັດຜ່ານຂອງທ່ານ (admin) ເພື່ອຈັດການຜູ້ໃຊ້' : 'ยืนยันรหัสผ่านของคุณ (admin) เพื่อจัดการผู้ใช้');
+      if (!pw) { errEl.textContent = lang === 'lo' ? 'ຍົກເລີກ' : 'ยกเลิก'; errEl.classList.add('show'); return; }
+      actorHash = await hashPassword(pw);
+    }
+    const newHash = password ? await hashPassword(password) : null;
+    const isActive = isActiveEl ? (isActiveEl.value === 'true') : true;
+    const { data, error } = await sb.rpc('rpc_admin_upsert_user', {
+      p_actor_username: user.username, p_actor_hash: actorHash,
+      p_id: id || null, p_username: username, p_password_hash: newHash,
+      p_full_name: fullName, p_role: role, p_branch_id: branchId, p_is_active: isActive
+    });
+    if (error) throw error;
+    if (!data || !data.ok) {
+      const em = { actor_auth_failed: (lang === 'lo' ? 'ລະຫັດຜ່ານຂອງທ່ານບໍ່ຖືກຕ້ອງ' : 'รหัสผ่านของคุณไม่ถูกต้อง'),
+        not_admin: (lang === 'lo' ? 'ສະເພາະ admin' : 'เฉพาะ admin เท่านั้น'),
+        role_forbidden: (lang === 'lo' ? 'ບໍ່ມີສິດຕັ້ງ role ນີ້' : 'ไม่มีสิทธิ์ตั้ง role นี้'),
+        username_taken: (lang === 'lo' ? 'ຊື່ຜູ້ໃຊ້ຊ້ຳ' : 'ชื่อผู้ใช้ซ้ำ'),
+        password_required: (lang === 'lo' ? 'ຕ້ອງໃສ່ລະຫັດ' : 'ต้องใส่รหัสผ่าน'),
+        target_not_found: (lang === 'lo' ? 'ບໍ່ພົບຜູ້ໃຊ້' : 'ไม่พบผู้ใช้') };
+      throw new Error((data && em[data.error]) || (data && data.error) || 'failed');
     }
     showToast(T('user_saved'), 'success');
     closeModal();
