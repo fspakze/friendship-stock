@@ -36968,7 +36968,9 @@ async function poImportFetch() {
     ]);
     const ext = Array.isArray(extRows) ? poParseSheet(extRows, 'external', sm) : [];
     const int = Array.isArray(intRows) ? poParseSheet(intRows, 'internal', sm) : [];
-    await poEnrichCosts(ext.concat(int)); // ราคาต่อหน่วย = ต้นทุนล่าสุด (purchase_history) ทับราคาชีตถ้ามี
+    // ⚠️ enrich เฉพาะ PO ภายใน (กีบ) — purchase_history เป็นกีบ (Ball ยืนยัน 2026-07-19)
+    // ห้าม enrich ใบภายนอก: ใบภายนอกเป็นบาท (THB) ถ้าทับด้วยต้นทุนกีบ ยอดทั้งใบเพี้ยนสกุล
+    await poEnrichCosts(int); // ราคาต่อหน่วย (เฉพาะภายใน) = ต้นทุนล่าสุด (purchase_history, กีบ) ทับราคาชีตถ้ามี
     _poImportData = { external: ext, internal: int, month: sm };
     const cnt = list => ({ po: list.length, items: list.reduce((a, g) => a + g.items.length, 0) });
     const ce = cnt(ext), ci = cnt(int);
