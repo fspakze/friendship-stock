@@ -36364,7 +36364,7 @@ function poClosedSuffix(r) {
   return ' (' + (isLao ? 'ຮັບຄົບ' : 'รับครบ') + ')';
 }
 function poStatusText(r) { return poStatusLabel(r.status) + poClosedSuffix(r); }
-function poTypeLabel(t) { const isLao = lang === 'lo'; return t === 'internal' ? (isLao ? 'ພາຍໃນປະເທດ' : 'ภายใน') : (isLao ? 'ຕ່າງປະເທດ' : 'ภายนอก'); }
+function poTypeLabel(t) { const isLao = lang === 'lo'; return t === 'internal' ? (isLao ? 'ພາຍໃນ' : 'ภายใน') : (isLao ? 'ພາຍນອກ' : 'ภายนอก'); }
 function poFmtNum(n) { return (Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
 // สกุลเงินที่แสดงจริง: ภายนอก = THB เสมอ (กัน record เก่าที่ import เป็น LAK) · ภายใน = ตามที่ตั้ง
 function poEffCur(r) { return (r && r.po_type === 'external') ? 'THB' : ((r && r.currency) || 'LAK'); }
@@ -36392,7 +36392,7 @@ function renderPOTrackPage() {
     + '<div style="display:flex;gap:6px;margin-bottom:8px;">'
     + '<select id="poFType" onchange="poSetType(this.value)" style="flex:1;min-width:0;padding:9px 10px;border:1px solid var(--slate-200);border-radius:9px;font-size:12.5px;background:white;font-weight:700;color:var(--slate-700);">'
     + '<option value="">' + (isLao ? 'ທຸກປະເພດ' : 'ทุกประเภท') + '</option>'
-    + '<option value="external">' + (isLao ? 'ຕ່າງປະເທດ' : 'ภายนอก') + '</option>'
+    + '<option value="external">' + (isLao ? 'ພາຍນອກ' : 'ภายนอก') + '</option>'
     + '<option value="internal">' + (isLao ? 'ພາຍໃນ' : 'ภายใน') + '</option>'
     + '</select>'
     + '<select id="poFBuyer" onchange="poSetBuyer(this.value)" style="flex:1;min-width:0;padding:9px 10px;border:1px solid var(--slate-200);border-radius:9px;font-size:12.5px;background:white;font-weight:700;color:var(--slate-700);"><option value="">' + (isLao ? 'ທຸກຈັດຊື້' : 'ทุกจัดซื้อ') + '</option></select>'
@@ -36487,7 +36487,7 @@ function poOpenCreate() {
   const inStyle = 'width:100%;padding:10px 12px;border:1px solid var(--slate-300);border-radius:9px;font-size:13.5px;box-sizing:border-box;';
   const html = '<div style="padding:16px 15px;max-height:84vh;overflow-y:auto;">'
     + '<div style="font-size:16px;font-weight:800;color:var(--slate-800);margin-bottom:12px;">🛒 ' + (isLao ? 'ເປີດໃບສັ່ງຊື້' : 'เปิดใบสั่งซื้อ') + '</div>'
-    + '<div style="margin-bottom:10px;">' + lbl(isLao ? 'ປະເພດ' : 'ประเภท') + '<select id="poType" onchange="poSyncPrefix()" style="' + inStyle + '"><option value="external">' + (isLao ? 'ນອກປະເທດ' : 'ภายนอก') + '</option><option value="internal">' + (isLao ? 'ພາຍໃນປະເທດ' : 'ภายใน') + '</option></select></div>'
+    + '<div style="margin-bottom:10px;">' + lbl(isLao ? 'ປະເພດ' : 'ประเภท') + '<select id="poType" onchange="poSyncPrefix()" style="' + inStyle + '"><option value="external">' + (isLao ? 'ພາຍນອກ' : 'ภายนอก') + '</option><option value="internal">' + (isLao ? 'ພາຍໃນ' : 'ภายใน') + '</option></select></div>'
     + '<div style="margin-bottom:10px;">' + lbl(isLao ? 'ຄຳນຳໜ້າເລກ PO' : 'คำนำหน้าเลข PO') + '<input id="poNoPrefix" value="PS/FS/OUT/AL" style="' + inStyle + '"></div>'
     + '<div style="margin-bottom:10px;">' + lbl(isLao ? 'ຊັບພລາຍເອີ' : 'ซัพพลายเออร์') + '<input id="poSupplier" placeholder="' + (isLao ? 'ຊື່ຊັບ' : 'ชื่อซัพ') + '" style="' + inStyle + '"></div>'
     + '<div style="margin-bottom:10px;">' + lbl(isLao ? 'ໝວດ' : 'หมวด') + '<input id="poCategory" placeholder="' + (isLao ? 'ເຊັ່ນ ຂະໜົມ' : 'เช่น ขนม') + '" style="' + inStyle + '"></div>'
@@ -36949,7 +36949,7 @@ async function poImportFetch() {
     const rowLine = (label, c) => '<div style="display:flex;justify-content:space-between;padding:4px 0;"><span>' + label + '</span><b>' + c.po + ' ' + (isLao ? 'ໃບ' : 'ใบ') + ' / ' + c.items + ' ' + (isLao ? 'ລາຍການ' : 'รายการ') + '</b></div>';
     const total = ce.po + ci.po;
     if (box) box.innerHTML = '<div style="background:#f8fafc;border-radius:10px;padding:12px;font-size:13px;">'
-      + rowLine(isLao ? 'ນອກປະເທດ' : 'ภายนอก', ce)
+      + rowLine(isLao ? 'ພາຍນອກ' : 'ภายนอก', ce)
       + rowLine(isLao ? 'ພາຍໃນ' : 'ภายใน', ci)
       + (errE ? '<div style="color:var(--rose-500);font-size:11px;margin-top:4px;">' + (isLao ? 'ນອກ' : 'นอก') + ': ' + escapeHtml(errE) + '</div>' : '')
       + (errI ? '<div style="color:var(--rose-500);font-size:11px;margin-top:4px;">' + (isLao ? 'ໃນ' : 'ใน') + ': ' + escapeHtml(errI) + '</div>' : '')
