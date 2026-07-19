@@ -25632,7 +25632,7 @@ function renderUsersList() {
   
   if (_userViewMode === 'flat' || _userBranchFilter !== null) {
     // ถ้ามี filter ตามสาขาแล้ว → แสดงเป็น flat (ไม่ต้อง group ซ้ำ)
-    list.innerHTML = statusBadge + filtered.map(u => renderUserCard(u)).join('');
+    list.innerHTML = statusBadge + filtered.map(u => renderUserCard(u, true)).join('');
     return;
   }
   
@@ -25698,7 +25698,7 @@ function renderUsersList() {
           </div>
         </div>
         <div style="padding-left:8px;border-left:3px solid ${typeColor};">
-          ${users.map(u => renderUserCard(u)).join('')}
+          ${users.map(u => renderUserCard(u, false)).join('')}
         </div>
       </div>
     `;
@@ -25719,7 +25719,7 @@ function renderUsersList() {
           </div>
         </div>
         <div style="padding-left:8px;border-left:3px solid var(--slate-300);">
-          ${noBranch.map(u => renderUserCard(u)).join('')}
+          ${noBranch.map(u => renderUserCard(u, false)).join('')}
         </div>
       </div>
     `;
@@ -25728,21 +25728,86 @@ function renderUsersList() {
   list.innerHTML = html;
 }
 
-function renderUserCard(u) {
-  const initial = (u.username || '?').charAt(0).toUpperCase();
+// ป้ายบทบาท (label ภาษาคน + สี) ต่อ role
+function usRoleMeta(role) {
+  const isLao = lang === 'lo';
+  const M = {
+    admin:    { th: 'ผู้ดูแลระบบ',   lo: 'ຜູ້ດູແລລະບົບ',  bg: '#f3e8ff', color: '#7c3aed' },
+    scc:      { th: 'ศูนย์คุมสต๊อก', lo: 'ສູນຄຸ້ມສະຕ໋ອກ', bg: '#e0e7ff', color: '#4f46e5' },
+    bcs:      { th: 'หัวหน้าสาขา',   lo: 'ຫົວໜ້າສາຂາ',   bg: '#e0f2fe', color: '#0369a1' },
+    it:       { th: 'IT',            lo: 'IT',            bg: '#f1f5f9', color: '#475569' },
+    ctl:      { th: 'หัวหน้าหน้างาน', lo: 'ຄຸ້ມຄອງໜ້າງານ', bg: '#ccfbf1', color: '#0f766e' },
+    verifier: { th: 'ผู้ตรวจนับ',    lo: 'ນັບຢືນຢັນ',     bg: '#fef3c7', color: '#b45309' },
+    audit:    { th: 'Audit',         lo: 'Audit',         bg: '#fef3c7', color: '#b45309' },
+    counter:  { th: 'ผู้นับสต๊อก',   lo: 'ນັບສະຕ໋ອກ',     bg: '#dcfce7', color: '#15803d' },
+  };
+  const m = M[role] || { th: role, lo: role, bg: 'var(--slate-100)', color: 'var(--slate-600)' };
+  return { label: isLao ? m.lo : m.th, bg: m.bg, color: m.color };
+}
+function usBranchName(bid) {
+  const b = (_allBranchesForUsers || []).find(x => x.id === bid);
+  if (!b) return lang === 'lo' ? 'ບໍ່ມີສາຂາ' : 'ไม่มีสาขา';
+  return lang === 'lo' ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo);
+}
+// การ์ดพนักงาน — โชว์ บทบาท/สาขา/สถานะ + ปุ่ม แก้ไข/เปิด-ปิด ในหน้าเลย (ไม่ต้องกดเปิด modal เพื่อดู)
+function renderUserCard(u, showBranch) {
+  const isLao = lang === 'lo';
+  const initial = (u.full_name || u.username || '?').charAt(0).toUpperCase();
   const isMe = u.id === user.id;
-  const inactive = !u.is_active ? 'inactive' : '';
-  
-  return `
-    <div class="user-card ${inactive}" onclick="editUser('${u.id}')">
-      <div class="user-avatar r-${u.role}">${initial}</div>
-      <div class="user-info">
-        <div class="user-name">${escapeHtml(u.full_name)} ${isMe ? '<span style="color:var(--indigo-500);font-size:9px;">(YOU)</span>' : ''}</div>
-        <div class="user-username">@${escapeHtml(u.username)}</div>
-      </div>
-      <div class="user-badge-r ${u.role}">${u.role}</div>
-    </div>
-  `;
+  const rm = usRoleMeta(u.role);
+  const active = !!u.is_active;
+  const avBg = active ? rm.bg : 'var(--slate-100)';
+  const avCol = active ? rm.color : 'var(--slate-400)';
+  const statusDot = active
+    ? '<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#15803d;"><span style="width:7px;height:7px;border-radius:50%;background:#22c55e;"></span>' + (isLao ? 'ໃຊ້ງານ' : 'ใช้งาน') + '</span>'
+    : '<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--slate-400);"><span style="width:7px;height:7px;border-radius:50%;background:var(--slate-300);"></span>' + (isLao ? 'ປິດ' : 'ปิดใช้งาน') + '</span>';
+  const editBtn = '<button onclick="editUser(\'' + u.id + '\')" style="background:var(--fs-fill2,#f1f5f9);color:var(--slate-700);border:1px solid var(--slate-200);border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">' + (isLao ? 'ແກ້ໄຂ' : 'แก้ไข') + '</button>';
+  const toggleBtn = isMe ? '' : '<button onclick="toggleUserActive(\'' + u.id + '\')" style="background:' + (active ? '#fff1f2' : '#f0fdf4') + ';color:' + (active ? 'var(--rose-600)' : '#15803d') + ';border:1px solid ' + (active ? 'var(--rose-200)' : '#bbf7d0') + ';border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">' + (active ? (isLao ? 'ປິດໃຊ້ງານ' : 'ปิดใช้งาน') : (isLao ? 'ເປີດໃຊ້ງານ' : 'เปิดใช้งาน')) + '</button>';
+  return '<div style="background:white;border:1px solid var(--slate-200);border-radius:12px;padding:11px 13px;margin-bottom:7px;' + (active ? '' : 'background:var(--slate-50);') + '">'
+    + '<div style="display:flex;align-items:center;gap:10px;">'
+    + '<div style="width:38px;height:38px;border-radius:10px;background:' + avBg + ';color:' + avCol + ';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0;">' + initial + '</div>'
+    + '<div style="flex:1;min-width:0;">'
+    + '<div style="font-weight:700;font-size:14px;color:var(--slate-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(u.full_name || u.username || '?') + (isMe ? ' <span style="color:var(--violet-500);font-size:10px;font-weight:800;">(' + (isLao ? 'ທ່ານ' : 'คุณ') + ')</span>' : '') + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-400);font-family:monospace;">@' + escapeHtml(u.username || '') + '</div>'
+    + '</div>'
+    + '<span style="flex-shrink:0;background:' + rm.bg + ';color:' + rm.color + ';border-radius:999px;padding:4px 11px;font-size:11px;font-weight:800;white-space:nowrap;">' + escapeHtml(rm.label) + '</span>'
+    + '</div>'
+    + '<div style="display:flex;align-items:center;gap:9px;margin-top:9px;padding-top:9px;border-top:1px solid var(--slate-100);flex-wrap:wrap;">'
+    + (showBranch ? '<span style="font-size:11px;color:var(--slate-600);font-weight:600;white-space:nowrap;">🏪 ' + escapeHtml(usBranchName(u.branch_id)) + '</span>' : '')
+    + statusDot
+    + '<div style="flex:1;min-width:8px;"></div>'
+    + editBtn + toggleBtn
+    + '</div>'
+    + '</div>';
+}
+// เปิด/ปิดใช้งานพนักงาน ในหน้าเลย (ผ่าน RPC ยืนยันตัว admin — คงฟิลด์เดิม สลับแค่ is_active)
+async function toggleUserActive(id) {
+  const isLao = lang === 'lo';
+  const u = (_allUsers || []).find(x => x.id === id);
+  if (!u) return;
+  const newActive = !u.is_active;
+  const nm = u.full_name || u.username || '';
+  if (!confirm((newActive ? (isLao ? 'ເປີດໃຊ້ງານ ' : 'เปิดใช้งาน ') : (isLao ? 'ປິດໃຊ້ງານ ' : 'ปิดใช้งาน ')) + nm + ' ?')) return;
+  let actorHash = _actorAuthHash;
+  if (!actorHash) {
+    const pw = prompt(isLao ? 'ຢືນຢັນລະຫັດຜ່ານຂອງທ່ານ (admin)' : 'ยืนยันรหัสผ่านของคุณ (admin)');
+    if (!pw) return;
+    actorHash = await hashPassword(pw);
+  }
+  const { data, error } = await sb.rpc('rpc_admin_upsert_user', {
+    p_actor_username: user.username, p_actor_hash: actorHash, p_id: id,
+    p_username: u.username, p_password_hash: null, p_full_name: u.full_name,
+    p_role: u.role, p_branch_id: u.branch_id, p_is_active: newActive
+  });
+  if (error || !data || data.ok === false) {
+    const em = (data && data.error === 'actor_auth_failed') ? (isLao ? 'ລະຫັດຜ່ານຂອງທ່ານບໍ່ຖືກຕ້ອງ' : 'รหัสผ่านของคุณไม่ถูกต้อง') : ((error && error.message) || (data && data.error) || 'error');
+    if (data && data.error === 'actor_auth_failed') _actorAuthHash = null;
+    showToast('Error: ' + em, 'error');
+    return;
+  }
+  u.is_active = newActive;
+  renderUsersList();
+  showToast(newActive ? (isLao ? '✅ ເປີດໃຊ້ງານແລ້ວ' : '✅ เปิดใช้งานแล้ว') : (isLao ? '🔒 ປິດໃຊ້ງານແລ້ວ' : '🔒 ปิดใช้งานแล้ว'), 'success');
 }
 
 function filterUsersList() {
@@ -37837,6 +37902,7 @@ window.saveCount = saveCount;
 window.startTiebreaker = startTiebreaker;
 window.openUserModal = openUserModal;
 window.editUser = editUser;
+window.toggleUserActive = toggleUserActive;
 window.saveUser = saveUser;
 window.renderBranchManagePage = renderBranchManagePage;
 window.loadBranchList = loadBranchList;
