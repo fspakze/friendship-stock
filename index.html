@@ -1826,6 +1826,24 @@ async function _signupCreateCompat(base) {
   if (!d || d.ok === false) throw new Error((d && d.error) || 'failed');
   return d;
 }
+// ต้นทุนล่าสุดต่อ barcode (จาก purchase_history) — ผ่าน rpc_po_latest_costs (DEFINER มีอยู่แล้ว · ทะลุ RLS) คืน {barcode:unit_price}
+async function _latestCosts(barcodes) {
+  if (!barcodes || !barcodes.length) return {};
+  try { const { data } = await sb.rpc('rpc_po_latest_costs', { p_barcodes: barcodes }); return data || {}; } catch (e) { return {}; }
+}
+async function _latestCost(bc) { const m = await _latestCosts([bc]); const v = m[bc]; return (v != null) ? Number(v) : null; }
+// ประวัติซื้อรายสินค้า (vendor+ราคา = ปิด anon) — RPC ยืนยันตัว + fallback zero-downtime
+async function _phHistoryCompat(barcode) {
+  const res = await _rpcAsActor('rpc_ph_history', { p_barcode: barcode });
+  if (res && res.error && _rpcMissing(res.error)) {
+    const { data, error } = await sb.from('purchase_history').select('buy_date, vendor, qty, unit_price').eq('barcode', barcode).order('buy_date', { ascending: false, nullsFirst: false }).limit(500);
+    if (error) throw error; return data || [];
+  }
+  if (res && res.error) throw res.error;
+  const d = res && res.data;
+  if (!d || d.ok === false) throw new Error((d && d.error === 'auth_failed') ? (lang === 'lo' ? 'ຢືນຢັນຕົວຕົນບໍ່ໄດ້' : 'ยืนยันตัวตนไม่ได้') : ((d && d.error) || 'failed'));
+  return d.rows || [];
+}
 let loc = null;
 
 // ผู้ใช้ที่ให้เข้าได้ "ทุกสาขา" เป็นรายบุคคล (นอกเหนือ role admin/scc/bcs/it) — เทียบ username แบบไม่สนพิมพ์เล็กใหญ่
@@ -6829,7 +6847,8 @@ function renderPurchaseUploadPage() {
 
 async function phLoadCount() {
   try {
-    const { count } = await sb.from('purchase_history').select('id', { count: 'exact', head: true });
+    let count = 0;
+    try { const { data: c } = await sb.rpc('rpc_ph_count'); if (c != null) count = Number(c); } catch (e) { const r = await sb.from('purchase_history').select('id', { count: 'exact', head: true }); count = r.count; }
     const el = document.getElementById('phCount');
     if (el) el.innerHTML = (lang === 'lo' ? 'ໃນລະບົບ: ' : 'ในระบบ: ') + '<b>' + (count || 0).toLocaleString() + '</b> ' + (lang === 'lo' ? 'ລາຍການ' : 'รายการ');
   } catch (e) {}
@@ -6915,12 +6934,8 @@ async function scShowPurchase(barcode, name) {
     + '<div id="phModalBody" style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>'
     + '<button onclick="closeModal()" style="width:100%;margin-top:12px;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;">' + (isLao ? '✕ ປິດ' : '✕ ปิด') + '</button>');
   try {
-    // สรุปทั้งหมด + 10 ครั้งล่าสุด
-    const { data, error } = await sb.from('purchase_history')
-      .select('buy_date, vendor, qty, unit_price')
-      .eq('barcode', bc).order('buy_date', { ascending: false, nullsFirst: false }).limit(500);
-    if (error) throw error;
-    const rows = data || [];
+    // สรุปทั้งหมด + 10 ครั้งล่าสุด (ผ่าน RPC ยืนยันตัว — purchase_history ปิด anon อ่านตรง)
+    const rows = await _phHistoryCompat(bc);
     const body = document.getElementById('phModalBody');
     if (!body) return;
     if (!rows.length) {
@@ -10998,7 +11013,7 @@ async function hcLookup() {
       if (!name) { name = isLao ? (mp.name_lo || mp.name_th || '') : (mp.name_th || mp.name_lo || ''); cat = cat || mp.category || ''; }
     }
     // ต้นทุนล่าสุดจาก purchase_history (ถ้ามี — ทันกว่า products.cost_price)
-    try { const { data: ph } = await sb.from('purchase_history').select('unit_price').eq('barcode', bc).order('buy_date', { ascending: false }).limit(1).maybeSingle(); if (ph && ph.unit_price) cost = Number(ph.unit_price) || cost; } catch (e) {}
+    try { const c = await _latestCost(bc); if (c) cost = c || cost; } catch (e) {}
   } catch (e) {}
   _hcScan = { barcode: bc, name: name || bc, category: cat, group: grp, unit: unit, normal: sell, cost: cost, pack: null, box: null };
   // ดึงแพ๊ค/ลัง + ราคาต่อหน่วย จาก barcode_packsize (สำหรับตั้งราคาโปรแพ๊ค/ลัง)
@@ -11577,8 +11592,8 @@ function hcEdit(id) {
 async function hcFillCostFromPurchase(id, barcode) {
   let cost = 0;
   try {
-    const { data: ph } = await sb.from('purchase_history').select('unit_price').eq('barcode', barcode).order('buy_date', { ascending: false }).limit(1).maybeSingle();
-    if (ph && ph.unit_price) cost = Number(ph.unit_price) || 0;
+    const c = await _latestCost(barcode);
+    if (c) cost = c || 0;
   } catch (e) {}
   if (!cost) return;
   const costEl = document.getElementById('hceCost');
@@ -11660,13 +11675,13 @@ async function hcAutoFillMaps(bcList) {
       sb.from('products').select('barcode,name_th,name_lo,category,unit_th,unit_lo,sell_price,cost_price').eq('branch_id', branch.id).eq('is_active', true).in('barcode', chunk),
       sb.from('master_products').select('barcode,name_th,name_lo,category,product_group,sell_price').in('barcode', chunk),
       sb.from('barcode_packsize').select('barcode_unit,qty_unit,qty_pack,pcs_per_box,price_unit,price_pack,price_box,barcode_pack,barcode_box').in('barcode_unit', chunk),
-      sb.from('purchase_history').select('barcode,unit_price,buy_date').in('barcode', chunk).order('buy_date', { ascending: false }),
+      _latestCosts(chunk),   // ต้นทุนล่าสุด {barcode:unit_price} ผ่าน RPC (purchase_history ปิด anon อ่านตรง)
       sb.from('horeca_catalog').select('barcode,image_url,updated_at').in('barcode', chunk).not('image_url', 'is', null).order('updated_at', { ascending: false })
     ]);
     (pr.data || []).forEach(p => { if (!prodMap[p.barcode]) prodMap[p.barcode] = p; });
     (mr.data || []).forEach(m => { if (!mpMap[m.barcode]) mpMap[m.barcode] = m; });
     (br.data || []).forEach(b => { bpMap[b.barcode_unit] = b; });
-    (hr.data || []).forEach(h => { if (!(h.barcode in costMap)) costMap[h.barcode] = Number(h.unit_price) || 0; }); // แถวแรกต่อ barcode = ล่าสุด (order buy_date desc)
+    Object.keys(hr || {}).forEach(k => { if (!(k in costMap)) costMap[k] = Number(hr[k]) || 0; });   // hr = {barcode:unit_price} ล่าสุด
     (ir.data || []).forEach(im => { if (im.barcode && !imgMap[im.barcode]) imgMap[im.barcode] = im.image_url; }); // รูปล่าสุดต่อ barcode
   }
   return { prodMap, mpMap, bpMap, costMap, imgMap };
@@ -12502,8 +12517,8 @@ async function hqAdd(barcode) {
     price = Number(m.sell_price) || 0;
     try {
       if (seeCost) {
-        const { data: ph } = await sb.from('purchase_history').select('unit_price').eq('barcode', bcKey).order('buy_date', { ascending: false }).limit(1).maybeSingle();
-        if (ph && ph.unit_price) cost = Number(ph.unit_price) || null;
+        const c = await _latestCost(bcKey);
+        if (c) cost = c || null;
       }
       if (!price) {
         const { data: bp } = await sb.from('barcode_packsize').select('price_unit').eq('barcode_unit', bcKey).maybeSingle();
@@ -36651,8 +36666,8 @@ async function poLookup(idx) {
   try {
     const pr = document.getElementById('poPrice_' + idx);
     if (pr && !String(pr.value).trim()) {
-      const { data: ph } = await sb.from('purchase_history').select('unit_price').eq('barcode', bc).order('buy_date', { ascending: false }).limit(1).maybeSingle();
-      if (ph && ph.unit_price) pr.value = Number(ph.unit_price);
+      const c = await _latestCost(bc);
+      if (c) pr.value = c;
     }
   } catch (e) {}
 }
@@ -37731,7 +37746,7 @@ async function loadUpdateHub() {
   // POS: ใช้เวลาที่ products ถูกอัปเดตล่าสุด (import POS อัปเดต products.pos_qty) — เชื่อถือได้กว่า v_pos_snapshots ที่อาจไม่มี
   try { const { data: pr } = await sb.from('products').select('updated_at').order('updated_at', { ascending: false }).limit(1).maybeSingle(); if (pr) dates.pos = newer(dates.pos, pr.updated_at); } catch (e) {}
   try { const { data: sn } = await sb.from('v_pos_snapshots').select('snapshot_date').order('snapshot_date', { ascending: false }).limit(1).maybeSingle(); if (sn) dates.pos = newer(dates.pos, sn.snapshot_date); } catch (e) {}
-  try { const { data: ph } = await sb.from('purchase_history').select('buy_date').order('buy_date', { ascending: false }).limit(1).maybeSingle(); if (ph) dates.purchase = newer(dates.purchase, ph.buy_date); } catch (e) {}
+  try { const { data: phd } = await sb.rpc('rpc_ph_last_date'); if (phd) dates.purchase = newer(dates.purchase, phd); } catch (e) {}
   try { const { data: mbTs } = await sb.rpc('rpc_membership_last_import'); if (mbTs) dates.membership = newer(dates.membership, mbTs); } catch (e) {}
   UPDATE_HUB_ITEMS.forEach(it => {
     const el = document.getElementById('uh_' + it.id);
