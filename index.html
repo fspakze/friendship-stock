@@ -12131,16 +12131,20 @@ async function hcuLoadQtHist(custId) {
     }).join('');
   } catch (e) { const el = document.getElementById('hcuQtHist'); if (el) el.innerHTML = ''; }
 }
+let _hcuSaveBusy = false;   // กันกดซ้ำเร็วๆ insert ลูกค้าซ้ำ 2 แถว (path update เป็น idempotent อยู่แล้ว แต่กันไว้ทั้งคู่)
 async function hcuSave(id) {
   if (!hcRequireEdit()) return;
+  if (_hcuSaveBusy) return;
   const isLao = lang === 'lo';
   const g = i => ((document.getElementById(i) || {}).value || '').trim();
   const name = g('hcuName');
   if (!name) { showToast(isLao ? '⚠️ ໃສ່ຊື່ລູກຄ້າ' : '⚠️ ใส่ชื่อลูกค้า', 'warning'); return; }
   const payload = { name: name, type: g('hcuType') || null, business_type: g('hcuBiz') || null, contact_person: g('hcuContact') || null, phone: g('hcuPhone') || null, address: g('hcuAddr') || null, note: g('hcuNote') || null, updated_at: new Date().toISOString() };
   let error;
+  _hcuSaveBusy = true;
   if (id) { ({ error } = await sb.from('horeca_customers').update(payload).eq('id', id)); }
   else { payload.created_by = user.id; payload.created_by_name = user.full_name || user.username || ''; ({ error } = await sb.from('horeca_customers').insert(payload)); }
+  _hcuSaveBusy = false;
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   showToast('✓ ' + (isLao ? 'ບັນທຶກແລ້ວ' : 'บันทึกแล้ว'), 'success');
   hcuOpen();
@@ -12166,15 +12170,18 @@ function hcuMapType(mt) {
   return found || mt;   // ไม่มีในลิสต์ (เช่น WSDP) → ใช้ค่าดิบ
 }
 function hcuMbSearchDeb() { clearTimeout(_hcuMbTimer); _hcuMbTimer = setTimeout(function () { hcuMbSearch(); }, 250); }
+let _hcuMbSeq = 0;   // กันผลค้นช้า (คำเก่า) ทับผลใหม่ — pattern เดียวกับ _mbSearchSeq
 async function hcuMbSearch() {
   const box = document.getElementById('hcuMbResults');
   if (!box) return;
   const inp2 = document.getElementById('hcuMbSearch');
   const qs = String(inp2 ? inp2.value : '').replace(/[%,().*]/g, ' ').trim();
+  const seq = ++_hcuMbSeq;
   if (!qs) { box.innerHTML = ''; _hcuMbResults = []; return; }
   box.innerHTML = '<div class="loader" style="margin:8px auto;"></div>';
   try {
     const { data, error } = await sb.from('memberships').select('member_code,name,tel,mobile,address,points,member_type,business_type').or('name.ilike.%' + qs + '%,tel.ilike.%' + qs + '%,mobile.ilike.%' + qs + '%').order('points', { ascending: false }).limit(25);
+    if (seq !== _hcuMbSeq) return;   // มีการค้นใหม่กว่าแล้ว — ทิ้งผลนี้
     if (error) throw error;
     _hcuMbResults = data || [];
     const isLao = lang === 'lo';
@@ -12185,7 +12192,7 @@ async function hcuMbSearch() {
         + '<div style="font-size:10.5px;color:var(--slate-500);margin-top:2px;">' + [m.mobile, m.tel].filter(Boolean).map(escapeHtml).join(' · ') + '</div>'
         + '</div>';
     }).join('');
-  } catch (e) { box.innerHTML = '<div style="font-size:11px;color:var(--rose-500);padding:6px;">Error: ' + escapeHtml(e.message) + '</div>'; }
+  } catch (e) { if (seq === _hcuMbSeq) box.innerHTML = '<div style="font-size:11px;color:var(--rose-500);padding:6px;">Error: ' + escapeHtml(e.message) + '</div>'; }
 }
 function hcuMbFill(i) {
   const m = _hcuMbResults[i]; if (!m) return;
@@ -12446,10 +12453,14 @@ async function hqQuickCust() {
   hqBuilder();
   const sel = document.getElementById('hqCust'); if (sel && data) sel.value = data.id;
 }
+let _hqSaveBusy = false;   // กันกดบันทึกซ้ำเร็วๆ — retry loop จะออกใบ QT ซ้ำ 2 เลข
 async function hqSave() {
   if (!hcRequireEdit()) return;
+  if (_hqSaveBusy) return;
   const isLao = lang === 'lo';
   if (!_hqCart.length) { showToast(isLao ? '⚠️ ยังไม่มีรายการ' : '⚠️ ยังไม่มีรายการ', 'warning'); return; }
+  _hqSaveBusy = true;
+  try {
   const custId = (document.getElementById('hqCust') || {}).value || '';
   const cust = _hcCustomers.find(c => String(c.id) === String(custId));
   const disc = Number((document.getElementById('hqDisc') || {}).value) || 0;
@@ -12493,6 +12504,7 @@ async function hqSave() {
   closeModal();
   hcQuoteAfterSave();
   if (saved) hqRenderPDF(saved, (_hcGifts || []).filter(g => g.is_active && hgForBranch(g)));
+  } finally { _hqSaveBusy = false; }
 }
 // แก้ไขใบเสนอราคาที่บันทึกแล้ว — โหลดกลับเข้าฟอร์ม (คงเลขที่/สถานะ)
 async function hqEditQ(id) {
@@ -12645,8 +12657,9 @@ function hqRenderPDF(q, gifts) {
     + '<div><h1>' + brand + '</h1><div class="s">HORECA · ' + (isLao ? 'ໃບສະເໜີລາຄາ' : 'ใบเสนอราคา') + (contact ? ' · ' + esc(contact) : '') + '</div></div></div>'
     + '<div class="qt"><div class="no">' + esc(q.quote_no || '') + '</div><div class="d">' + (isLao ? 'ວັນທີ' : 'วันที่') + ' ' + esc(String(q.created_at || today).slice(0, 10)) + (q.valid_until ? '<br>' + (isLao ? 'ยืนราคาถึง ' : 'ยืนราคาถึง ') + esc(q.valid_until) : '') + '</div></div></div>';
   const shareText = hqShareText(q, actGifts, isLao);
-  const shareJson = JSON.stringify(shareText);
-  const shareTitle = JSON.stringify((isLao ? 'ໃບສະເໜີລາຄາ ' : 'ใบเสนอราคา ') + (q.quote_no || ''));
+  // ฝังลง inline script — JSON.stringify ไม่ escape '<' : ชื่อลูกค้า/สินค้าที่มีแท็กปิด script จะตัด script พัง/ฉีดโค้ดได้ → แปลง '<' เป็น unicode escape
+  const shareJson = JSON.stringify(shareText).replace(/</g, '\\u003c');
+  const shareTitle = JSON.stringify((isLao ? 'ໃບສະເໜີລາຄາ ' : 'ใบเสนอราคา ') + (q.quote_no || '')).replace(/</g, '\\u003c');
   const bar = '<div class="bar noprint">'
     + '<button onclick="window.print()" style="background:' + RED + ';color:#fff;">🖨️ ' + (isLao ? 'ບັນທຶກ/ພິມ PDF' : 'บันทึก/พิมพ์ PDF') + '</button>'
     + '<button id="shareBtn" style="background:' + BLUE + ';color:#fff;">📤 ' + (isLao ? 'ແບ່ງປັນໃຫ້ລູກຄ້າ' : 'แชร์ให้ลูกค้า') + '</button>'
@@ -35944,11 +35957,13 @@ function mbSetType(t) {
 }
 function mbSetSort(v) { _mbSort = v || 'points.desc'; mbSearch(); }
 function mbSearchDebounce() { clearTimeout(_mbSearchTimer); _mbSearchTimer = setTimeout(() => mbSearch(), 250); }
+let _mbSearchSeq = 0;   // กันผลค้นช้า (คำเก่า) กลับมาทับผลใหม่ — pattern เดียวกับ _hqSearchSeq/_hgSeq
 async function mbSearch() {
   const box = document.getElementById('mbResults');
   if (!box) return;
   const inp = document.getElementById('mbSearchInput');
   const qs = String(inp ? inp.value : '').replace(/[%,().*]/g, ' ').trim();
+  const seq = ++_mbSearchSeq;
   box.innerHTML = '<div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>';
   try {
     let q = sb.from('memberships').select('*');
@@ -35957,10 +35972,11 @@ async function mbSearch() {
     const sp = String(_mbSort || 'points.desc').split('.');
     q = q.order(sp[0] || 'points', { ascending: sp[1] === 'asc', nullsFirst: false }).limit(60);
     const { data, error } = await q;
+    if (seq !== _mbSearchSeq) return;   // มีการค้นใหม่กว่าแล้ว — ทิ้งผลนี้
     if (error) throw error;
     _mbResults = data || [];
     mbRenderResults();
-  } catch (e) { box.innerHTML = '<div style="color:var(--rose-500);padding:14px;font-size:12px;">Error: ' + escapeHtml(e.message) + '</div>'; }
+  } catch (e) { if (seq === _mbSearchSeq) box.innerHTML = '<div style="color:var(--rose-500);padding:14px;font-size:12px;">Error: ' + escapeHtml(e.message) + '</div>'; }
 }
 function mbRenderResults() {
   const box = document.getElementById('mbResults');
@@ -36570,8 +36586,10 @@ async function poLookup(idx) {
     }
   } catch (e) {}
 }
+let _poCreateBusy = false;   // กันกดซ้ำเร็วๆ สร้าง PO ซ้ำ 2 ใบ
 async function poSubmitCreate() {
   const isLao = lang === 'lo';
+  if (_poCreateBusy) return;
   poSnapshotRows();
   const type = (document.getElementById('poType') || {}).value || 'external';
   const prefix = String((document.getElementById('poNoPrefix') || {}).value || '').trim();
@@ -36584,14 +36602,16 @@ async function poSubmitCreate() {
   const items = [];
   for (const it of _poCreateItems) {
     const bc = String(it.barcode || '').trim(); const nm = String(it.name || '').trim();
-    const qty = parseFloat(it.qty); const price = parseFloat(it.price) || 0;
+    const qty = poNum(it.qty); const price = poNum(it.price);   // poNum ไม่ใช่ parseFloat ดิบ — "1,000" ต้องได้ 1000 ไม่ใช่ 1
     if (!nm && !bc) continue;
     if (!nm) { showToast(isLao ? 'ໃສ່ຊື່ສິນຄ້າໃຫ້ຄົບ' : 'ใส่ชื่อสินค้าให้ครบ', 'warning'); return; }
     if (!(qty > 0)) { showToast(isLao ? 'ຈຳນວນຕ້ອງ > 0' : 'จำนวนต้อง > 0', 'warning'); return; }
     items.push({ barcode: bc || null, product_name: nm, unit: String(it.unit || '').trim() || null, qty_ordered: qty, unit_price: price });
   }
   if (!items.length) { showToast(isLao ? 'ຕ້ອງມີຢ່າງໜ້ອຍ 1 ລາຍການ' : 'ต้องมีอย่างน้อย 1 รายการ', 'warning'); return; }
+  _poCreateBusy = true;
   const { data, error } = await sb.rpc('rpc_po_create', { p_type: type, p_no_prefix: prefix, p_supplier: supplier || null, p_category: category || null, p_appt_date: appt || null, p_currency: currency, p_note: note || null, p_user: poActor(), p_items: items });
+  _poCreateBusy = false;
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   closeModal();
   showToast('✅ ' + (isLao ? 'ເປີດ PO ' : 'เปิด PO ') + ((data && data.po_no) ? data.po_no : ''), 'success');
@@ -36791,16 +36811,21 @@ async function poOpenClose(id) {
     + '</div>';
   showModal(html);
 }
+let _poCloseBusy = false;   // กันกดซ้ำเร็วๆ ยิงปิด PO ซ้อน → receipts ถูกบวกซ้ำ
 async function poSubmitClose(id) {
   const isLao = lang === 'lo';
+  if (_poCloseBusy) return;
   const doc = String((document.getElementById('poRcvDoc') || {}).value || '').trim();
   const receipts = [];
-  (_poReceiveItems || []).forEach(iid => { const el = document.getElementById('poRcv_' + iid); const q = el ? parseFloat(el.value) : 0; if (q > 0) receipts.push({ po_item_id: iid, qty: q }); });
+  // poNum ไม่ใช่ parseFloat ดิบ — พิมพ์ "1,500" ต้องได้ 1500 ไม่ใช่ 1 (parseFloat หยุดที่ comma)
+  (_poReceiveItems || []).forEach(iid => { const el = document.getElementById('poRcv_' + iid); const q = el ? poNum(el.value) : 0; if (q > 0) receipts.push({ po_item_id: iid, qty: q }); });
   const entered = receipts.reduce((a, r) => a + r.qty, 0);
   const projected = _poClosePrevRcv + entered;
   const preTxt = projected > _poCloseOrdered ? (isLao ? 'ຮັບເກີນ' : 'รับเกิน') : (projected < _poCloseOrdered ? (isLao ? 'ບໍ່ຄົບ' : 'ไม่ครบ') : (isLao ? 'ຮັບຄົບ' : 'รับครบ'));
   if (!confirm((isLao ? 'ປິດ PO ເປັນ (' : 'ปิด PO เป็น (') + preTxt + ') ?')) return;
+  _poCloseBusy = true;
   const { data, error } = await sb.rpc('rpc_po_close', { p_po_id: id, p_user: poActor(), p_role: poActorRole(), p_doc_no: doc || null, p_date: null, p_receipts: receipts });
+  _poCloseBusy = false;
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
   closeModal();
   const cr = data && data.close_result;
@@ -36831,7 +36856,7 @@ const PO_COL = { po_no: 0, date: 1, opener: 2, cat: 3, barcode: 4, name: 5, type
 const PO_COORD_OPTS = ['รอส่ง PO ให้ Supplier', 'ระหว่างประสานสั่งซื้อ', 'อยู่ระหว่างจัดส่งจาก Sup.', 'รอรับสินค้าเข้าระบบ', 'รับเข้าระบบแล้ว', 'ส่งออกแล้ว', 'ค้างเครดิต', 'รอชำระเงิน'];
 let _poImportData = null;
 function poCurMonth() { return String(new Date().getMonth() + 1).padStart(2, '0'); }
-function poNum(s) { const n = parseFloat(String(s == null ? '' : s).replace(/[,\s ₭]/g, '')); return isNaN(n) ? 0 : n; }
+function poNum(s) { const n = parseFloat(String(s == null ? '' : s).replace(/[,\s ₭฿]/g, '')); return isNaN(n) ? 0 : n; }
 function poParseDate(s) {
   s = String(s || '').trim(); if (!s) return null;
   let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);                 // ISO YYYY-MM-DD (เผื่อ cell เป็น date)
@@ -36852,6 +36877,7 @@ async function poFetchSheet(name) {
 }
 function poParseSheet(rows, poType, sourceMonth) {
   const groups = {}, order = [];
+  let skipped = 0;   // แถวที่มีเลข PO แต่ชื่อว่าง/จำนวนอ่านไม่ได้ — ต้องรายงาน ไม่หายเงียบ
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i] || [];
     const no = String(r[PO_COL.po_no] || '').trim();
@@ -36878,7 +36904,7 @@ function poParseSheet(rows, poType, sourceMonth) {
     }
     const nm = String(r[PO_COL.name] || '').trim();
     const qty = poNum(r[PO_COL.qty]);
-    if (!nm || qty <= 0) continue;
+    if (!nm || qty <= 0) { skipped++; continue; }   // นับแถวที่อ่านไม่ได้ ไว้โชว์ในสรุป — ห้ามหายเงียบ (MEMORY 14)
     groups[no].items.push({
       barcode: String(r[PO_COL.barcode] || '').trim(),
       product_name: nm,
@@ -36891,6 +36917,7 @@ function poParseSheet(rows, poType, sourceMonth) {
     });
   }
   const list = order.map(no => groups[no]).filter(g => g.items.length);
+  const emptyPo = order.length - list.length;   // ใบที่ทุกรายการอ่านไม่ได้ → หายทั้งใบ ต้องบอกผู้ใช้
   list.forEach(g => {
     const totO = g.items.reduce((a, i) => a + i.qty_ordered, 0);
     const totR = g.items.reduce((a, i) => a + i.qty_received, 0);
@@ -36900,6 +36927,7 @@ function poParseSheet(rows, poType, sourceMonth) {
       : (g.date_sent_supplier ? 'sent_supplier'
       : (g.date_sent_ext ? 'sent_ext' : 'draft')));
   });
+  list._skipped = skipped; list._emptyPo = emptyPo;
   return list;
 }
 async function poEnrichCosts(list) {
@@ -36948,9 +36976,12 @@ async function poImportFetch() {
     const errI = (!Array.isArray(intRows) && intRows && intRows.__err) ? intRows.__err : '';
     const rowLine = (label, c) => '<div style="display:flex;justify-content:space-between;padding:4px 0;"><span>' + label + '</span><b>' + c.po + ' ' + (isLao ? 'ໃບ' : 'ใบ') + ' / ' + c.items + ' ' + (isLao ? 'ລາຍການ' : 'รายการ') + '</b></div>';
     const total = ce.po + ci.po;
+    const skipN = (ext._skipped || 0) + (int._skipped || 0);
+    const emptyN = (ext._emptyPo || 0) + (int._emptyPo || 0);
     if (box) box.innerHTML = '<div style="background:#f8fafc;border-radius:10px;padding:12px;font-size:13px;">'
       + rowLine(isLao ? 'ພາຍນອກ' : 'ภายนอก', ce)
       + rowLine(isLao ? 'ພາຍໃນ' : 'ภายใน', ci)
+      + (skipN || emptyN ? '<div style="color:var(--amber-700);background:var(--amber-50);border-radius:7px;padding:5px 8px;font-size:11px;margin-top:5px;">⚠️ ' + (isLao ? 'ຂ້າມແຖວທີ່ອ່ານບໍ່ໄດ້ ' : 'ข้ามแถวที่อ่านไม่ได้ ') + skipN + (isLao ? ' ລາຍການ' : ' รายการ') + (emptyN ? ' · ' + (isLao ? 'ໃບທີ່ຫາຍທັງໃບ ' : 'ใบที่หายทั้งใบ ') + emptyN : '') + '</div>' : '')
       + (errE ? '<div style="color:var(--rose-500);font-size:11px;margin-top:4px;">' + (isLao ? 'ນອກ' : 'นอก') + ': ' + escapeHtml(errE) + '</div>' : '')
       + (errI ? '<div style="color:var(--rose-500);font-size:11px;margin-top:4px;">' + (isLao ? 'ໃນ' : 'ใน') + ': ' + escapeHtml(errI) + '</div>' : '')
       + (total > 0 ? '<button onclick="poImportConfirm()" style="width:100%;margin-top:10px;border:none;background:#22c55e;color:white;border-radius:9px;padding:11px;font-weight:800;cursor:pointer;">✅ ' + (isLao ? 'ຢືນຢັນນຳເຂົ້າ' : 'ยืนยันนำเข้า') + ' (' + total + ' ' + (isLao ? 'ໃບ' : 'ใบ') + ')</button>' : '<div style="color:var(--slate-400);text-align:center;margin-top:8px;font-size:12px;">' + (isLao ? 'ບໍ່ພົບຂໍ້ມູນ' : 'ไม่พบข้อมูล') + '</div>')
