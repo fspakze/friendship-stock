@@ -8709,11 +8709,9 @@ async function loadShrinkage() {
     const start = new Date(_skMonth + '-01T00:00:00').toISOString();
     const endD = new Date(parseInt(_skMonth.slice(0, 4), 10), parseInt(_skMonth.slice(5, 7), 10), 1); // เดือนถัดไปวันที่ 1
     const end = endD.toISOString();
-    const { data, error } = await sb.from('shrinkage_logs').select('*')
+    _skRows = await fetchAllQuery(() => sb.from('shrinkage_logs').select('*')
       .eq('branch_id', branch.id).gte('created_at', start).lt('created_at', end)
-      .order('created_at', { ascending: false }).limit(1000);
-    if (error) throw error;
-    _skRows = data || [];
+      .order('created_at', { ascending: false }).order('id'));
   } catch (e) {
     listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--rose-500);font-size:11px;">❌ ' + escapeHtml(friendlyError(e)) + '</div>';
     return;
@@ -10608,15 +10606,13 @@ async function loadHoreca() {
   const isLao = lang === 'lo';
   try {
     // โหลดชุด catalog ทั้งหมด (รวมชุดที่สร้างไว้ใน localStorage — กันชุดเปล่าหายตอนสลับ)
-    const { data: setsData } = await sb.from('horeca_catalog').select('catalog_set');
+    const setsData = await fetchAllQuery(() => sb.from('horeca_catalog').select('id,catalog_set').order('id'));
     _hcSets = [...new Set([...(setsData || []).map(r => r.catalog_set).filter(Boolean), ...hcLoadLocalSets(), 'main'])].sort();
     if (!_hcSets.includes(_hcSet)) _hcSet = _hcSets[0] || 'main';
     const sel = document.getElementById('hcSetSel');
     if (sel) sel.innerHTML = _hcSets.map(s => '<option value="' + escapeHtml(s) + '"' + (s === _hcSet ? ' selected' : '') + '>' + escapeHtml(s) + '</option>').join('');
     // โหลดสินค้าในชุดนี้
-    const { data, error } = await sb.from('horeca_catalog').select('*').eq('catalog_set', _hcSet).order('category').order('sort_order');
-    if (error) throw error;
-    _hcRows = data || [];
+    _hcRows = await fetchAllQuery(() => sb.from('horeca_catalog').select('*').eq('catalog_set', _hcSet).order('category').order('sort_order').order('id'));
     _hcCatFilter = ''; _hcFavOnly = false; _hcHiddenOnly = false; _hcPromoOnly = false; _hcQuoteMode = false; _hcDelMode = false; _hcDelSel = new Set(); _hcCollapsed = new Set(); _hcSearch = '';
     const _si = document.getElementById('hcCatSearch'); if (_si) _si.value = '';
     // โหลดช่วงวันโปรของชุดนี้ (ตั้งครั้งเดียว ใช้ทุกสินค้า)
@@ -11094,6 +11090,11 @@ async function hcSaveItem() {
   };
   if (!imageUrl && _hcScan.image) imageUrl = _hcScan.image;   // ไม่ได้ถ่าย/อัปโหลดใหม่ → ใช้รูปเดิมจาก catalog อื่น
   if (imageUrl) payload.image_url = imageUrl;
+  // สแกนสินค้าที่มีในชุดอยู่แล้ว → upsert เข้า update path — ต้องคงคนเพิ่มคนแรกไว้ (MEMORY 5: created_by ใส่เฉพาะตอน insert)
+  try {
+    const { data: exist } = await sb.from('horeca_catalog').select('id').eq('catalog_set', _hcSet).eq('barcode', _hcScan.barcode).maybeSingle();
+    if (exist) { delete payload.created_by; delete payload.created_by_name; }
+  } catch (e) {}
   const { error } = await sb.from('horeca_catalog').upsert(payload, { onConflict: 'catalog_set,barcode' });
   if (btn) { btn.disabled = false; btn.innerHTML = '+ ' + (isLao ? 'ເພີ່ມເຂົ້າ Catalog' : 'เพิ่มเข้า Catalog'); }
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
@@ -11663,11 +11664,33 @@ async function hcHandleImport(ev) {
     const bcList = [...new Set(parsed.map(r => r.barcode).filter(Boolean))];
     const maps = await hcAutoFillMaps(bcList);
     const rows = parsed.map(pr => hcBuildCatalogRow(pr, maps, isLao));
+    // แถวที่มีในชุดอยู่แล้ว → upsert เข้า update path — คงคนเพิ่มคนแรกไว้ (MEMORY 5: created_by ใส่เฉพาะตอน insert) · ราคา/ข้อมูลอื่นทับตามไฟล์ = ตั้งใจ (import คือแหล่งอัปเดต)
+    // ⚠️ ต้องแยก batch ใหม่/เก่า — PostgREST บังคับทุก object ใน batch เดียวกันมี key ชุดเดียวกัน (ลบ key แค่บางแถวใน chunk = error ทั้ง chunk)
+    const existSet = new Set();
+    try {
+      for (let i = 0; i < bcList.length; i += 300) {
+        const { data: ex } = await sb.from('horeca_catalog').select('barcode').eq('catalog_set', _hcSet).in('barcode', bcList.slice(i, i + 300));
+        (ex || []).forEach(r => existSet.add(String(r.barcode)));
+      }
+    } catch (e) {}
+    const newRows = [], updRows = [];
+    rows.forEach(r => {
+      if (r.barcode && existSet.has(String(r.barcode))) { const c = Object.assign({}, r); delete c.created_by; delete c.created_by_name; updRows.push(c); }
+      else newRows.push(r);
+    });
     let done = 0, failed = 0;
-    for (let i = 0; i < rows.length; i += 300) {
-      const chunk = rows.slice(i, i + 300);
-      const { error } = await sb.from('horeca_catalog').upsert(chunk, { onConflict: 'catalog_set,barcode' });
-      if (error) failed += chunk.length; else done += chunk.length;
+    for (const grp of [newRows, updRows]) {
+      // จัดกลุ่มตามชุด key ก่อน — บางแถวมี image_url บางแถวไม่มี ถ้าปน batch เดียวกัน PostgREST error ทั้ง chunk
+      const bySig = {};
+      grp.forEach(r => { const sig = Object.keys(r).sort().join(','); (bySig[sig] = bySig[sig] || []).push(r); });
+      for (const sig in bySig) {
+        const list = bySig[sig];
+        for (let i = 0; i < list.length; i += 300) {
+          const chunk = list.slice(i, i + 300);
+          const { error } = await sb.from('horeca_catalog').upsert(chunk, { onConflict: 'catalog_set,barcode' });
+          if (error) failed += chunk.length; else done += chunk.length;
+        }
+      }
     }
     if (st) st.innerHTML = '<div style="background:var(--emerald-50);border-radius:8px;padding:9px;color:var(--emerald-700);font-weight:700;">✓ ' + done.toLocaleString() + (isLao ? ' ແຖວ' : ' แถว') + (failed ? ' · ' + (isLao ? 'ຜິດພາດ' : 'พลาด') + ' ' + failed : '') + '</div>';
     if (typeof logActivity === 'function') logActivity('horeca_import', _hcSet + ' ' + done + ' rows');
@@ -11996,7 +12019,7 @@ async function hcuTypeDel(kind, i) {
   hcuTypesManager();
 }
 async function hcuLoad() {
-  try { const { data } = await sb.from('horeca_customers').select('*').order('name'); _hcCustomers = data || []; }
+  try { _hcCustomers = await fetchAllQuery(() => sb.from('horeca_customers').select('*').order('name').order('id')); }
   catch (e) { _hcCustomers = []; }
   await hcuLoadTypes();
   return _hcCustomers;
@@ -12200,7 +12223,7 @@ async function hqOpen() {
       const noSafe = String(q.quote_no || '').replace(/[^0-9A-Za-z_-]/g, '');
       return '<div style="display:flex;align-items:center;gap:6px;border:1px solid var(--slate-200);border-radius:9px;padding:10px 12px;margin-bottom:7px;">'
         + '<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:800;color:var(--slate-800);">' + escapeHtml(q.quote_no || '-') + ' · ' + escapeHtml(q.customer_name || '-') + '</div>'
-        + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + fmt.format(q.total || 0) + '₭ · ' + (q.created_at ? String(q.created_at).slice(0, 10) : '') + (q.created_by_name ? ' · 👤 ' + escapeHtml(q.created_by_name) : '') + '</div></div>'
+        + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + fmt.format(q.total || 0) + '₭ · ' + (q.created_at ? localDayKey(q.created_at) : '') + (q.created_by_name ? ' · 👤 ' + escapeHtml(q.created_by_name) : '') + '</div></div>'
         + '<button onclick="hqStatusPick(' + q.id + ')" style="background:' + st.bg + ';color:' + st.col + ';border:none;border-radius:999px;padding:5px 10px;font-size:10.5px;font-weight:800;cursor:pointer;white-space:nowrap;">' + st.label(isLao) + '</button>'
         + '<button onclick="hqEditQ(' + q.id + ')" title="' + (isLao ? 'ແກ້ໄຂ' : 'แก้ไข') + '" style="background:var(--slate-100);color:var(--slate-700);border:none;border-radius:8px;padding:8px 10px;font-size:12px;cursor:pointer;">✏️</button>'
         + '<button onclick="hqShare(' + q.id + ')" title="' + (isLao ? 'ແບ່ງປັນໃຫ້ລູກຄ້າ' : 'แชร์ให้ลูกค้า') + '" style="background:#0071e3;color:white;border:none;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;cursor:pointer;">📤</button>'
@@ -12654,16 +12677,16 @@ async function hqDash() {
     + '<div id="hqDashBody"><div class="loader" style="margin:14px auto;"></div></div>');
   try {
     const since = new Date(); since.setMonth(since.getMonth() - 3); since.setDate(1);
-    const [qr, cr] = await Promise.all([
-      sb.from('horeca_quotations').select('quote_no,customer_name,total,status,created_at').gte('created_at', since.toISOString()).order('id', { ascending: false }).limit(1000),
-      sb.from('horeca_customers').select('id,created_at').limit(1000)
+    const [quotes, custs] = await Promise.all([
+      fetchAllQuery(() => sb.from('horeca_quotations').select('quote_no,customer_name,total,status,created_at').gte('created_at', since.toISOString()).order('id', { ascending: false })),
+      fetchAllQuery(() => sb.from('horeca_customers').select('id,created_at').order('id'))
     ]);
     const el = document.getElementById('hqDashBody');
     if (!el) return;
-    const quotes = qr.data || [], custs = cr.data || [];
     const fmt = new Intl.NumberFormat('th-TH');
-    const ym = d => String(d).slice(0, 7);
-    const thisMonth = ym(new Date().toISOString());
+    // เดือนตามเวลาท้องถิ่นลาว (UTC+7) — ตี 0-7 ของวันที่ 1 ต้องนับเข้าเดือนใหม่ ไม่ใช่เดือนก่อน (MEMORY 4)
+    const ym = d => d ? localDayKey(d).slice(0, 7) : '';
+    const thisMonth = ym(new Date());
     // สรุปต่อเดือน (3 เดือนล่าสุด)
     const byM = {};
     quotes.forEach(q => { const m = ym(q.created_at || ''); if (!m) return; (byM[m] = byM[m] || { n: 0, sent: 0, won: 0, lost: 0, wonVal: 0 }); byM[m].n++; if (q.status === 'sent') byM[m].sent++; if (q.status === 'won') { byM[m].won++; byM[m].wonVal += Number(q.total) || 0; } if (q.status === 'lost') byM[m].lost++; });
@@ -12985,7 +13008,7 @@ function renderPromotionPage() {
 }
 async function loadPromotion() {
   try {
-    const { data: setsData } = await sb.from('horeca_catalog').select('catalog_set');
+    const setsData = await fetchAllQuery(() => sb.from('horeca_catalog').select('id,catalog_set').order('id'));
     _hcSets = [...new Set([...(setsData || []).map(r => r.catalog_set).filter(Boolean), ...hcLoadLocalSets(), 'main'])].sort();
     if (!_hcSets.includes(_hcSet)) _hcSet = _hcSets[0] || 'main';
     const sel = document.getElementById('promoSetSel');
@@ -35214,8 +35237,7 @@ async function cmpLoadStores() {
   let rows = [];
   try {
     const since = new Date(Date.now() - 7 * 86400000).toISOString();
-    const { data } = await sb.from('competitor_prices').select('competitor_store,created_by_name,created_at').eq('branch_id', branch.id).gte('created_at', since).limit(2000);
-    rows = data || [];
+    rows = await fetchAllQuery(() => sb.from('competitor_prices').select('id,competitor_store,created_by_name,created_at').eq('branch_id', branch.id).gte('created_at', since).order('id'));
   } catch (e) {}
   const map = {};
   rows.forEach(r => {
@@ -35428,9 +35450,7 @@ async function cmpLoadList() {
   const wrap = document.getElementById('cmpList');
   if (!wrap) return;
   try {
-    const { data, error } = await sb.from('competitor_prices').select('*').eq('branch_id', branch.id).order('created_at', { ascending: false }).limit(1000);
-    if (error) throw error;
-    _cmpData = data || [];
+    _cmpData = await fetchAllQuery(() => sb.from('competitor_prices').select('*').eq('branch_id', branch.id).order('created_at', { ascending: false }).order('id'));
   } catch (e) { wrap.innerHTML = '<div style="text-align:center;color:var(--rose-600);font-size:var(--fs-t5);padding:14px;">Error: ' + cmpEsc(e.message || e) + '</div>'; return; }
   cmpRenderList();
 }
@@ -36247,6 +36267,8 @@ async function mbExecuteUpload() {
     if (statusEl) statusEl.innerHTML = '<div style="background:' + (errors.length ? 'var(--rose-50)' : 'var(--emerald-50)') + ';border-radius:9px;padding:14px;text-align:center;"><div style="font-size:30px;">' + (errors.length ? '⚠️' : '🎉') + '</div><div style="font-size:14px;font-weight:800;color:' + (errors.length ? 'var(--rose-700)' : 'var(--emerald-700)') + ';">' + (errors.length ? (isLao ? 'ສຳເລັດບາງສ່ວນ' : 'สำเร็จบางส่วน') : (isLao ? 'ສຳເລັດ!' : 'สำเร็จ!')) + '</div><div style="font-size:12px;color:var(--slate-600);margin-top:4px;">' + rows.length.toLocaleString() + ' ' + (isLao ? 'ຄົນ' : 'คน') + (matched ? ' · ' + (isLao ? 'ຈັບຄູ່ສະໝັກ' : 'จับคู่สมัคร') + ' ' + matched : '') + '</div>' + (errors.length ? '<div style="font-size:10px;color:var(--rose-600);margin-top:7px;">' + escapeHtml(errors.slice(0, 3).join(' | ')) + '</div>' : '') + '</div><button onclick="closeModal();if(typeof mbRender===\'function\')mbRender();" style="width:100%;margin-top:11px;background:var(--violet-500);color:white;border:none;padding:12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">✅ ' + (isLao ? 'ປິດ' : 'ปิด') + '</button>';
   } catch (e) {
     if (statusEl) statusEl.innerHTML = '<div style="color:var(--rose-500);">Error: ' + escapeHtml(e.message) + '</div>';
+    // คืนปุ่มให้กดซ้ำได้ — ไม่งั้นค้าง disabled ต้องปิด modal เปิดใหม่ (MEMORY 6)
+    if (btn) { btn.disabled = false; btn.textContent = isLao ? 'ລອງໃໝ່' : 'ลองใหม่'; }
   } finally { _mbUploadRunning = false; }
 }
 // จับคู่คิวสมัคร (pending) กับสมาชิกที่เพิ่ง upload ด้วยเบอร์มือถือ/โทร → mark registered
