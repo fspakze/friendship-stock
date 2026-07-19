@@ -1746,7 +1746,42 @@ let lang = localStorage.getItem('lang') || 'lo';
 let user = null;
 let branch = null;
 let zone = null;
-let _actorAuthHash = null;   // hash รหัสผ่านของคนที่ login รอบนี้ (เก็บชั่วคราวใน memory เท่านั้น ไม่เซฟ localStorage) — ใช้ยืนยันตัวตอนเรียก RPC จัดการ user
+let _actorAuthHash = null;   // hash รหัสผ่านของคนที่ login รอบนี้ (เก็บชั่วคราวใน memory เท่านั้น ไม่เซฟ localStorage) — ใช้ยืนยันตัวตอนเรียก RPC จัดการ user / อ่านข้อมูลลูกค้า (PII)
+// คืน hash ยืนยันตัว: ใช้จาก login ถ้ามี · session auto-login (ไม่มี hash) → ถามรหัสครั้งเดียวต่อ session
+async function _getActorHash() {
+  if (_actorAuthHash) return _actorAuthHash;
+  const pw = prompt(lang === 'lo' ? 'ຢືນຢັນລະຫັດຜ່ານຂອງທ່ານ (ຄັ້ງດຽວຕໍ່ session)' : 'ยืนยันรหัสผ่านของคุณ (ครั้งเดียวต่อ session)');
+  if (!pw) return null;
+  _actorAuthHash = await hashPassword(pw);   // cache ทั้ง session (ถ้ารหัสผิด RPC จะคืน auth_failed แล้วเคลียร์ให้ถามใหม่)
+  return _actorAuthHash;
+}
+// เรียก RPC แบบยืนยันตัว (แนบ username+hash) — ใช้กับ RPC ที่อ่าน PII ลูกค้า/จัดการ user
+async function _rpcAsActor(name, params) {
+  const h = await _getActorHash();
+  if (!h) return { data: null, error: { message: (lang === 'lo' ? 'ຍົກເລີກ' : 'ยกเลิก') } };
+  const res = await sb.rpc(name, Object.assign({ p_actor_username: user.username, p_actor_hash: h }, params || {}));
+  if (res && res.data && res.data.ok === false && res.data.error === 'auth_failed') _actorAuthHash = null;  // รหัสผิด/หมดอายุ → เคลียร์ ถามใหม่รอบหน้า
+  return res;
+}
+// RPC ยังไม่มี (ยังไม่รัน SQL) ? — จับ error "function does not exist" เพื่อ fallback ชั่วคราว กันหน้าล่มช่วงเปลี่ยนผ่าน
+function _rpcMissing(err) { return !!(err && (err.code === 'PGRST202' || err.code === '42883' || /function .*does not exist|could not find the function|schema cache/i.test(err.message || ''))); }
+// ค้นหาสมาชิก (PII) — RPC ยืนยันตัวก่อน · ถ้า RPC ยังไม่ถูกสร้าง (ยังไม่รัน SQL) → อ่านตรงชั่วคราว (self-disable หลังรัน SQL)
+async function _searchMembersCompat(qs, type, sort, limit) {
+  const res = await _rpcAsActor('rpc_search_members', { p_q: qs, p_type: type || 'ALL', p_sort: sort || 'points.desc', p_limit: limit || 60 });
+  if (res && res.error && _rpcMissing(res.error)) {
+    let q = sb.from('memberships').select('id,member_code,name,tel,mobile,address,points,member_type,business_type');
+    if (type && type !== 'ALL') q = q.eq('member_type', type);
+    if (qs) q = q.or('name.ilike.%' + qs + '%,tel.ilike.%' + qs + '%,mobile.ilike.%' + qs + '%,member_code.ilike.%' + qs + '%');
+    const sp = String(sort || 'points.desc').split('.');
+    const { data, error } = await q.order(sp[0] || 'points', { ascending: sp[1] === 'asc', nullsFirst: false }).limit(limit || 60);
+    if (error) throw error;
+    return data || [];
+  }
+  if (res && res.error) throw res.error;
+  const d = res && res.data;
+  if (!d || d.ok === false) throw new Error((d && d.error === 'auth_failed') ? (lang === 'lo' ? 'ຢືນຢັນຕົວຕົນບໍ່ໄດ້' : 'ยืนยันตัวตนไม่ได้') : ((d && d.error) || 'failed'));
+  return d.rows || [];
+}
 let loc = null;
 
 // ผู้ใช้ที่ให้เข้าได้ "ทุกสาขา" เป็นรายบุคคล (นอกเหนือ role admin/scc/bcs/it) — เทียบ username แบบไม่สนพิมพ์เล็กใหญ่
@@ -12183,10 +12218,10 @@ async function hcuMbSearch() {
   if (!qs) { box.innerHTML = ''; _hcuMbResults = []; return; }
   box.innerHTML = '<div class="loader" style="margin:8px auto;"></div>';
   try {
-    const { data, error } = await sb.from('memberships').select('member_code,name,tel,mobile,address,points,member_type,business_type').or('name.ilike.%' + qs + '%,tel.ilike.%' + qs + '%,mobile.ilike.%' + qs + '%').order('points', { ascending: false }).limit(25);
+    // อ่านผ่าน RPC ยืนยันตัว (memberships = PII)
+    const rows = await _searchMembersCompat(qs, 'ALL', 'points.desc', 25);
     if (seq !== _hcuMbSeq) return;   // มีการค้นใหม่กว่าแล้ว — ทิ้งผลนี้
-    if (error) throw error;
-    _hcuMbResults = data || [];
+    _hcuMbResults = rows;
     const isLao = lang === 'lo';
     if (!_hcuMbResults.length) { box.innerHTML = '<div style="font-size:11px;color:var(--slate-400);padding:6px;">' + (isLao ? 'ບໍ່ພົບ' : 'ไม่พบ') + '</div>'; return; }
     box.innerHTML = _hcuMbResults.map(function (m, i) {
@@ -35973,15 +36008,10 @@ async function mbSearch() {
   const seq = ++_mbSearchSeq;
   box.innerHTML = '<div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>';
   try {
-    let q = sb.from('memberships').select('*');
-    if (_mbTypeFilter && _mbTypeFilter !== 'ALL') q = q.eq('member_type', _mbTypeFilter);
-    if (qs) q = q.or('name.ilike.%' + qs + '%,tel.ilike.%' + qs + '%,mobile.ilike.%' + qs + '%,member_code.ilike.%' + qs + '%');
-    const sp = String(_mbSort || 'points.desc').split('.');
-    q = q.order(sp[0] || 'points', { ascending: sp[1] === 'asc', nullsFirst: false }).limit(60);
-    const { data, error } = await q;
+    // อ่านผ่าน RPC ยืนยันตัว (memberships = PII ปิด anon อ่านตรงแล้ว)
+    const rows = await _searchMembersCompat(qs, _mbTypeFilter, _mbSort, 60);
     if (seq !== _mbSearchSeq) return;   // มีการค้นใหม่กว่าแล้ว — ทิ้งผลนี้
-    if (error) throw error;
-    _mbResults = data || [];
+    _mbResults = rows;
     mbRenderResults();
   } catch (e) { if (seq === _mbSearchSeq) box.innerHTML = '<div style="color:var(--rose-500);padding:14px;font-size:12px;">Error: ' + escapeHtml(e.message) + '</div>'; }
 }
@@ -36302,10 +36332,11 @@ async function mbReconcileSignups() {
   for (const s of pend) {
     const phones = [s.mobile, s.tel].filter(Boolean).map(p => String(p).trim()).filter(p => p.length >= 5);
     if (!phones.length) continue;
-    const orf = phones.map(p => 'mobile.eq.' + p + ',tel.eq.' + p).join(',');
-    const { data } = await sb.from('memberships').select('member_code').or(orf).limit(1);
-    if (data && data.length) {
-      await sb.from('membership_signups').update({ status: 'registered', member_code: data[0].member_code }).eq('id', s.id);
+    // จับคู่เบอร์ผ่าน RPC ยืนยันตัว (memberships = PII ปิด anon อ่านตรง)
+    const res = await _rpcAsActor('rpc_members_by_phone', { p_phones: phones });
+    const rows = (res && res.data && res.data.rows) ? res.data.rows : [];
+    if (rows.length) {
+      await sb.from('membership_signups').update({ status: 'registered', member_code: rows[0].member_code }).eq('id', s.id);
       matched++;
     }
   }
@@ -37669,7 +37700,7 @@ async function loadUpdateHub() {
   try { const { data: pr } = await sb.from('products').select('updated_at').order('updated_at', { ascending: false }).limit(1).maybeSingle(); if (pr) dates.pos = newer(dates.pos, pr.updated_at); } catch (e) {}
   try { const { data: sn } = await sb.from('v_pos_snapshots').select('snapshot_date').order('snapshot_date', { ascending: false }).limit(1).maybeSingle(); if (sn) dates.pos = newer(dates.pos, sn.snapshot_date); } catch (e) {}
   try { const { data: ph } = await sb.from('purchase_history').select('buy_date').order('buy_date', { ascending: false }).limit(1).maybeSingle(); if (ph) dates.purchase = newer(dates.purchase, ph.buy_date); } catch (e) {}
-  try { const { data: mb } = await sb.from('memberships').select('imported_at').order('imported_at', { ascending: false }).limit(1).maybeSingle(); if (mb) dates.membership = newer(dates.membership, mb.imported_at); } catch (e) {}
+  try { const { data: mbTs } = await sb.rpc('rpc_membership_last_import'); if (mbTs) dates.membership = newer(dates.membership, mbTs); } catch (e) {}
   UPDATE_HUB_ITEMS.forEach(it => {
     const el = document.getElementById('uh_' + it.id);
     if (!el) return;
