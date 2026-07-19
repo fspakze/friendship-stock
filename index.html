@@ -1782,6 +1782,50 @@ async function _searchMembersCompat(qs, type, sort, limit) {
   if (!d || d.ok === false) throw new Error((d && d.error === 'auth_failed') ? (lang === 'lo' ? 'ຢືນຢັນຕົວຕົນບໍ່ໄດ້' : 'ยืนยันตัวตนไม่ได้') : ((d && d.error) || 'failed'));
   return d.rows || [];
 }
+// ลูกค้า HORECA (PII) — อ่านผ่าน RPC ยืนยันตัว + fallback zero-downtime
+async function _hcuListCompat() {
+  const res = await _rpcAsActor('rpc_hcu_list', {});
+  if (res && res.error && _rpcMissing(res.error)) return await fetchAllQuery(() => sb.from('horeca_customers').select('*').order('name').order('id'));
+  if (res && res.error) throw res.error;
+  const d = res && res.data;
+  if (!d || d.ok === false) throw new Error((d && d.error) || 'failed');
+  return d.rows || [];
+}
+// เพิ่มลูกค้าใหม่ (คืน id) — RPC definer (insert เปิดอยู่แล้ว แค่ให้ return ได้หลังถอน SELECT) + fallback
+async function _hcuAddCompat(name) {
+  const res = await sb.rpc('rpc_hcu_add', { p_name: name, p_created_by: user.id, p_created_by_name: user.full_name || user.username || '' });
+  if (res && res.error && _rpcMissing(res.error)) {
+    const { data, error } = await sb.from('horeca_customers').insert({ name: name, created_by: user.id, created_by_name: user.full_name || user.username || '' }).select().single();
+    if (error) throw error; return data ? data.id : null;
+  }
+  if (res && res.error) throw res.error;
+  const d = res && res.data;
+  if (!d || d.ok === false) throw new Error((d && d.error) || 'failed');
+  return d.id;
+}
+// คิวสมัครสมาชิก (PII) — อ่านผ่าน RPC ยืนยันตัว + fallback
+async function _signupsListCompat(onlyPending) {
+  const res = await _rpcAsActor('rpc_signups_list', { p_only_pending: !!onlyPending });
+  if (res && res.error && _rpcMissing(res.error)) return await fetchAllQuery(() => { let q = sb.from('membership_signups').select('*'); if (onlyPending) q = q.eq('status', 'pending'); return q.order('id', { ascending: false }); });
+  if (res && res.error) throw res.error;
+  const d = res && res.data;
+  if (!d || d.ok === false) throw new Error((d && d.error) || 'failed');
+  return d.rows || [];
+}
+// สร้างคิวสมัคร (เลข MB-xxxx ฝั่ง server กัน race) — RPC definer + fallback (logic เดิม)
+async function _signupCreateCompat(base) {
+  const res = await sb.rpc('rpc_signup_create', { p_name: base.name, p_tel: base.tel, p_mobile: base.mobile, p_address: base.address, p_business_type: base.business_type, p_branch_id: base.branch_id, p_created_by: base.created_by, p_created_by_name: base.created_by_name });
+  if (res && res.error && _rpcMissing(res.error)) {
+    let seq = 1;
+    try { const { data: last } = await sb.from('membership_signups').select('signup_no').like('signup_no', 'MB-%').order('signup_no', { ascending: false }).limit(1).maybeSingle(); if (last && last.signup_no) { const n = parseInt(String(last.signup_no).replace(/\D/g, ''), 10); if (!isNaN(n)) seq = n + 1; } } catch (e) {}
+    for (let a = 0; a < 15; a++) { const no = 'MB-' + String(seq).padStart(4, '0'); const r = await sb.from('membership_signups').insert(Object.assign({ signup_no: no }, base)).select().single(); if (!r.error) return { ok: true }; if (r.error.code === '23505' || /duplicate key/i.test(r.error.message || '')) { seq++; continue; } throw r.error; }
+    throw new Error('insert failed');
+  }
+  if (res && res.error) throw res.error;
+  const d = res && res.data;
+  if (!d || d.ok === false) throw new Error((d && d.error) || 'failed');
+  return d;
+}
 let loc = null;
 
 // ผู้ใช้ที่ให้เข้าได้ "ทุกสาขา" เป็นรายบุคคล (นอกเหนือ role admin/scc/bcs/it) — เทียบ username แบบไม่สนพิมพ์เล็กใหญ่
@@ -11367,10 +11411,10 @@ async function hcQuoteQuickCust() {
   const isLao = lang === 'lo';
   const name = prompt(isLao ? 'ຊື່ລູກຄ້າໃໝ່:' : 'ชื่อลูกค้าใหม่:', '');
   if (!name || !name.trim()) return;
-  const { data, error } = await sb.from('horeca_customers').insert({ name: name.trim(), created_by: user.id, created_by_name: user.full_name || user.username || '' }).select().single();
-  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  let newId = null;
+  try { newId = await _hcuAddCompat(name.trim()); } catch (e) { showToast('Error: ' + e.message, 'error'); return; }
   await hcuLoad();
-  if (data) _hqMeta.customer_id = data.id;
+  if (newId) _hqMeta.customer_id = newId;
   hcRenderQuoteBar();
 }
 // แถบสรุปตะกร้า + เลือกลูกค้า (แสดงเหนือรายการสินค้าเมื่ออยู่โหมดหยิบ)
@@ -12057,7 +12101,7 @@ async function hcuTypeDel(kind, i) {
   hcuTypesManager();
 }
 async function hcuLoad() {
-  try { _hcCustomers = await fetchAllQuery(() => sb.from('horeca_customers').select('*').order('name').order('id')); }
+  try { _hcCustomers = await _hcuListCompat(); }
   catch (e) { _hcCustomers = []; }
   await hcuLoadTypes();
   return _hcCustomers;
@@ -12485,11 +12529,11 @@ async function hqQuickCust() {
   const isLao = lang === 'lo';
   const name = prompt(isLao ? 'ຊື່ລູກຄ້າໃໝ່:' : 'ชื่อลูกค้าใหม่:', '');
   if (!name || !name.trim()) return;
-  const { data, error } = await sb.from('horeca_customers').insert({ name: name.trim(), created_by: user.id, created_by_name: user.full_name || user.username || '' }).select().single();
-  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  let newId = null;
+  try { newId = await _hcuAddCompat(name.trim()); } catch (e) { showToast('Error: ' + e.message, 'error'); return; }
   await hcuLoad();
   hqBuilder();
-  const sel = document.getElementById('hqCust'); if (sel && data) sel.value = data.id;
+  const sel = document.getElementById('hqCust'); if (sel && newId) sel.value = newId;
 }
 let _hqSaveBusy = false;   // กันกดบันทึกซ้ำเร็วๆ — retry loop จะออกใบ QT ซ้ำ 2 เลข
 async function hqSave() {
@@ -12730,7 +12774,7 @@ async function hqDash() {
     const since = new Date(); since.setMonth(since.getMonth() - 3); since.setDate(1);
     const [quotes, custs] = await Promise.all([
       fetchAllQuery(() => sb.from('horeca_quotations').select('quote_no,customer_name,total,status,created_at').gte('created_at', since.toISOString()).order('id', { ascending: false })),
-      fetchAllQuery(() => sb.from('horeca_customers').select('id,created_at').order('id'))
+      _hcuListCompat()   // horeca_customers ปิด anon อ่านตรงแล้ว — ใช้ RPC (คืน id,created_at ในตัว)
     ]);
     const el = document.getElementById('hqDashBody');
     if (!el) return;
@@ -36087,22 +36131,10 @@ async function mbSignupSave() {
     created_by: (user && user.id) || null, created_by_name: (user && (user.full_name || user.username)) || null,
     created_at: new Date().toISOString()
   };
-  let seq = 1;
-  try {
-    const { data: last } = await sb.from('membership_signups').select('signup_no').like('signup_no', 'MB-%').order('signup_no', { ascending: false }).limit(1).maybeSingle();
-    if (last && last.signup_no) { const n = parseInt(String(last.signup_no).replace(/\D/g, ''), 10); if (!isNaN(n)) seq = n + 1; }
-  } catch (e) {}
-  let ok = false, error = null;
-  for (let attempt = 0; attempt < 15 && !ok; attempt++) {
-    const no = 'MB-' + String(seq).padStart(4, '0');
-    const res = await sb.from('membership_signups').insert(Object.assign({ signup_no: no }, base)).select().single();
-    if (!res.error) { ok = true; break; }
-    error = res.error;
-    if (res.error.code === '23505' || /duplicate key/i.test(res.error.message || '')) { seq++; continue; }
-    break;
-  }
+  let ok = false, errMsg = '';
+  try { const r = await _signupCreateCompat(base); ok = !!(r && r.ok); } catch (e) { errMsg = e.message; }
   if (btn) { btn.disabled = false; btn.textContent = '✅ ' + (isLao ? 'ບັນທຶກ + ເຂົ້າຄິວສະໝັກ' : 'บันทึก + เข้าคิวสมัคร'); }
-  if (!ok) { showToast('Error: ' + (error ? error.message : 'insert failed'), 'error'); return; }
+  if (!ok) { showToast('Error: ' + (errMsg || 'insert failed'), 'error'); return; }
   if (typeof logActivity === 'function') logActivity('membership_signup', nm);
   showToast(isLao ? '✅ ບັນທຶກສະໝັກແລ້ວ' : '✅ บันทึกสมัครแล้ว', 'success');
   _mbTab = 'signups'; mbSyncTabBtns(); mbRender();
@@ -36117,7 +36149,7 @@ function mbRenderSignupsShell() {
 async function mbLoadSignups() {
   const box = document.getElementById('mbSignupList');
   try {
-    const rows = await fetchAllQuery(() => sb.from('membership_signups').select('*').order('id', { ascending: false }));
+    const rows = await _signupsListCompat(false);
     _mbSignups = rows || [];
     mbRenderSignups();
   } catch (e) { if (box) box.innerHTML = '<div style="color:var(--rose-500);padding:14px;">Error: ' + escapeHtml(e.message) + '</div>'; }
@@ -36326,7 +36358,7 @@ async function mbExecuteUpload() {
 }
 // จับคู่คิวสมัคร (pending) กับสมาชิกที่เพิ่ง upload ด้วยเบอร์มือถือ/โทร → mark registered
 async function mbReconcileSignups() {
-  const pend = await fetchAllQuery(() => sb.from('membership_signups').select('*').eq('status', 'pending').order('id'));
+  const pend = await _signupsListCompat(true);
   if (!pend || !pend.length) return 0;
   let matched = 0;
   for (const s of pend) {
