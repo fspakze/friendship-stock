@@ -1243,18 +1243,32 @@
   }
   .qnav-backdrop.is-open { opacity: 1; pointer-events: auto; }
   
+  /* User card: desktop shows button text, hides icon fallback */
+  .us-btn-ico { display: none; }
+
   @media (max-width: 480px) {
     .qnav-wrap { bottom: 16px; right: 12px; }
     .qnav-fab { width: 52px; height: 52px; font-size: 22px; }
     .qnav-item { font-size: 11px; padding: 8px 11px 8px 8px; }
     .qnav-item-icon { width: 28px; height: 28px; font-size: 14px; }
-    
+
     /* fm-group mobile: stack header items */
     .fm-group { padding: 6px; }
     .fm-group-header { flex-wrap: wrap; gap: 6px; }
     .fm-group-title { width: 100%; justify-content: space-between; }
     .fm-group-progress-bar { width: 100%; flex: 1; }
     .fm-group-stats { flex-wrap: wrap; }
+
+    /* User card mobile: shrink everything + icon-only action buttons so it fits one line */
+    .us-card { padding: 7px 8px !important; gap: 6px !important; }
+    .us-av { width: 30px !important; height: 30px !important; font-size: 13px !important; }
+    .us-name { font-size: 12.5px !important; }
+    .us-uname { font-size: 9.5px !important; }
+    .us-chip { font-size: 9.5px !important; padding: 3px 7px !important; }
+    .us-br { font-size: 9.5px !important; }
+    .us-actbtn { padding: 6px 8px !important; font-size: 13px !important; }
+    .us-btn-txt { display: none !important; }
+    .us-btn-ico { display: inline !important; }
   }
   
   /* Workflow Control */
@@ -25761,17 +25775,17 @@ function renderUserCard(u, showBranch) {
   const statusDot = active
     ? '<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#15803d;"><span style="width:7px;height:7px;border-radius:50%;background:#22c55e;"></span>' + (isLao ? 'ໃຊ້ງານ' : 'ใช้งาน') + '</span>'
     : '<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--slate-400);"><span style="width:7px;height:7px;border-radius:50%;background:var(--slate-300);"></span>' + (isLao ? 'ປິດ' : 'ปิดใช้งาน') + '</span>';
-  const editBtn = '<button onclick="editUser(\'' + u.id + '\')" style="background:var(--fs-fill2,#f1f5f9);color:var(--slate-700);border:1px solid var(--slate-200);border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">' + (isLao ? 'ແກ້ໄຂ' : 'แก้ไข') + '</button>';
-  const toggleBtn = isMe ? '' : '<button onclick="toggleUserActive(\'' + u.id + '\')" style="background:' + (active ? '#fff1f2' : '#f0fdf4') + ';color:' + (active ? 'var(--rose-600)' : '#15803d') + ';border:1px solid ' + (active ? 'var(--rose-200)' : '#bbf7d0') + ';border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">' + (active ? (isLao ? 'ປິດໃຊ້ງານ' : 'ปิดใช้งาน') : (isLao ? 'ເປີດໃຊ້ງານ' : 'เปิดใช้งาน')) + '</button>';
-  return '<div style="background:white;border:1px solid var(--slate-200);border-radius:12px;padding:9px 11px;margin-bottom:7px;' + (active ? '' : 'background:var(--slate-50);') + 'display:flex;align-items:center;gap:9px;overflow-x:auto;">'
-    + '<div style="width:34px;height:34px;border-radius:9px;background:' + avBg + ';color:' + avCol + ';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0;">' + initial + '</div>'
-    + '<div style="flex:1;min-width:70px;">'
-    + '<div style="font-weight:700;font-size:14px;color:var(--slate-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(u.full_name || u.username || '?') + (isMe ? ' <span style="color:var(--violet-500);font-size:10px;font-weight:800;">(' + (isLao ? 'ທ່ານ' : 'คุณ') + ')</span>' : '') + '</div>'
-    + '<div style="font-size:11px;color:var(--slate-400);font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@' + escapeHtml(u.username || '') + '</div>'
+  const editBtn = '<button onclick="editUser(\'' + u.id + '\')" class="us-actbtn" title="' + (isLao ? 'ແກ້ໄຂ' : 'แก้ไข') + '" style="background:var(--fs-fill2,#f1f5f9);color:var(--slate-700);border:1px solid var(--slate-200);border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">' + '<span class="us-btn-txt">' + (isLao ? 'ແກ້ໄຂ' : 'แก้ไข') + '</span><span class="us-btn-ico">✏️</span>' + '</button>';
+  const toggleBtn = isMe ? '' : '<button onclick="toggleUserActive(\'' + u.id + '\')" class="us-actbtn" title="' + (active ? (isLao ? 'ປິດໃຊ້ງານ' : 'ปิดใช้งาน') : (isLao ? 'ເປີດໃຊ້ງານ' : 'เปิดใช้งาน')) + '" style="background:' + (active ? '#fff1f2' : '#f0fdf4') + ';color:' + (active ? 'var(--rose-600)' : '#15803d') + ';border:1px solid ' + (active ? 'var(--rose-200)' : '#bbf7d0') + ';border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">' + '<span class="us-btn-txt">' + (active ? (isLao ? 'ປິດໃຊ້ງານ' : 'ปิดใช้งาน') : (isLao ? 'ເປີດໃຊ້ງານ' : 'เปิดใช้งาน')) + '</span><span class="us-btn-ico">' + (active ? '🔒' : '✓') + '</span>' + '</button>';
+  return '<div class="us-card" style="background:white;border:1px solid var(--slate-200);border-radius:12px;padding:9px 11px;margin-bottom:7px;' + (active ? '' : 'background:var(--slate-50);') + 'display:flex;align-items:center;gap:9px;overflow-x:auto;">'
+    + '<div class="us-av" style="width:34px;height:34px;border-radius:9px;background:' + avBg + ';color:' + avCol + ';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0;">' + initial + '</div>'
+    + '<div style="flex:1;min-width:60px;">'
+    + '<div class="us-name" style="font-weight:700;font-size:14px;color:var(--slate-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(u.full_name || u.username || '?') + (isMe ? ' <span style="color:var(--violet-500);font-size:10px;font-weight:800;">(' + (isLao ? 'ທ່ານ' : 'คุณ') + ')</span>' : '') + '</div>'
+    + '<div class="us-uname" style="font-size:11px;color:var(--slate-400);font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@' + escapeHtml(u.username || '') + '</div>'
     + '</div>'
-    + '<span style="flex-shrink:0;background:' + rm.bg + ';color:' + rm.color + ';border-radius:999px;padding:4px 10px;font-size:11px;font-weight:800;white-space:nowrap;">' + escapeHtml(rm.label) + '</span>'
-    + (showBranch ? '<span style="flex-shrink:0;font-size:11px;color:var(--slate-600);font-weight:600;white-space:nowrap;">🏪 ' + escapeHtml(usBranchName(u.branch_id)) + '</span>' : '')
-    + '<span style="flex-shrink:0;">' + statusDot + '</span>'
+    + '<span class="us-chip" style="flex-shrink:0;background:' + rm.bg + ';color:' + rm.color + ';border-radius:999px;padding:4px 10px;font-size:11px;font-weight:800;white-space:nowrap;">' + escapeHtml(rm.label) + '</span>'
+    + (showBranch ? '<span class="us-br" style="flex-shrink:0;font-size:11px;color:var(--slate-600);font-weight:600;white-space:nowrap;">🏪 ' + escapeHtml(usBranchName(u.branch_id)) + '</span>' : '')
+    + '<span class="us-status" style="flex-shrink:0;">' + statusDot + '</span>'
     + editBtn + toggleBtn
     + '</div>';
 }
