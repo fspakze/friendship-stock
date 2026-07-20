@@ -6915,19 +6915,21 @@ async function phHandleFile(ev) {
     }
     if (!data.length) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล') + '</div>'); return; }
     // upsert กันซ้ำด้วย (buy_id, barcode, doc_no)
-    let done = 0, failed = 0;
+    let done = 0, failed = 0, firstErr = null;
     for (let i = 0; i < data.length; i += PH_UPSERT_BATCH) {
       const chunk = data.slice(i, i + PH_UPSERT_BATCH);
       const { error } = await sb.from('purchase_history').upsert(chunk, { onConflict: 'buy_id,barcode,doc_no', ignoreDuplicates: false });
-      if (error) { console.warn('[FS] ph upsert:', error.message); failed += chunk.length; }
+      if (error) { console.warn('[FS] ph upsert:', error.message, error); if (!firstErr) firstErr = error; failed += chunk.length; }
       else done += chunk.length;
       set('<div style="text-align:center;"><div class="loader" style="margin:5px auto;"></div>' + (isLao ? 'ກຳລັງບັນທຶກ...' : 'กำลังบันทึก...') + ' ' + done.toLocaleString() + '/' + data.length.toLocaleString() + '</div>');
     }
     const years = [...new Set(data.map(d => d.buy_year).filter(Boolean))].sort();
-    set('<div style="background:var(--emerald-50);border:1px solid var(--emerald-200);border-radius:10px;padding:12px;color:var(--emerald-700);font-size:12px;font-weight:700;text-align:center;">✓ '
+    const errLine = (failed && firstErr) ? '<div style="margin-top:8px;padding:8px;background:#fff1f2;border:1px solid var(--rose-200);border-radius:8px;color:var(--rose-600);font-size:11px;font-weight:600;text-align:left;word-break:break-word;">⚠️ ' + escapeHtml(firstErr.message || 'error') + (firstErr.code ? ' <b>[' + escapeHtml(String(firstErr.code)) + ']</b>' : '') + (firstErr.details ? '<br>' + escapeHtml(String(firstErr.details)) : '') + (firstErr.hint ? '<br>hint: ' + escapeHtml(String(firstErr.hint)) : '') + '</div>' : '';
+    set('<div style="background:' + (done ? 'var(--emerald-50)' : '#fff1f2') + ';border:1px solid ' + (done ? 'var(--emerald-200)' : 'var(--rose-200)') + ';border-radius:10px;padding:12px;color:' + (done ? 'var(--emerald-700)' : 'var(--rose-600)') + ';font-size:12px;font-weight:700;text-align:center;">' + (done ? '✓ ' : '✕ ')
       + (isLao ? 'ສຳເລັດ' : 'สำเร็จ') + ' ' + done.toLocaleString() + ' ' + (isLao ? 'ລາຍການ' : 'รายการ')
       + (failed ? ' · ' + (isLao ? 'ລົ້ມເຫຼວ' : 'ล้มเหลว') + ' ' + failed : '')
-      + '<br><span style="font-weight:400;color:var(--slate-500);">' + (isLao ? 'ປີ' : 'ปี') + ': ' + years.join(', ') + '</span></div>');
+      + '<br><span style="font-weight:400;color:var(--slate-500);">' + (isLao ? 'ປີ' : 'ปี') + ': ' + years.join(', ') + '</span>'
+      + errLine + '</div>');
     ev.target.value = '';
     if (typeof markDataUpdated === 'function' && done > 0) markDataUpdated('last_update_purchase');
     phLoadCount();
