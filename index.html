@@ -10524,7 +10524,63 @@ let _hcScan = null;   // สินค้าที่สแกน/ค้นเจ
 let _hcPhoto = null;      // {blob,dataUrl} รูปของฟอร์มเพิ่มสินค้า
 let _hcPhotoEdit = null;  // {blob,dataUrl} รูปของ modal แก้ไข (แยกกัน กันชนกัน)
 function hcCanManage() { return true; } // เปิดให้ทุก role เข้า/ดู HORECA catalog ได้
-function hcSeeCost() { return ['admin', 'scc', 'bcs'].includes((user && user.role) || ''); } // ต้นทุน/GP เห็นเฉพาะ manager
+// ใครมีสิทธิ์ "ปลดล็อกดูทุน/GP" ได้ = manager (admin/scc/bcs) หรือ ID HORECA-NungNing (ต้องตรงกับ rpc_hc_costs ใน DB)
+function hcCanCost() { return ['admin', 'scc', 'bcs'].includes((user && user.role) || '') || /^HORECA-NungNing$/i.test((user && user.username) || ''); }
+let _hcCostUnlocked = false;   // ปลดล็อกดูทุนแล้วหรือยัง (ต่อ session · ต้องใส่รหัสก่อน)
+let _hcCostMap = {};           // id -> {cost_price, pack_cost, box_cost} (โหลดผ่าน RPC ยืนยันตัวเท่านั้น — ไม่ส่งมาเครื่องจนกว่าจะปลดล็อก)
+// เห็นทุน/GP จริง = มีสิทธิ์ + ปลดล็อก (ใส่รหัส) แล้ว
+function hcSeeCost() { return hcCanCost() && _hcCostUnlocked; }
+// ดึงทุนรายชุดผ่าน RPC ยืนยันตัว · RPC ยังไม่มี (ยังไม่รัน SQL) → อ่านตรงชั่วคราว (self-disable หลังรัน SQL/revoke)
+async function _hcCostsCompat(set) {
+  const res = await _rpcAsActor('rpc_hc_costs', { p_catalog_set: set });
+  if (res && res.error && _rpcMissing(res.error)) {
+    const rows = await fetchAllQuery(() => sb.from('horeca_catalog').select('id,cost_price,pack_cost,box_cost').eq('catalog_set', set).order('id'));
+    return rows || [];
+  }
+  if (res && res.error) throw res.error;
+  const d = res && res.data;
+  if (!d || d.ok === false) throw new Error((d && d.error === 'auth_failed') ? (lang === 'lo' ? 'ຢືນຢັນຕົວຕົນບໍ່ໄດ້' : 'ยืนยันตัวตนไม่ได้') : ((d && d.error) || 'failed'));
+  return d.rows || [];
+}
+// merge ทุนเข้า _hcRows (เฉพาะตอนปลดล็อกแล้ว) — เรียกหลังโหลด catalog / สลับชุด
+async function hcMergeCosts() {
+  if (!(_hcCostUnlocked && hcCanCost())) return;
+  try {
+    const rows = await _hcCostsCompat(_hcSet);
+    _hcCostMap = {}; (rows || []).forEach(c => { _hcCostMap[c.id] = c; });
+    _hcRows.forEach(r => { const c = _hcCostMap[r.id]; if (c) { r.cost_price = c.cost_price; r.pack_cost = c.pack_cost; r.box_cost = c.box_cost; } });
+  } catch (e) { console.warn('hc cost merge', e); }
+}
+// ปุ่มปลดล็อก/ล็อกดูทุน (แถบในหัวหน้า HORECA)
+function hcRenderCostBar() {
+  const el = document.getElementById('hcCostBar'); if (!el) return;
+  if (!hcCanCost()) { el.innerHTML = ''; return; }
+  const isLao = lang === 'lo';
+  if (_hcCostUnlocked) {
+    el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:9px;padding:8px 11px;">'
+      + '<span style="font-size:12px;font-weight:800;color:#047857;flex:1;">🔓 ' + (isLao ? 'ເຫັນຕົ້ນທຶນ/GP: ເປີດຢູ່' : 'เห็นทุน/GP: เปิดอยู่') + '</span>'
+      + '<button onclick="hcLockCost()" style="background:#fff;color:#047857;border:1px solid #a7f3d0;border-radius:7px;padding:6px 11px;font-size:11.5px;font-weight:700;cursor:pointer;">' + (isLao ? '🔒 ເຊື່ອງ' : '🔒 ซ่อน') + '</button></div>';
+  } else {
+    el.innerHTML = '<button onclick="hcUnlockCost()" style="width:100%;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">🔒 ' + (isLao ? 'ໃສ່ລະຫັດເພື່ອເບິ່ງຕົ້ນທຶນ/GP' : 'ใส่รหัสเพื่อดูทุน/GP') + '</button>';
+  }
+}
+async function hcUnlockCost() {
+  if (!hcCanCost()) return;
+  const ah = await _getActorHash(); if (!ah) return;
+  try {
+    const rows = await _hcCostsCompat(_hcSet);
+    _hcCostMap = {}; (rows || []).forEach(c => { _hcCostMap[c.id] = c; });
+    _hcCostUnlocked = true;
+    _hcRows.forEach(r => { const c = _hcCostMap[r.id]; if (c) { r.cost_price = c.cost_price; r.pack_cost = c.pack_cost; r.box_cost = c.box_cost; } });
+    hcRenderCostBar(); hcRenderList();
+    showToast(lang === 'lo' ? 'ປົດລັອກເບິ່ງຕົ້ນທຶນແລ້ວ' : 'ปลดล็อกดูทุนแล้ว', 'success');
+  } catch (e) { showToast('Error: ' + (e.message || e), 'error'); }
+}
+function hcLockCost() {
+  _hcCostUnlocked = false; _hcCostMap = {};
+  _hcRows.forEach(r => { delete r.cost_price; delete r.pack_cost; delete r.box_cost; });
+  hcRenderCostBar(); hcRenderList();
+}
 // แก้ไข/สร้าง = เฉพาะ ID ที่ขึ้นต้น HORECA- หรือ role bcs (+ admin/scc = super)
 function hcCanEdit() {
   const u = user || {};
@@ -10671,6 +10727,7 @@ function renderHorecaPage() {
     <div style="margin-bottom:11px;">
       <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">🍽️ HORECA Catalog</h2>
       <p style="font-size:11px;color:var(--slate-500);margin:0 0 8px;">${isLao ? 'ແຄັດຕາລັອກສິນຄ້າ/ໂປຣໂມຊັນ ສຳລັບທີມ HORECA ໄປສະເໜີລູກຄ້າ' : 'แคตตาล็อกสินค้า/โปรโมชั่น สำหรับทีม HORECA ไปเสนอลูกค้า'}${canEdit ? '' : (isLao ? ' · 👁️ ເບິ່ງຢ່າງດຽວ' : ' · 👁️ ดูอย่างเดียว')}</p>
+      ${hcCanCost() ? '<div id="hcCostBar" style="margin-bottom:9px;"></div>' : ''}
       ${canEdit ? `<div style="display:flex;gap:7px;flex-wrap:wrap;">
         <button onclick="hcStartQuotePick()" style="flex:1 1 46%;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:10px;font-size:12px;font-weight:800;cursor:pointer;box-shadow:0 2px 6px rgba(0,113,227,.28);">➕🧾 ${isLao ? 'ຫຍິບສິນຄ້າ' : 'หยิบสินค้า'}</button>
         <button onclick="hqOpen()" style="flex:1 1 46%;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:10px;font-size:12px;font-weight:800;cursor:pointer;box-shadow:0 2px 6px rgba(0,113,227,.28);">🧾 ${isLao ? 'ໃບສະເໜີລາຄາ' : 'ใบเสนอราคา'}</button>
@@ -10730,7 +10787,9 @@ async function loadHoreca() {
     const sel = document.getElementById('hcSetSel');
     if (sel) sel.innerHTML = _hcSets.map(s => '<option value="' + escapeHtml(s) + '"' + (s === _hcSet ? ' selected' : '') + '>' + escapeHtml(s) + '</option>').join('');
     // โหลดสินค้าในชุดนี้
-    _hcRows = await fetchAllQuery(() => sb.from('horeca_catalog').select('*').eq('catalog_set', _hcSet).order('category').order('sort_order').order('id'));
+    // ⚠️ ไม่ดึงคอลัมน์ทุน (cost_price/pack_cost/box_cost) — anon อ่านไม่ได้แล้ว (revoke) · ทุนโหลดผ่าน RPC ตอนปลดล็อกเท่านั้น
+    _hcRows = await fetchAllQuery(() => sb.from('horeca_catalog').select('id,catalog_set,barcode,product_name,category,product_group,unit,normal_price,promo_price,pack_qty,pack_normal,pack_promo,box_qty,box_normal,box_promo,image_url,is_favorite,is_hidden,sort_order,created_by,created_by_name,created_at,updated_at').eq('catalog_set', _hcSet).order('category').order('sort_order').order('id'));
+    await hcMergeCosts();   // ถ้าปลดล็อกทุนแล้ว → ดึงทุนผ่าน RPC มา merge (รหัส cache แล้ว ไม่ถามซ้ำ)
     _hcCatFilter = ''; _hcFavOnly = false; _hcHiddenOnly = false; _hcPromoOnly = false; _hcQuoteMode = false; _hcDelMode = false; _hcDelSel = new Set(); _hcCollapsed = new Set(); _hcSearch = '';
     const _si = document.getElementById('hcCatSearch'); if (_si) _si.value = '';
     // โหลดช่วงวันโปรของชุดนี้ (ตั้งครั้งเดียว ใช้ทุกสินค้า)
@@ -10748,6 +10807,7 @@ async function loadHoreca() {
     // โหลดสต๊อค POS สาขานี้ (โชว์บนการ์ด — เฉพาะในแอป) แบบไม่บล็อกการเรนเดอร์
     hcRenderPromoBanner();
     hcRenderGiftBanner();
+    hcRenderCostBar();
     hcRenderChips();
     hcRenderList();
     hcLoadStock();
@@ -11201,11 +11261,16 @@ async function hcSaveItem() {
     category: (g('hcfCat') || '').trim() || null, product_group: (g('hcfGroup') || '').trim() || null, unit: (g('hcfUnit') || '').trim() || null,
     normal_price: Number(g('hcfNormal')) || 0,
     promo_price: numOrNull(g('hcfPromo')),
-    cost_price: hcSeeCost() ? (Number(g('hcfCost')) || 0) : 0,
-    pack_qty: _hcScan.pack ? _hcScan.pack.qty : null, pack_normal: _hcScan.pack ? numOrNull(g('hcfPackNormal')) : null, pack_promo: _hcScan.pack ? numOrNull(g('hcfPackPromo')) : null, pack_cost: (_hcScan.pack && hcSeeCost()) ? numOrNull(g('hcfPackCost')) : null,
-    box_qty: _hcScan.box ? _hcScan.box.qty : null, box_normal: _hcScan.box ? numOrNull(g('hcfBoxNormal')) : null, box_promo: _hcScan.box ? numOrNull(g('hcfBoxPromo')) : null, box_cost: (_hcScan.box && hcSeeCost()) ? numOrNull(g('hcfBoxCost')) : null,
+    pack_qty: _hcScan.pack ? _hcScan.pack.qty : null, pack_normal: _hcScan.pack ? numOrNull(g('hcfPackNormal')) : null, pack_promo: _hcScan.pack ? numOrNull(g('hcfPackPromo')) : null,
+    box_qty: _hcScan.box ? _hcScan.box.qty : null, box_normal: _hcScan.box ? numOrNull(g('hcfBoxNormal')) : null, box_promo: _hcScan.box ? numOrNull(g('hcfBoxPromo')) : null,
     created_by: user.id, created_by_name: user.full_name || user.username || '', updated_at: new Date().toISOString()
   };
+  // ใส่ทุนเฉพาะตอนปลดล็อก — ไม่ปลดล็อก = ไม่แตะคอลัมน์ทุน (upsert คงค่าเดิม กันเขียนทับเป็น 0)
+  if (hcSeeCost()) {
+    payload.cost_price = Number(g('hcfCost')) || 0;
+    if (_hcScan.pack) payload.pack_cost = numOrNull(g('hcfPackCost'));
+    if (_hcScan.box) payload.box_cost = numOrNull(g('hcfBoxCost'));
+  }
   if (!imageUrl && _hcScan.image) imageUrl = _hcScan.image;   // ไม่ได้ถ่าย/อัปโหลดใหม่ → ใช้รูปเดิมจาก catalog อื่น
   if (imageUrl) payload.image_url = imageUrl;
   // สแกนสินค้าที่มีในชุดอยู่แล้ว → upsert เข้า update path — ต้องคงคนเพิ่มคนแรกไว้ (MEMORY 5: created_by ใส่เฉพาะตอน insert)
@@ -11735,11 +11800,11 @@ function hcBuildCatalogRow(pr, maps, isLao) {
     category, product_group: group, unit,
     normal_price: normal || 0,
     promo_price: pr.promo_price,
-    cost_price: hcSeeCost() ? (cost || 0) : 0,
     pack_qty: packQty, pack_normal: packNormal, pack_promo: packPromo,
     box_qty: boxQty, box_normal: boxNormal, box_promo: boxPromo,
     created_by: user.id, created_by_name: user.full_name || user.username || '', updated_at: new Date().toISOString()
   };
+  if (hcSeeCost()) row.cost_price = cost || 0;   // ทุนเข้าเฉพาะตอนปลดล็อก (ไม่งั้นไม่แตะ = คงค่าเดิม)
   if (existImg) row.image_url = existImg;
   return row;
 }
