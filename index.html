@@ -6914,12 +6914,17 @@ async function phHandleFile(ev) {
       });
     }
     if (!data.length) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล') + '</div>'); return; }
-    // upsert กันซ้ำด้วย (buy_id, barcode, doc_no)
+    // upsert ผ่าน RPC ยืนยันตัว (SECURITY DEFINER ข้าม RLS) — ขอ hash ครั้งเดียวก่อน loop กันถามซ้ำทุก batch
+    const _ah = await _getActorHash();
+    if (!_ah) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ຍົກເລີກ — ຕ້ອງຢືນຢັນລະຫັດຜ່ານກ່ອນອັບໂຫຼດ' : 'ยกเลิก — ต้องยืนยันรหัสผ่านก่อนอัปโหลด') + '</div>'); return; }
     let done = 0, failed = 0, firstErr = null;
     for (let i = 0; i < data.length; i += PH_UPSERT_BATCH) {
       const chunk = data.slice(i, i + PH_UPSERT_BATCH);
-      const { error } = await sb.from('purchase_history').upsert(chunk, { onConflict: 'buy_id,barcode,doc_no', ignoreDuplicates: false });
-      if (error) { console.warn('[FS] ph upsert:', error.message, error); if (!firstErr) firstErr = error; failed += chunk.length; }
+      const res = await _rpcAsActor('rpc_ph_bulk_upsert', { p_rows: chunk });
+      let error = res.error;
+      if (!error && res.data && res.data.ok === false) error = { message: res.data.error === 'auth_failed' ? (isLao ? 'ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ' : 'รหัสผ่านไม่ถูกต้อง') : res.data.error === 'forbidden' ? (isLao ? 'ບໍ່ມີສິດອັບໂຫຼດ' : 'ไม่มีสิทธิ์อัปโหลด') : res.data.error };
+      if (error && _rpcMissing(res.error)) { const r2 = await sb.from('purchase_history').upsert(chunk, { onConflict: 'buy_id,barcode,doc_no', ignoreDuplicates: false }); error = r2.error; }
+      if (error) { console.warn('[FS] ph upsert:', error.message, error); if (!firstErr) firstErr = error; failed += chunk.length; if (error.message === (isLao ? 'ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ' : 'รหัสผ่านไม่ถูกต้อง')) break; }
       else done += chunk.length;
       set('<div style="text-align:center;"><div class="loader" style="margin:5px auto;"></div>' + (isLao ? 'ກຳລັງບັນທຶກ...' : 'กำลังบันทึก...') + ' ' + done.toLocaleString() + '/' + data.length.toLocaleString() + '</div>');
     }
@@ -36431,9 +36436,19 @@ async function mbExecuteUpload() {
   const prog = () => { const pct = rows.length ? Math.round(100 * done / rows.length) : 100; if (statusEl) statusEl.innerHTML = '<div style="text-align:center;padding:13px;"><div style="font-size:24px;font-weight:700;color:var(--violet-700);">' + pct + '%</div><div style="font-size:11px;color:var(--slate-500);">' + done.toLocaleString() + ' / ' + rows.length.toLocaleString() + '</div></div>'; };
   prog();
   try {
+    // upsert ผ่าน RPC ยืนยันตัว (SECURITY DEFINER ข้าม RLS) — ขอ hash ครั้งเดียวก่อน loop
+    const _mah = await _getActorHash();
+    if (!_mah) {
+      if (statusEl) statusEl.innerHTML = '<div style="color:var(--rose-500);padding:12px;text-align:center;">' + (isLao ? 'ຍົກເລີກ — ຕ້ອງຢືນຢັນລະຫັດຜ່ານ' : 'ยกเลิก — ต้องยืนยันรหัสผ่าน') + '</div>';
+      if (btn) { btn.disabled = false; btn.textContent = isLao ? 'ລອງໃໝ່' : 'ลองใหม่'; }
+      _mbUploadRunning = false; return;
+    }
     for (let i = 0; i < rows.length; i += BATCH) {
       const chunk = rows.slice(i, i + BATCH);
-      const { error } = await sb.from('memberships').upsert(chunk, { onConflict: 'member_code' });
+      const res = await _rpcAsActor('rpc_mb_bulk_upsert', { p_rows: chunk });
+      let error = res.error;
+      if (!error && res.data && res.data.ok === false) error = { message: res.data.error === 'auth_failed' ? (isLao ? 'ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ' : 'รหัสผ่านไม่ถูกต้อง') : res.data.error === 'forbidden' ? (isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์') : res.data.error };
+      if (error && _rpcMissing(res.error)) { const r2 = await sb.from('memberships').upsert(chunk, { onConflict: 'member_code' }); error = r2.error; }
       if (error) errors.push(error.message);
       done += chunk.length; prog();
     }
