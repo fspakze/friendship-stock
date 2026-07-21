@@ -36589,6 +36589,7 @@ const PO_PERMS = {
 const PO_STATUS_ORDER = ['draft', 'sent_ext', 'sent_supplier', 'shipped', 'receiving', 'closed'];
 let _poFilterStatus = null, _poFilterType = null, _poFilterBuyer = null, _poSearch = '', _poSearchTimer = null;
 let _poFilterCycle = null;   // filter รอบเดือน 20-19 {val:'YYYY-MM', from, to} หรือ null = ทุกเดือน
+let _poCyclesList = null;    // รอบเดือนที่มี PO จริง (คำนวณจากข้อมูลตอนโหลดเต็ม) — กันรอบเปล่าขึ้น dropdown
 // จัดซื้อ = segment ก่อนเลขท้ายใน po_no (PS/FS/IN/N/0041 → 'N', PS/FS/OUT/AL/001 → 'AL')
 function poBuyerFromNo(no) { const p = String(no || '').split('/'); return p.length >= 2 ? String(p[p.length - 2]).trim() : ''; }
 // key เรียงตามเลข PO: prefix (ตัวอักษร) ก่อน แล้วเลขท้ายแบบตัวเลข
@@ -36735,17 +36736,19 @@ function poCycleKey(dateStr) {
 function poFillCycleOptions() {
   const sel = document.getElementById('poFCycle'); if (!sel) return;
   const isLao = lang === 'lo';
-  const cur = poCurrentCycle(); let y = cur.y, m = cur.m; const opts = [];
-  for (let i = 0; i < 14; i++) {
-    const r = poCycleRange(y, m), val = y + '-' + String(m).padStart(2, '0');
-    const label = (isLao ? 'ຮອບ ' : 'รอบ ') + String(m).padStart(2, '0') + '/' + y
-      + ' (' + r.from.slice(8) + '/' + r.from.slice(5, 7) + '–' + r.to.slice(8) + '/' + r.to.slice(5, 7) + ')';
-    opts.push({ val, label });
-    m--; if (m < 1) { m = 12; y--; }
-  }
+  // โชว์เฉพาะรอบที่มี PO จริง (_poCyclesList) + รอบปัจจุบันเสมอ — ไม่โชว์รอบเปล่า
+  const cur = poCurrentCycle(), curVal = cur.y + '-' + String(cur.m).padStart(2, '0');
+  let vals = (_poCyclesList && _poCyclesList.length) ? _poCyclesList.slice() : [];
+  if (!vals.includes(curVal)) vals.push(curVal);
+  vals = Array.from(new Set(vals)).sort().reverse();
   const selVal = _poFilterCycle ? _poFilterCycle.val : '';
-  sel.innerHTML = '<option value="">' + (isLao ? '📅 ທຸກເດືອນ' : '📅 ทุกเดือน') + '</option>'
-    + opts.map(o => '<option value="' + o.val + '"' + (o.val === selVal ? ' selected' : '') + '>' + o.label + '</option>').join('');
+  const opt = v => {
+    const p = v.split('-'), r = poCycleRange(Number(p[0]), Number(p[1]));
+    const label = (isLao ? 'ຮອບ ' : 'รอบ ') + p[1] + '/' + p[0]
+      + ' (' + r.from.slice(8) + '/' + r.from.slice(5, 7) + '–' + r.to.slice(8) + '/' + r.to.slice(5, 7) + ')';
+    return '<option value="' + v + '"' + (v === selVal ? ' selected' : '') + '>' + label + '</option>';
+  };
+  sel.innerHTML = '<option value="">' + (isLao ? '📅 ທຸກເດືອນ' : '📅 ทุกเดือน') + '</option>' + vals.map(opt).join('');
 }
 function poSetCycle(v) {
   if (!v) { _poFilterCycle = null; }
@@ -36770,6 +36773,11 @@ async function poLoadList() {
   if (res.error && _rpcMissing(res.error)) res = await sb.rpc('rpc_po_list', base);   // RPC ยังไม่รับ filter เดือน (ยังไม่รัน SQL) → เรียกแบบเดิม (ไม่ filter เดือนชั่วคราว)
   if (res.error) { box.innerHTML = '<div style="color:var(--rose-500);padding:14px;font-size:12px;">Error: ' + escapeHtml(res.error.message) + '</div>'; return; }
   let rows = res.data || [];
+  // เก็บรอบเดือนที่มี PO จริง (เฉพาะตอนโหลดเต็ม ไม่มี filter) → เติม dropdown ไม่ให้มีรอบเปล่า
+  if (!_poFilterStatus && !_poFilterType && !_poFilterBuyer && !_poSearch && !_poFilterCycle) {
+    const set = {}; rows.forEach(r => { const k = poCycleKey(r.date_created); if (k) set[k] = 1; });
+    _poCyclesList = Object.keys(set); poFillCycleOptions();
+  }
   poFillBuyerOptions(rows); // สร้างตัวเลือกจัดซื้อจากชุดนี้ (ตาม filter ประเภท/สถานะ/ค้นหา)
   if (_poFilterBuyer) rows = rows.filter(r => poBuyerFromNo(r.po_no) === _poFilterBuyer);
   rows.sort((a, b) => { const ka = poNoSortKey(a.po_no), kb = poNoSortKey(b.po_no); if (ka[0] < kb[0]) return -1; if (ka[0] > kb[0]) return 1; return ka[1] - kb[1]; }); // เรียงตามเลข PO
