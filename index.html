@@ -14989,8 +14989,8 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
   const posQty = prod.pos_qty || 0;
   // ⭐ ราคาขาย 1 (Master/ราคากลาง) ถ้ามี — ไม่งั้น fallback ราคาสาขา (Ball 2026-07-08)
   const sellPrice = (prod._masterSellPrice != null ? prod._masterSellPrice : prod.sell_price) || 0;
-  // ⭐ ราคาขาย 2 (Master) = ราคาสมาชิก — โชว์เฉพาะตอนถูกกว่าราคาขาย 1 จริง (Ball 2026-07-17)
-  const memberPrice = (prod._masterSellPrice2 > 0 && prod._masterSellPrice2 < sellPrice) ? prod._masterSellPrice2 : null;
+  // ⭐ ราคาขาย 2 (Master) = ราคาสมาชิก — โชว์เมื่อ "ต่าง" จากราคาขาย 1 (ถูกกว่า=โปร ม่วง · แพงกว่า=ผิดปกติ เตือนแดง cross-check · เท่ากัน=ไม่โชว์) Ball 2026-07-21
+  const memberPrice = (function () { const nn = Number(sellPrice) || 0, mm = Number(prod._masterSellPrice2) || 0; if (mm <= 0 || nn <= 0 || mm === nn) return null; return { val: mm, high: mm > nn }; })();
   // สถานะสต๊อกสาขานี้ (ใช้ระบบเดิม psCalcStatus ตาม DOH/ยอดขาย) → ลงสีตัวเลข POS
   const _bAvg = (ps && ps.branch_avg) ? ps.branch_avg[psBranchKey(ps.branch_avg)] : null;
   const stPos = ps ? psCalcStatus(posQty, _bAvg || 0) : null;
@@ -15083,7 +15083,7 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
         <div style="flex:1;padding:14px 16px;text-align:center;display:flex;flex-direction:column;justify-content:center;">
           <div style="font-size:11px;color:var(--fs-ink3);margin-bottom:5px;">${T('sc_sell_price')}</div>
           <div style="font-size:20px;font-weight:600;color:var(--fs-ink);font-family:'Space Grotesk',sans-serif;font-variant-numeric:tabular-nums;">${Number(sellPrice).toLocaleString()} ₭</div>
-          ${memberPrice ? `<div style="margin-top:6px;font-size:12px;font-weight:700;color:var(--violet-700);font-variant-numeric:tabular-nums;">👤 ${isLao ? 'ລາຄາສະມາຊິກ' : 'ราคาสมาชิก'} ${Number(memberPrice).toLocaleString()} ₭</div>` : ''}
+          ${memberPrice ? `<div style="margin-top:6px;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;color:${memberPrice.high ? 'var(--fs-red)' : 'var(--violet-700)'};">${memberPrice.high ? '⚠️' : '👤'} ${isLao ? 'ລາຄາສະມາຊິກ' : 'ราคาสมาชิก'} ${Number(memberPrice.val).toLocaleString()} ₭${memberPrice.high ? ` (${isLao ? 'ແພງກວ່າປົກກະຕິ!' : 'แพงกว่าปกติ!'})` : ''}</div>` : ''}
         </div>
       </div>
 
