@@ -36588,6 +36588,7 @@ const PO_PERMS = {
 };
 const PO_STATUS_ORDER = ['draft', 'sent_ext', 'sent_supplier', 'shipped', 'receiving', 'closed'];
 let _poFilterStatus = null, _poFilterType = null, _poFilterBuyer = null, _poSearch = '', _poSearchTimer = null;
+let _poFilterCycle = null;   // filter รอบเดือน 20-19 {val:'YYYY-MM', from, to} หรือ null = ทุกเดือน
 // จัดซื้อ = segment ก่อนเลขท้ายใน po_no (PS/FS/IN/N/0041 → 'N', PS/FS/OUT/AL/001 → 'AL')
 function poBuyerFromNo(no) { const p = String(no || '').split('/'); return p.length >= 2 ? String(p[p.length - 2]).trim() : ''; }
 // key เรียงตามเลข PO: prefix (ตัวอักษร) ก่อน แล้วเลขท้ายแบบตัวเลข
@@ -36665,6 +36666,7 @@ function renderPOTrackPage() {
     // + '<button onclick="poOpenCreate()" style="...">＋ ' + (isLao ? 'ເປີດ PO' : 'เปิด PO') + '</button>'
     + '</div>'
     + '<div id="poDash" style="margin-bottom:12px;"></div>'
+    + '<select id="poFCycle" onchange="poSetCycle(this.value)" style="width:100%;padding:9px 11px;border:1px solid var(--slate-200);border-radius:9px;font-size:12.5px;background:white;font-weight:700;color:var(--slate-700);margin-bottom:8px;box-sizing:border-box;"></select>'
     + '<div style="display:flex;gap:6px;margin-bottom:8px;">'
     + '<select id="poFType" onchange="poSetType(this.value)" style="flex:1;min-width:0;padding:9px 10px;border:1px solid var(--slate-200);border-radius:9px;font-size:12.5px;background:white;font-weight:700;color:var(--slate-700);">'
     + '<option value="">' + (isLao ? 'ທຸກປະເພດ' : 'ทุกประเภท') + '</option>'
@@ -36678,7 +36680,7 @@ function renderPOTrackPage() {
     + '<div id="poList"></div>'
     + '</div>';
 }
-function poInit() { poRenderChips(); poLoadDashboard(); poLoadList(); poLoadWbCfg(); }
+function poInit() { poRenderChips(); poFillCycleOptions(); poLoadDashboard(); poLoadList(); poLoadWbCfg(); }
 async function poLoadDashboard() {
   const box = document.getElementById('poDash'); if (!box) return;
   const isLao = lang === 'lo';
@@ -36710,6 +36712,38 @@ function poRenderChips() {
 function poSetStatus(s) { _poFilterStatus = s; poRenderChips(); poLoadList(); }
 function poSetType(v) { _poFilterType = v || null; poLoadList(); }
 function poSetBuyer(v) { _poFilterBuyer = v || null; poLoadList(); }
+// ── รอบเดือน 20-19: รอบเดือน N (ปี Y) = 20 ของเดือน N-1 ถึง 19 ของเดือน N ──
+function poCycleRange(y, m) {
+  const pad = n => String(n).padStart(2, '0');
+  const to = new Date(y, m - 1, 19), from = new Date(y, m - 2, 20);   // m แบบ 1-based → JS month = m-1
+  const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  return { from: iso(from), to: iso(to) };
+}
+function poCurrentCycle() {   // วันที่ >= 20 = นับเป็นรอบเดือนถัดไป
+  const now = new Date(); let y = now.getFullYear(), m = now.getMonth() + 1;
+  if (now.getDate() >= 20) { m++; if (m > 12) { m = 1; y++; } }
+  return { y, m };
+}
+function poFillCycleOptions() {
+  const sel = document.getElementById('poFCycle'); if (!sel) return;
+  const isLao = lang === 'lo';
+  const cur = poCurrentCycle(); let y = cur.y, m = cur.m; const opts = [];
+  for (let i = 0; i < 14; i++) {
+    const r = poCycleRange(y, m), val = y + '-' + String(m).padStart(2, '0');
+    const label = (isLao ? 'ຮອບ ' : 'รอบ ') + String(m).padStart(2, '0') + '/' + y
+      + ' (' + r.from.slice(8) + '/' + r.from.slice(5, 7) + '–' + r.to.slice(8) + '/' + r.to.slice(5, 7) + ')';
+    opts.push({ val, label });
+    m--; if (m < 1) { m = 12; y--; }
+  }
+  const selVal = _poFilterCycle ? _poFilterCycle.val : '';
+  sel.innerHTML = '<option value="">' + (isLao ? '📅 ທຸກເດືອນ' : '📅 ทุกเดือน') + '</option>'
+    + opts.map(o => '<option value="' + o.val + '"' + (o.val === selVal ? ' selected' : '') + '>' + o.label + '</option>').join('');
+}
+function poSetCycle(v) {
+  if (!v) { _poFilterCycle = null; }
+  else { const p = v.split('-'), r = poCycleRange(Number(p[0]), Number(p[1])); _poFilterCycle = { val: v, from: r.from, to: r.to }; }
+  poLoadList();
+}
 function poSearchDebounce() { clearTimeout(_poSearchTimer); _poSearchTimer = setTimeout(() => { const i = document.getElementById('poSearch'); _poSearch = i ? i.value.trim() : ''; poLoadList(); }, 300); }
 function poFillBuyerOptions(rows) {
   const sel = document.getElementById('poFBuyer'); if (!sel) return;
@@ -36723,9 +36757,11 @@ async function poLoadList() {
   const box = document.getElementById('poList'); if (!box) return;
   const isLao = lang === 'lo';
   box.innerHTML = '<div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>';
-  const { data, error } = await sb.rpc('rpc_po_list', { p_status: _poFilterStatus, p_type: _poFilterType, p_search: _poSearch || null, p_limit: 1000, p_offset: 0 });
-  if (error) { box.innerHTML = '<div style="color:var(--rose-500);padding:14px;font-size:12px;">Error: ' + escapeHtml(error.message) + '</div>'; return; }
-  let rows = data || [];
+  const base = { p_status: _poFilterStatus, p_type: _poFilterType, p_search: _poSearch || null, p_limit: 1000, p_offset: 0 };
+  let res = await sb.rpc('rpc_po_list', Object.assign({}, base, { p_from: _poFilterCycle ? _poFilterCycle.from : null, p_to: _poFilterCycle ? _poFilterCycle.to : null }));
+  if (res.error && _rpcMissing(res.error)) res = await sb.rpc('rpc_po_list', base);   // RPC ยังไม่รับ filter เดือน (ยังไม่รัน SQL) → เรียกแบบเดิม (ไม่ filter เดือนชั่วคราว)
+  if (res.error) { box.innerHTML = '<div style="color:var(--rose-500);padding:14px;font-size:12px;">Error: ' + escapeHtml(res.error.message) + '</div>'; return; }
+  let rows = res.data || [];
   poFillBuyerOptions(rows); // สร้างตัวเลือกจัดซื้อจากชุดนี้ (ตาม filter ประเภท/สถานะ/ค้นหา)
   if (_poFilterBuyer) rows = rows.filter(r => poBuyerFromNo(r.po_no) === _poFilterBuyer);
   rows.sort((a, b) => { const ka = poNoSortKey(a.po_no), kb = poNoSortKey(b.po_no); if (ka[0] < kb[0]) return -1; if (ka[0] > kb[0]) return 1; return ka[1] - kb[1]; }); // เรียงตามเลข PO
@@ -36883,11 +36919,32 @@ async function poOpenDetail(id) {
   showModal('<div style="padding:34px;text-align:center;"><div class="loader" style="margin:0 auto;"></div></div>');
   const { data, error } = await sb.rpc('rpc_po_detail', { p_po_id: id });
   if (error || !data || !data.header) { showToast('Error: ' + ((error && error.message) || 'not found'), 'error'); closeModal(); return; }
+  await poAttachBuyQty(data);   // แนบยอดซื้อจริง (Buy) ในรอบเดือนที่ PO เปิด — cross-check สั่ง vs ซื้อจริง
   poRenderDetail(data);
+}
+// ยอดซื้อจริงต่อ barcode จาก purchase_history (Buy) ในรอบเดือน (20-19) ที่ PO ใบนี้เปิด (อ้างวันเปิด PO = date_created)
+async function poAttachBuyQty(d) {
+  try {
+    const h = d.header, items = d.items || [];
+    const dc = h && h.date_created ? String(h.date_created).slice(0, 10) : null;
+    if (!dc) return;   // ไม่มีวันเปิด PO → เทียบไม่ได้
+    const p = dc.split('-'); let y = Number(p[0]), mo = Number(p[1]); const day = Number(p[2]);
+    if (day >= 20) { mo++; if (mo > 12) { mo = 1; y++; } }   // วันที่ >= 20 = รอบเดือนถัดไป
+    const r = poCycleRange(y, mo);
+    const bcs = Array.from(new Set(items.map(i => i.barcode).filter(b => b)));
+    if (!bcs.length) return;
+    const map = {};
+    for (let i = 0; i < bcs.length; i += 300) {
+      const res = await sb.rpc('rpc_po_buy_qty', { p_barcodes: bcs.slice(i, i + 300), p_from: r.from, p_to: r.to });
+      if (res && res.data) Object.assign(map, res.data);
+    }
+    d._buyQty = map; d._buyCycle = { y: y, m: mo, from: r.from, to: r.to };
+  } catch (e) { /* cross-check optional — พังก็แค่ไม่โชว์ */ }
 }
 function poRenderDetail(d) {
   const isLao = lang === 'lo';
   const h = d.header, items = d.items || [], log = d.log || [], receipts = d.receipts || [];
+  const buyMap = d._buyQty || null, buyCycle = d._buyCycle || null;   // ยอดซื้อจริง (Buy) ต่อ barcode + รอบเดือนอ้างอิง
   _poCurrentHeader = h;
   const sm = poStatusMeta(h.status);
   // สถานะไล่ตามวันที่ (date-driven) — ระบุวันแต่ละขั้น แล้ว rpc_po_set_date คำนวณสถานะเอง
@@ -36913,8 +36970,11 @@ function poRenderDetail(d) {
   if (['sent_supplier', 'confirmed', 'shipped', 'receiving'].includes(h.status) && poHasPerm('receiving')) actions += '<button onclick="poOpenClose(\'' + h.id + '\')" style="background:#14b8a6;color:white;border:none;border-radius:9px;padding:9px 12px;font-size:12px;font-weight:800;cursor:pointer;">✅ ' + (isLao ? 'ປິດ PO' : 'ปิด PO') + '</button>';
   if (!['closed', 'cancelled'].includes(h.status) && poHasPerm('cancelled')) actions += '<button onclick="poAdvance(\'' + h.id + '\',\'cancelled\')" style="background:white;color:#ef4444;border:1px solid #fecaca;border-radius:9px;padding:9px 12px;font-size:12px;font-weight:800;cursor:pointer;">✕ ' + (isLao ? 'ຍົກເລີກ' : 'ยกเลิก') + '</button>';
   const info = (label, val) => val ? '<div style="display:flex;gap:8px;font-size:12px;margin-top:4px;"><span style="color:var(--slate-400);min-width:82px;">' + label + '</span><span style="color:var(--slate-800);font-weight:600;flex:1;">' + escapeHtml(String(val)) + '</span></div>' : '';
-  const itemsHtml = items.map(i => {
+  const buyNote = buyCycle ? '<div style="font-size:10.5px;color:var(--slate-400);margin-bottom:5px;">🛒 ' + (isLao ? 'ຊື້ຈິງ = ຍອດຊື້ Buy ຮອບ ' : 'ซื้อจริง = ยอดซื้อ Buy รอบ ') + String(buyCycle.m).padStart(2, '0') + '/' + buyCycle.y + ' (' + buyCycle.from.slice(8) + '/' + buyCycle.from.slice(5, 7) + '–' + buyCycle.to.slice(8) + '/' + buyCycle.to.slice(5, 7) + ')</div>' : '';
+  const itemsHtml = buyNote + items.map(i => {
     const ls = i.line_status; const lc = ls === 'complete' ? '#22c55e' : (ls === 'partial' ? '#f59e0b' : '#94a3b8');
+    const bq = buyMap ? Number(buyMap[i.barcode] || 0) : null;   // ยอดซื้อจริงในรอบ (null = ไม่มีข้อมูล/ไม่มีวันเปิด PO)
+    const ordQ = Number(i.qty_ordered) || 0;
     const bcEnc = encodeURIComponent(i.barcode || '');
     const extEnc = encodeURIComponent(i.note_ext || '').replace(/'/g, '%27');
     const intEnc = encodeURIComponent(i.note || '').replace(/'/g, '%27');
@@ -36926,7 +36986,9 @@ function poRenderDetail(d) {
       + '<div style="font-size:12.5px;font-weight:600;color:var(--slate-800);">' + escapeHtml(i.product_name || '')
       + ' <button onclick="poItemNote(\'' + i.id + '\',\'' + bcEnc + '\',\'' + extEnc + '\',\'' + intEnc + '\')" style="background:none;border:1px solid var(--slate-200);color:var(--slate-400);border-radius:4px;padding:0 5px;font-size:10px;font-weight:700;cursor:pointer;vertical-align:middle;line-height:1.5;">+</button></div>'
       + '<div style="font-size:10.5px;color:var(--slate-400);">' + escapeHtml(i.barcode || '') + '</div>' + extLine + intLine + '</div>'
-      + '<div style="text-align:right;flex-shrink:0;"><div style="font-size:12px;font-weight:700;color:' + lc + ';">' + poFmtNum(i.qty_received) + '/' + poFmtNum(i.qty_ordered) + ' ' + escapeHtml(i.unit || '') + '</div><div style="font-size:10.5px;color:var(--slate-400);">' + poFmtNum(i.amount) + '</div></div>'
+      + '<div style="text-align:right;flex-shrink:0;"><div style="font-size:12px;font-weight:700;color:' + lc + ';">' + poFmtNum(i.qty_received) + '/' + poFmtNum(i.qty_ordered) + ' ' + escapeHtml(i.unit || '') + '</div><div style="font-size:10.5px;color:var(--slate-400);">' + poFmtNum(i.amount) + '</div>'
+      + (bq !== null ? '<div style="font-size:10px;font-weight:700;margin-top:2px;color:' + (bq >= ordQ && ordQ > 0 ? '#16a34a' : '#f59e0b') + ';">' + (isLao ? 'ຊື້ຈິງ' : 'ซื้อจริง') + ' ' + poFmtNum(bq) + '</div>' : '')
+      + '</div>'
       + '</div>';
   }).join('');
   const rcptHtml = receipts.length ? receipts.map(r => '<div style="font-size:11px;color:var(--slate-500);padding:3px 0;">📥 ' + poFmtNum(r.qty) + ' · ' + escapeHtml(r.doc_no || '-') + ' · ' + poFmtDT(r.created_at) + ' · ' + escapeHtml(r.received_by || '') + '</div>').join('') : '';
