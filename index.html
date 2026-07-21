@@ -15032,8 +15032,9 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
     const uPerPack = Number(bp.qty_unit) || null;
     let uPerBox = Number(bp.pcs_per_box) || 0;
     if (!uPerBox && (Number(bp.qty_unit) || 0) && (Number(bp.qty_pack) || 0)) uPerBox = (Number(bp.qty_unit) || 0) * (Number(bp.qty_pack) || 0);
-    // ราคาสมาชิก (ราคาขาย 2) แพ๊ค/ลัง — โชว์เฉพาะตอนถูกกว่าราคาปกติจริง (Ball 2026-07-21: ถ้าเท่าราคาปกติ = ไม่ได้จัดโปรสมาชิก ไม่ต้องโชว์)
-    const mp2 = (n, m) => { const nn = Number(n) || 0, mm = Number(m) || 0; return (mm > 0 && mm < nn) ? mm : null; };
+    // ราคาสมาชิก (ราคาขาย 2) แพ๊ค/ลัง — โชว์เมื่อ "ต่าง" จากราคาปกติเท่านั้น (เท่ากัน = ไม่ได้จัดโปรสมาชิก ไม่โชว์)
+    //   ถูกกว่า = โปรสมาชิกปกติ (ม่วง) · แพงกว่า = ผิดปกติ เตือนหน้าร้านให้แจ้งจัดซื้อแก้ทัน (แดง) = cross-check
+    const mp2 = (n, m) => { const nn = Number(n) || 0, mm = Number(m) || 0; if (mm <= 0 || nn <= 0 || mm === nn) return null; return { val: mm, high: mm > nn }; };
     const rows = [];
     if (bp.barcode_pack || bp.price_pack) rows.push({ lab: isLao ? 'ແພັກ' : 'แพ๊ค', bc: bp.barcode_pack, price: bp.price_pack, mprice: mp2(bp.price_pack, bp.price_pack_2), qty: uPerPack, hi: bpLevel === 'pack' });
     if (bp.barcode_box || bp.price_box) rows.push({ lab: isLao ? 'ລັງ' : 'ลัง', bc: bp.barcode_box, price: bp.price_box, mprice: mp2(bp.price_box, bp.price_box_2), qty: uPerBox || null, hi: bpLevel === 'box' });
@@ -15051,7 +15052,7 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
               + '<span style="flex:1;min-width:0;font-size:11px;color:var(--fs-ink3);font-family:monospace;overflow:hidden;text-overflow:ellipsis;">' + (r.bc ? escapeHtml(String(r.bc)) : '—') + (r.qty ? ' · ' + fmtv(r.qty) + ' ' + unit : '') + '</span>'
               + '<span style="font-size:13px;font-weight:700;color:var(--fs-ink);white-space:nowrap;">' + fmtv(r.price) + ' ₭</span>'
             + '</div>'
-            + (r.mprice ? '<div style="text-align:right;font-size:11px;font-weight:700;color:var(--violet-700);margin-top:2px;font-variant-numeric:tabular-nums;">👤 ' + (isLao ? 'ລາຄາສະມາຊິກ' : 'ราคาสมาชิก') + ' ' + fmtv(r.mprice) + ' ₭</div>' : '')
+            + (r.mprice ? '<div style="text-align:right;font-size:11px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums;color:' + (r.mprice.high ? 'var(--fs-red)' : 'var(--violet-700)') + ';">' + (r.mprice.high ? '⚠️ ' : '👤 ') + (isLao ? 'ລາຄາສະມາຊິກ' : 'ราคาสมาชิก') + ' ' + fmtv(r.mprice.val) + ' ₭' + (r.mprice.high ? ' (' + (isLao ? 'ແພງກວ່າປົກກະຕິ!' : 'แพงกว่าปกติ!') + ')' : '') + '</div>' : '')
             + '</div>').join('')
         + '</div>';
     }
