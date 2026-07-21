@@ -15032,8 +15032,8 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
     const uPerPack = Number(bp.qty_unit) || null;
     let uPerBox = Number(bp.pcs_per_box) || 0;
     if (!uPerBox && (Number(bp.qty_unit) || 0) && (Number(bp.qty_pack) || 0)) uPerBox = (Number(bp.qty_unit) || 0) * (Number(bp.qty_pack) || 0);
-    // ราคาสมาชิก (ราคาขาย 2) — โชว์เฉพาะตอนถูกกว่าราคาปกติจริง (เหมือน logic ราคาสมาชิก Unit)
-    const mp2 = (n, m) => { const nn = Number(n) || 0, mm = Number(m) || 0; return (mm > 0 && (nn <= 0 || mm < nn)) ? mm : null; };
+    // ราคาสมาชิก (ราคาขาย 2) แพ๊ค/ลัง — โชว์ทุกครั้งที่มีราคา 2 (Ball 2026-07-21: ถ้ามีราคา 2 ให้แจ้งด้วย)
+    const mp2 = (n, m) => { const mm = Number(m) || 0; return mm > 0 ? mm : null; };
     const rows = [];
     if (bp.barcode_pack || bp.price_pack) rows.push({ lab: isLao ? 'ແພັກ' : 'แพ๊ค', bc: bp.barcode_pack, price: bp.price_pack, mprice: mp2(bp.price_pack, bp.price_pack_2), qty: uPerPack, hi: bpLevel === 'pack' });
     if (bp.barcode_box || bp.price_box) rows.push({ lab: isLao ? 'ລັງ' : 'ลัง', bc: bp.barcode_box, price: bp.price_box, mprice: mp2(bp.price_box, bp.price_box_2), qty: uPerBox || null, hi: bpLevel === 'box' });
