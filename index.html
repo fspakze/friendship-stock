@@ -19952,6 +19952,19 @@ async function confirmEditPogLocation(fromLocCode, toLocCode) {
 }
 
 // ==================== EXPORT EXCEL ====================
+// ใส่ format ตัวเลข (1000 separator "," · ทศนิยม 0) ให้ทุกเซลล์ตัวเลขในชีต — ยอดขาย/จำนวน/มูลค่าโชว์ 47,954,000
+function _xlsxComma(ws, fmt) {
+  fmt = fmt || '#,##0';
+  if (!ws || !ws['!ref']) return ws;
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const cell = ws[XLSX.utils.encode_cell({ r: r, c: c })];
+      if (cell && cell.t === 'n') cell.z = fmt;
+    }
+  }
+  return ws;
+}
 async function exportPanOGramExcel() {
   const isLao = lang === 'lo';
   showToast(isLao ? '⏳ ກຳລັງສ້າງ Excel...' : '⏳ กำลังสร้าง Excel...', 'success');
@@ -19999,6 +20012,7 @@ async function exportPanOGramExcel() {
       {wch:6},{wch:6},{wch:6},{wch:14},
       {wch:8},{wch:11},{wch:13},{wch:18},{wch:18}
     ];
+    _xlsxComma(ws1);
     XLSX.utils.book_append_sheet(wb, ws1, 'Pan-O-Gram');
     
     // Sheet 2: Shelf Capacity Template (สำหรับ Counter ใช้นับ)
@@ -20026,6 +20040,7 @@ async function exportPanOGramExcel() {
     for (let i = 2; i <= pogs.length + 1; i++) {
       ws2[`J${i}`] = { t: 'n', f: `IF(I${i}="","",I${i}-H${i})` };
     }
+    _xlsxComma(ws2);
     XLSX.utils.book_append_sheet(wb, ws2, 'Shelf Capacity');
     
     // Sheet 3: Summary by Location — ความจุตามแผน + สต๊อกปัจจุบัน (pos_qty) + Diff มูลค่า
@@ -20053,6 +20068,7 @@ async function exportPanOGramExcel() {
     sheet3.push(['TOTAL', totalItems, '—', tCapQty, Math.round(tCapVal), tStkQty, Math.round(tStkVal), Math.round(tStkVal - tCapVal)]);
     const ws3 = XLSX.utils.aoa_to_sheet(sheet3);
     ws3['!cols'] = [{wch:10},{wch:7},{wch:8},{wch:12},{wch:17},{wch:16},{wch:18},{wch:15}];
+    _xlsxComma(ws3);
     XLSX.utils.book_append_sheet(wb, ws3, 'Summary');
 
     // Sheet 4: สั่งสินค้า — สินค้าที่สต๊อกต่ำกว่าความจุ · ต้องสั่งเพิ่ม = ความจุ − สต๊อกปัจจุบัน (เฉพาะที่เป็นบวก)
@@ -20079,6 +20095,7 @@ async function exportPanOGramExcel() {
     }
     const ws4 = XLSX.utils.aoa_to_sheet(sheet4);
     ws4['!cols'] = [{wch:9},{wch:14},{wch:16},{wch:30},{wch:7},{wch:9},{wch:13},{wch:12},{wch:12},{wch:14}];
+    _xlsxComma(ws4);
     XLSX.utils.book_append_sheet(wb, ws4, 'สั่งสินค้า');
     
     const fileName = `Pan-O-Gram_${branch.code}_${new Date().toISOString().slice(0,10)}.xlsx`;
