@@ -20114,10 +20114,10 @@ async function exportPanOGramExcel() {
       const cap = Number(p.total_qty) || 0;
       if (!ordByBc[p.barcode]) ordByBc[p.barcode] = {
         bc: p.barcode, name: p.products?.name_lo || p.products?.name_th || '',
-        unit: p.products?.unit_lo || p.products?.unit_th || '', price: price, pos: pos, cap: 0, locs: new Set()
+        unit: p.products?.unit_lo || p.products?.unit_th || '', price: price, pos: pos, cap: 0, count: 0, locs: new Set()
       };
       const o = ordByBc[p.barcode];
-      o.cap += cap; o.locs.add(p.location_code);   // pos/price ต่อ product เท่ากันทุก gondola — set ครั้งเดียวตอนสร้างพอ
+      o.cap += cap; o.count++; o.locs.add(p.location_code);   // count = จำนวน planogram ที่วาง · pos/price เท่ากันทุกจุด set ครั้งเดียวพอ
     });
     const orderRows = [];
     Object.keys(ordByBc).forEach(bc => {
@@ -20125,12 +20125,12 @@ async function exportPanOGramExcel() {
       const need = o.cap - o.pos;
       if (need <= 0) return;   // สต๊อกพอ/เกินความจุรวม = ไม่ต้องสั่ง
       orderRows.push([
-        Array.from(o.locs).sort().join(', '), o.locs.size, o.bc, o.name, o.unit,
+        Array.from(o.locs).sort().join(', '), o.count, o.bc, o.name, o.unit,
         o.cap, o.pos, need, o.price, Math.round(need * o.price)
       ]);
     });
     orderRows.sort((a, b) => (b[7] - a[7]) || String(a[0]).localeCompare(String(b[0])));   // สั่งเยอะก่อน
-    const sheet4 = [['Location(s)', 'จุด (Gondola)', 'Barcode', 'Name', 'Unit', 'Capacity รวม', 'Stock (ปัจจุบัน)', 'ต้องสั่งเพิ่ม', 'Sell Price (₭)', 'มูลค่าสั่ง (₭)']].concat(orderRows);
+    const sheet4 = [['Location(s)', 'จุดที่วาง', 'Barcode', 'Name', 'Unit', 'Capacity รวม', 'Stock (ปัจจุบัน)', 'ต้องสั่งเพิ่ม', 'Sell Price (₭)', 'มูลค่าสั่ง (₭)']].concat(orderRows);
     if (orderRows.length) {
       const totNeed = orderRows.reduce((s, r) => s + r[7], 0), totOrdVal = orderRows.reduce((s, r) => s + r[9], 0);
       sheet4.push([]);
