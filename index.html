@@ -14998,7 +14998,7 @@ async function scLookup() {
   
   // Parallel: get location from PoG + last stock count + ราคาขาย 1 (Master)
   const [pogRes, countRes, statusRes, mpRes] = await Promise.all([
-    sb.from('pan_o_grams').select('location_code').eq('product_id', prod.id).eq('branch_id', branch.id).limit(1).maybeSingle(),
+    sb.from('pan_o_grams').select('position_code, location_code, shelf, seq_in_shelf, total_in_shelf').eq('product_id', prod.id).eq('branch_id', branch.id).order('location_code').order('shelf').order('seq_in_shelf'),
     sb.from('stock_counts').select('counted_qty, created_at, users!user_id(full_name)').eq('product_id', prod.id).eq('branch_id', branch.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     sb.from('product_status').select('*').eq('barcode', searchBc).maybeSingle(),
     sb.from('master_products').select('sell_price, sell_price_2').eq('barcode', searchBc).maybeSingle()
@@ -15028,12 +15028,15 @@ function renderStockCheckResult(prod, pog, lastCount, ps) {
   const _bAvg = (ps && ps.branch_avg) ? ps.branch_avg[psBranchKey(ps.branch_avg)] : null;
   const stPos = ps ? psCalcStatus(posQty, _bAvg || 0) : null;
   
-  const locHtml = pog?.location_code ? `
+  // ตำแหน่ง PoG ทุกจุด (สินค้าอาจวางหลายจุด) — โชว์ position_code เต็ม เช่น W004-5-2-20, W009-6-3-5
+  const pogList = Array.isArray(pog) ? pog : (pog ? [pog] : []);
+  const posCodes = pogList.map(p => p.position_code || [p.location_code, p.shelf, p.seq_in_shelf, p.total_in_shelf].filter(v => v != null && v !== '').join('-')).filter(Boolean);
+  const locHtml = posCodes.length ? `
     <div class="fs-row" style="border-top:1px solid var(--fs-hair);">
       <svg width="20" height="20" fill="none" stroke="var(--fs-blue)" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21s-7-5.5-7-11a7 7 0 0114 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
       <div style="flex:1;">
-        <div style="font-size:11px;color:var(--fs-ink3);">${T('sc_location')}</div>
-        <div style="font-size:14px;font-weight:600;color:var(--fs-ink);font-family:'Space Grotesk',monospace;">${pog.location_code}</div>
+        <div style="font-size:11px;color:var(--fs-ink3);">${T('sc_location')}${posCodes.length > 1 ? ' · ' + posCodes.length + ' ' + (isLao ? 'ຈຸດ' : 'จุด') : ''}</div>
+        <div style="font-size:14px;font-weight:600;color:var(--fs-ink);font-family:'Space Grotesk',monospace;line-height:1.5;">${posCodes.map(c => escapeHtml(c)).join('<br>')}</div>
       </div>
     </div>
   ` : '';
