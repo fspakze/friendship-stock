@@ -18646,13 +18646,25 @@ async function pogOpenShortReport() {
     // 5) ชื่อสาขา
     const branchName = {};
     try { const { data: brs } = await sb.from('branches').select('id, code, name_th, name_lo').in('id', [...brSet]); (brs || []).forEach(b => { branchName[b.id] = isLao ? (b.name_lo || b.name_th || b.code) : (b.name_th || b.name_lo || b.code); }); } catch (e) {}
+    // รวมข้ามสาขาต่อ barcode: ความจุตาม Panogram · สต๊อกในสาขาที่มี Panogram · สต๊อกทุกสาขา (ดูภาพรวม + มีของสาขาอื่นไหม)
+    const totCapBc = {}, totPosPogBc = {}, totPosAllBc = {};
+    Object.keys(capBB).forEach(k => {
+      const idx = k.lastIndexOf('|'); const bc = k.slice(0, idx);
+      totCapBc[bc] = (totCapBc[bc] || 0) + capBB[k];
+      totPosPogBc[bc] = (totPosPogBc[bc] || 0) + (posBB[k] || 0);   // สต๊อกเฉพาะสาขาที่มี Panogram (key ตรงกับ capBB)
+    });
+    Object.keys(posBB).forEach(k => {
+      const idx = k.lastIndexOf('|'); const bc = k.slice(0, idx);
+      totPosAllBc[bc] = (totPosAllBc[bc] || 0) + (posBB[k] || 0);   // สต๊อกทุกสาขา
+    });
     // รวมสาขา: 1 แถว/สินค้า (ปัดลังจากยอดรวม)
     const sumRows = shortBcs.map(bc => {
       const s = detail[bc]; const carton = packMap[bc] || 0;
       const cartons = carton > 1 ? Math.ceil(s.short / carton) : null;
       const orderUnits = cartons != null ? cartons * carton : s.short;
       const brNames = s.brs.map(x => branchName[x.br] || ('#' + x.br));
-      return { bc, name: nameMap[bc] || bc, short: s.short, brCount: s.brs.length, brNames, carton, cartons, orderUnits, brs: s.brs };
+      return { bc, name: nameMap[bc] || bc, short: s.short, brCount: s.brs.length, brNames, carton, cartons, orderUnits, brs: s.brs,
+        posAll: totPosAllBc[bc] || 0, posPog: totPosPogBc[bc] || 0, cap: totCapBc[bc] || 0 };
     }).sort((a, b) => b.short - a.short);
     // แยกสาขา: 1 แถว/(สินค้า×สาขา) (ปัดลังต่อสาขา)
     const byBranchRows = [];
@@ -18712,8 +18724,8 @@ function pogExportShort() {
     _pogShortData.byBranch.forEach(r => aoa.push([r.bc, r.name, r.brName, r.short, r.carton || '', r.cartons != null ? r.cartons : '', r.orderUnits]));
     sheet = 'ByBranch';
   } else {
-    aoa = [['Barcode', 'ชื่อสินค้า', 'ขาดรวม (ทุกสาขา)', 'จำนวนสาขาที่ขาด', 'สาขาที่ขาด', 'ลัง/หน่วย', 'สั่ง (ลัง)', 'สั่งรวม (ชิ้น)']];
-    _pogShortData.sum.forEach(r => aoa.push([r.bc, r.name, r.short, r.brCount, r.brNames.join(', '), r.carton || '', r.cartons != null ? r.cartons : '', r.orderUnits]));
+    aoa = [['Barcode', 'ชื่อสินค้า', 'Stock รวมทุกสาขา', 'Stock รวมสาขา Panogram', 'จำนวนตาม Panogram', 'ขาดรวม (ทุกสาขา)', 'จำนวนสาขาที่ขาด', 'ลัง/หน่วย', 'สั่ง (ลัง)', 'สั่งรวม (ชิ้น)', 'สาขาที่ขาด']];
+    _pogShortData.sum.forEach(r => aoa.push([r.bc, r.name, r.posAll, r.posPog, r.cap, r.short, r.brCount, r.carton || '', r.cartons != null ? r.cartons : '', r.orderUnits, r.brNames.join(', ')]));
     sheet = 'Combined';
   }
   const wb = XLSX.utils.book_new();
@@ -19964,6 +19976,23 @@ function _xlsxComma(ws, fmt) {
     }
   }
   return ws;
+}
+function _xlsxCommaWb(wb, fmt) { if (wb && wb.SheetNames) wb.SheetNames.forEach(function (n) { _xlsxComma(wb.Sheets[n], fmt); }); return wb; }
+// patch XLSX ให้ "ทุก" export แบบ SheetJS ใส่คอมม่า (1000 sep · ทศนิยม 0) อัตโนมัติ — ทำครั้งเดียวตอนโหลด
+try {
+  if (typeof XLSX !== 'undefined' && XLSX && !XLSX._commaPatched) {
+    XLSX._commaPatched = true;
+    ['writeFile', 'write'].forEach(function (fn) {
+      var orig = XLSX[fn];
+      if (typeof orig === 'function') XLSX[fn] = function (wb) { try { _xlsxCommaWb(wb); } catch (e) {} return orig.apply(XLSX, arguments); };
+    });
+  }
+} catch (e) {}
+// export แบบ ExcelJS: ตั้ง numFmt คอมม่าเฉพาะเลขที่ "ยังไม่มี" format (กันทับ date/% ที่ตั้งไว้แล้ว)
+function _exceljsComma(wb, fmt) {
+  fmt = fmt || '#,##0';
+  try { ((wb && wb.worksheets) || []).forEach(function (ws) { ws.eachRow(function (row) { row.eachCell({ includeEmpty: false }, function (cell) { if (typeof cell.value === 'number' && !cell.numFmt) cell.numFmt = fmt; }); }); }); } catch (e) {}
+  return wb;
 }
 async function exportPanOGramExcel() {
   const isLao = lang === 'lo';
@@ -23283,6 +23312,7 @@ async function exportProductLocationsExcel() {
     const widths = [8, 14, 16, 20, 20, 12, 25];
     widths.forEach((w, i) => ws.getColumn(i + 1).width = w);
     
+    _exceljsComma(wb);
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
@@ -28192,6 +28222,7 @@ async function exportToExcel(mode = 'full') {
     }
     
     // Save
+    _exceljsComma(wb);
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     
@@ -30984,6 +31015,7 @@ async function exportLocationDetailExcel(locationCode) {
     wsRaw.views = [{ state: 'frozen', ySplit: 1 }];
     
     // Download
+    _exceljsComma(wb);
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
