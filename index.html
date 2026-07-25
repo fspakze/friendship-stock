@@ -20074,13 +20074,17 @@ async function exportPanOGramExcel() {
     
     // Sheet 3: Summary by Location — ความจุตามแผน + สต๊อกปัจจุบัน (pos_qty) + Diff มูลค่า
     const byLoc = {};
+    const posByBc = {};   // barcode -> {pos, price} · สต๊อกต่อ product นับครั้งเดียวทั้งสาขา (กันนับซ้ำเมื่อสินค้าอยู่หลาย gondola)
     pogs.forEach(p => {
       const price = p.products?.sell_price || 0;
       const pos = Number(p.products?.pos_qty) || 0;
       const cap = Number(p.total_qty) || 0;
-      if (!byLoc[p.location_code]) byLoc[p.location_code] = { items: 0, capQty: 0, capValue: 0, stockQty: 0, stockValue: 0, shelves: new Set() };
-      const L = byLoc[p.location_code];
-      L.items++; L.capQty += cap; L.capValue += cap * price; L.stockQty += pos; L.stockValue += pos * price; L.shelves.add(p.shelf);
+      const loc = p.location_code;
+      if (!byLoc[loc]) byLoc[loc] = { items: 0, capQty: 0, capValue: 0, stockQty: 0, stockValue: 0, shelves: new Set(), posSeen: new Set() };
+      const L = byLoc[loc];
+      L.items++; L.capQty += cap; L.capValue += cap * price; L.shelves.add(p.shelf);
+      if (p.barcode && !L.posSeen.has(p.barcode)) { L.posSeen.add(p.barcode); L.stockQty += pos; L.stockValue += pos * price; }   // สต๊อกนับครั้งเดียวต่อ (barcode,location)
+      if (p.barcode) posByBc[p.barcode] = { pos: pos, price: price };
     });
     // Capacity = ความจุตามแผน (planogram) · Stock = สต๊อกปัจจุบัน (POS) · Diff = Stock − Capacity (มูลค่า: บวก=เกินแผน ลบ=ขาด)
     const sheet3 = [['Location', 'Items', 'Shelves', 'Capacity Qty', 'Capacity Value (₭)', 'Stock Qty (ปัจจุบัน)', 'Stock Value (ปัจจุบัน) (₭)', 'Diff Value (₭)']];
@@ -20091,8 +20095,8 @@ async function exportPanOGramExcel() {
     const totalItems = pogs.length;
     const tCapQty = pogs.reduce((s, p) => s + (Number(p.total_qty) || 0), 0);
     const tCapVal = pogs.reduce((s, p) => s + (Number(p.total_qty) || 0) * (p.products?.sell_price || 0), 0);
-    const tStkQty = pogs.reduce((s, p) => s + (Number(p.products?.pos_qty) || 0), 0);
-    const tStkVal = pogs.reduce((s, p) => s + (Number(p.products?.pos_qty) || 0) * (p.products?.sell_price || 0), 0);
+    const tStkQty = Object.keys(posByBc).reduce((s, bc) => s + posByBc[bc].pos, 0);                        // สต๊อกรวม นับ product ละครั้ง
+    const tStkVal = Object.keys(posByBc).reduce((s, bc) => s + posByBc[bc].pos * posByBc[bc].price, 0);
     sheet3.push([]);
     sheet3.push(['TOTAL', totalItems, '—', tCapQty, Math.round(tCapVal), tStkQty, Math.round(tStkVal), Math.round(tStkVal - tCapVal)]);
     const ws3 = XLSX.utils.aoa_to_sheet(sheet3);
@@ -20100,30 +20104,40 @@ async function exportPanOGramExcel() {
     _xlsxComma(ws3);
     XLSX.utils.book_append_sheet(wb, ws3, 'Summary');
 
-    // Sheet 4: สั่งสินค้า — สินค้าที่สต๊อกต่ำกว่าความจุ · ต้องสั่งเพิ่ม = ความจุ − สต๊อกปัจจุบัน (เฉพาะที่เป็นบวก)
-    const orderRows = [];
+    // Sheet 4: สั่งสินค้า — รวมทุก gondola ของสินค้าเดียวกัน (ความจุรวม · สต๊อกนับครั้งเดียว) · ต้องสั่ง = ความจุรวม − สต๊อก
+    //   กันบั๊ก: สินค้าอยู่ 2 gondola ความจุ 18+18=36 สต๊อก(ก้อนเดียว) 13 → สั่ง 23 (ไม่ใช่ 5×2)
+    const ordByBc = {};
     pogs.forEach(p => {
+      if (!p.barcode) return;
       const price = p.products?.sell_price || 0;
       const pos = Number(p.products?.pos_qty) || 0;
       const cap = Number(p.total_qty) || 0;
-      const need = cap - pos;
-      if (need <= 0) return;   // สต๊อกพอ/เกินความจุ = ไม่ต้องสั่ง
+      if (!ordByBc[p.barcode]) ordByBc[p.barcode] = {
+        bc: p.barcode, name: p.products?.name_lo || p.products?.name_th || '',
+        unit: p.products?.unit_lo || p.products?.unit_th || '', price: price, pos: pos, cap: 0, locs: new Set()
+      };
+      const o = ordByBc[p.barcode];
+      o.cap += cap; o.locs.add(p.location_code);   // pos/price ต่อ product เท่ากันทุก gondola — set ครั้งเดียวตอนสร้างพอ
+    });
+    const orderRows = [];
+    Object.keys(ordByBc).forEach(bc => {
+      const o = ordByBc[bc];
+      const need = o.cap - o.pos;
+      if (need <= 0) return;   // สต๊อกพอ/เกินความจุรวม = ไม่ต้องสั่ง
       orderRows.push([
-        p.location_code, p.position_code, p.barcode,
-        p.products?.name_lo || p.products?.name_th || '',
-        p.products?.unit_lo || p.products?.unit_th || '',
-        cap, pos, need, price, Math.round(need * price)
+        Array.from(o.locs).sort().join(', '), o.locs.size, o.bc, o.name, o.unit,
+        o.cap, o.pos, need, o.price, Math.round(need * o.price)
       ]);
     });
-    orderRows.sort((a, b) => String(a[0]).localeCompare(String(b[0])) || (b[7] - a[7]));   // ตำแหน่ง แล้วจำนวนสั่งมาก→น้อย
-    const sheet4 = [['Location', 'Position Code', 'Barcode', 'Name', 'Unit', 'Capacity', 'Stock (ปัจจุบัน)', 'ต้องสั่งเพิ่ม', 'Sell Price (₭)', 'มูลค่าสั่ง (₭)']].concat(orderRows);
+    orderRows.sort((a, b) => (b[7] - a[7]) || String(a[0]).localeCompare(String(b[0])));   // สั่งเยอะก่อน
+    const sheet4 = [['Location(s)', 'จุด (Gondola)', 'Barcode', 'Name', 'Unit', 'Capacity รวม', 'Stock (ปัจจุบัน)', 'ต้องสั่งเพิ่ม', 'Sell Price (₭)', 'มูลค่าสั่ง (₭)']].concat(orderRows);
     if (orderRows.length) {
       const totNeed = orderRows.reduce((s, r) => s + r[7], 0), totOrdVal = orderRows.reduce((s, r) => s + r[9], 0);
       sheet4.push([]);
       sheet4.push(['TOTAL', '—', '—', '—', '—', '—', '—', totNeed, '—', totOrdVal]);
     }
     const ws4 = XLSX.utils.aoa_to_sheet(sheet4);
-    ws4['!cols'] = [{wch:9},{wch:14},{wch:16},{wch:30},{wch:7},{wch:9},{wch:13},{wch:12},{wch:12},{wch:14}];
+    ws4['!cols'] = [{wch:16},{wch:10},{wch:16},{wch:30},{wch:7},{wch:12},{wch:13},{wch:12},{wch:12},{wch:14}];
     _xlsxComma(ws4);
     XLSX.utils.book_append_sheet(wb, ws4, 'สั่งสินค้า');
     
