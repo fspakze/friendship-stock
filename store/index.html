@@ -8,13 +8,15 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
-  --green:#0E7C5A; --green-d:#0A5F45; --green-l:#E6F4EF;
-  --amber:#F59E0B; --amber-d:#D97706;
-  --purple:#7C3AED; --purple-l:#F1EBFE;
-  --red:#DC2626; --red-l:#FEECEC;
-  --ink:#16241E; --muted:#6B7A72; --line:#E6E9E7; --line-2:#D8DDDA;
-  --bg:#F4F6F5; --card:#FFFFFF;
-  --ok:#16A34A; --warn:#EA580C;
+  /* ธีม Makro: ขาว / น้ำเงิน / แดง — remap ชื่อตัวแปรเดิม (green=น้ำเงิน, amber=แดง, purple=น้ำเงิน) */
+  --green:#0E357F; --green-d:#0A2A66; --green-l:#E7F0FB;
+  --amber:#E1121D; --amber-d:#B70E17;
+  --purple:#1461C4; --purple-l:#E7F0FB;
+  --red:#E1121D; --red-l:#FDECEC;
+  --blue:#1461C4; --blue-l:#E7F0FB; --navy:#0A2A66;
+  --ink:#16233B; --muted:#6A7488; --line:#E3E7EE; --line-2:#D5DBE5;
+  --bg:#EEF1F5; --card:#FFFFFF;
+  --ok:#16A34A; --warn:#E1121D;
   --sh:0 1px 3px rgba(16,40,30,.06),0 1px 2px rgba(16,40,30,.04);
   --sh-lg:0 8px 30px rgba(16,40,30,.12);
   --r:14px; --r-sm:10px;
@@ -50,16 +52,29 @@ header{position:sticky;top:0;z-index:40;background:var(--green);color:#fff;box-s
 .hbtn{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;position:relative;color:#fff;transition:background .15s}
 .hbtn:hover{background:rgba(255,255,255,.14)}
 .hbtn svg{width:21px;height:21px}
-.hbadge{position:absolute;top:2px;right:2px;min-width:16px;height:16px;border-radius:8px;background:var(--amber);color:#3a2500;font-size:10px;font-weight:800;display:grid;place-items:center;padding:0 4px;border:1.5px solid var(--green)}
+.hbadge{position:absolute;top:2px;right:2px;min-width:16px;height:16px;border-radius:8px;background:var(--amber);color:#fff;font-size:10px;font-weight:800;display:grid;place-items:center;padding:0 4px;border:1.5px solid var(--green)}
 .langpill{font-size:12px;font-weight:800;padding:0 8px;height:30px;border-radius:8px;background:rgba(255,255,255,.16);display:grid;place-items:center}
-.promo-strip{background:var(--green-d);color:#eafff6;font-size:12px;font-weight:600;text-align:center;padding:5px 12px;display:flex;align-items:center;justify-content:center;gap:6px}
+.promo-strip{background:var(--red);color:#fff;font-size:12px;font-weight:600;text-align:center;padding:5px 12px;display:flex;align-items:center;justify-content:center;gap:6px}
 .promo-strip b{color:var(--amber)}
 
 /* ---------- Category chips ---------- */
-.catbar{position:sticky;top:var(--hdr);z-index:30;background:var(--bg);border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:hidden}
-.catrow{display:flex;gap:8px;padding:10px 12px;max-width:1240px;margin:0 auto;width:max-content;min-width:100%}
-.chip{white-space:nowrap;padding:7px 14px;border-radius:20px;background:var(--card);border:1px solid var(--line-2);font-size:13px;font-weight:700;color:var(--muted);transition:.15s}
+.catbar{position:sticky;top:var(--hdr);z-index:30;background:var(--card);border-bottom:1px solid var(--line)}
+.catbar-in{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:10px;padding:8px 12px}
+.catdd{display:flex;align-items:center;gap:7px;background:var(--green);color:#fff;font-weight:800;font-size:13px;padding:9px 13px;border-radius:10px;white-space:nowrap;flex-shrink:0;box-shadow:var(--sh)}
+.catdd svg{width:17px;height:17px}
+.catdd .cv{opacity:.85}
+.catchips{display:flex;gap:8px;overflow-x:auto;flex:1;padding-bottom:2px}
+.chip{white-space:nowrap;padding:7px 14px;border-radius:20px;background:var(--bg);border:1px solid var(--line-2);font-size:13px;font-weight:700;color:var(--muted);transition:.15s;flex-shrink:0}
 .chip.on{background:var(--green);color:#fff;border-color:var(--green)}
+/* category mega-menu */
+.catmenu{display:flex;flex-direction:column}
+.catmenu-item{display:flex;align-items:center;gap:13px;padding:11px 4px;border-bottom:1px solid var(--line);text-align:left;width:100%;transition:background .12s}
+.catmenu-item:hover{background:var(--bg)}
+.catmenu-item.on{background:var(--blue-l)}
+.cati{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:22px;flex-shrink:0}
+.catl{flex:1;font-weight:700;font-size:14px;color:var(--ink)}
+.catl small{display:block;font-size:11px;color:var(--muted);font-weight:500}
+.catchev{color:var(--muted)}.catchev svg{width:18px;height:18px}
 
 /* ---------- Layout container ---------- */
 .wrap{max-width:1240px;margin:0 auto;padding:14px 12px}
@@ -81,10 +96,10 @@ header{position:sticky;top:0;z-index:40;background:var(--green);color:#fff;box-s
 .pcat{font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.4px}
 .pname{font-size:12.5px;font-weight:600;line-height:1.35;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:34px}
 .pprice{margin-top:auto;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
-.pprice .now{font-size:16px;font-weight:900;color:var(--green-d)}
+.pprice .now{font-size:16px;font-weight:900;color:var(--red)}
 .pprice .was{font-size:11px;color:var(--muted);text-decoration:line-through}
 .punit{font-size:10.5px;color:var(--muted)}
-.padd{margin-top:7px;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--amber);color:#3a2500;font-weight:800;font-size:12.5px;height:34px;border-radius:9px;transition:.15s}
+.padd{margin-top:7px;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--amber);color:#fff;font-weight:800;font-size:12.5px;height:34px;border-radius:9px;transition:.15s}
 .padd:hover{background:var(--amber-d);color:#fff}
 .padd svg{width:15px;height:15px}
 /* qty stepper on card */
@@ -118,7 +133,7 @@ nav.bn .nb{position:absolute;top:8px;left:calc(50% + 6px);min-width:15px;height:
 .line-item .info{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
 .line-item .nm{font-size:13px;font-weight:700;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .line-item .um{font-size:11px;color:var(--muted)}
-.line-item .pr{font-size:14px;font-weight:900;color:var(--green-d)}
+.line-item .pr{font-size:14px;font-weight:900;color:var(--red)}
 .li-side{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:6px}
 .trash{color:var(--muted)}.trash svg{width:18px;height:18px}
 .stepper.sm{height:30px;width:104px}
@@ -138,7 +153,7 @@ nav.bn .nb{position:absolute;top:8px;left:calc(50% + 6px);min-width:15px;height:
 .seg .opt.on svg{color:var(--green)}
 
 .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:50px;border-radius:12px;font-size:15px;font-weight:800;transition:.15s}
-.btn-p{background:var(--amber);color:#3a2500}.btn-p:hover{background:var(--amber-d);color:#fff}
+.btn-p{background:var(--amber);color:#fff}.btn-p:hover{background:var(--amber-d);color:#fff}
 .btn-g{background:var(--green);color:#fff}.btn-g:hover{background:var(--green-d)}
 .btn-o{background:#fff;border:1.5px solid var(--line-2);color:var(--ink)}
 .btn:disabled{opacity:.5;pointer-events:none}
@@ -149,7 +164,7 @@ nav.bn .nb{position:absolute;top:8px;left:calc(50% + 6px);min-width:15px;height:
 .foot-in{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:12px}
 .foot .tot{flex:1}
 .foot .tot small{font-size:11px;color:var(--muted);display:block}
-.foot .tot b{font-size:20px;font-weight:900;color:var(--green-d)}
+.foot .tot b{font-size:20px;font-weight:900;color:var(--red)}
 .foot .btn{width:auto;flex:1.4;padding:0 22px}
 
 /* summary rows */
@@ -157,13 +172,13 @@ nav.bn .nb{position:absolute;top:8px;left:calc(50% + 6px);min-width:15px;height:
 .sum .r{display:flex;justify-content:space-between;padding:5px 0;color:var(--muted)}
 .sum .r b{color:var(--ink);font-weight:700}
 .sum .grand{border-top:1px dashed var(--line-2);margin-top:6px;padding-top:10px;font-size:15px}
-.sum .grand b{font-size:19px;font-weight:900;color:var(--green-d)}
+.sum .grand b{font-size:19px;font-weight:900;color:var(--red)}
 
 /* status badge */
 .stbadge{font-size:11px;font-weight:800;padding:3px 9px;border-radius:8px;white-space:nowrap}
 
 /* points banner */
-.ptsban{background:linear-gradient(120deg,var(--purple),#9d5cf5);color:#fff;border-radius:var(--r);padding:16px;display:flex;align-items:center;gap:14px;box-shadow:0 6px 20px rgba(124,58,237,.28)}
+.ptsban{background:linear-gradient(120deg,var(--blue),var(--navy));color:#fff;border-radius:var(--r);padding:16px;display:flex;align-items:center;gap:14px;box-shadow:0 6px 20px rgba(20,97,196,.28)}
 .ptsban .pv{font-size:30px;font-weight:900;line-height:1}
 .ptsban small{opacity:.9;font-size:12px}
 
@@ -190,7 +205,7 @@ nav.bn .nb{position:absolute;top:8px;left:calc(50% + 6px);min-width:15px;height:
 .uopt.on{border-color:var(--green);background:var(--green-l)}
 .uopt .ul{font-weight:700;font-size:13.5px}
 .uopt .ul small{display:block;color:var(--muted);font-weight:500;font-size:11px}
-.uopt .up{font-weight:900;color:var(--green-d);font-size:15px}
+.uopt .up{font-weight:900;color:var(--red);font-size:15px}
 .uopt .up .m{display:block;font-size:10.5px;font-weight:700;color:var(--purple);text-align:right}
 
 /* toast */
@@ -328,6 +343,9 @@ const IC = {
   check:'<path d="M20 6 9 17l-5-5"/>',
   star:'<path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/>',
   pkg:'<path d="M21 8l-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
+  grid:'<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/>',
+  chevD:'<path d="m6 9 6 6 6-6"/>',
+  chevR:'<path d="m9 6 6 6-6 6"/>',
 };
 const svg=(p,w)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w||2}" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 
@@ -429,8 +447,58 @@ function header(showSearch){
 }
 function catBar(){
   const chip=(id,label)=>`<button class="chip ${curCat===id?'on':''}" onclick="selCat('${esc(id)}')">${esc(label)}</button>`;
-  return `<div class="catbar"><div class="catrow">${chip('ALL',T('all'))}${chip('__PROMO__','🔥 '+T('promo'))}${CATS.map(c=>chip(c,c)).join('')}</div></div>`;
+  return `<div class="catbar"><div class="catbar-in">
+    <button class="catdd" onclick="openCatMenu()">${svg(IC.grid,2)}<span>${isLao()?'ໝວດສິນຄ້າ':'หมวดหมู่สินค้า'}</span><span class="cv">${svg(IC.chevD)}</span></button>
+    <div class="catchips">${chip('ALL',T('all'))}${chip('__PROMO__','🔥 '+T('promo'))}${CATS.map(c=>chip(c,catIcon(c)+' '+catLabel(c))).join('')}</div>
+  </div></div>`;
 }
+/* ---- category label / icon / color ---- */
+function catLabel(c){
+  return String(c==null?'':c).replace(/^\s*\d+\s*[-.\s]+/,'').replace(/^(ປະເພດ|ประเภท)\s*/,'').trim()||String(c);
+}
+function catIcon(c){
+  const s=String(c||'');const has=(...ks)=>ks.some(k=>s.includes(k));
+  if(has('ດື່ມ','ดื่ม','Drink','drink'))return '🥤';
+  if(has('ແຊ່ແຂງ','Frozen','frozen','แช่แข็ง'))return '🧊';
+  if(has('Fresh','fresh','ສົດ'))return '🥬';
+  if(has('Dairy','dairy'))return '🥛';
+  if(has('ເບເກີ','Bakery','bakery','เบเกอ'))return '🥐';
+  if(has('ເຂົ້າໜົມ','ໜົມ','ขนม','Snack'))return '🍪';
+  if(has('ປູ່ງ','ปรุง'))return '🧂';
+  if(has('ສະອາດ','clean','Clean','ทำความสะอาด'))return '🧴';
+  if(has('ຢາ','ยา'))return '💊';
+  if(has('ຂອງຂວັນ','ກະຕ່າ','gift','Gift','กระเช้า','ของขวัญ'))return '🎁';
+  if(has('Take Home','ກັບບ້ານ'))return '🛍️';
+  if(has('ເຄື່ອງໃຊ້','ใช้'))return '🧺';
+  if(has('ເຄື່ອງກິນ','กิน'))return '🍜';
+  if(has('ຊັບສີນ'))return '🏷️';
+  if(has('ຍົກເລີກ','ยกเลิก'))return '🚫';
+  return '📦';
+}
+function catColor(c){
+  const pal=['#E7F0FB','#FDECEC','#FFF4E5','#E9F7EF','#F3EAFE','#E5F6FB','#FCEEF6','#EEF2E9','#FEF3F2'];
+  let h=0;const s=String(c||'');for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;
+  return pal[h%pal.length];
+}
+function catCount(id){
+  if(id==='ALL')return PRODUCTS.length;
+  if(id==='__PROMO__')return PRODUCTS.filter(p=>unitWas(p)||(Number(p.pack_promo)>0)||(Number(p.box_promo)>0)).length;
+  return PRODUCTS.filter(p=>p.category===id).length;
+}
+function openCatMenu(){
+  const item=(id,icon,label,color)=>`<button class="catmenu-item ${curCat===id?'on':''}" onclick="selCatMenu('${esc(id)}')">
+    <span class="cati" style="background:${color}">${icon}</span>
+    <span class="catl">${esc(label)}<small>${catCount(id)} ${esc(T('products'))}</small></span>
+    <span class="catchev">${svg(IC.chevR)}</span></button>`;
+  const html=`<div class="sheet-h"><h3>${isLao()?'ສິນຄ້າທຸກໝວດ':'สินค้าทุกหมวดหมู่'}</h3><button class="x" onclick="closeSheet()">✕</button></div>
+    <div class="sheet-b" style="padding-top:0"><div class="catmenu">
+      ${item('ALL','🛒',T('all'),'var(--blue-l)')}
+      ${item('__PROMO__','🔥',isLao()?'ໂປຣໂມຊັ່ນ':'โปรโมชั่น','var(--red-l)')}
+      ${CATS.map(c=>item(c,catIcon(c),catLabel(c),catColor(c))).join('')}
+    </div></div>`;
+  openSheet(html);
+}
+function selCatMenu(id){curCat=id;closeSheet();window.scrollTo(0,0);render();}
 
 /* ---------- Home / catalog ---------- */
 function filteredProducts(){
@@ -651,12 +719,12 @@ function openPayment(order){
     <div class="sheet-b">
       <div style="text-align:center;margin-bottom:6px">
         <div style="font-size:12px;color:var(--muted)">${esc(T('orderno'))}</div>
-        <div style="font-size:16px;font-weight:900;color:var(--green-d)">${esc(order.order_no)}</div>
+        <div style="font-size:16px;font-weight:900;color:var(--red)">${esc(order.order_no)}</div>
       </div>
       <div class="qrbox">
         <div style="font-weight:800;margin-bottom:10px">${esc(T('payqr'))}</div>
         ${qr}
-        <div style="font-size:22px;font-weight:900;color:var(--green-d);margin-top:12px">${money(order.total)}</div>
+        <div style="font-size:22px;font-weight:900;color:var(--red);margin-top:12px">${money(order.total)}</div>
         ${SHOP_QR.note?`<div style="font-size:12px;color:var(--muted);margin-top:6px;white-space:pre-line">${esc(SHOP_QR.note)}</div>`:''}
       </div>
       <div style="font-size:12.5px;color:var(--muted);text-align:center;margin:12px 0">${esc(T('payinstr'))}</div>
@@ -734,7 +802,7 @@ function orderCard(o){
     <div style="border-top:1px solid var(--line);padding-top:8px;margin-bottom:8px">${itemsHtml}${more}</div>
     <div class="row">
       <div style="font-size:12px;color:var(--muted)">${o.fulfillment==='delivery'?esc(T('deliv')):esc(T('pickup'))}${o.points_earned?` · <span style="color:var(--purple);font-weight:700">+${o.points_earned} ${esc(T('pts'))}</span>`:''}</div>
-      <div style="font-size:16px;font-weight:900;color:var(--green-d)">${money(o.total)}</div>
+      <div style="font-size:16px;font-weight:900;color:var(--red)">${money(o.total)}</div>
     </div>
     ${canPay?`<button class="btn btn-p" style="height:42px;margin-top:10px" onclick='reopenPay(${JSON.stringify({order_no:o.order_no,order_id:o.id,total:o.total})})'>${esc(T('payslipnow'))}</button>`:''}
   </div>`;
