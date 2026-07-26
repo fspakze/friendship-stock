@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A5F45">
+<title>Friendship Store — คอนโซลพนักงาน</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --green:#0E7C5A;--green-d:#0A5F45;--green-l:#E6F4EF;
+  --amber:#F59E0B;--amber-d:#D97706;--purple:#7C3AED;--purple-l:#F1EBFE;
+  --red:#DC2626;--red-l:#FEECEC;--blue:#0369A1;--blue-l:#E0F2FE;
+  --ink:#16241E;--muted:#6B7A72;--line:#E6E9E7;--line-2:#D8DDDA;
+  --bg:#EEF1F0;--card:#fff;--ok:#16A34A;
+  --sh:0 1px 3px rgba(16,40,30,.07);--sh-lg:0 10px 34px rgba(16,40,30,.16);
+  --r:14px;--ff:'Segoe UI',-apple-system,'Noto Sans Thai','Noto Sans Lao','Sarabun',Tahoma,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:var(--ff);background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45}
+svg{width:20px;height:20px;flex-shrink:0}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea,select{font-family:inherit;font-size:14px}
+img{max-width:100%;display:block}
+.hide{display:none!important}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:4px}
+
+/* login */
+.login-wrap{min-height:100vh;display:grid;place-items:center;padding:20px;background:linear-gradient(160deg,var(--green-d),var(--green))}
+.login-card{background:var(--card);border-radius:20px;box-shadow:var(--sh-lg);width:100%;max-width:390px;padding:32px 28px}
+.login-card .brand{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:6px}
+.login-card .mk{width:40px;height:40px;border-radius:11px;background:var(--green);color:#fff;display:grid;place-items:center;font-weight:900;font-size:22px;box-shadow:inset 0 0 0 2.5px var(--amber)}
+.login-card h1{font-size:19px;font-weight:900;text-align:center}
+.login-card .sub{text-align:center;color:var(--muted);font-size:12.5px;margin-bottom:22px}
+
+/* topbar */
+header{background:var(--green-d);color:#fff;position:sticky;top:0;z-index:30;box-shadow:0 2px 10px rgba(10,95,69,.3)}
+.tb{max-width:1180px;margin:0 auto;height:56px;display:flex;align-items:center;gap:12px;padding:0 16px}
+.tb .mk{width:30px;height:30px;border-radius:8px;background:#fff;color:var(--green);display:grid;place-items:center;font-weight:900;box-shadow:inset 0 0 0 2px var(--amber)}
+.tb .name{font-weight:800;font-size:15px}.tb .name small{display:block;font-size:10px;opacity:.8;font-weight:600}
+.tb .who{margin-left:auto;font-size:12.5px;text-align:right;opacity:.95}
+.tb .who b{display:block;font-weight:800}
+.tb .lo{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:rgba(255,255,255,.14)}
+/* tabs */
+.tabnav{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:56px;z-index:29}
+.tabnav-in{max-width:1180px;margin:0 auto;display:flex;gap:4px;padding:0 12px;overflow-x:auto}
+.tabnav button{padding:14px 16px;font-weight:800;font-size:13.5px;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:7px}
+.tabnav button.on{color:var(--green-d);border-color:var(--green)}
+.tabnav .cnt{background:var(--red);color:#fff;font-size:10px;font-weight:800;min-width:18px;height:18px;border-radius:9px;display:grid;place-items:center;padding:0 5px}
+
+.wrap{max-width:1180px;margin:0 auto;padding:18px 14px 60px}
+.field{margin-bottom:13px}
+.field label{display:block;font-size:12.5px;font-weight:700;margin-bottom:5px}
+.field input,.field textarea,.field select{width:100%;border:1.5px solid var(--line-2);border-radius:10px;padding:11px 12px;outline:none;background:#fff}
+.field input:focus,.field textarea:focus{border-color:var(--green)}
+.err{color:var(--red);font-size:12.5px;margin-bottom:10px;display:none}.err.show{display:block}
+
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:48px;border-radius:11px;font-size:14.5px;font-weight:800;transition:.15s}
+.btn-g{background:var(--green);color:#fff}.btn-g:hover{background:var(--green-d)}
+.btn-p{background:var(--amber);color:#3a2500}.btn-p:hover{background:var(--amber-d);color:#fff}
+.btn-o{background:#fff;border:1.5px solid var(--line-2)}
+.btn-r{background:var(--red-l);color:var(--red)}
+.btn:disabled{opacity:.5;pointer-events:none}
+.btn.sm{height:38px;font-size:13px;border-radius:9px;width:auto;padding:0 16px}
+
+.grid2{display:grid;grid-template-columns:1fr;gap:14px}
+@media(min-width:760px){.grid2{grid-template-columns:repeat(2,1fr)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);padding:16px}
+.sec-title{font-size:16px;font-weight:900;margin:4px 2px 14px;display:flex;align-items:center;gap:9px}
+.sec-title .bar{width:4px;height:18px;border-radius:2px;background:var(--amber)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.stbadge{font-size:11px;font-weight:800;padding:3px 10px;border-radius:8px;white-space:nowrap}
+.chip{white-space:nowrap;padding:7px 13px;border-radius:20px;background:var(--card);border:1.5px solid var(--line-2);font-size:12.5px;font-weight:700;color:var(--muted)}
+.chip.on{background:var(--green);color:#fff;border-color:var(--green)}
+.chiprow{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px}
+
+.empty{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty .ico{font-size:42px;margin-bottom:8px}
+.empty b{display:block;color:var(--ink);font-size:15px;margin-bottom:3px}
+.skel{background:linear-gradient(90deg,#eef1f0,#f6f8f7,#eef1f0);background-size:200% 100%;animation:sk 1.2s infinite;border-radius:var(--r);height:120px;margin-bottom:12px}
+@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* account/order card */
+.acc{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff;box-shadow:var(--sh)}
+.acc .hd{display:flex;justify-content:space-between;gap:10px;margin-bottom:8px}
+.acc .nm{font-weight:800;font-size:14.5px}
+.acc .meta{font-size:12px;color:var(--muted)}
+.mini{font-size:11px;color:var(--muted);background:var(--bg);padding:2px 8px;border-radius:6px;font-weight:700}
+
+.oitems{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 0;margin:8px 0}
+.oitems .it{display:flex;justify-content:space-between;font-size:12.5px;padding:2px 0}
+.oitems .it span{color:var(--muted)}.oitems .it b{color:var(--ink)}
+.slipimg{width:60px;height:60px;border-radius:9px;object-fit:cover;border:1px solid var(--line);cursor:pointer}
+.actbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+
+/* toast + modal */
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{background:var(--ink);color:#fff;padding:11px 18px;border-radius:12px;font-size:13.5px;font-weight:600;box-shadow:var(--sh-lg)}
+.toast.ok{background:var(--green)}.toast.err{background:var(--red)}.toast.warn{background:var(--amber-d)}
+.ov{position:fixed;inset:0;z-index:100;background:rgba(16,30,24,.6);display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(2px)}
+.ov.show{display:flex}
+.sheet{background:var(--card);width:100%;max-width:460px;border-radius:18px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh-lg)}
+.sheet-h{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 8px}
+.sheet-h h3{font-size:17px;font-weight:800}.sheet-h .x{width:32px;height:32px;border-radius:9px;background:var(--bg);display:grid;place-items:center}
+.sheet-b{padding:6px 18px 20px}
+.mres{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.mres:hover{background:var(--green-l);border-color:var(--green)}
+.imgfull{max-width:92vw;max-height:88vh;border-radius:12px}
+.qrprev{width:180px;height:180px;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#fff;padding:8px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast"></div>
+<div class="ov" id="ov" onclick="if(event.target===this)closeSheet()"><div class="sheet" id="sheet"></div></div>
+
+<script>
+const SUPABASE_URL='https://wlfinzvwnahyupkouson.supabase.co';
+const SUPABASE_KEY='sb_publishable_pX8syowjeewFtaF3cpxAEA_JZ7UPB5h';
+const SALT='friendship_pakse_2026';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+let actor=null;  // {username, hash, name, role}
+let curTab='accounts';
+let ordFilter='paid_review';
+let pendingCount=0;
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const money=n=>new Intl.NumberFormat('en-US').format(Math.round(Number(n)||0))+'₭';
+function toast(msg,type){const t=document.createElement('div');t.className='toast '+(type||'');t.textContent=msg;$('toast').appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300);},2400);}
+async function hashPassword(pwd){const d=new TextEncoder().encode(pwd+SALT);const b=await crypto.subtle.digest('SHA-256',d);return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}
+
+const IC={
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  bag:'<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>',
+  logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  truck:'<path d="M1 3h13v13H1z"/><path d="M14 8h4l3 3v5h-7"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="17.5" cy="18.5" r="2"/>',
+  store:'<path d="M3 9l1.5-5h15L21 9"/><path d="M3 9v11h18V9"/><path d="M9 20v-6h6v6"/>',
+  star:'<path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/>',
+  refresh:'<path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/>',
+};
+const svg=(p,w)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w||2}" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+
+const ST={
+  pending_payment:['รอชำระเงิน','#EA580C','#FFF1E6'],
+  paid_review:['รอตรวจสลิป','#7C3AED','#F1EBFE'],
+  confirmed:['ยืนยันแล้ว','#0E7C5A','#E6F4EF'],
+  preparing:['กำลังจัดสินค้า','#0369A1','#E0F2FE'],
+  ready:['พร้อมส่ง/รับ','#0369A1','#E0F2FE'],
+  completed:['สำเร็จ','#16A34A','#E6F6EC'],
+  cancelled:['ยกเลิก','#DC2626','#FEECEC'],
+};
+const stLabel=s=>(ST[s]||[s])[0];
+
+/* ============ Auth ============ */
+function viewLogin(){
+  return `<div class="login-wrap"><div class="login-card">
+    <div class="brand"><span class="mk">F</span><h1>Friendship Store</h1></div>
+    <div class="sub">คอนโซลพนักงาน · Staff Console</div>
+    <div class="field"><label>ชื่อผู้ใช้ (Username)</label><input id="lgUser" autocomplete="username" placeholder="username"></div>
+    <div class="field"><label>รหัสผ่าน</label><input id="lgPass" type="password" autocomplete="current-password" placeholder="••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div class="err" id="lgErr"></div>
+    <button class="btn btn-g" id="lgBtn" onclick="doLogin()">เข้าสู่ระบบ</button>
+    <div style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:14px">เฉพาะพนักงาน BCS / Admin / HORECA</div>
+  </div></div>`;
+}
+async function doLogin(){
+  const u=($('lgUser').value||'').trim();const p=$('lgPass').value||'';
+  const err=$('lgErr');const btn=$('lgBtn');
+  if(!u||!p){err.textContent='กรอกชื่อผู้ใช้และรหัสผ่าน';err.classList.add('show');return;}
+  btn.disabled=true;btn.textContent='กำลังเข้าสู่ระบบ...';
+  try{
+    const hash=await hashPassword(p);
+    const {data,error}=await sb.rpc('verify_login',{p_username:u,p_hash:hash});
+    if(error)throw error;
+    if(!data){err.textContent='ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';err.classList.add('show');btn.disabled=false;btn.textContent='เข้าสู่ระบบ';return;}
+    const role=data.role;const uname=data.username;
+    const allowed=['admin','scc','bcs'].includes(role)||/^HORECA-/i.test(uname||'');
+    if(!allowed){err.textContent='บัญชีนี้ไม่มีสิทธิ์เข้าคอนโซล (ต้องเป็น BCS/Admin/HORECA)';err.classList.add('show');btn.disabled=false;btn.textContent='เข้าสู่ระบบ';return;}
+    actor={username:uname,hash:hash,name:data.full_name||uname,role:role};
+    sessionStorage.setItem('fs_admin',JSON.stringify(actor));
+    render();
+    loadPendingCount();
+  }catch(e){err.textContent='ผิดพลาด: '+(e.message||e);err.classList.add('show');btn.disabled=false;btn.textContent='เข้าสู่ระบบ';}
+}
+function doLogout(){actor=null;sessionStorage.removeItem('fs_admin');render();}
+
+/* ============ Shell ============ */
+function render(){
+  if(!actor){$('app').innerHTML=viewLogin();return;}
+  $('app').innerHTML=`
+    <header><div class="tb">
+      <span class="mk">F</span><div class="name">Friendship Store<small>คอนโซลพนักงาน</small></div>
+      <div class="who"><b>${esc(actor.name)}</b><span style="opacity:.85">${esc(actor.role)}</span></div>
+      <button class="lo" onclick="doLogout()" title="ออกจากระบบ">${svg(IC.logout)}</button>
+    </div></header>
+    <div class="tabnav"><div class="tabnav-in">
+      <button class="${curTab==='accounts'?'on':''}" onclick="setTab('accounts')">${svg(IC.user)} บัญชีรออนุมัติ ${pendingCount?`<span class="cnt">${pendingCount}</span>`:''}</button>
+      <button class="${curTab==='orders'?'on':''}" onclick="setTab('orders')">${svg(IC.bag)} ออเดอร์</button>
+      <button class="${curTab==='settings'?'on':''}" onclick="setTab('settings')">${svg(IC.gear)} ตั้งค่า</button>
+    </div></div>
+    <div class="wrap" id="tabBody"></div>`;
+  renderTab();
+}
+function setTab(t){curTab=t;render();}
+function renderTab(){
+  if(curTab==='accounts')renderAccounts();
+  else if(curTab==='orders')renderOrders();
+  else renderSettings();
+}
+
+/* ============ RPC helper ============ */
+async function rpcStaff(name,params){
+  const res=await sb.rpc(name,Object.assign({p_username:actor.username,p_hash:actor.hash},params||{}));
+  return res;
+}
+
+/* ============ Tab: Accounts ============ */
+async function loadPendingCount(){
+  try{const {data}=await rpcStaff('rpc_store_pending_accounts',{});if(data&&data.ok){pendingCount=(data.rows||[]).length;if(actor)render();}}catch(e){}
+}
+async function renderAccounts(){
+  const body=$('tabBody');
+  body.innerHTML=`<div class="sec-title"><span class="bar"></span>บัญชีลูกค้ารออนุมัติ <button class="btn-o sm btn" style="margin-left:auto" onclick="renderAccounts()">${svg(IC.refresh,2)}</button></div><div class="skel"></div><div class="skel"></div>`;
+  try{
+    const {data,error}=await rpcStaff('rpc_store_pending_accounts',{});
+    if(error||!data||!data.ok)throw new Error((data&&data.error)||(error&&error.message)||'load failed');
+    const rows=data.rows||[];pendingCount=rows.length;
+    if(!rows.length){body.innerHTML=`<div class="sec-title"><span class="bar"></span>บัญชีลูกค้ารออนุมัติ <button class="btn-o sm btn" style="margin-left:auto" onclick="renderAccounts()">${svg(IC.refresh,2)}</button></div><div class="empty"><div class="ico">✅</div><b>ไม่มีบัญชีรออนุมัติ</b><div>บัญชีใหม่ที่ลูกค้าสมัครจะมาแสดงที่นี่</div></div>`;
+      updateTabCnt();return;}
+    body.innerHTML=`<div class="sec-title"><span class="bar"></span>บัญชีลูกค้ารออนุมัติ (${rows.length}) <button class="btn-o sm btn" style="margin-left:auto" onclick="renderAccounts()">${svg(IC.refresh,2)}</button></div>
+      <div class="grid2">${rows.map(accCard).join('')}</div>`;
+    updateTabCnt();
+  }catch(e){body.innerHTML=`<div class="empty"><div class="ico">⚠️</div><b>โหลดไม่สำเร็จ</b><div>${esc(e.message||e)}</div></div>`;}
+}
+function accCard(a){
+  const d=(a.created_at||'').slice(0,16).replace('T',' ');
+  return `<div class="acc" id="acc-${a.id}">
+    <div class="hd"><div><div class="nm">${esc(a.display_name||'(ไม่ระบุชื่อ)')}</div><div class="meta">📞 ${esc(a.phone)}${a.business_type?' · '+esc(a.business_type):''}</div></div>
+      <span class="mini">${esc(d)}</span></div>
+    ${a.customer_id?`<div class="meta" style="margin-bottom:8px">🔗 ผูกลูกค้า HORECA เดิม #${esc(a.customer_id)}</div>`:''}
+    <div class="field" style="margin-bottom:8px"><label>รหัสสมาชิก (สะสมแต้ม) — ไม่ใส่ก็ได้</label>
+      <div style="display:flex;gap:8px"><input id="mc-${a.id}" value="${esc(a.member_code||'')}" placeholder="เช่น M-0001" style="flex:1">
+        <button class="btn btn-o sm" onclick="openMemberSearch('${a.id}')">${svg(IC.search,2)} ค้นหา</button></div></div>
+    <div class="actbtns">
+      <button class="btn btn-g sm" style="flex:1" onclick="approveAcc('${a.id}')">${svg(IC.check,2)} อนุมัติบัญชี</button>
+    </div>
+  </div>`;
+}
+async function approveAcc(id){
+  const mc=($('mc-'+id)||{}).value||'';
+  const card=$('acc-'+id);const btn=card&&card.querySelector('.btn-g');if(btn){btn.disabled=true;btn.textContent='กำลังอนุมัติ...';}
+  try{
+    const {data,error}=await rpcStaff('rpc_store_approve_account',{p_account_id:id,p_member_code:mc});
+    if(error||!data||!data.ok)throw new Error((data&&data.error)||(error&&error.message)||'failed');
+    toast('อนุมัติบัญชีแล้ว'+(mc?' · ผูกสมาชิก '+mc:''),'ok');
+    if(card)card.style.transition='opacity .3s';if(card)card.style.opacity='0';
+    setTimeout(()=>renderAccounts(),350);
+  }catch(e){toast('ผิดพลาด: '+(e.message||e),'err');if(btn){btn.disabled=false;btn.innerHTML=svg(IC.check,2)+' อนุมัติบัญชี';}}
+}
+/* member search */
+let msTarget=null;
+function openMemberSearch(accId){
+  msTarget=accId;
+  openSheet(`<div class="sheet-h"><h3>ค้นหาสมาชิก</h3><button class="x" onclick="closeSheet()">✕</button></div>
+    <div class="sheet-b">
+      <div class="field"><input id="msQ" placeholder="ชื่อ / เบอร์ / รหัสสมาชิก" onkeydown="if(event.key==='Enter')doMemberSearch()"></div>
+      <button class="btn btn-g" onclick="doMemberSearch()">${svg(IC.search,2)} ค้นหา</button>
+      <div id="msRes" style="margin-top:14px"></div>
+    </div>`);
+  setTimeout(()=>{const q=$('msQ');if(q)q.focus();},100);
+}
+async function doMemberSearch(){
+  const q=($('msQ').value||'').trim();const res=$('msRes');
+  res.innerHTML='<div class="skel" style="height:50px"></div>';
+  try{
+    const {data,error}=await rpcStaff('rpc_search_members',{p_q:q,p_type:'ALL',p_sort:'points.desc',p_limit:40});
+    if(error||!data||!data.ok)throw new Error((data&&data.error)||'search failed');
+    const rows=data.rows||[];
+    if(!rows.length){res.innerHTML='<div class="empty" style="padding:24px"><b>ไม่พบสมาชิก</b></div>';return;}
+    res.innerHTML=rows.map(m=>`<div class="mres" onclick="pickMember('${esc(m.member_code)}')">
+      <div><div style="font-weight:800;font-size:13.5px">${esc(m.name||'-')}</div>
+      <div style="font-size:11.5px;color:var(--muted)">${esc(m.member_code||'')} · ${esc(m.tel||m.mobile||'')}</div></div>
+      <div style="font-weight:800;color:var(--purple);font-size:13px">${Number(m.points||0).toLocaleString()} แต้ม</div></div>`).join('');
+  }catch(e){res.innerHTML=`<div class="empty" style="padding:24px"><b>ค้นหาไม่สำเร็จ</b><div>${esc(e.message||e)}</div></div>`;}
+}
+function pickMember(mc){const inp=$('mc-'+msTarget);if(inp)inp.value=mc;closeSheet();toast('เลือกสมาชิก '+mc,'ok');}
+
+/* ============ Tab: Orders ============ */
+function renderOrders(){
+  const body=$('tabBody');
+  const filters=[['paid_review','รอตรวจสลิป'],['pending_payment','รอชำระ'],['confirmed','ยืนยันแล้ว'],['preparing','กำลังจัด'],['ready','พร้อมส่ง/รับ'],['completed','สำเร็จ'],['',' ทั้งหมด'],['cancelled','ยกเลิก']];
+  body.innerHTML=`<div class="sec-title"><span class="bar"></span>จัดการออเดอร์ <button class="btn-o sm btn" style="margin-left:auto" onclick="loadOrders()">${svg(IC.refresh,2)}</button></div>
+    <div class="chiprow">${filters.map(f=>`<button class="chip ${ordFilter===f[0]?'on':''}" onclick="setOrdFilter('${f[0]}')">${esc(f[1])}</button>`).join('')}</div>
+    <div id="ordList"><div class="skel"></div><div class="skel"></div></div>`;
+  loadOrders();
+}
+function setOrdFilter(f){ordFilter=f;renderOrders();}
+async function loadOrders(){
+  const el=$('ordList');if(!el)return;
+  el.innerHTML='<div class="skel"></div><div class="skel"></div>';
+  try{
+    const {data,error}=await rpcStaff('rpc_store_admin_orders',{p_status:ordFilter||null});
+    if(error||!data||!data.ok)throw new Error((data&&data.error)||(error&&error.message)||'load failed');
+    const orders=data.orders||[];
+    if(!orders.length){el.innerHTML='<div class="empty"><div class="ico">📦</div><b>ไม่มีออเดอร์ในสถานะนี้</b></div>';return;}
+    el.innerHTML=`<div class="grid2">${orders.map(orderCard).join('')}</div>`;
+  }catch(e){el.innerHTML=`<div class="empty"><div class="ico">⚠️</div><b>โหลดไม่สำเร็จ</b><div>${esc(e.message||e)}</div></div>`;}
+}
+function orderCard(o){
+  const st=ST[o.status]||[o.status,'#6B7A72','#eee'];
+  const items=(o.items||[]);
+  const itemsHtml=items.map(i=>`<div class="it"><span>${esc(i.product_name)} <b>×${i.qty} ${esc(i.unit_label||'')}</b></span><b>${money(i.line_total)}</b></div>`).join('');
+  const dest=o.fulfillment==='delivery'?`${svg(IC.truck,2)} จัดส่ง: ${esc(o.address||'-')}`:`${svg(IC.store,2)} รับที่ร้าน${o.branch_id?' (สาขา '+o.branch_id+')':''}`;
+  const slip=o.slip_url?`<img class="slipimg" src="${esc(o.slip_url)}" onclick="showImg('${esc(o.slip_url)}')" title="ดูสลิป">`:`<span class="mini">ยังไม่มีสลิป</span>`;
+  return `<div class="acc" id="ord-${o.id}">
+    <div class="hd"><div><div class="nm">${esc(o.order_no)}</div><div class="meta">${esc(o.customer_name||'-')} · 📞 ${esc(o.phone||'-')}</div></div>
+      <span class="stbadge" style="color:${st[1]};background:${st[2]}">${esc(st[0])}</span></div>
+    <div class="meta" style="display:flex;align-items:center;gap:6px;margin-bottom:6px">${dest}</div>
+    ${o.note?`<div class="meta" style="margin-bottom:6px">📝 ${esc(o.note)}</div>`:''}
+    <div class="oitems">${itemsHtml}</div>
+    <div class="row">
+      <div style="display:flex;align-items:center;gap:10px">${slip}
+        <div><div style="font-size:11px;color:var(--muted)">${o.points_earned?`<span style="color:var(--purple);font-weight:800">+${o.points_earned} แต้ม</span>`:''}</div>
+        <div style="font-size:18px;font-weight:900;color:var(--green-d)">${money(o.total)}</div></div></div>
+    </div>
+    <div class="actbtns">${orderActions(o)}</div>
+  </div>`;
+}
+function orderActions(o){
+  const b=(s,label,cls)=>`<button class="btn ${cls} sm" onclick="setOrderStatus('${o.id}','${s}')">${label}</button>`;
+  const out=[];
+  if(o.status==='paid_review')out.push(b('confirmed','✓ ยืนยันรับเงิน + แจกแต้ม','btn-g'));
+  if(o.status==='pending_payment')out.push(`<span class="mini" style="align-self:center">รอลูกค้าโอน+ส่งสลิป</span>`);
+  if(o.status==='confirmed')out.push(b('preparing','เริ่มจัดสินค้า','btn-p'));
+  if(o.status==='preparing')out.push(b('ready','พร้อมส่ง/รับ','btn-p'));
+  if(o.status==='ready')out.push(b('completed','✓ สำเร็จ','btn-g'));
+  if(!['completed','cancelled'].includes(o.status))out.push(b('cancelled','ยกเลิก','btn-r'));
+  return out.join('');
+}
+async function setOrderStatus(id,status){
+  if(status==='cancelled'&&!confirm('ยืนยันยกเลิกออเดอร์นี้?'))return;
+  if(status==='confirmed'&&!confirm('ยืนยันว่าได้รับเงินแล้ว? ระบบจะแจกแต้มให้ลูกค้าทันที (ทำครั้งเดียว)'))return;
+  const card=$('ord-'+id);const btns=card&&card.querySelectorAll('.actbtns button');if(btns)btns.forEach(b=>b.disabled=true);
+  try{
+    const {data,error}=await rpcStaff('rpc_store_set_order_status',{p_order_id:id,p_status:status});
+    if(error||!data||!data.ok)throw new Error((data&&data.error)||(error&&error.message)||'failed');
+    toast(status==='confirmed'?'ยืนยันรับเงิน + แจกแต้มแล้ว':'อัปเดตสถานะ: '+stLabel(status),'ok');
+    loadOrders();
+  }catch(e){toast('ผิดพลาด: '+(e.message||e),'err');if(btns)btns.forEach(b=>b.disabled=false);}
+}
+function showImg(url){openSheet(`<div style="padding:8px;text-align:center"><img class="imgfull" src="${esc(url)}"><div style="padding:10px"><button class="btn btn-o" onclick="closeSheet()">ปิด</button></div></div>`);}
+
+/* ============ Tab: Settings ============ */
+async function renderSettings(){
+  const body=$('tabBody');
+  body.innerHTML=`<div class="sec-title"><span class="bar"></span>ตั้งค่าร้าน</div><div class="card"><div class="skel" style="height:200px"></div></div>`;
+  let qrUrl='',qrNote='';
+  try{const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note']);(data||[]).forEach(r=>{if(r.key==='store_qr_url')qrUrl=r.value||'';if(r.key==='store_qr_note')qrNote=r.value||'';});}catch(e){}
+  body.innerHTML=`<div class="sec-title"><span class="bar"></span>ตั้งค่าร้าน</div>
+    <div class="card" style="max-width:520px">
+      <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">💳 QR รับเงินร้าน</div>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">รูป QR นี้จะแสดงให้ลูกค้าสแกนตอนชำระเงิน</div>
+      <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px">
+        <div id="qrPrev">${qrUrl?`<img class="qrprev" src="${esc(qrUrl)}">`:`<div class="qrprev" style="display:grid;place-items:center;color:var(--muted);font-size:12px;text-align:center;padding:14px">ยังไม่ได้ตั้ง QR</div>`}</div>
+        <div style="flex:1;min-width:200px">
+          <label class="btn btn-p sm" for="qrFile" style="margin-bottom:10px">${svg(IC.gear,2)} เลือกรูป QR</label>
+          <input type="file" id="qrFile" accept="image/*" style="display:none" onchange="uploadQR(this)">
+          <div style="font-size:11.5px;color:var(--muted)">รองรับ .png .jpg — ควรเป็นภาพ QR ที่ชัด</div>
+        </div>
+      </div>
+      <div class="field"><label>หมายเหตุใต้ QR (ชื่อบัญชี / เลขบัญชี — ไม่ใส่ก็ได้)</label>
+        <textarea id="qrNote" placeholder="เช่น บัญชี BCEL: xxx-xxxx&#10;ชื่อ: Friendship SuperMart">${esc(qrNote)}</textarea></div>
+      <button class="btn btn-g" id="qrNoteBtn" onclick="saveQRNote()">บันทึกหมายเหตุ</button>
+    </div>`;
+}
+async function uploadQR(input){
+  const f=input.files&&input.files[0];if(!f)return;
+  const prev=$('qrPrev');if(prev)prev.innerHTML='<div class="qrprev" style="display:grid;place-items:center;color:var(--muted)">กำลังอัปโหลด...</div>';
+  try{
+    const ext=(f.name.split('.').pop()||'png').toLowerCase();
+    const path=`shop-qr-${Date.now()}.${ext}`;
+    const {error:upErr}=await sb.storage.from('store-slips').upload(path,f,{upsert:true,contentType:f.type});
+    if(upErr)throw upErr;
+    const {data:pub}=sb.storage.from('store-slips').getPublicUrl(path);
+    const url=pub.publicUrl;
+    const {error}=await sb.from('app_settings').upsert({key:'store_qr_url',value:url},{onConflict:'key'});
+    if(error)throw error;
+    if(prev)prev.innerHTML=`<img class="qrprev" src="${esc(url)}">`;
+    toast('ตั้งค่า QR ร้านแล้ว ลูกค้าเห็นทันที','ok');
+  }catch(e){toast('อัปโหลดไม่สำเร็จ: '+(e.message||e),'err');renderSettings();}
+}
+async function saveQRNote(){
+  const note=($('qrNote').value||'').trim();const btn=$('qrNoteBtn');btn.disabled=true;
+  try{
+    const {error}=await sb.from('app_settings').upsert({key:'store_qr_note',value:note},{onConflict:'key'});
+    if(error)throw error;toast('บันทึกหมายเหตุแล้ว','ok');btn.disabled=false;
+  }catch(e){toast('บันทึกไม่สำเร็จ: '+(e.message||e),'err');btn.disabled=false;}
+}
+
+/* ============ misc ============ */
+function updateTabCnt(){const btns=document.querySelectorAll('.tabnav button');/* re-render minimal */ if(actor){const t=document.querySelector('.tabnav-in');if(t){const b=t.querySelector('button');}}}
+function openSheet(html){$('sheet').innerHTML=html;$('ov').classList.add('show');}
+function closeSheet(){$('ov').classList.remove('show');}
+
+/* ============ boot ============ */
+(function(){
+  try{const s=sessionStorage.getItem('fs_admin');if(s)actor=JSON.parse(s);}catch(e){}
+  render();
+  if(actor)loadPendingCount();
+})();
+</script>
+</body>
+</html>

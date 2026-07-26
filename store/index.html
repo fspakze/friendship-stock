@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0E7C5A">
+<title>Friendship Store — สั่งซื้อสินค้า HORECA</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --green:#0E7C5A; --green-d:#0A5F45; --green-l:#E6F4EF;
+  --amber:#F59E0B; --amber-d:#D97706;
+  --purple:#7C3AED; --purple-l:#F1EBFE;
+  --red:#DC2626; --red-l:#FEECEC;
+  --ink:#16241E; --muted:#6B7A72; --line:#E6E9E7; --line-2:#D8DDDA;
+  --bg:#F4F6F5; --card:#FFFFFF;
+  --ok:#16A34A; --warn:#EA580C;
+  --sh:0 1px 3px rgba(16,40,30,.06),0 1px 2px rgba(16,40,30,.04);
+  --sh-lg:0 8px 30px rgba(16,40,30,.12);
+  --r:14px; --r-sm:10px;
+  --hdr:56px; --nav:60px;
+  --ff:'Segoe UI',-apple-system,'Noto Sans Thai','Noto Sans Lao','Sarabun',Tahoma,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{font-family:var(--ff);background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45;overscroll-behavior-y:none}
+img{max-width:100%;display:block}
+svg{width:20px;height:20px;flex-shrink:0}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea,select{font-family:inherit;font-size:14px}
+a{color:inherit;text-decoration:none}
+.hide{display:none!important}
+::-webkit-scrollbar{height:6px;width:6px}
+::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:3px}
+
+/* ---------- App shell ---------- */
+#app{min-height:100%;padding-bottom:calc(var(--nav) + env(safe-area-inset-bottom))}
+@media(min-width:820px){#app{padding-bottom:24px}}
+
+/* ---------- Header ---------- */
+header{position:sticky;top:0;z-index:40;background:var(--green);color:#fff;box-shadow:0 2px 10px rgba(10,95,69,.25)}
+.hbar{height:var(--hdr);display:flex;align-items:center;gap:10px;padding:0 12px;max-width:1240px;margin:0 auto}
+.logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px;white-space:nowrap;letter-spacing:.2px}
+.logo .mk{width:30px;height:30px;border-radius:8px;background:#fff;color:var(--green);display:grid;place-items:center;font-weight:900;font-size:17px;box-shadow:inset 0 0 0 2px var(--amber)}
+.logo small{display:block;font-size:9px;font-weight:600;opacity:.85;letter-spacing:2px;margin-top:-2px}
+.search{flex:1;display:flex;align-items:center;gap:8px;background:#fff;color:var(--ink);border-radius:10px;padding:0 12px;height:38px;min-width:0}
+.search svg{width:17px;height:17px;color:var(--muted);flex-shrink:0}
+.search input{border:none;outline:none;flex:1;min-width:0;background:none}
+.htools{display:flex;align-items:center;gap:4px}
+.hbtn{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;position:relative;color:#fff;transition:background .15s}
+.hbtn:hover{background:rgba(255,255,255,.14)}
+.hbtn svg{width:21px;height:21px}
+.hbadge{position:absolute;top:2px;right:2px;min-width:16px;height:16px;border-radius:8px;background:var(--amber);color:#3a2500;font-size:10px;font-weight:800;display:grid;place-items:center;padding:0 4px;border:1.5px solid var(--green)}
+.langpill{font-size:12px;font-weight:800;padding:0 8px;height:30px;border-radius:8px;background:rgba(255,255,255,.16);display:grid;place-items:center}
+.promo-strip{background:var(--green-d);color:#eafff6;font-size:12px;font-weight:600;text-align:center;padding:5px 12px;display:flex;align-items:center;justify-content:center;gap:6px}
+.promo-strip b{color:var(--amber)}
+
+/* ---------- Category chips ---------- */
+.catbar{position:sticky;top:var(--hdr);z-index:30;background:var(--bg);border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:hidden}
+.catrow{display:flex;gap:8px;padding:10px 12px;max-width:1240px;margin:0 auto;width:max-content;min-width:100%}
+.chip{white-space:nowrap;padding:7px 14px;border-radius:20px;background:var(--card);border:1px solid var(--line-2);font-size:13px;font-weight:700;color:var(--muted);transition:.15s}
+.chip.on{background:var(--green);color:#fff;border-color:var(--green)}
+
+/* ---------- Layout container ---------- */
+.wrap{max-width:1240px;margin:0 auto;padding:14px 12px}
+.sec-title{font-size:16px;font-weight:800;margin:6px 2px 12px;display:flex;align-items:center;gap:8px}
+.sec-title .bar{width:4px;height:18px;border-radius:2px;background:var(--amber)}
+
+/* ---------- Product grid ---------- */
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media(min-width:560px){.grid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:820px){.grid{grid-template-columns:repeat(4,1fr);gap:14px}}
+@media(min-width:1080px){.grid{grid-template-columns:repeat(5,1fr)}}
+.pcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--sh);transition:transform .12s,box-shadow .12s}
+.pcard:active{transform:scale(.98)}
+.pthumb{position:relative;aspect-ratio:1;background:linear-gradient(135deg,#f0f3f1,#e4eae7);display:grid;place-items:center;overflow:hidden}
+.pthumb img{width:100%;height:100%;object-fit:contain;padding:8px}
+.pthumb .ph{font-size:34px;font-weight:900;color:#c3ccc7}
+.pbadge{position:absolute;top:7px;left:7px;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;box-shadow:var(--sh)}
+.pbody{padding:9px 10px 11px;display:flex;flex-direction:column;flex:1;gap:5px}
+.pcat{font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.4px}
+.pname{font-size:12.5px;font-weight:600;line-height:1.35;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:34px}
+.pprice{margin-top:auto;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.pprice .now{font-size:16px;font-weight:900;color:var(--green-d)}
+.pprice .was{font-size:11px;color:var(--muted);text-decoration:line-through}
+.punit{font-size:10.5px;color:var(--muted)}
+.padd{margin-top:7px;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--amber);color:#3a2500;font-weight:800;font-size:12.5px;height:34px;border-radius:9px;transition:.15s}
+.padd:hover{background:var(--amber-d);color:#fff}
+.padd svg{width:15px;height:15px}
+/* qty stepper on card */
+.stepper{margin-top:7px;display:flex;align-items:center;height:34px;border-radius:9px;overflow:hidden;border:1.5px solid var(--green)}
+.stepper button{width:34px;height:100%;background:var(--green-l);color:var(--green-d);font-size:18px;font-weight:800;display:grid;place-items:center}
+.stepper .q{flex:1;text-align:center;font-weight:800;color:var(--ink)}
+
+/* ---------- Empty / loading ---------- */
+.empty{text-align:center;padding:50px 20px;color:var(--muted)}
+.empty .ico{font-size:44px;margin-bottom:10px}
+.empty b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
+.skel{background:linear-gradient(90deg,#eef1f0,#f6f8f7,#eef1f0);background-size:200% 100%;animation:sk 1.2s infinite;border-radius:var(--r);aspect-ratio:.72}
+@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* ---------- Bottom nav ---------- */
+nav.bn{position:fixed;bottom:0;left:0;right:0;z-index:45;background:var(--card);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -2px 12px rgba(16,40,30,.06)}
+nav.bn button{flex:1;height:var(--nav);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--muted);font-size:10.5px;font-weight:700;position:relative}
+nav.bn button.on{color:var(--green)}
+nav.bn button svg{width:22px;height:22px}
+nav.bn .nb{position:absolute;top:8px;left:calc(50% + 6px);min-width:15px;height:15px;border-radius:8px;background:var(--red);color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center;padding:0 3px}
+@media(min-width:820px){nav.bn{display:none}}
+
+/* ---------- Cart / pages ---------- */
+.page-h{display:flex;align-items:center;gap:10px;padding:12px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+.page-h .back{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;background:var(--bg)}
+.page-h .back svg{width:20px;height:20px}
+.page-h h2{font-size:16px;font-weight:800}
+.line-item{display:flex;gap:11px;padding:12px;background:var(--card);border-radius:var(--r);border:1px solid var(--line);box-shadow:var(--sh)}
+.line-item .th{width:64px;height:64px;border-radius:10px;background:#eef2f0;flex-shrink:0;display:grid;place-items:center;overflow:hidden}
+.line-item .th img{width:100%;height:100%;object-fit:contain}
+.line-item .info{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.line-item .nm{font-size:13px;font-weight:700;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.line-item .um{font-size:11px;color:var(--muted)}
+.line-item .pr{font-size:14px;font-weight:900;color:var(--green-d)}
+.li-side{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:6px}
+.trash{color:var(--muted)}.trash svg{width:18px;height:18px}
+.stepper.sm{height:30px;width:104px}
+.stepper.sm button{width:30px;font-size:16px}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);padding:14px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:12.5px;font-weight:700;margin-bottom:5px;color:var(--ink)}
+.field input,.field textarea,.field select{width:100%;border:1.5px solid var(--line-2);border-radius:10px;padding:11px 12px;outline:none;background:#fff;transition:border .15s}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--green)}
+.field textarea{min-height:74px;resize:vertical}
+.seg{display:flex;gap:8px}
+.seg .opt{flex:1;border:1.5px solid var(--line-2);border-radius:12px;padding:12px;text-align:center;font-weight:700;font-size:13px;transition:.15s;display:flex;flex-direction:column;align-items:center;gap:5px}
+.seg .opt svg{width:22px;height:22px;color:var(--muted)}
+.seg .opt.on{border-color:var(--green);background:var(--green-l);color:var(--green-d)}
+.seg .opt.on svg{color:var(--green)}
+
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:50px;border-radius:12px;font-size:15px;font-weight:800;transition:.15s}
+.btn-p{background:var(--amber);color:#3a2500}.btn-p:hover{background:var(--amber-d);color:#fff}
+.btn-g{background:var(--green);color:#fff}.btn-g:hover{background:var(--green-d)}
+.btn-o{background:#fff;border:1.5px solid var(--line-2);color:var(--ink)}
+.btn:disabled{opacity:.5;pointer-events:none}
+.btn svg{width:19px;height:19px}
+
+/* sticky checkout footer */
+.foot{position:fixed;bottom:0;left:0;right:0;z-index:44;background:var(--card);border-top:1px solid var(--line);padding:11px 12px calc(11px + env(safe-area-inset-bottom));box-shadow:0 -3px 14px rgba(16,40,30,.08)}
+.foot-in{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.foot .tot{flex:1}
+.foot .tot small{font-size:11px;color:var(--muted);display:block}
+.foot .tot b{font-size:20px;font-weight:900;color:var(--green-d)}
+.foot .btn{width:auto;flex:1.4;padding:0 22px}
+
+/* summary rows */
+.sum{font-size:13.5px}
+.sum .r{display:flex;justify-content:space-between;padding:5px 0;color:var(--muted)}
+.sum .r b{color:var(--ink);font-weight:700}
+.sum .grand{border-top:1px dashed var(--line-2);margin-top:6px;padding-top:10px;font-size:15px}
+.sum .grand b{font-size:19px;font-weight:900;color:var(--green-d)}
+
+/* status badge */
+.stbadge{font-size:11px;font-weight:800;padding:3px 9px;border-radius:8px;white-space:nowrap}
+
+/* points banner */
+.ptsban{background:linear-gradient(120deg,var(--purple),#9d5cf5);color:#fff;border-radius:var(--r);padding:16px;display:flex;align-items:center;gap:14px;box-shadow:0 6px 20px rgba(124,58,237,.28)}
+.ptsban .pv{font-size:30px;font-weight:900;line-height:1}
+.ptsban small{opacity:.9;font-size:12px}
+
+/* ---------- Modal ---------- */
+.ov{position:fixed;inset:0;z-index:100;background:rgba(16,30,24,.55);display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(2px)}
+.ov.show{display:flex}
+@media(min-width:560px){.ov{align-items:center}}
+.sheet{background:var(--card);width:100%;max-width:460px;border-radius:20px 20px 0 0;max-height:92vh;overflow-y:auto;box-shadow:var(--sh-lg);animation:up .25s ease}
+@media(min-width:560px){.sheet{border-radius:20px}}
+@keyframes up{from{transform:translateY(40px);opacity:.6}to{transform:translateY(0);opacity:1}}
+.sheet-h{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 8px;position:sticky;top:0;background:var(--card)}
+.sheet-h h3{font-size:17px;font-weight:800}
+.sheet-h .x{width:32px;height:32px;border-radius:9px;background:var(--bg);display:grid;place-items:center}
+.sheet-b{padding:6px 18px 22px}
+
+.tabs{display:flex;background:var(--bg);border-radius:11px;padding:4px;margin-bottom:16px}
+.tabs button{flex:1;padding:9px;border-radius:8px;font-weight:800;font-size:13.5px;color:var(--muted)}
+.tabs button.on{background:var(--card);color:var(--green-d);box-shadow:var(--sh)}
+
+/* product detail */
+.pd-img{aspect-ratio:1;background:#eef2f0;border-radius:var(--r);display:grid;place-items:center;overflow:hidden;margin-bottom:14px}
+.pd-img img{width:100%;height:100%;object-fit:contain;padding:16px}
+.uopt{display:flex;align-items:center;justify-content:space-between;border:1.5px solid var(--line-2);border-radius:12px;padding:11px 13px;margin-bottom:9px;transition:.15s}
+.uopt.on{border-color:var(--green);background:var(--green-l)}
+.uopt .ul{font-weight:700;font-size:13.5px}
+.uopt .ul small{display:block;color:var(--muted);font-weight:500;font-size:11px}
+.uopt .up{font-weight:900;color:var(--green-d);font-size:15px}
+.uopt .up .m{display:block;font-size:10.5px;font-weight:700;color:var(--purple);text-align:right}
+
+/* toast */
+#toast{position:fixed;left:50%;bottom:calc(var(--nav) + 16px);transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{background:var(--ink);color:#fff;padding:11px 18px;border-radius:12px;font-size:13.5px;font-weight:600;box-shadow:var(--sh-lg);animation:tin .2s;max-width:88vw}
+.toast.ok{background:var(--green)}.toast.err{background:var(--red)}.toast.warn{background:var(--warn)}
+@keyframes tin{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+.slip-drop{border:2px dashed var(--line-2);border-radius:var(--r);padding:24px;text-align:center;color:var(--muted);background:var(--bg)}
+.slip-drop svg{width:34px;height:34px;color:var(--green);margin-bottom:8px}
+.qrbox{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:18px;text-align:center;box-shadow:var(--sh)}
+.qrbox img{width:220px;max-width:70%;margin:0 auto;border-radius:10px}
+.qrph{width:210px;height:210px;margin:0 auto;border:2px dashed var(--line-2);border-radius:12px;display:grid;place-items:center;color:var(--muted);font-size:12px;padding:16px;text-align:center}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast"></div>
+<div class="ov" id="ov" onclick="if(event.target===this)closeSheet()">
+  <div class="sheet" id="sheet"></div>
+</div>
+
+<script>
+/* ============================================================
+   Friendship Store — customer storefront (MVP)
+   ============================================================ */
+const SUPABASE_URL = 'https://wlfinzvwnahyupkouson.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_pX8syowjeewFtaF3cpxAEA_JZ7UPB5h';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* ---------- i18n ---------- */
+const I18N = {
+  th:{
+    tagline:'ค้าส่ง · ปากเซ', search:'ค้นหาสินค้า...', all:'ทั้งหมด', promo:'โปรฯ',
+    home:'หน้าหลัก', cats:'หมวดหมู่', cart:'ตะกร้า', orders:'ออเดอร์', account:'บัญชี',
+    add:'เพิ่ม', addcart:'ใส่ตะกร้า', added:'ใส่ตะกร้าแล้ว', products:'สินค้า',
+    loadingshop:'กำลังเตรียมร้าน...', noproducts:'ยังไม่มีสินค้าในร้าน', nofound:'ไม่พบสินค้าที่ค้นหา',
+    unit:'หน่วย', pack:'แพ็ค', box:'ลัง', per:'ต่อ',
+    cartempty:'ตะกร้าว่างเปล่า', cartemptysub:'เลือกสินค้าที่ต้องการก่อนนะคะ', shopnow:'เลือกซื้อสินค้า',
+    subtotal:'ยอดสินค้า', delivery:'ค่าส่ง', free:'ฟรี', total:'ยอดรวม', checkout:'สั่งซื้อ',
+    items:'รายการ', qty:'จำนวน', remove:'ลบ',
+    fulfill:'รับสินค้าแบบ', deliv:'จัดส่งถึงที่', pickup:'รับที่ร้าน',
+    address:'ที่อยู่จัดส่ง', addressph:'บ้านเลขที่ / หมู่บ้าน / เมือง / จุดสังเกต', pickbranch:'เลือกสาขา',
+    note:'หมายเหตุ (ถ้ามี)', noteph:'เช่น โทรก่อนส่ง / เวลารับ',
+    placeorder:'ยืนยันสั่งซื้อ', ordersummary:'สรุปคำสั่งซื้อ',
+    pay:'ชำระเงิน', payqr:'สแกน QR เพื่อชำระ', payinstr:'โอนตามยอดด้านล่าง แล้วอัปโหลดสลิป',
+    uploadslip:'อัปโหลดสลิปโอนเงิน', slipdrop:'แตะเพื่อเลือกรูปสลิป', slipnote:'พนักงานจะตรวจสอบและยืนยันภายในไม่นาน',
+    confirmpay:'ส่งสลิป & ยืนยัน', ordersuccess:'สั่งซื้อสำเร็จ!', orderno:'เลขที่ออเดอร์',
+    vieworders:'ดูออเดอร์ของฉัน', ordermore:'สั่งเพิ่ม',
+    myorders:'ออเดอร์ของฉัน', noorders:'ยังไม่มีออเดอร์', orderdetail:'รายละเอียดออเดอร์',
+    points:'แต้มสะสม', pointsub:'สมาชิก Friendship', earnpts:'จะได้รับ', pts:'แต้ม',
+    login:'เข้าสู่ระบบ', register:'สมัครสมาชิก', logout:'ออกจากระบบ',
+    phone:'เบอร์โทรศัพท์', password:'รหัสผ่าน', name:'ชื่อร้าน / ชื่อผู้ติดต่อ', biztype:'ประเภทกิจการ',
+    biztypeph:'เช่น ร้านอาหาร / โรงแรม / คาเฟ่', signin:'เข้าสู่ระบบ', signup:'สมัครสมาชิก',
+    needlogin:'กรุณาเข้าสู่ระบบก่อน', loginsub:'เข้าสู่ระบบเพื่อสั่งซื้อและสะสมแต้ม',
+    pendingtitle:'บัญชีรอการอนุมัติ', pendingmsg:'สมัครเรียบร้อยแล้ว! พนักงานจะอนุมัติบัญชีของคุณเร็วๆ นี้ แล้วจึงเข้าสู่ระบบได้',
+    welcome:'ยินดีต้อนรับ', member:'รหัสสมาชิก', nomember:'ยังไม่ผูกสมาชิก',
+    st_pending_payment:'รอชำระเงิน', st_paid_review:'รอตรวจสลิป', st_confirmed:'ยืนยันแล้ว',
+    st_preparing:'กำลังจัดสินค้า', st_ready:'พร้อมส่ง/รับ', st_completed:'สำเร็จ', st_cancelled:'ยกเลิก',
+    payslipnow:'อัปสลิปเลย', reqfields:'กรอกข้อมูลให้ครบ', selunit:'เลือกหน่วย', retry:'ลองใหม่', loadfail:'โหลดสินค้าไม่สำเร็จ',
+    loginfail:'เบอร์หรือรหัสผ่านไม่ถูกต้อง', regphoneexist:'เบอร์นี้สมัครไว้แล้ว',
+    ordering:'กำลังสั่งซื้อ...', uploading:'กำลังอัปโหลด...', close:'ปิด', continue:'ดำเนินการต่อ',
+  },
+  lo:{
+    tagline:'ຄ້າສົ່ງ · ປາກເຊ', search:'ຄົ້ນຫາສິນຄ້າ...', all:'ທັງໝົດ', promo:'ໂປຣ',
+    home:'ໜ້າຫຼັກ', cats:'ໝວດ', cart:'ກະຕ່າ', orders:'ອໍເດີ', account:'ບັນຊີ',
+    add:'ເພີ່ມ', addcart:'ໃສ່ກະຕ່າ', added:'ໃສ່ກະຕ່າແລ້ວ', products:'ສິນຄ້າ',
+    loadingshop:'ກຳລັງກຽມຮ້ານ...', noproducts:'ຍັງບໍ່ມີສິນຄ້າ', nofound:'ບໍ່ພົບສິນຄ້າ',
+    unit:'ໜ່ວຍ', pack:'ແພັກ', box:'ແກັດ', per:'ຕໍ່',
+    cartempty:'ກະຕ່າຫວ່າງເປົ່າ', cartemptysub:'ເລືອກສິນຄ້າກ່ອນເດີ', shopnow:'ເລືອກຊື້ສິນຄ້າ',
+    subtotal:'ຍອດສິນຄ້າ', delivery:'ຄ່າສົ່ງ', free:'ຟຣີ', total:'ຍອດລວມ', checkout:'ສັ່ງຊື້',
+    items:'ລາຍການ', qty:'ຈຳນວນ', remove:'ລຶບ',
+    fulfill:'ຮັບສິນຄ້າແບບ', deliv:'ຈັດສົ່ງເຖິງທີ່', pickup:'ຮັບທີ່ຮ້ານ',
+    address:'ທີ່ຢູ່ຈັດສົ່ງ', addressph:'ບ້ານເລກທີ / ບ້ານ / ເມືອງ / ຈຸດສັງເກດ', pickbranch:'ເລືອກສາຂາ',
+    note:'ໝາຍເຫດ (ຖ້າມີ)', noteph:'ເຊັ່ນ ໂທກ່ອນສົ່ງ / ເວລາຮັບ',
+    placeorder:'ຢືນຢັນສັ່ງຊື້', ordersummary:'ສະຫຼຸບຄຳສັ່ງຊື້',
+    pay:'ຊຳລະເງິນ', payqr:'ສະແກນ QR ເພື່ອຊຳລະ', payinstr:'ໂອນຕາມຍອດລຸ່ມນີ້ ແລ້ວອັບໂຫຼດສະລິບ',
+    uploadslip:'ອັບໂຫຼດສະລິບໂອນເງິນ', slipdrop:'ແຕະເພື່ອເລືອກຮູບສະລິບ', slipnote:'ພະນັກງານຈະກວດ ແລະ ຢືນຢັນໄວໆ',
+    confirmpay:'ສົ່ງສະລິບ & ຢືນຢັນ', ordersuccess:'ສັ່ງຊື້ສຳເລັດ!', orderno:'ເລກທີ່ອໍເດີ',
+    vieworders:'ເບິ່ງອໍເດີ', ordermore:'ສັ່ງເພີ່ມ',
+    myorders:'ອໍເດີຂອງຂ້ອຍ', noorders:'ຍັງບໍ່ມີອໍເດີ', orderdetail:'ລາຍລະອຽດອໍເດີ',
+    points:'ແຕ້ມສະສົມ', pointsub:'ສະມາຊິກ Friendship', earnpts:'ຈະໄດ້ຮັບ', pts:'ແຕ້ມ',
+    login:'ເຂົ້າສູ່ລະບົບ', register:'ສະໝັກສະມາຊິກ', logout:'ອອກຈາກລະບົບ',
+    phone:'ເບີໂທລະສັບ', password:'ລະຫັດຜ່ານ', name:'ຊື່ຮ້ານ / ຊື່ຜູ້ຕິດຕໍ່', biztype:'ປະເພດກິດຈະການ',
+    biztypeph:'ເຊັ່ນ ຮ້ານອາຫານ / ໂຮງແຮມ / ຄາເຟ່', signin:'ເຂົ້າສູ່ລະບົບ', signup:'ສະໝັກ',
+    needlogin:'ກະລຸນາເຂົ້າສູ່ລະບົບກ່ອນ', loginsub:'ເຂົ້າສູ່ລະບົບເພື່ອສັ່ງຊື້ ແລະ ສະສົມແຕ້ມ',
+    pendingtitle:'ບັນຊີລໍຖ້າອະນຸມັດ', pendingmsg:'ສະໝັກສຳເລັດ! ພະນັກງານຈະອະນຸມັດບັນຊີໄວໆ ຈຶ່ງເຂົ້າສູ່ລະບົບໄດ້',
+    welcome:'ຍິນດີຕ້ອນຮັບ', member:'ລະຫັດສະມາຊິກ', nomember:'ຍັງບໍ່ຜູກສະມາຊິກ',
+    st_pending_payment:'ລໍຊຳລະ', st_paid_review:'ລໍກວດສະລິບ', st_confirmed:'ຢືນຢັນແລ້ວ',
+    st_preparing:'ກຳລັງຈັດ', st_ready:'ພ້ອມສົ່ງ/ຮັບ', st_completed:'ສຳເລັດ', st_cancelled:'ຍົກເລີກ',
+    payslipnow:'ອັບສະລິບ', reqfields:'ຕື່ມຂໍ້ມູນໃຫ້ຄົບ', selunit:'ເລືອກໜ່ວຍ', retry:'ລອງໃໝ່', loadfail:'ໂຫຼດສິນຄ້າບໍ່ສຳເລັດ',
+    loginfail:'ເບີ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກ', regphoneexist:'ເບີນີ້ສະໝັກໄວ້ແລ້ວ',
+    ordering:'ກຳລັງສັ່ງຊື້...', uploading:'ກຳລັງອັບໂຫຼດ...', close:'ປິດ', continue:'ດຳເນີນຕໍ່',
+  }
+};
+let lang = localStorage.getItem('fs_store_lang') || 'th';
+const T = k => (I18N[lang] && I18N[lang][k]) || I18N.th[k] || k;
+const isLao = () => lang === 'lo';
+
+/* ---------- State ---------- */
+let PRODUCTS = [];
+let CATS = [];
+let PMAP = {};           // barcode -> product
+let BRANCHES = [];
+let cart = JSON.parse(localStorage.getItem('fs_store_cart') || '[]');   // [{barcode,unit_type,qty}]
+let token = localStorage.getItem('fs_store_token') || null;
+let profile = null;
+let view = 'home';
+let curCat = 'ALL';
+let curSearch = '';
+let SHOP_QR = { url:'', note:'' };
+
+/* ---------- Helpers ---------- */
+const money = n => new Intl.NumberFormat('en-US').format(Math.round(Number(n)||0)) + '₭';
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const $ = id => document.getElementById(id);
+function toast(msg,type){const t=document.createElement('div');t.className='toast '+(type||'');t.textContent=msg;$('toast').appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300);},2200);}
+function saveCart(){localStorage.setItem('fs_store_cart',JSON.stringify(cart));updateBadges();}
+function cartCount(){return cart.reduce((s,i)=>s+i.qty,0);}
+
+/* SVG icons */
+const IC = {
+  search:'<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  cart:'<circle cx="9" cy="21" r="1.6"/><circle cx="19" cy="21" r="1.6"/><path d="M2.5 3h2.2l2.3 12.3a2 2 0 0 0 2 1.6h8.4a2 2 0 0 0 2-1.5L23 7H6.2"/>',
+  home:'<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/>',
+  grid:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+  bag:'<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  back:'<path d="M15 18l-6-6 6-6"/>',
+  trash:'<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6"/>',
+  truck:'<path d="M1 3h13v13H1z"/><path d="M14 8h4l3 3v5h-7"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="17.5" cy="18.5" r="2"/>',
+  store:'<path d="M3 9l1.5-5h15L21 9"/><path d="M3 9v11h18V9"/><path d="M3 9h18"/><path d="M9 20v-6h6v6"/>',
+  up:'<path d="M12 15V3m0 0-4 4m4-4 4 4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  star:'<path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z"/>',
+  pkg:'<path d="M21 8l-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
+};
+const svg=(p,w)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w||2}" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+
+/* ---------- Pricing ---------- */
+function unitPrice(p){const promo=Number(p.promo_price)||0;const nrm=Number(p.normal_price)||0;return promo>0?promo:nrm;}
+function unitWas(p){const promo=Number(p.promo_price)||0;const nrm=Number(p.normal_price)||0;return (promo>0&&nrm>promo)?nrm:0;}
+function packPrice(p){const promo=Number(p.pack_promo)||0;const nrm=Number(p.pack_normal)||0;return promo>0?promo:nrm;}
+function boxPrice(p){const promo=Number(p.box_promo)||0;const nrm=Number(p.box_normal)||0;return promo>0?promo:nrm;}
+function priceFor(p,ut){return ut==='box'?boxPrice(p):ut==='pack'?packPrice(p):unitPrice(p);}
+function labelFor(p,ut){if(ut==='box')return T('box');if(ut==='pack')return p.pack_label||T('pack');return p.unit||T('unit');}
+
+/* ============================================================
+   Data load
+   ============================================================ */
+let catalogError='';
+async function loadCatalog(attempt){
+  attempt=attempt||1;
+  try{
+    let all=[],from=0;const page=1000;
+    while(true){
+      const {data,error}=await sb.from('v_store_catalog').select('*').order('sort_order',{ascending:true,nullsFirst:false}).order('product_name').range(from,from+page-1);
+      if(error)throw error;
+      all=all.concat(data||[]);
+      if(!data||data.length<page)break;
+      from+=page;
+    }
+    PRODUCTS=all.filter(p=>unitPrice(p)>0||packPrice(p)>0||boxPrice(p)>0);
+    PMAP={};PRODUCTS.forEach(p=>{if(p.barcode)PMAP[p.barcode]=p;});
+    const set=new Set();PRODUCTS.forEach(p=>{if(p.category)set.add(p.category);});
+    CATS=Array.from(set).sort();
+    catalogError='';
+    return true;
+  }catch(e){
+    const msg=(e&&(e.message||e.error_description||e.hint))||(typeof e==='object'?JSON.stringify(e):String(e));
+    console.warn('catalog load failed (attempt '+attempt+'):',msg,e);
+    if(attempt<3){await new Promise(r=>setTimeout(r,600*attempt));return loadCatalog(attempt+1);}
+    catalogError=msg;PRODUCTS=[];CATS=[];
+    return false;
+  }
+}
+async function reloadCatalog(){
+  catalogError='';PRODUCTS=[];
+  const app=$('app');app.innerHTML=header(true)+catBar()+`<div class="wrap"><div class="grid">${'<div class="skel"></div>'.repeat(8)}</div></div>`+bottomNav();
+  await loadCatalog();
+  render();
+}
+async function loadBranches(){
+  try{const {data}=await sb.from('branches').select('*');BRANCHES=(data||[]).filter(b=>b.id!=null);}catch(e){BRANCHES=[];}
+}
+async function loadShopQR(){
+  try{
+    const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note']);
+    (data||[]).forEach(r=>{if(r.key==='store_qr_url')SHOP_QR.url=r.value||'';if(r.key==='store_qr_note')SHOP_QR.note=r.value||'';});
+  }catch(e){}
+}
+async function restoreSession(){
+  if(!token){profile=null;return;}
+  try{
+    const {data,error}=await sb.rpc('rpc_store_session',{p_token:token});
+    if(error||!data||!data.ok){token=null;localStorage.removeItem('fs_store_token');profile=null;return;}
+    profile=data.profile;
+  }catch(e){profile=null;}
+}
+
+/* ============================================================
+   Router / render
+   ============================================================ */
+function go(v){view=v;window.scrollTo(0,0);render();}
+function render(){
+  const app=$('app');
+  if(view==='home')app.innerHTML=viewHome();
+  else if(view==='cart')app.innerHTML=viewCart();
+  else if(view==='checkout')app.innerHTML=viewCheckout();
+  else if(view==='orders')app.innerHTML=viewOrders();
+  else if(view==='account')app.innerHTML=viewAccount();
+  else app.innerHTML=viewHome();
+  app.insertAdjacentHTML('beforeend',bottomNav());
+  updateBadges();
+  if(view==='orders')loadMyOrders();
+}
+function updateBadges(){
+  document.querySelectorAll('[data-cartbadge]').forEach(el=>{const c=cartCount();el.textContent=c;el.style.display=c?'':'none';});
+}
+
+/* ---------- Header + category bar ---------- */
+function header(showSearch){
+  return `<header>
+    <div class="hbar">
+      <div class="logo" onclick="go('home')"><span class="mk">F</span><span>Friendship<small>${esc(T('tagline'))}</small></span></div>
+      ${showSearch?`<div class="search">${svg(IC.search)}<input id="q" placeholder="${esc(T('search'))}" value="${esc(curSearch)}" oninput="onSearch(this.value)"></div>`:'<div style="flex:1"></div>'}
+      <div class="htools">
+        <button class="hbtn langpill" onclick="toggleLang()">${lang==='th'?'ລາວ':'ไทย'}</button>
+        <button class="hbtn" onclick="go('account')" title="${esc(T('account'))}">${svg(IC.user)}</button>
+        <button class="hbtn" onclick="go('cart')" title="${esc(T('cart'))}">${svg(IC.cart)}<span class="hbadge" data-cartbadge style="display:none">0</span></button>
+      </div>
+    </div>
+    <div class="promo-strip">${svg(IC.truck,2)}<span style="margin-left:4px">${isLao()?'ສັ່ງຊື້ອອນລາຍ ຮັບແຕ້ມສະສົມທຸກອໍເດີ':'สั่งซื้อออนไลน์ สะสมแต้มทุกออเดอร์'} · <b>${esc(T('pointsub'))}</b></span></div>
+  </header>`;
+}
+function catBar(){
+  const chip=(id,label)=>`<button class="chip ${curCat===id?'on':''}" onclick="selCat('${esc(id)}')">${esc(label)}</button>`;
+  return `<div class="catbar"><div class="catrow">${chip('ALL',T('all'))}${chip('__PROMO__','🔥 '+T('promo'))}${CATS.map(c=>chip(c,c)).join('')}</div></div>`;
+}
+
+/* ---------- Home / catalog ---------- */
+function filteredProducts(){
+  let list=PRODUCTS;
+  if(curCat==='__PROMO__')list=list.filter(p=>unitWas(p)||(Number(p.pack_promo)>0)||(Number(p.box_promo)>0));
+  else if(curCat!=='ALL')list=list.filter(p=>p.category===curCat);
+  if(curSearch.trim()){
+    const q=curSearch.trim().toLowerCase();
+    list=list.filter(p=>(p.product_name||'').toLowerCase().includes(q)||(p.barcode||'').includes(q)||(p.category||'').toLowerCase().includes(q));
+  }
+  return list;
+}
+function viewHome(){
+  const list=filteredProducts();
+  let body;
+  if(!PRODUCTS.length){
+    if(catalogError){
+      body=`<div class="empty"><div class="ico">⚠️</div><b>${esc(T('loadfail'))}</b><div style="margin:6px 0 16px;font-size:12px;word-break:break-word">${esc(catalogError)}</div><button class="btn btn-g" style="max-width:220px;margin:0 auto" onclick="reloadCatalog()">${esc(T('retry'))}</button></div>`;
+    }else{
+      body=`<div class="empty"><div class="ico">🛒</div><b>${esc(T('noproducts'))}</b><div>${esc(T('loadingshop'))}</div></div>`;
+    }
+  }else if(!list.length){
+    body=`<div class="empty"><div class="ico">🔍</div><b>${esc(T('nofound'))}</b></div>`;
+  }else{
+    body=`<div class="sec-title"><span class="bar"></span>${curCat==='ALL'?esc(T('products')):curCat==='__PROMO__'?('🔥 '+esc(T('promo'))):esc(curCat)} <span style="color:var(--muted);font-weight:600;font-size:13px">(${list.length})</span></div>
+      <div class="grid">${list.map(pcard).join('')}</div>`;
+  }
+  return header(true)+catBar()+`<div class="wrap">${body}</div>`;
+}
+function pcard(p){
+  const price=unitPrice(p),was=unitWas(p);
+  const inCart=cart.find(i=>i.barcode===p.barcode&&i.unit_type==='unit');
+  const img=p.image_url?`<img src="${esc(p.image_url)}" loading="lazy" onerror="this.style.display='none';this.parentNode.querySelector('.ph').style.display='grid'">`:'';
+  const ph=`<div class="ph" style="${p.image_url?'display:none':''}">${esc((p.product_name||'?').trim().charAt(0))}</div>`;
+  const promoBadge=was?`<span class="pbadge">-${Math.round((1-price/was)*100)}%</span>`:'';
+  return `<div class="pcard">
+    <div class="pthumb" onclick="openProduct('${esc(p.barcode)}')">${img}${ph}${promoBadge}</div>
+    <div class="pbody">
+      ${p.category?`<div class="pcat">${esc(p.category)}</div>`:''}
+      <div class="pname" onclick="openProduct('${esc(p.barcode)}')">${esc(p.product_name)}</div>
+      <div class="pprice"><span class="now">${money(price)}</span>${was?`<span class="was">${money(was)}</span>`:''}</div>
+      <div class="punit">${esc(T('per'))} ${esc(p.unit||T('unit'))}</div>
+      ${inCart?stepperHtml(p.barcode,'unit',inCart.qty,'sm2'):`<button class="padd" onclick="quickAdd('${esc(p.barcode)}')">${svg(IC.plus)}${esc(T('add'))}</button>`}
+    </div>
+  </div>`;
+}
+function stepperHtml(bc,ut,q,cls){
+  return `<div class="stepper" data-step>
+    <button onclick="chgQty('${esc(bc)}','${ut}',-1)">−</button>
+    <span class="q">${q}</span>
+    <button onclick="chgQty('${esc(bc)}','${ut}',1)">+</button>
+  </div>`;
+}
+function onSearch(v){curSearch=v;const app=$('app');const list=filteredProducts();
+  // re-render just the grid area for speed
+  render();setTimeout(()=>{const q=$('q');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}},0);
+}
+function selCat(id){curCat=id;render();}
+function toggleLang(){lang=lang==='th'?'lo':'th';localStorage.setItem('fs_store_lang',lang);document.documentElement.lang=lang==='lo'?'lo':'th';render();}
+
+/* ---------- Product detail sheet ---------- */
+let pdUnit='unit';
+function openProduct(bc){
+  const p=PMAP[bc];if(!p)return;
+  pdUnit='unit';
+  const opts=[];
+  if(unitPrice(p)>0)opts.push({ut:'unit',label:p.unit||T('unit'),price:unitPrice(p),was:unitWas(p),sub:''});
+  if(packPrice(p)>0)opts.push({ut:'pack',label:p.pack_label||T('pack'),price:packPrice(p),was:0,sub:p.pack_qty?`${p.pack_qty} ${p.unit||''}`:''});
+  if(boxPrice(p)>0)opts.push({ut:'box',label:T('box'),price:boxPrice(p),was:0,sub:p.box_qty?`${p.box_qty} ${p.unit||''}`:''});
+  const img=p.image_url?`<img src="${esc(p.image_url)}" onerror="this.style.display='none'">`:`<div class="ph" style="font-size:60px">${esc((p.product_name||'?').charAt(0))}</div>`;
+  const html=`
+    <div class="sheet-h"><h3 style="font-size:15px">${esc(T('products'))}</h3><button class="x" onclick="closeSheet()">✕</button></div>
+    <div class="sheet-b">
+      <div class="pd-img">${img}</div>
+      ${p.category?`<div class="pcat" style="margin-bottom:4px">${esc(p.category)}</div>`:''}
+      <div style="font-size:17px;font-weight:800;line-height:1.35;margin-bottom:14px">${esc(p.product_name)}</div>
+      <div style="font-size:12.5px;font-weight:800;color:var(--muted);margin-bottom:8px">${esc(T('selunit'))}</div>
+      <div id="pdOpts">${opts.map((o,i)=>uoptHtml(o,i===0)).join('')}</div>
+      <div class="row" style="margin:16px 0 4px">
+        <div style="font-weight:800;font-size:13px">${esc(T('qty'))}</div>
+        <div class="stepper sm" style="width:120px">
+          <button onclick="pdQty(-1)">−</button><span class="q" id="pdQ">1</span><button onclick="pdQty(1)">+</button>
+        </div>
+      </div>
+      <button class="btn btn-p" style="margin-top:14px" onclick="pdAdd('${esc(bc)}')">${svg(IC.cart)}${esc(T('addcart'))}</button>
+    </div>`;
+  openSheet(html);
+}
+function uoptHtml(o,on){
+  return `<div class="uopt ${on?'on':''}" data-ut="${o.ut}" onclick="pdSelUnit('${o.ut}',this)">
+    <div class="ul">${esc(o.label)}${o.sub?`<small>${esc(o.sub)}</small>`:''}</div>
+    <div class="up">${money(o.price)}${o.was?`<span class="m" style="text-decoration:line-through;color:var(--muted)">${money(o.was)}</span>`:''}</div>
+  </div>`;
+}
+function pdSelUnit(ut,el){pdUnit=ut;document.querySelectorAll('#pdOpts .uopt').forEach(x=>x.classList.remove('on'));el.classList.add('on');}
+let pdQ=1;
+function pdQty(d){pdQ=Math.max(1,pdQ+d);$('pdQ').textContent=pdQ;}
+function pdAdd(bc){addToCart(bc,pdUnit,pdQ);pdQ=1;closeSheet();toast(T('added'),'ok');}
+
+/* ---------- Cart ops ---------- */
+function addToCart(bc,ut,qty){
+  const ex=cart.find(i=>i.barcode===bc&&i.unit_type===ut);
+  if(ex)ex.qty+=qty;else cart.push({barcode:bc,unit_type:ut,qty:qty});
+  saveCart();
+}
+function quickAdd(bc){addToCart(bc,'unit',1);toast(T('added'),'ok');if(view==='home')render();}
+function chgQty(bc,ut,d){
+  const ex=cart.find(i=>i.barcode===bc&&i.unit_type===ut);if(!ex)return;
+  ex.qty+=d;if(ex.qty<=0)cart=cart.filter(i=>!(i.barcode===bc&&i.unit_type===ut));
+  saveCart();render();
+}
+function removeItem(bc,ut){cart=cart.filter(i=>!(i.barcode===bc&&i.unit_type===ut));saveCart();render();}
+function cartSubtotal(){return cart.reduce((s,i)=>{const p=PMAP[i.barcode];if(!p)return s;return s+priceFor(p,i.unit_type)*i.qty;},0);}
+
+function viewCart(){
+  if(!cart.length){
+    return simplePage(T('cart'),`<div class="empty"><div class="ico">🛒</div><b>${esc(T('cartempty'))}</b><div>${esc(T('cartemptysub'))}</div>
+      <button class="btn btn-g" style="max-width:240px;margin:18px auto 0" onclick="go('home')">${esc(T('shopnow'))}</button></div>`);
+  }
+  const items=cart.map(i=>{
+    const p=PMAP[i.barcode];if(!p)return '';
+    const price=priceFor(p,i.unit_type);
+    const img=p.image_url?`<img src="${esc(p.image_url)}" onerror="this.style.display='none'">`:esc((p.product_name||'?').charAt(0));
+    return `<div class="line-item">
+      <div class="th">${img}</div>
+      <div class="info">
+        <div class="nm">${esc(p.product_name)}</div>
+        <div class="um">${esc(labelFor(p,i.unit_type))} · ${money(price)}</div>
+        <div class="pr">${money(price*i.qty)}</div>
+      </div>
+      <div class="li-side">
+        <button class="trash" onclick="removeItem('${esc(i.barcode)}','${i.unit_type}')">${svg(IC.trash)}</button>
+        <div class="stepper sm">
+          <button onclick="chgQty('${esc(i.barcode)}','${i.unit_type}',-1)">−</button>
+          <span class="q">${i.qty}</span>
+          <button onclick="chgQty('${esc(i.barcode)}','${i.unit_type}',1)">+</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  const sub=cartSubtotal();
+  const earn=Math.floor(sub/1000);
+  return `${pageHead(T('cart'),'home')}
+    <div class="wrap" style="padding-bottom:90px;display:flex;flex-direction:column;gap:10px">
+      ${items}
+      ${earn>0?`<div class="card" style="background:var(--purple-l);border-color:#e3d5fb;display:flex;align-items:center;gap:10px;padding:12px 14px">${svg(IC.star,2)}<span style="font-size:13px;font-weight:700;color:var(--purple)">${esc(T('earnpts'))} ${earn} ${esc(T('pts'))}</span></div>`:''}
+    </div>
+    <div class="foot"><div class="foot-in">
+      <div class="tot"><small>${esc(T('total'))}</small><b>${money(sub)}</b></div>
+      <button class="btn btn-p" onclick="startCheckout()">${esc(T('checkout'))} ${svg(IC.back).replace('15 18l-6-6 6-6','9 6l6 6-6 6')}</button>
+    </div></div>`;
+}
+
+/* ---------- Checkout ---------- */
+let coFulfill='delivery';
+function startCheckout(){
+  if(!token){toast(T('needlogin'),'warn');openAuth('login');return;}
+  go('checkout');
+}
+function viewCheckout(){
+  const sub=cartSubtotal();const earn=Math.floor(sub/1000);
+  const branchOpts=BRANCHES.map(b=>`<option value="${b.id}">${esc(b.name||b.branch_name||('สาขา '+b.id))}</option>`).join('');
+  return `${pageHead(T('checkout'),'cart')}
+  <div class="wrap" style="padding-bottom:100px;display:flex;flex-direction:column;gap:14px">
+    <div class="card">
+      <div style="font-weight:800;font-size:14px;margin-bottom:10px">${esc(T('fulfill'))}</div>
+      <div class="seg">
+        <div class="opt ${coFulfill==='delivery'?'on':''}" onclick="setFulfill('delivery')">${svg(IC.truck)}${esc(T('deliv'))}</div>
+        <div class="opt ${coFulfill==='pickup'?'on':''}" onclick="setFulfill('pickup')">${svg(IC.store)}${esc(T('pickup'))}</div>
+      </div>
+      <div id="coDetail" style="margin-top:14px">
+        ${coFulfill==='delivery'
+          ? `<div class="field" style="margin-bottom:0"><label>${esc(T('address'))}</label><textarea id="coAddr" placeholder="${esc(T('addressph'))}"></textarea></div>`
+          : `<div class="field" style="margin-bottom:0"><label>${esc(T('pickbranch'))}</label><select id="coBranch">${branchOpts||`<option value="">-</option>`}</select></div>`}
+      </div>
+    </div>
+    <div class="card">
+      <div class="field" style="margin-bottom:0"><label>${esc(T('note'))}</label><textarea id="coNote" placeholder="${esc(T('noteph'))}" style="min-height:56px"></textarea></div>
+    </div>
+    <div class="card">
+      <div style="font-weight:800;font-size:14px;margin-bottom:10px">${esc(T('ordersummary'))}</div>
+      <div class="sum">
+        <div class="r"><span>${esc(T('subtotal'))} (${cart.length} ${esc(T('items'))})</span><b>${money(sub)}</b></div>
+        <div class="r"><span>${esc(T('delivery'))}</span><b style="color:var(--ok)">${esc(T('free'))}</b></div>
+        <div class="r grand"><span>${esc(T('total'))}</span><b>${money(sub)}</b></div>
+      </div>
+      ${earn>0?`<div style="margin-top:10px;font-size:12.5px;color:var(--purple);font-weight:700;display:flex;align-items:center;gap:6px">${svg(IC.star)}${esc(T('earnpts'))} ${earn} ${esc(T('pts'))}</div>`:''}
+    </div>
+  </div>
+  <div class="foot"><div class="foot-in">
+    <div class="tot"><small>${esc(T('total'))}</small><b>${money(sub)}</b></div>
+    <button class="btn btn-g" id="coBtn" onclick="placeOrder()">${esc(T('placeorder'))}</button>
+  </div></div>`;
+}
+function setFulfill(f){coFulfill=f;render();}
+async function placeOrder(){
+  const btn=$('coBtn');if(btn){btn.disabled=true;btn.textContent=T('ordering');}
+  const items=cart.map(i=>({barcode:i.barcode,unit_type:i.unit_type,qty:i.qty}));
+  let addr=null,branch=null;
+  if(coFulfill==='delivery'){addr=($('coAddr')||{}).value||'';if(!addr.trim()){toast(T('reqfields'),'warn');if(btn){btn.disabled=false;btn.textContent=T('placeorder');}return;}}
+  else{branch=($('coBranch')||{}).value||null;branch=branch?parseInt(branch):null;}
+  const note=($('coNote')||{}).value||'';
+  try{
+    const {data,error}=await sb.rpc('rpc_store_place_order',{p_token:token,p_items:items,p_fulfillment:coFulfill,p_address:addr,p_branch_id:branch,p_note:note});
+    if(error||!data||!data.ok){toast((data&&data.error)||'error','err');if(btn){btn.disabled=false;btn.textContent=T('placeorder');}return;}
+    cart=[];saveCart();
+    openPayment(data);
+  }catch(e){toast(String(e.message||e),'err');if(btn){btn.disabled=false;btn.textContent=T('placeorder');}}
+}
+
+/* ---------- Payment sheet ---------- */
+function openPayment(order){
+  const qr=SHOP_QR.url
+    ? `<img src="${esc(SHOP_QR.url)}" alt="QR">`
+    : `<div class="qrph">${isLao()?'ຮ້ານຍັງບໍ່ໄດ້ຕັ້ງ QR ຮັບເງິນ<br>ກະລຸນາຕິດຕໍ່ພະນັກງານ':'ร้านยังไม่ได้ตั้งค่า QR รับเงิน<br>กรุณาติดต่อพนักงาน'}</div>`;
+  const html=`
+    <div class="sheet-h"><h3>${esc(T('pay'))}</h3><button class="x" onclick="paidLater()">✕</button></div>
+    <div class="sheet-b">
+      <div style="text-align:center;margin-bottom:6px">
+        <div style="font-size:12px;color:var(--muted)">${esc(T('orderno'))}</div>
+        <div style="font-size:16px;font-weight:900;color:var(--green-d)">${esc(order.order_no)}</div>
+      </div>
+      <div class="qrbox">
+        <div style="font-weight:800;margin-bottom:10px">${esc(T('payqr'))}</div>
+        ${qr}
+        <div style="font-size:22px;font-weight:900;color:var(--green-d);margin-top:12px">${money(order.total)}</div>
+        ${SHOP_QR.note?`<div style="font-size:12px;color:var(--muted);margin-top:6px;white-space:pre-line">${esc(SHOP_QR.note)}</div>`:''}
+      </div>
+      <div style="font-size:12.5px;color:var(--muted);text-align:center;margin:12px 0">${esc(T('payinstr'))}</div>
+      <label class="slip-drop" for="slipFile" id="slipDrop">
+        ${svg(IC.up)}<div id="slipTxt">${esc(T('slipdrop'))}</div>
+      </label>
+      <input type="file" id="slipFile" accept="image/*" style="display:none" onchange="onSlip(this,'${esc(order.order_id)}')">
+      <div style="font-size:11.5px;color:var(--muted);text-align:center;margin:10px 0 14px">${esc(T('slipnote'))}</div>
+      <button class="btn btn-o" onclick="paidLater()">${esc(T('payslipnow'))} · ${esc(T('vieworders'))}</button>
+    </div>`;
+  openSheet(html,true);
+}
+function paidLater(){closeSheet();go('orders');}
+let slipBlob=null;
+async function onSlip(input,orderId){
+  const f=input.files&&input.files[0];if(!f)return;
+  const drop=$('slipDrop'),txt=$('slipTxt');
+  if(drop)drop.style.pointerEvents='none';if(txt)txt.textContent=T('uploading');
+  try{
+    const ext=(f.name.split('.').pop()||'jpg').toLowerCase();
+    const path=`${orderId}_${Date.now()}.${ext}`;
+    const {error:upErr}=await sb.storage.from('store-slips').upload(path,f,{upsert:true,contentType:f.type});
+    if(upErr)throw upErr;
+    const {data:pub}=sb.storage.from('store-slips').getPublicUrl(path);
+    const url=pub.publicUrl;
+    const {data,error}=await sb.rpc('rpc_store_attach_slip',{p_token:token,p_order_id:orderId,p_slip_url:url});
+    if(error||!data||!data.ok)throw new Error((data&&data.error)||'attach failed');
+    closeSheet();openSuccess();
+  }catch(e){
+    toast(String(e.message||e),'err');
+    if(drop)drop.style.pointerEvents='';if(txt)txt.textContent=T('slipdrop');
+  }
+}
+function openSuccess(){
+  const html=`<div class="sheet-b" style="text-align:center;padding:34px 24px 28px">
+    <div style="width:74px;height:74px;border-radius:50%;background:var(--green-l);color:var(--green);display:grid;place-items:center;margin:0 auto 16px">${svg(IC.check,3)}</div>
+    <div style="font-size:19px;font-weight:900;margin-bottom:6px">${esc(T('ordersuccess'))}</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:22px">${esc(T('slipnote'))}</div>
+    <button class="btn btn-g" onclick="closeSheet();go('orders')">${esc(T('vieworders'))}</button>
+    <button class="btn btn-o" style="margin-top:10px" onclick="closeSheet();go('home')">${esc(T('ordermore'))}</button>
+  </div>`;
+  openSheet(html);
+}
+
+/* ---------- Orders ---------- */
+const STCOL={pending_payment:['#EA580C','#FFF1E6'],paid_review:['#7C3AED','#F1EBFE'],confirmed:['#0E7C5A','#E6F4EF'],preparing:['#0E7C5A','#E6F4EF'],ready:['#0369A1','#E0F2FE'],completed:['#16A34A','#E6F6EC'],cancelled:['#DC2626','#FEECEC']};
+function viewOrders(){
+  if(!token){
+    return simplePage(T('myorders'),`<div class="empty"><div class="ico">📋</div><b>${esc(T('needlogin'))}</b><div>${esc(T('loginsub'))}</div>
+      <button class="btn btn-g" style="max-width:240px;margin:18px auto 0" onclick="openAuth('login')">${esc(T('login'))}</button></div>`);
+  }
+  return `${pageHead(T('myorders'),'home')}<div class="wrap" id="ordList"><div class="grid" style="grid-template-columns:1fr">${'<div class="skel" style="aspect-ratio:4"></div>'.repeat(3)}</div></div>`;
+}
+async function loadMyOrders(){
+  const el=$('ordList');if(!el)return;
+  try{
+    const {data,error}=await sb.rpc('rpc_store_my_orders',{p_token:token});
+    if(error||!data||!data.ok){el.innerHTML=`<div class="empty"><div class="ico">📋</div><b>${esc(T('noorders'))}</b></div>`;return;}
+    const orders=data.orders||[];
+    if(!orders.length){el.innerHTML=`<div class="empty"><div class="ico">📋</div><b>${esc(T('noorders'))}</b><button class="btn btn-g" style="max-width:240px;margin:18px auto 0" onclick="go('home')">${esc(T('shopnow'))}</button></div>`;return;}
+    el.innerHTML=`<div style="display:flex;flex-direction:column;gap:12px">${orders.map(orderCard).join('')}</div>`;
+  }catch(e){el.innerHTML=`<div class="empty"><b>${esc(T('noorders'))}</b></div>`;}
+}
+function orderCard(o){
+  const c=STCOL[o.status]||['#6B7A72','#eee'];
+  const items=(o.items||[]);
+  const itemsHtml=items.slice(0,4).map(i=>`<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:2px 0"><span style="color:var(--muted)">${esc(i.product_name)} <b style="color:var(--ink)">×${i.qty} ${esc(i.unit_label||'')}</b></span><span style="font-weight:700">${money(i.line_total)}</span></div>`).join('');
+  const more=items.length>4?`<div style="font-size:11.5px;color:var(--muted)">+${items.length-4} ${esc(T('items'))}</div>`:'';
+  const canPay=o.status==='pending_payment';
+  return `<div class="card">
+    <div class="row" style="margin-bottom:8px">
+      <div><div style="font-weight:900;font-size:14px">${esc(o.order_no)}</div><div style="font-size:11px;color:var(--muted)">${esc((o.created_at||'').slice(0,16).replace('T',' '))}</div></div>
+      <span class="stbadge" style="color:${c[0]};background:${c[1]}">${esc(T('st_'+o.status)||o.status)}</span>
+    </div>
+    <div style="border-top:1px solid var(--line);padding-top:8px;margin-bottom:8px">${itemsHtml}${more}</div>
+    <div class="row">
+      <div style="font-size:12px;color:var(--muted)">${o.fulfillment==='delivery'?esc(T('deliv')):esc(T('pickup'))}${o.points_earned?` · <span style="color:var(--purple);font-weight:700">+${o.points_earned} ${esc(T('pts'))}</span>`:''}</div>
+      <div style="font-size:16px;font-weight:900;color:var(--green-d)">${money(o.total)}</div>
+    </div>
+    ${canPay?`<button class="btn btn-p" style="height:42px;margin-top:10px" onclick='reopenPay(${JSON.stringify({order_no:o.order_no,order_id:o.id,total:o.total})})'>${esc(T('payslipnow'))}</button>`:''}
+  </div>`;
+}
+function reopenPay(o){openPayment(o);}
+
+/* ---------- Account ---------- */
+function viewAccount(){
+  if(!token||!profile){
+    return `${pageHead(T('account'),'home')}<div class="wrap">
+      <div class="empty"><div class="ico">👤</div><b>${esc(T('needlogin'))}</b><div>${esc(T('loginsub'))}</div></div>
+      <div style="max-width:360px;margin:0 auto;display:flex;flex-direction:column;gap:10px">
+        <button class="btn btn-g" onclick="openAuth('login')">${esc(T('login'))}</button>
+        <button class="btn btn-o" onclick="openAuth('register')">${esc(T('register'))}</button>
+      </div></div>`;
+  }
+  const pts=profile.points||0;
+  return `${pageHead(T('account'),'home')}<div class="wrap" style="display:flex;flex-direction:column;gap:14px">
+    <div class="card" style="display:flex;align-items:center;gap:14px">
+      <div style="width:54px;height:54px;border-radius:50%;background:var(--green-l);color:var(--green);display:grid;place-items:center">${svg(IC.user,2)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:16px;font-weight:800">${esc(profile.name||T('welcome'))}</div>
+        <div style="font-size:12.5px;color:var(--muted)">${esc(profile.phone||'')}${profile.business_type?' · '+esc(profile.business_type):''}</div>
+      </div>
+    </div>
+    <div class="ptsban">
+      <div>${svg(IC.star,2).replace('width="22"','')}</div>
+      <div style="flex:1"><div class="pv">${pts.toLocaleString()}</div><small>${esc(T('points'))} · ${profile.member_code?esc(T('member'))+' '+esc(profile.member_code):esc(T('nomember'))}</small></div>
+    </div>
+    <button class="btn btn-o" onclick="go('orders')">${svg(IC.bag)}${esc(T('myorders'))}</button>
+    <button class="btn btn-o" style="color:var(--red)" onclick="doLogout()">${esc(T('logout'))}</button>
+  </div>`;
+}
+
+/* ---------- Auth ---------- */
+let authTab='login';
+function openAuth(tab){
+  authTab=tab||'login';
+  renderAuthSheet();
+}
+function renderAuthSheet(){
+  const html=`
+    <div class="sheet-h"><h3>${esc(authTab==='login'?T('login'):T('register'))}</h3><button class="x" onclick="closeSheet()">✕</button></div>
+    <div class="sheet-b">
+      <div class="tabs">
+        <button class="${authTab==='login'?'on':''}" onclick="switchAuth('login')">${esc(T('signin'))}</button>
+        <button class="${authTab==='register'?'on':''}" onclick="switchAuth('register')">${esc(T('signup'))}</button>
+      </div>
+      <div class="field"><label>${esc(T('phone'))}</label><input id="auPhone" type="tel" inputmode="tel" placeholder="020 xxxx xxxx"></div>
+      ${authTab==='register'?`<div class="field"><label>${esc(T('name'))}</label><input id="auName" placeholder="${esc(T('name'))}"></div>
+        <div class="field"><label>${esc(T('biztype'))}</label><input id="auBiz" placeholder="${esc(T('biztypeph'))}"></div>`:''}
+      <div class="field"><label>${esc(T('password'))}</label><input id="auPass" type="password" placeholder="••••••"></div>
+      <button class="btn btn-g" id="auBtn" onclick="submitAuth()">${esc(authTab==='login'?T('signin'):T('signup'))}</button>
+    </div>`;
+  openSheet(html);
+}
+function switchAuth(t){authTab=t;renderAuthSheet();}
+async function submitAuth(){
+  const phone=($('auPhone')||{}).value||'';const pass=($('auPass')||{}).value||'';
+  if(!phone.trim()||!pass.trim()){toast(T('reqfields'),'warn');return;}
+  const btn=$('auBtn');btn.disabled=true;
+  try{
+    if(authTab==='register'){
+      const name=($('auName')||{}).value||'';const biz=($('auBiz')||{}).value||'';
+      const {data,error}=await sb.rpc('rpc_store_register',{p_phone:phone,p_password:pass,p_name:name,p_business:biz});
+      if(error||!data){toast('error','err');btn.disabled=false;return;}
+      if(!data.ok){toast(data.error==='phone_exists'?T('regphoneexist'):data.error,'err');btn.disabled=false;return;}
+      closeSheet();openPending();
+    }else{
+      const {data,error}=await sb.rpc('rpc_store_login',{p_phone:phone,p_password:pass});
+      if(error||!data){toast('error','err');btn.disabled=false;return;}
+      if(!data.ok){
+        if(data.error==='pending'){closeSheet();openPending();return;}
+        toast(T('loginfail'),'err');btn.disabled=false;return;
+      }
+      token=data.token;profile=data.profile;localStorage.setItem('fs_store_token',token);
+      closeSheet();toast(T('welcome')+' '+(profile.name||''),'ok');
+      render();
+    }
+  }catch(e){toast(String(e.message||e),'err');btn.disabled=false;}
+}
+function openPending(){
+  openSheet(`<div class="sheet-b" style="text-align:center;padding:34px 24px 28px">
+    <div style="font-size:44px;margin-bottom:10px">⏳</div>
+    <div style="font-size:18px;font-weight:800;margin-bottom:8px">${esc(T('pendingtitle'))}</div>
+    <div style="font-size:13.5px;color:var(--muted);margin-bottom:22px;line-height:1.6">${esc(T('pendingmsg'))}</div>
+    <button class="btn btn-g" onclick="closeSheet()">${esc(T('close'))}</button>
+  </div>`);
+}
+async function doLogout(){
+  try{await sb.rpc('rpc_store_logout',{p_token:token});}catch(e){}
+  token=null;profile=null;localStorage.removeItem('fs_store_token');
+  toast(T('logout'),'ok');go('home');
+}
+
+/* ---------- Shared page chrome ---------- */
+function pageHead(title,back){
+  return `<div class="page-h"><button class="back" onclick="go('${back}')">${svg(IC.back)}</button><h2>${esc(title)}</h2></div>`;
+}
+function simplePage(title,body){return `${pageHead(title,'home')}<div class="wrap">${body}</div>`;}
+function bottomNav(){
+  const b=(v,ic,lb,badge)=>`<button class="${view===v?'on':''}" onclick="go('${v}')">${svg(ic)}${badge?`<span class="nb" data-cartbadge style="display:none">0</span>`:''}<span>${esc(lb)}</span></button>`;
+  return `<nav class="bn">
+    ${b('home',IC.home,T('home'),false)}
+    ${b('cart',IC.cart,T('cart'),true)}
+    ${b('orders',IC.bag,T('orders'),false)}
+    ${b('account',IC.user,T('account'),false)}
+  </nav>`;
+}
+
+/* ---------- Sheet ---------- */
+function openSheet(html,noClose){$('sheet').innerHTML=html;$('ov').classList.add('show');document.body.style.overflow='hidden';}
+function closeSheet(){$('ov').classList.remove('show');document.body.style.overflow='';}
+
+/* ============================================================
+   Boot
+   ============================================================ */
+async function boot(){
+  document.documentElement.lang=lang==='lo'?'lo':'th';
+  $('app').innerHTML=header(true)+catBar()+`<div class="wrap"><div class="grid">${'<div class="skel"></div>'.repeat(8)}</div></div>`+bottomNav();
+  await loadCatalog();          // โหลดสินค้าก่อน (มี retry ในตัว) — ไม่ให้ query อื่นบล็อก
+  render();
+  Promise.all([loadBranches(),loadShopQR(),restoreSession()]).then(()=>render());  // โหลดพื้นหลังแล้ว re-render (โปรไฟล์/สาขา/QR)
+}
+boot();
+</script>
+</body>
+</html>
