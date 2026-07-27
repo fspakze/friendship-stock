@@ -87,6 +87,10 @@ header{position:sticky;top:0;z-index:40;background:var(--green);color:#fff;box-s
 @media(min-width:820px){.grid{grid-template-columns:repeat(4,1fr);gap:14px}}
 @media(min-width:1080px){.grid{grid-template-columns:repeat(5,1fr)}}
 .pcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--sh);transition:transform .12s,box-shadow .12s}
+.pcard.promo-framed{border:2px solid var(--pc,#E1121D);box-shadow:0 3px 12px rgba(225,18,29,.14)}
+.promo-tag{background:var(--pc,#E1121D);color:#fff;font-size:10px;font-weight:800;text-align:center;padding:4px 8px;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.promo-art{width:100%;border-radius:14px;margin-bottom:12px;box-shadow:var(--sh);display:block}
+.promo-block{margin-bottom:24px}
 .pcard:active{transform:scale(.98)}
 .pthumb{position:relative;aspect-ratio:1;background:linear-gradient(135deg,#f0f3f1,#e4eae7);display:grid;place-items:center;overflow:hidden}
 .pthumb img{width:100%;height:100%;object-fit:contain;padding:8px}
@@ -353,6 +357,8 @@ let curCat = 'ALL';
 let curSearch = '';
 let SHOP_QR = { url:'', note:'' };
 let PROMO_END = null;   // เวลาหมดโปรฯ (ตั้งในคอนโซลพนักงาน) — ถ้าไม่ตั้ง = นับถึงเที่ยงคืน
+let PROMOS = [];        // แคมเปญโปรโมชั่น (store_promotions)
+let PROMO_BY_BC = {};   // barcode -> โปรแรกที่สินค้าอยู่
 
 /* ---------- Helpers ---------- */
 const money = n => new Intl.NumberFormat('en-US').format(Math.round(Number(n)||0)) + '₭';
@@ -452,6 +458,16 @@ async function loadShopQR(){
     });
   }catch(e){}
 }
+async function loadPromos(){
+  try{
+    const {data,error}=await sb.from('store_promotions').select('*').eq('is_active',true).order('sort_order',{ascending:true}).order('created_at');
+    if(error)throw error;
+    PROMOS=data||[];PROMO_BY_BC={};
+    PROMOS.forEach(pr=>{(pr.barcodes||[]).forEach(bc=>{if(bc&&!PROMO_BY_BC[bc])PROMO_BY_BC[bc]=pr;});});
+  }catch(e){PROMOS=[];PROMO_BY_BC={};}
+}
+function promoFor(bc){return PROMO_BY_BC[bc]||null;}
+function colorSafe(c){c=String(c||'').trim();if(/^#?[0-9a-fA-F]{3,8}$/.test(c))return c[0]==='#'?c:'#'+c;if(/^(rgb|hsl)a?\([0-9,.%\s]+\)$/.test(c))return c;return '#E1121D';}
 async function restoreSession(){
   if(!token){profile=null;return;}
   try{
@@ -585,12 +601,16 @@ function viewHome(){
 }
 function pcard(p){
   const price=unitPrice(p),was=unitWas(p);
+  const promo=promoFor(p.barcode);
+  const pc=promo?colorSafe(promo.badge_color):'';
   const inCart=cart.find(i=>i.barcode===p.barcode&&i.unit_type==='unit');
   const img=p.image_url?`<img src="${esc(p.image_url)}" loading="lazy" onerror="this.style.display='none';this.parentNode.querySelector('.ph').style.display='grid'">`:'';
   const ph=`<div class="ph" style="${p.image_url?'display:none':''}">${esc((p.product_name||'?').trim().charAt(0))}</div>`;
-  const promoBadge=was?`<span class="pbadge">-${Math.round((1-price/was)*100)}%</span>`:'';
-  return `<div class="pcard">
-    <div class="pthumb" onclick="openProduct('${esc(p.barcode)}')">${img}${ph}${promoBadge}
+  const badge=(promo&&promo.badge_text)?`<span class="pbadge" style="background:${pc}">${esc(promo.badge_text)}</span>`
+    :(was?`<span class="pbadge">-${Math.round((1-price/was)*100)}%</span>`:'');
+  return `<div class="pcard${promo?' promo-framed':''}"${promo?` style="--pc:${pc}"`:''}>
+    ${promo?`<div class="promo-tag">⚡ ${esc(promo.title)}</div>`:''}
+    <div class="pthumb" onclick="openProduct('${esc(p.barcode)}')">${img}${ph}${badge}
       <button class="padd-fab" onclick="event.stopPropagation();quickAdd('${esc(p.barcode)}')" aria-label="add">${svg(IC.plus,2.4)}</button>
     </div>
     <div class="pbody">
@@ -633,10 +653,19 @@ function viewPromo(){
   if(!PRODUCTS.length){
     body=catalogError?`<div class="empty"><div class="ico">⚠️</div><b>${esc(T('loadfail'))}</b><button class="btn btn-g" style="max-width:220px;margin:14px auto 0" onclick="reloadCatalog()">${esc(T('retry'))}</button></div>`
       :`<div class="empty"><div class="ico">🛒</div><b>${esc(T('noproducts'))}</b></div>`;
-  }else if(!list.length){
-    body=`<div class="empty"><div class="ico">🎉</div><b>${esc(T('promoempty'))}</b><button class="btn btn-g" style="max-width:220px;margin:16px auto 0" onclick="go('home')">${esc(T('shopnow'))}</button></div>`;
-  }else{
+    return header(true)+`<div class="wrap">${banner}${body}</div>`;
+  }
+  const campaigns=PROMOS.filter(pr=>pr.is_active&&(pr.barcodes||[]).some(bc=>PMAP[bc]));
+  if(campaigns.length){
+    body=campaigns.map(pr=>{
+      const items=(pr.barcodes||[]).map(bc=>PMAP[bc]).filter(Boolean);
+      const art=pr.artwork_url?`<img class="promo-art" src="${esc(pr.artwork_url)}" alt="" onerror="this.style.display='none'">`:'';
+      return `<div class="promo-block">${art}<div class="sec-title"><span class="bar" style="background:${colorSafe(pr.badge_color)}"></span>${esc(pr.title)} <span style="color:var(--muted);font-weight:600;font-size:13px">(${items.length})</span></div><div class="grid">${items.map(pcard).join('')}</div></div>`;
+    }).join('');
+  }else if(list.length){
     body=`<div class="sec-title"><span class="bar"></span>${esc(T('promotitle'))} <span style="color:var(--muted);font-weight:600;font-size:13px">(${list.length})</span></div><div class="grid">${list.map(pcard).join('')}</div>`;
+  }else{
+    body=`<div class="empty"><div class="ico">🎉</div><b>${esc(T('promoempty'))}</b><button class="btn btn-g" style="max-width:220px;margin:16px auto 0" onclick="go('home')">${esc(T('shopnow'))}</button></div>`;
   }
   return header(true)+`<div class="wrap">${banner}${body}</div>`;
 }
@@ -1045,7 +1074,7 @@ async function boot(){
   $('app').innerHTML=header(true)+catBar()+`<div class="wrap"><div class="grid">${'<div class="skel"></div>'.repeat(8)}</div></div>`+bottomNav();
   await loadCatalog();          // โหลดสินค้าก่อน (มี retry ในตัว) — ไม่ให้ query อื่นบล็อก
   render();
-  Promise.all([loadBranches(),loadShopQR(),restoreSession()]).then(()=>render());  // โหลดพื้นหลังแล้ว re-render (โปรไฟล์/สาขา/QR)
+  Promise.all([loadBranches(),loadShopQR(),loadPromos(),restoreSession()]).then(()=>render());  // โหลดพื้นหลังแล้ว re-render (โปรไฟล์/สาขา/QR/โปรโมชั่น)
 }
 boot();
 </script>
