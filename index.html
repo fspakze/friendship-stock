@@ -18317,6 +18317,8 @@ let _pogAssign = { items: [], nameMap: {}, done: null, creators: {} };
 function pogCanAssign() { return ['admin', 'scc', 'bcs', 'ctl', 'verifier', 'counter', 'audit'].includes(user && user.role); }
 function pogCanComplete() { return ['admin', 'scc', 'bcs', 'ctl'].includes(user && user.role); }
 function pogCanSummary() { return ['admin', 'scc', 'bcs', 'ctl'].includes(user && user.role); }
+// จัดการ Pan-O-Gram เต็ม (แก้/ย้าย/สลับ/ลบตำแหน่ง + Export + ความจุชั้น) — Ball 2026-07-27: bcs ขึ้นไป (รวม ctl + IT)
+function pogCanManage() { return ['admin', 'scc', 'bcs', 'ctl', 'it'].includes(user && user.role); }
 // จัดกลุ่ม location_code (สำเนา logic จาก parseLocationCode ที่ซ่อนใน scope อื่น)
 function pogParseLoc(code) {
   const u = (code || '').toUpperCase().trim();
@@ -18338,6 +18340,13 @@ function renderPanoGramPage() {
       <button onclick="pogOpenSummary()" style="flex:1 1 30%;background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:9px;padding:9px 5px;font-size:11.5px;font-weight:800;cursor:pointer;">📊 ${isLao ? 'ສະຫຼຸບສາຂາ' : 'สรุปรายสาขา'}</button>
       <button onclick="pogOpenShortReport()" style="flex:1 1 30%;background:#fff1f2;color:var(--fs-red);border:1px solid var(--rose-200);border-radius:9px;padding:9px 5px;font-size:11.5px;font-weight:800;cursor:pointer;">📦 ${isLao ? 'ສິນຄ້າຂາດ' : 'สินค้าขาด'}</button>
       <button onclick="pogOpenGondolaShort()" style="flex:1 1 30%;background:#fff7ed;color:var(--fs-orange);border:1px solid var(--amber-200,#fcd34d);border-radius:9px;padding:9px 5px;font-size:11.5px;font-weight:800;cursor:pointer;">🩺 ${isLao ? 'ຂາດຕໍ່ Gondola' : 'ขาดต่อ Gondola'}</button>
+    </div>` : ''}
+    ${pogCanManage() ? `<div style="background:white;border:1.5px solid var(--violet-500);border-radius:12px;padding:12px;margin-bottom:10px;">
+      <button class="btn" style="background:var(--fs-blue);color:white;font-size:12.5px;padding:11px;width:100%;margin-bottom:7px;font-weight:800;cursor:pointer;" onclick="openPanOGramManager()">📋 ${isLao ? 'ຈັດການ Pan-O-Gram (ແກ້/ຍ້າຍ/ລຶບ)' : 'จัดการ Pan-O-Gram (แก้/ย้าย/ลบ)'}</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
+        <button class="btn btn-secondary" style="font-size:11px;padding:9px;cursor:pointer;" onclick="exportPanOGramExcel()">📥 Export Excel</button>
+        <button class="btn btn-secondary" style="font-size:11px;padding:9px;cursor:pointer;" onclick="openPrecountReport()">📊 ${isLao ? 'ຄວາມຈຸຊັ້ນ' : 'ความจุชั้น'}</button>
+      </div>
     </div>` : ''}
     <div id="pogSearchWrap" style="margin-bottom:10px;">
       <input id="pogSearchInp" oninput="pogSetSearch(this.value)" placeholder="🔍 ${isLao ? 'ຄົ້ນຫາ Gondola (ເຊັ່ນ 18E02, 18)' : 'ค้นหา Gondola (เช่น 18E02, 18)'}" style="width:100%;padding:11px;border:1px solid var(--slate-300);border-radius:9px;font-size:14px;box-sizing:border-box;">
