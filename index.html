@@ -11112,14 +11112,16 @@ async function hcLookup() {
   _hcScan = { barcode: bc, name: name || bc, category: cat, group: grp, unit: unit, normal: sell, cost: cost, pack: null, box: null };
   // ดึงแพ๊ค/ลัง + ราคาต่อหน่วย จาก barcode_packsize (สำหรับตั้งราคาโปรแพ๊ค/ลัง)
   try {
-    const { data: bp } = await sb.from('barcode_packsize').select('qty_unit,qty_pack,pcs_per_box,price_unit,price_pack,price_box,barcode_pack,barcode_box').eq('barcode_unit', bc).maybeSingle();
+    const { data: bp } = await sb.from('barcode_packsize').select('qty_unit,qty_pack,pcs_per_box,price_unit,price_pack,price_box,barcode_pack,barcode_box,price_unit_2,price_pack_2,price_box_2').eq('barcode_unit', bc).maybeSingle();
     if (bp) {
       // ราคาปกติต่อหน่วย: ถ้าสาขาไม่มี (sell=0) ใช้ price_unit จาก packsize
       if (!_hcScan.normal && bp.price_unit) { _hcScan.normal = Number(bp.price_unit) || 0; sell = _hcScan.normal; }
+      // ราคาโปรฯ = "ราคาขาย 2" (price_*_2) เติมให้อัตโนมัติ — แก้ไขได้ (Ball 2026-07-27)
+      _hcScan.promo = Number(bp.price_unit_2) || null;
       const upp = Number(bp.qty_unit) || 0;
       let upb = Number(bp.pcs_per_box) || 0; if (!upb && upp && (Number(bp.qty_pack) || 0)) upb = upp * Number(bp.qty_pack);
-      if ((bp.barcode_pack || bp.price_pack) && upp > 1) _hcScan.pack = { qty: upp, normal: Number(bp.price_pack) || (sell * upp) || 0 };
-      if ((bp.barcode_box || bp.price_box) && upb > 1) _hcScan.box = { qty: upb, normal: Number(bp.price_box) || (sell * upb) || 0 };
+      if ((bp.barcode_pack || bp.price_pack) && upp > 1) _hcScan.pack = { qty: upp, normal: Number(bp.price_pack) || (sell * upp) || 0, promo: Number(bp.price_pack_2) || null };
+      if ((bp.barcode_box || bp.price_box) && upb > 1) _hcScan.box = { qty: upb, normal: Number(bp.price_box) || (sell * upb) || 0, promo: Number(bp.price_box_2) || null };
     }
   } catch (e) {}
   // รูปเดิมของสินค้านี้จาก catalog ชุดอื่น (เคยอัปโหลดไว้แล้ว) — ดึงมาใส่ให้อัตโนมัติ
@@ -11147,19 +11149,19 @@ function hcRenderAddForm() {
       </div>
       <div style="display:flex;gap:5px;margin-top:7px;">
         <div style="flex:1;"><label style="font-size:9px;color:var(--slate-500);font-weight:700;">${isLao ? 'ລາຄາປົກກະຕິ' : 'ราคาปกติ'}</label><input id="hcfNormal" type="number" value="${s.normal || ''}" oninput="hcUpdGP('hcfNormal','hcfPromo','hcfCost','hcGpUnit')" style="width:100%;padding:7px;border:1px solid var(--slate-300);border-radius:7px;font-size:13px;box-sizing:border-box;"></div>
-        <div style="flex:1;"><label style="font-size:9px;color:var(--fs-red);font-weight:700;">${isLao ? 'ໂປຣໂມ' : 'ราคาโปรโม'}</label><input id="hcfPromo" type="number" placeholder="${isLao ? 'ບໍ່ບັງຄັບ' : 'ถ้ามี'}" oninput="hcUpdGP('hcfNormal','hcfPromo','hcfCost','hcGpUnit')" style="width:100%;padding:7px;border:1.5px solid var(--rose-300);border-radius:7px;font-size:13px;font-weight:700;box-sizing:border-box;"></div>
+        <div style="flex:1;"><label style="font-size:9px;color:var(--fs-red);font-weight:700;">${isLao ? 'ໂປຣໂມ' : 'ราคาโปรโม'}</label><input id="hcfPromo" type="number" value="${s.promo || ''}" placeholder="${isLao ? 'ບໍ່ບັງຄັບ' : 'ถ้ามี'}" oninput="hcUpdGP('hcfNormal','hcfPromo','hcfCost','hcGpUnit')" style="width:100%;padding:7px;border:1.5px solid var(--rose-300);border-radius:7px;font-size:13px;font-weight:700;box-sizing:border-box;"></div>
         ${hcSeeCost() ? `<div style="flex:1;"><label style="font-size:9px;color:var(--slate-400);font-weight:700;">${isLao ? 'ຕົ້ນທຶນ' : 'ต้นทุน'} <span id="hcGpUnit" style="font-weight:800;"></span></label><input id="hcfCost" type="number" value="${s.cost || ''}" oninput="hcUpdGP('hcfNormal','hcfPromo','hcfCost','hcGpUnit')" style="width:100%;padding:7px;border:1px solid var(--slate-200);border-radius:7px;font-size:12px;color:var(--slate-500);box-sizing:border-box;"></div>` : ''}
       </div>
       ${s.pack ? `<div style="margin-top:7px;"><div style="font-size:10px;font-weight:800;color:var(--violet-700);margin-bottom:3px;display:flex;justify-content:space-between;align-items:center;">📦 ${isLao ? 'ແພັກ' : 'แพ๊ค'} ${s.pack.qty}<span id="hcGpPack"></span></div>
         <div style="display:flex;gap:5px;">
           <input id="hcfPackNormal" type="number" value="${s.pack.normal || ''}" placeholder="${isLao ? 'ປົກກະຕິ' : 'ปกติ'}" oninput="hcUpdGP('hcfPackNormal','hcfPackPromo','hcfPackCost','hcGpPack')" style="flex:1;min-width:0;padding:7px;border:1px solid var(--slate-300);border-radius:7px;font-size:12px;box-sizing:border-box;">
-          <input id="hcfPackPromo" type="number" placeholder="${isLao ? 'ໂປຣ' : 'โปร'}" oninput="hcUpdGP('hcfPackNormal','hcfPackPromo','hcfPackCost','hcGpPack')" style="flex:1;min-width:0;padding:7px;border:1.5px solid var(--rose-300);border-radius:7px;font-size:12px;font-weight:700;box-sizing:border-box;">
+          <input id="hcfPackPromo" type="number" value="${s.pack.promo || ''}" placeholder="${isLao ? 'ໂປຣ' : 'โปร'}" oninput="hcUpdGP('hcfPackNormal','hcfPackPromo','hcfPackCost','hcGpPack')" style="flex:1;min-width:0;padding:7px;border:1.5px solid var(--rose-300);border-radius:7px;font-size:12px;font-weight:700;box-sizing:border-box;">
           ${hcSeeCost() ? `<input id="hcfPackCost" type="number" value="${s.cost ? Math.round(s.cost * s.pack.qty) : ''}" placeholder="${isLao ? 'ທຶນ' : 'ทุน'}" oninput="hcUpdGP('hcfPackNormal','hcfPackPromo','hcfPackCost','hcGpPack')" style="flex:1;min-width:0;padding:7px;border:1px solid var(--slate-200);border-radius:7px;font-size:12px;color:var(--slate-500);box-sizing:border-box;">` : ''}
         </div></div>` : ''}
       ${s.box ? `<div style="margin-top:7px;"><div style="font-size:10px;font-weight:800;color:var(--violet-700);margin-bottom:3px;display:flex;justify-content:space-between;align-items:center;">📦 ${isLao ? 'ລັງ' : 'ลัง'} ${s.box.qty}<span id="hcGpBox"></span></div>
         <div style="display:flex;gap:5px;">
           <input id="hcfBoxNormal" type="number" value="${s.box.normal || ''}" placeholder="${isLao ? 'ປົກກະຕິ' : 'ปกติ'}" oninput="hcUpdGP('hcfBoxNormal','hcfBoxPromo','hcfBoxCost','hcGpBox')" style="flex:1;min-width:0;padding:7px;border:1px solid var(--slate-300);border-radius:7px;font-size:12px;box-sizing:border-box;">
-          <input id="hcfBoxPromo" type="number" placeholder="${isLao ? 'ໂປຣ' : 'โปร'}" oninput="hcUpdGP('hcfBoxNormal','hcfBoxPromo','hcfBoxCost','hcGpBox')" style="flex:1;min-width:0;padding:7px;border:1.5px solid var(--rose-300);border-radius:7px;font-size:12px;font-weight:700;box-sizing:border-box;">
+          <input id="hcfBoxPromo" type="number" value="${s.box.promo || ''}" placeholder="${isLao ? 'ໂປຣ' : 'โปร'}" oninput="hcUpdGP('hcfBoxNormal','hcfBoxPromo','hcfBoxCost','hcGpBox')" style="flex:1;min-width:0;padding:7px;border:1.5px solid var(--rose-300);border-radius:7px;font-size:12px;font-weight:700;box-sizing:border-box;">
           ${hcSeeCost() ? `<input id="hcfBoxCost" type="number" value="${s.cost ? Math.round(s.cost * s.box.qty) : ''}" placeholder="${isLao ? 'ທຶນ' : 'ทุน'}" oninput="hcUpdGP('hcfBoxNormal','hcfBoxPromo','hcfBoxCost','hcGpBox')" style="flex:1;min-width:0;padding:7px;border:1px solid var(--slate-200);border-radius:7px;font-size:12px;color:var(--slate-500);box-sizing:border-box;">` : ''}
         </div></div>` : ''}
       <button onclick="hcSaveItem()" id="hcSaveBtn" style="width:100%;margin-top:8px;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;">+ ${isLao ? 'ເພີ່ມເຂົ້າ Catalog' : 'เพิ่มเข้า Catalog'}</button>
@@ -11716,6 +11718,7 @@ function hcEdit(id) {
   hcUpdGP('hceNormal', 'hcePromo', 'hceCost', 'hceGpUnit');
   if (r.pack_qty) hcUpdGP('hcePackNormal', 'hcePackPromo', 'hcePackCost', 'hceGpPack');
   if (r.box_qty) hcUpdGP('hceBoxNormal', 'hceBoxPromo', 'hceBoxCost', 'hceGpBox');
+  hcFillPromoFromMember(r.barcode);   // เติมช่องโปรฯ จาก "ราคาขาย 2" (barcode_packsize) ถ้ายังว่าง — แก้ไขได้ (Ball 2026-07-27)
   // ⭐ ทุนชิ้นยังไม่เคยตั้งไว้ → ย้อนดูราคาซื้อล่าสุดจาก purchase_history (เหมือนตอนเพิ่มสินค้าใหม่ hcLookup)
   // ไม่บล็อกการเปิด modal — ถ้าเจอค่อยเติมให้ทีหลัง
   if (!r.cost_price && hcSeeCost()) hcFillCostFromPurchase(id, r.barcode);
@@ -11740,6 +11743,23 @@ async function hcFillCostFromPurchase(id, barcode) {
   if (boxEl && boxEl.value === '' && r && r.box_qty) { boxEl.value = Math.round(cost * r.box_qty); hcUpdGP('hceBoxNormal', 'hceBoxPromo', 'hceBoxCost', 'hceGpBox'); }
 }
 
+// เติมช่องโปรฯ อัตโนมัติจาก "ราคาขาย 2" (barcode_packsize.price_*_2) — เฉพาะช่องที่ยังว่าง · ไม่ทับของเดิม · ยังแก้ไขได้ (Ball 2026-07-27)
+async function hcFillPromoFromMember(barcode) {
+  if (!barcode) return;
+  let bp = null;
+  try {
+    const { data } = await sb.from('barcode_packsize').select('price_unit_2,price_pack_2,price_box_2').eq('barcode_unit', barcode).maybeSingle();
+    bp = data;
+  } catch (e) { return; }
+  if (!bp) return;
+  const fill = (elId, val, n, p, c, g) => {
+    const el = document.getElementById(elId);
+    if (el && el.value === '' && val != null && Number(val) > 0) { el.value = Number(val); hcUpdGP(n, p, c, g); }
+  };
+  fill('hcePromo', bp.price_unit_2, 'hceNormal', 'hcePromo', 'hceCost', 'hceGpUnit');
+  fill('hcePackPromo', bp.price_pack_2, 'hcePackNormal', 'hcePackPromo', 'hcePackCost', 'hceGpPack');
+  fill('hceBoxPromo', bp.price_box_2, 'hceBoxNormal', 'hceBoxPromo', 'hceBoxCost', 'hceGpBox');
+}
 async function hcSaveEdit(id) {
   if (!hcRequireEdit()) return;
   const isLao = lang === 'lo';
