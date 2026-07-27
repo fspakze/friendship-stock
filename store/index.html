@@ -182,6 +182,17 @@ nav.bn .nb{position:absolute;top:8px;left:calc(50% + 6px);min-width:15px;height:
 .ptsban .pv{font-size:30px;font-weight:900;line-height:1}
 .ptsban small{opacity:.9;font-size:12px}
 
+/* flash-sale hero (Promotion tab) */
+.flashhero{background:linear-gradient(100deg,#8F0B12,#E1121D 55%,#F5A623);border-radius:16px;padding:15px 18px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 8px 24px rgba(225,18,29,.32);margin-bottom:14px;position:relative;overflow:hidden}
+.flashhero::after{content:"";position:absolute;right:-30px;top:-30px;width:130px;height:130px;background:radial-gradient(circle,rgba(255,255,255,.22),transparent 70%)}
+.fh-left{display:flex;align-items:center;gap:12px;position:relative;z-index:1}
+.fh-bolt{font-size:34px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.25))}
+.fh-t2{font-size:22px;font-weight:900;letter-spacing:1.5px;line-height:1}
+.fh-t1{font-size:12px;font-weight:600;opacity:.95;margin-top:3px}
+.fh-timer{text-align:center;background:rgba(0,0,0,.22);border-radius:12px;padding:8px 12px;position:relative;z-index:1;flex-shrink:0}
+.fh-lbl{font-size:10px;opacity:.9;margin-bottom:3px}
+.fh-clock{font-size:20px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:1.5px}
+
 /* ---------- Modal ---------- */
 .ov{position:fixed;inset:0;z-index:100;background:rgba(16,30,24,.55);display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(2px)}
 .ov.show{display:flex}
@@ -268,6 +279,7 @@ const I18N = {
     payslipnow:'อัปสลิปเลย', reqfields:'กรอกข้อมูลให้ครบ', selunit:'เลือกหน่วย', retry:'ลองใหม่', loadfail:'โหลดสินค้าไม่สำเร็จ',
     loginfail:'เบอร์หรือรหัสผ่านไม่ถูกต้อง', regphoneexist:'เบอร์นี้สมัครไว้แล้ว',
     ordering:'กำลังสั่งซื้อ...', uploading:'กำลังอัปโหลด...', close:'ปิด', continue:'ดำเนินการต่อ',
+    flashsale:'FLASH SALE', promosub:'ดีลพิเศษ ลดราคาวันนี้', endsin:'หมดเวลาใน', promotitle:'สินค้าโปรโมชั่น', promoempty:'ยังไม่มีโปรโมชั่นตอนนี้',
   },
   lo:{
     tagline:'ຄ້າສົ່ງ · ປາກເຊ', search:'ຄົ້ນຫາສິນຄ້າ...', all:'ທັງໝົດ', promo:'ໂປຣ',
@@ -299,9 +311,10 @@ const I18N = {
     payslipnow:'ອັບສະລິບ', reqfields:'ຕື່ມຂໍ້ມູນໃຫ້ຄົບ', selunit:'ເລືອກໜ່ວຍ', retry:'ລອງໃໝ່', loadfail:'ໂຫຼດສິນຄ້າບໍ່ສຳເລັດ',
     loginfail:'ເບີ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກ', regphoneexist:'ເບີນີ້ສະໝັກໄວ້ແລ້ວ',
     ordering:'ກຳລັງສັ່ງຊື້...', uploading:'ກຳລັງອັບໂຫຼດ...', close:'ປິດ', continue:'ດຳເນີນຕໍ່',
+    flashsale:'FLASH SALE', promosub:'ໂປຣພິເສດ ຫຼຸດລາຄາມື້ນີ້', endsin:'ໝົດເວລາໃນ', promotitle:'ສິນຄ້າໂປຣໂມຊັ່ນ', promoempty:'ຍັງບໍ່ມີໂປຣໂມຊັ່ນຕອນນີ້',
   }
 };
-let lang = localStorage.getItem('fs_store_lang') || 'th';
+let lang = localStorage.getItem('fs_store_lang') || 'lo';   // ลูกค้าปากเซ + สินค้าเป็นลาว → เริ่มเป็นลาว
 const T = k => (I18N[lang] && I18N[lang][k]) || I18N.th[k] || k;
 const isLao = () => lang === 'lo';
 
@@ -346,6 +359,7 @@ const IC = {
   grid:'<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/>',
   chevD:'<path d="m6 9 6 6 6-6"/>',
   chevR:'<path d="m9 6 6 6-6 6"/>',
+  bolt:'<path d="M13 2 3 14h8l-1 8 10-12h-8l1-8Z"/>',
 };
 const svg=(p,w)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w||2}" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 
@@ -414,9 +428,12 @@ async function restoreSession(){
    Router / render
    ============================================================ */
 function go(v){view=v;window.scrollTo(0,0);render();}
+let _promoTimer=null;
 function render(){
+  if(_promoTimer){clearInterval(_promoTimer);_promoTimer=null;}
   const app=$('app');
   if(view==='home')app.innerHTML=viewHome();
+  else if(view==='promo')app.innerHTML=viewPromo();
   else if(view==='cart')app.innerHTML=viewCart();
   else if(view==='checkout')app.innerHTML=viewCheckout();
   else if(view==='orders')app.innerHTML=viewOrders();
@@ -425,6 +442,7 @@ function render(){
   app.insertAdjacentHTML('beforeend',bottomNav());
   updateBadges();
   if(view==='orders')loadMyOrders();
+  if(view==='promo')startPromoClock();
 }
 function updateBadges(){
   document.querySelectorAll('[data-cartbadge]').forEach(el=>{const c=cartCount();el.textContent=c;el.style.display=c?'':'none';});
@@ -552,9 +570,42 @@ function stepperHtml(bc,ut,q,cls){
     <button onclick="chgQty('${esc(bc)}','${ut}',1)">+</button>
   </div>`;
 }
-function onSearch(v){curSearch=v;const app=$('app');const list=filteredProducts();
-  // re-render just the grid area for speed
+function onSearch(v){curSearch=v;if(v&&view!=='home'){view='home';curCat='ALL';}
   render();setTimeout(()=>{const q=$('q');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}},0);
+}
+/* ---------- Promotion tab (flash sale) ---------- */
+function promoProducts(){
+  return PRODUCTS.filter(p=>unitWas(p)>0||(Number(p.pack_promo)>0&&Number(p.pack_normal)>Number(p.pack_promo))||(Number(p.box_promo)>0&&Number(p.box_normal)>Number(p.box_promo)));
+}
+function viewPromo(){
+  const list=promoProducts();
+  const banner=`<div class="flashhero">
+    <div class="fh-left"><div class="fh-bolt">⚡</div><div><div class="fh-t2">${esc(T('flashsale'))}</div><div class="fh-t1">${esc(T('promosub'))}</div></div></div>
+    <div class="fh-timer"><div class="fh-lbl">${esc(T('endsin'))}</div><div class="fh-clock" id="flashClock">--:--:--</div></div>
+  </div>`;
+  let body;
+  if(!PRODUCTS.length){
+    body=catalogError?`<div class="empty"><div class="ico">⚠️</div><b>${esc(T('loadfail'))}</b><button class="btn btn-g" style="max-width:220px;margin:14px auto 0" onclick="reloadCatalog()">${esc(T('retry'))}</button></div>`
+      :`<div class="empty"><div class="ico">🛒</div><b>${esc(T('noproducts'))}</b></div>`;
+  }else if(!list.length){
+    body=`<div class="empty"><div class="ico">🎉</div><b>${esc(T('promoempty'))}</b><button class="btn btn-g" style="max-width:220px;margin:16px auto 0" onclick="go('home')">${esc(T('shopnow'))}</button></div>`;
+  }else{
+    body=`<div class="sec-title"><span class="bar"></span>${esc(T('promotitle'))} <span style="color:var(--muted);font-weight:600;font-size:13px">(${list.length})</span></div><div class="grid">${list.map(pcard).join('')}</div>`;
+  }
+  return header(true)+`<div class="wrap">${banner}${body}</div>`;
+}
+function startPromoClock(){
+  if(_promoTimer){clearInterval(_promoTimer);_promoTimer=null;}
+  const tick=()=>{
+    const el=document.getElementById('flashClock');
+    if(!el){if(_promoTimer){clearInterval(_promoTimer);_promoTimer=null;}return;}
+    const now=new Date();const end=new Date();end.setHours(24,0,0,0);
+    let s=Math.max(0,Math.floor((end-now)/1000));
+    const h=String(Math.floor(s/3600)).padStart(2,'0');s%=3600;
+    const m=String(Math.floor(s/60)).padStart(2,'0');const ss=String(s%60).padStart(2,'0');
+    el.textContent=`${h}:${m}:${ss}`;
+  };
+  tick();_promoTimer=setInterval(tick,1000);
 }
 function selCat(id){curCat=id;render();}
 function toggleLang(){lang=lang==='th'?'lo':'th';localStorage.setItem('fs_store_lang',lang);document.documentElement.lang=lang==='lo'?'lo':'th';render();}
@@ -660,7 +711,7 @@ function startCheckout(){
 }
 function viewCheckout(){
   const sub=cartSubtotal();const earn=Math.floor(sub/1000);
-  const branchOpts=BRANCHES.map(b=>`<option value="${b.id}">${esc(b.name||b.branch_name||('สาขา '+b.id))}</option>`).join('');
+  const branchOpts=BRANCHES.map(b=>`<option value="${b.id}">${esc(b.name||b.branch_name||((isLao()?'ສາຂາ ':'สาขา ')+b.id))}</option>`).join('');
   return `${pageHead(T('checkout'),'cart')}
   <div class="wrap" style="padding-bottom:100px;display:flex;flex-direction:column;gap:14px">
     <div class="card">
@@ -907,6 +958,7 @@ function bottomNav(){
   const b=(v,ic,lb,badge)=>`<button class="${view===v?'on':''}" onclick="go('${v}')">${svg(ic)}${badge?`<span class="nb" data-cartbadge style="display:none">0</span>`:''}<span>${esc(lb)}</span></button>`;
   return `<nav class="bn">
     ${b('home',IC.home,T('home'),false)}
+    ${b('promo',IC.bolt,T('promo'),false)}
     ${b('cart',IC.cart,T('cart'),true)}
     ${b('orders',IC.bag,T('orders'),false)}
     ${b('account',IC.user,T('account'),false)}
