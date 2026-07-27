@@ -55,8 +55,14 @@ header{position:sticky;top:0;z-index:40;background:#fff;color:var(--ink);box-sha
 .sbtn.rec{color:#fff;background:var(--red);animation:recpulse 1s infinite}
 @keyframes recpulse{0%,100%{opacity:1}50%{opacity:.55}}
 /* voice-search language picker (ภาษาพูด) */
-.voicebar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:7px 14px 2px}
+.langbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:7px 14px 3px}
+.lb-voice{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
 .vb-lbl{font-size:10.5px;color:var(--muted);font-weight:800}
+/* display-language slide switch (สลับภาษาแสดงผล) */
+.langslide{position:relative;display:inline-flex;background:var(--bg);border:1.5px solid var(--line-2);border-radius:999px;overflow:hidden;flex-shrink:0}
+.ls-knob{position:absolute;top:0;bottom:0;left:0;width:50%;border-radius:999px;background:var(--blue);transition:transform .22s ease;z-index:0}
+.ls-opt{position:relative;z-index:1;flex:1;min-width:46px;text-align:center;border:none;background:none;font-size:11.5px;font-weight:800;padding:6px 14px;color:var(--muted);cursor:pointer;transition:color .2s}
+.ls-opt.on{color:#fff}
 .vchip{border:1.5px solid var(--line-2);background:var(--card);color:var(--muted);border-radius:11px;padding:3px 12px;font-size:11px;font-weight:800;cursor:pointer;margin-right:2px}
 .vchip.on{background:var(--blue);border-color:var(--blue);color:#fff}
 .htools{display:flex;align-items:center;gap:4px}
@@ -610,12 +616,18 @@ function header(showSearch){
         <label class="sbtn" title="${isLao()?'ຄົ້ນຈາກຮູບ':'ค้นจากรูป'}" aria-label="photo">${svg(IC.cam)}<input type="file" accept="image/*" capture="environment" style="display:none" onchange="scanImageSearch(this)"></label>
       </div>`:'<div style="flex:1"></div>'}
       <div class="htools">
-        <button class="hbtn langpill" onclick="toggleLang()">${lang==='th'?'ລາວ':'ไทย'}</button>
         <button class="hbtn" onclick="go('account')" title="${esc(T('account'))}">${svg(IC.user)}</button>
         <button class="hbtn" onclick="go('cart')" title="${esc(T('cart'))}">${svg(IC.cart)}<span class="hbadge" data-cartbadge style="display:none">0</span></button>
       </div>
     </div>
-    ${showSearch?`<div class="voicebar"><span class="vb-lbl">${isLao()?'ພາສາເວົ້າ:':'ภาษาพูด:'}</span><span id="voiceLangChips">${voiceChipsHtml()}</span></div>`:''}
+    ${showSearch?`<div class="langbar">
+      <div class="lb-voice"><span class="vb-lbl">${isLao()?'ພາສາເວົ້າ:':'ภาษาพูด:'}</span><span id="voiceLangChips">${voiceChipsHtml()}</span></div>
+      <div class="langslide" aria-label="display language">
+        <div class="ls-knob" style="transform:translateX(${lang==='lo'?'100%':'0'})"></div>
+        <button class="ls-opt ${lang==='th'?'on':''}" onclick="setLang('th')">ไทย</button>
+        <button class="ls-opt ${lang==='lo'?'on':''}" onclick="setLang('lo')">ລາວ</button>
+      </div>
+    </div>`:''}
     <div class="promo-strip">${svg(IC.truck,2)}<span style="margin-left:4px">${isLao()?'ສັ່ງຊື້ອອນລາຍ ຮັບແຕ້ມສະສົມທຸກອໍເດີ':'สั่งซื้อออนไลน์ สะสมแต้มทุกออเดอร์'} · <b>${esc(T('pointsub'))}</b></span></div>
   </header>`;
 }
@@ -912,7 +924,8 @@ function startPromoClock(){
   tick();_promoTimer=setInterval(tick,1000);
 }
 function selCat(id){curCat=id;view='home';PAGE=1;window.scrollTo(0,0);render();}
-function toggleLang(){lang=lang==='th'?'lo':'th';localStorage.setItem('fs_store_lang',lang);document.documentElement.lang=lang==='lo'?'lo':'th';render();}
+function toggleLang(){setLang(lang==='th'?'lo':'th');}
+function setLang(l){if(l!=='th'&&l!=='lo')return;if(l===lang)return;lang=l;try{localStorage.setItem('fs_store_lang',l);}catch(e){}document.documentElement.lang=l==='lo'?'lo':'th';render();}
 
 /* ---------- Product detail sheet ---------- */
 let pdUnit='unit';
