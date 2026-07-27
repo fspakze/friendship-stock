@@ -396,7 +396,9 @@ const svg=(p,w)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 function unitPrice(p){const promo=Number(p.promo_price)||0;const nrm=Number(p.normal_price)||0;return promo>0?promo:nrm;}
 function unitWas(p){const promo=Number(p.promo_price)||0;const nrm=Number(p.normal_price)||0;return (promo>0&&nrm>promo)?nrm:0;}
 function packPrice(p){const promo=Number(p.pack_promo)||0;const nrm=Number(p.pack_normal)||0;return promo>0?promo:nrm;}
+function packWas(p){const promo=Number(p.pack_promo)||0;const nrm=Number(p.pack_normal)||0;return (promo>0&&nrm>promo)?nrm:0;}
 function boxPrice(p){const promo=Number(p.box_promo)||0;const nrm=Number(p.box_normal)||0;return promo>0?promo:nrm;}
+function boxWas(p){const promo=Number(p.box_promo)||0;const nrm=Number(p.box_normal)||0;return (promo>0&&nrm>promo)?nrm:0;}
 function priceFor(p,ut){return ut==='box'?boxPrice(p):ut==='pack'?packPrice(p):unitPrice(p);}
 function isPromoLine(p,ut){
   if(ut==='box')return Number(p.box_promo)>0&&Number(p.box_normal)>Number(p.box_promo);
@@ -695,8 +697,8 @@ function openProduct(bc){
   const relHtml=rel.length?`<div class="rel-sec"><div class="rel-title">${isLao()?'ສິນຄ້າໃກ້ຄຽງ':'สินค้าใกล้เคียง'}</div><div class="rel-row">${rel.map(relCard).join('')}</div></div>`:'';
   const opts=[];
   if(unitPrice(p)>0)opts.push({ut:'unit',label:p.unit||T('unit'),price:unitPrice(p),was:unitWas(p),sub:''});
-  if(packPrice(p)>0)opts.push({ut:'pack',label:p.pack_label||T('pack'),price:packPrice(p),was:0,sub:p.pack_qty?`${p.pack_qty} ${p.unit||''}`:''});
-  if(boxPrice(p)>0)opts.push({ut:'box',label:T('box'),price:boxPrice(p),was:0,sub:p.box_qty?`${p.box_qty} ${p.unit||''}`:''});
+  if(packPrice(p)>0)opts.push({ut:'pack',label:p.pack_label||T('pack'),price:packPrice(p),was:packWas(p),sub:p.pack_qty?`${p.pack_qty} ${p.unit||''}`:''});
+  if(boxPrice(p)>0)opts.push({ut:'box',label:T('box'),price:boxPrice(p),was:boxWas(p),sub:p.box_qty?`${p.box_qty} ${p.unit||''}`:''});
   const img=p.image_url?`<img src="${esc(p.image_url)}" onerror="this.style.display='none'">`:`<div class="ph" style="font-size:60px">${esc((p.product_name||'?').charAt(0))}</div>`;
   const html=`
     <div class="sheet-h"><h3 style="font-size:15px">${esc(T('products'))}</h3><button class="x" onclick="closeSheet()">✕</button></div>
