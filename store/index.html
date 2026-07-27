@@ -94,6 +94,7 @@ header{position:sticky;top:0;z-index:40;background:var(--green);color:#fff;box-s
 .pbadge{position:absolute;top:7px;left:7px;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;box-shadow:var(--sh)}
 .pbody{padding:9px 10px 11px;display:flex;flex-direction:column;flex:1;gap:5px}
 .pcat{font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.4px}
+.pbc{color:var(--muted);text-transform:none;letter-spacing:.5px;font-weight:600;font-family:'Consolas','Menlo',monospace}
 .pname{font-size:12.5px;font-weight:600;line-height:1.35;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:34px}
 .pprice{margin-top:auto;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
 .pprice .now{font-size:16px;font-weight:900;color:var(--red)}
@@ -330,6 +331,7 @@ let view = 'home';
 let curCat = 'ALL';
 let curSearch = '';
 let SHOP_QR = { url:'', note:'' };
+let PROMO_END = null;   // เวลาหมดโปรฯ (ตั้งในคอนโซลพนักงาน) — ถ้าไม่ตั้ง = นับถึงเที่ยงคืน
 
 /* ---------- Helpers ---------- */
 const money = n => new Intl.NumberFormat('en-US').format(Math.round(Number(n)||0)) + '₭';
@@ -369,6 +371,14 @@ function unitWas(p){const promo=Number(p.promo_price)||0;const nrm=Number(p.norm
 function packPrice(p){const promo=Number(p.pack_promo)||0;const nrm=Number(p.pack_normal)||0;return promo>0?promo:nrm;}
 function boxPrice(p){const promo=Number(p.box_promo)||0;const nrm=Number(p.box_normal)||0;return promo>0?promo:nrm;}
 function priceFor(p,ut){return ut==='box'?boxPrice(p):ut==='pack'?packPrice(p):unitPrice(p);}
+function isPromoLine(p,ut){
+  if(ut==='box')return Number(p.box_promo)>0&&Number(p.box_normal)>Number(p.box_promo);
+  if(ut==='pack')return Number(p.pack_promo)>0&&Number(p.pack_normal)>Number(p.pack_promo);
+  return unitWas(p)>0;
+}
+const POINT_PER=10000;   // 10,000 kip = 1 แต้ม
+function eligibleSubtotal(){return cart.reduce((s,i)=>{const p=PMAP[i.barcode];if(!p||isPromoLine(p,i.unit_type))return s;return s+priceFor(p,i.unit_type)*i.qty;},0);}
+function pointsEarn(){return Math.floor(eligibleSubtotal()/POINT_PER);}
 function labelFor(p,ut){if(ut==='box')return T('box');if(ut==='pack')return p.pack_label||T('pack');return p.unit||T('unit');}
 
 /* ============================================================
@@ -411,8 +421,12 @@ async function loadBranches(){
 }
 async function loadShopQR(){
   try{
-    const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note']);
-    (data||[]).forEach(r=>{if(r.key==='store_qr_url')SHOP_QR.url=r.value||'';if(r.key==='store_qr_note')SHOP_QR.note=r.value||'';});
+    const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end']);
+    (data||[]).forEach(r=>{
+      if(r.key==='store_qr_url')SHOP_QR.url=r.value||'';
+      if(r.key==='store_qr_note')SHOP_QR.note=r.value||'';
+      if(r.key==='store_promo_end'){const d=r.value?new Date(r.value):null;PROMO_END=(d&&!isNaN(d.getTime()))?d:null;}
+    });
   }catch(e){}
 }
 async function restoreSession(){
@@ -555,7 +569,7 @@ function pcard(p){
   return `<div class="pcard">
     <div class="pthumb" onclick="openProduct('${esc(p.barcode)}')">${img}${ph}${promoBadge}</div>
     <div class="pbody">
-      ${p.category?`<div class="pcat">${esc(p.category)}</div>`:''}
+      ${p.barcode?`<div class="pcat pbc">${esc(p.barcode)}</div>`:''}
       <div class="pname" onclick="openProduct('${esc(p.barcode)}')">${esc(p.product_name)}</div>
       <div class="pprice"><span class="now">${money(price)}</span>${was?`<span class="was">${money(was)}</span>`:''}</div>
       <div class="punit">${esc(T('per'))} ${esc(p.unit||T('unit'))}</div>
@@ -599,7 +613,8 @@ function startPromoClock(){
   const tick=()=>{
     const el=document.getElementById('flashClock');
     if(!el){if(_promoTimer){clearInterval(_promoTimer);_promoTimer=null;}return;}
-    const now=new Date();const end=new Date();end.setHours(24,0,0,0);
+    const now=new Date();
+    const end = PROMO_END ? PROMO_END : (function(){const e=new Date();e.setHours(24,0,0,0);return e;})();
     let s=Math.max(0,Math.floor((end-now)/1000));
     const h=String(Math.floor(s/3600)).padStart(2,'0');s%=3600;
     const m=String(Math.floor(s/60)).padStart(2,'0');const ss=String(s%60).padStart(2,'0');
@@ -624,7 +639,7 @@ function openProduct(bc){
     <div class="sheet-h"><h3 style="font-size:15px">${esc(T('products'))}</h3><button class="x" onclick="closeSheet()">✕</button></div>
     <div class="sheet-b">
       <div class="pd-img">${img}</div>
-      ${p.category?`<div class="pcat" style="margin-bottom:4px">${esc(p.category)}</div>`:''}
+      ${p.barcode?`<div class="pcat pbc" style="margin-bottom:4px">${esc(p.barcode)}</div>`:''}
       <div style="font-size:17px;font-weight:800;line-height:1.35;margin-bottom:14px">${esc(p.product_name)}</div>
       <div style="font-size:12.5px;font-weight:800;color:var(--muted);margin-bottom:8px">${esc(T('selunit'))}</div>
       <div id="pdOpts">${opts.map((o,i)=>uoptHtml(o,i===0)).join('')}</div>
@@ -691,7 +706,7 @@ function viewCart(){
     </div>`;
   }).join('');
   const sub=cartSubtotal();
-  const earn=Math.floor(sub/1000);
+  const earn=pointsEarn();
   return `${pageHead(T('cart'),'home')}
     <div class="wrap" style="padding-bottom:90px;display:flex;flex-direction:column;gap:10px">
       ${items}
@@ -710,7 +725,7 @@ function startCheckout(){
   go('checkout');
 }
 function viewCheckout(){
-  const sub=cartSubtotal();const earn=Math.floor(sub/1000);
+  const sub=cartSubtotal();const earn=pointsEarn();
   const branchOpts=BRANCHES.map(b=>`<option value="${b.id}">${esc(b.name||b.branch_name||((isLao()?'ສາຂາ ':'สาขา ')+b.id))}</option>`).join('');
   return `${pageHead(T('checkout'),'cart')}
   <div class="wrap" style="padding-bottom:100px;display:flex;flex-direction:column;gap:14px">

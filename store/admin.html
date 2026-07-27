@@ -359,8 +359,8 @@ function showImg(url){openSheet(`<div style="padding:8px;text-align:center"><img
 async function renderSettings(){
   const body=$('tabBody');
   body.innerHTML=`<div class="sec-title"><span class="bar"></span>ตั้งค่าร้าน</div><div class="card"><div class="skel" style="height:200px"></div></div>`;
-  let qrUrl='',qrNote='';
-  try{const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note']);(data||[]).forEach(r=>{if(r.key==='store_qr_url')qrUrl=r.value||'';if(r.key==='store_qr_note')qrNote=r.value||'';});}catch(e){}
+  let qrUrl='',qrNote='',promoEnd='';
+  try{const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end']);(data||[]).forEach(r=>{if(r.key==='store_qr_url')qrUrl=r.value||'';if(r.key==='store_qr_note')qrNote=r.value||'';if(r.key==='store_promo_end')promoEnd=r.value||'';});}catch(e){}
   body.innerHTML=`<div class="sec-title"><span class="bar"></span>ตั้งค่าร้าน</div>
     <div class="card" style="max-width:520px">
       <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">💳 QR รับเงินร้าน</div>
@@ -376,8 +376,26 @@ async function renderSettings(){
       <div class="field"><label>หมายเหตุใต้ QR (ชื่อบัญชี / เลขบัญชี — ไม่ใส่ก็ได้)</label>
         <textarea id="qrNote" placeholder="เช่น บัญชี BCEL: xxx-xxxx&#10;ชื่อ: Friendship SuperMart">${esc(qrNote)}</textarea></div>
       <button class="btn btn-g" id="qrNoteBtn" onclick="saveQRNote()">บันทึกหมายเหตุ</button>
+    </div>
+    <div class="card" style="max-width:520px;margin-top:14px">
+      <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">⏰ เวลาหมดโปรโมชั่น (Flash Sale)</div>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">ตั้งเวลาที่นาฬิกานับถอยหลังในแท็บ "โปรฯ" ของลูกค้าจะหมด · <b>เว้นว่าง = นับถึงเที่ยงคืนทุกวัน</b></div>
+      <div class="field"><label>วันที่-เวลาหมดโปรฯ</label><input type="datetime-local" id="promoEnd" value="${esc(promoEnd)}"></div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-g" id="promoBtn" style="flex:1" onclick="savePromoEnd()">บันทึกเวลา</button>
+        <button class="btn btn-o" style="flex:0 0 auto;width:auto;padding:0 20px" onclick="clearPromoEnd()">ล้าง</button>
+      </div>
     </div>`;
 }
+async function savePromoEnd(){
+  const v=(($('promoEnd')||{}).value||'').trim();const btn=$('promoBtn');if(btn)btn.disabled=true;
+  try{
+    const {error}=await sb.from('app_settings').upsert({key:'store_promo_end',value:v},{onConflict:'key'});
+    if(error)throw error;
+    toast(v?'ตั้งเวลาหมดโปรฯ แล้ว':'ล้างแล้ว (นับถึงเที่ยงคืน)','ok');if(btn)btn.disabled=false;
+  }catch(e){toast('บันทึกไม่สำเร็จ: '+(e.message||e),'err');if(btn)btn.disabled=false;}
+}
+async function clearPromoEnd(){const el=$('promoEnd');if(el)el.value='';savePromoEnd();}
 async function uploadQR(input){
   const f=input.files&&input.files[0];if(!f)return;
   const prev=$('qrPrev');if(prev)prev.innerHTML='<div class="qrprev" style="display:grid;place-items:center;color:var(--muted)">กำลังอัปโหลด...</div>';
