@@ -102,7 +102,7 @@ header{position:sticky;top:0;z-index:40;background:#fff;color:var(--ink);box-sha
 .promo-tag{background:var(--pc,#E1121D);color:#fff;font-size:10px;font-weight:800;text-align:center;padding:4px 8px;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .promo-art{width:100%;border-radius:14px;margin-bottom:12px;box-shadow:var(--sh);display:block}
 .promo-block{margin-bottom:24px}
-.promo-top{background:var(--red);color:#fff;font-size:10px;font-weight:800;text-align:center;padding:4px 8px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.2px}
+.promo-top{height:23px;line-height:23px;background:transparent;color:#fff;font-size:10px;font-weight:800;text-align:center;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.2px;flex-shrink:0}
 .promo-cat{margin-bottom:14px}
 .promo-cat-h{font-size:13px;font-weight:800;color:var(--ink);margin:2px 2px 8px;display:flex;align-items:center;gap:6px}
 .promo-cat-h span{color:var(--muted);font-weight:600;font-size:12px}
@@ -751,7 +751,7 @@ function pcard(p){
     ? `<div class="save-flag" style="background:${pc}"><div class="sf-t">${esc(promo.badge_text)}</div></div>`
     : (disc>0?`<div class="save-flag"><div class="sf-s">SAVE</div><div class="sf-p">${disc}%</div></div>`:'');
   return `<div class="pcard${promo?' promo-framed':''}${oos?' oos':''}"${promo?` style="--pc:${pc}"`:''}>
-    ${promo?`<div class="promo-top" style="background:${pc}">⚡ ${esc(promo.title)}</div>`:''}
+    ${promo?`<div class="promo-top" style="background:${pc}">⚡ ${esc(promo.title)}</div>`:`<div class="promo-top" aria-hidden="true"></div>`}
     <div class="pthumb" onclick="openProduct('${esc(p.barcode)}')">${img}${ph}${oos?`<div class="oos-tag">${isLao()?'ສິນຄ້າໝົດ':'สินค้าหมด'}</div>`:ribbon}
       <button class="fav-btn" data-bc="${esc(p.barcode)}" onclick="event.stopPropagation();toggleFav('${esc(p.barcode)}')" aria-label="favorite">${isFav(p.barcode)?'❤️':'<span class="off">❤️</span>'}</button>
       ${oos?'':`<button class="padd-fab" onclick="event.stopPropagation();quickAdd('${esc(p.barcode)}')" aria-label="add">${svg(IC.cart,2)}</button>`}
