@@ -111,8 +111,8 @@ header{position:sticky;top:0;z-index:40;background:#fff;color:var(--ink);box-sha
 .ptab{flex:0 0 auto;scroll-snap-align:start;padding:8px 15px;border-radius:999px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font-size:13px;font-weight:800;white-space:nowrap;transition:.12s}
 .ptab.on{background:var(--pc,var(--red));border-color:var(--pc,var(--red));color:#fff;box-shadow:0 3px 10px rgba(225,18,29,.28)}
 .pcard:active{transform:scale(.98)}
-.pthumb{position:relative;aspect-ratio:1;background:linear-gradient(135deg,#f0f3f1,#e4eae7);display:grid;place-items:center;overflow:hidden}
-.pthumb img{width:100%;height:100%;object-fit:contain;padding:8px}
+.pthumb{position:relative;aspect-ratio:1;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:8px}
+.pthumb img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block}
 .pthumb .ph{font-size:34px;font-weight:900;color:#c3ccc7}
 .pbadge{position:absolute;top:7px;left:7px;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;box-shadow:var(--sh)}
 .pbody{padding:9px 10px 11px;display:flex;flex-direction:column;flex:1;gap:5px}
