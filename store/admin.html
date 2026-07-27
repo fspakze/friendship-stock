@@ -539,17 +539,21 @@ async function renderSettings(){
     </div>
     <div class="card" style="max-width:520px;margin-top:14px">
       <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">📦 สาขาคลัง (เช็คสินค้าหมด)</div>
-      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">เว็บลูกค้าเช็คสต็อกจากสาขานี้ · สต็อก ≤ 0 จะขึ้นป้าย "สินค้าหมด" + กดซื้อไม่ได้ · <b>เว้นว่าง = ไม่เช็ค (ถือว่ามีของ)</b></div>
-      <div class="field"><label>สาขาคลัง</label><select id="stockBranch"><option value="">— ไม่เช็ค —</option>${branches.map(b=>`<option value="${b.id}" ${String(stockBranch)===String(b.id)?'selected':''}>${esc(b.name||b.branch_name||('สาขา '+b.id))}</option>`).join('')}</select></div>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">เว็บลูกค้าเช็คสต็อกจากสาขาที่เลือก (รวมทุกสาขา) · สต็อก ≤ 0 ทุกสาขา จะขึ้นป้าย "สินค้าหมด" + กดซื้อไม่ได้ · <b>ไม่เลือก = ไม่เช็ค (ถือว่ามีของ)</b></div>
+      <div class="field"><label>สาขาคลัง (เลือกได้หลายสาขา)</label>
+        <div id="stockBranchList" style="display:flex;flex-direction:column;gap:7px;max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:9px;padding:10px">
+          ${(function(){let arr=[];if(stockBranch){try{const a=JSON.parse(stockBranch);arr=(Array.isArray(a)?a:[a]).map(String);}catch(e){arr=String(stockBranch).split(',').map(s=>s.trim());}}return branches.map(b=>{const nm=esc(b.name_th||b.name_lo||b.name||b.branch_name||('สาขา '+b.id));const on=arr.includes(String(b.id));return `<label style="display:flex;align-items:center;gap:9px;font-weight:600;font-size:13.5px;cursor:pointer"><input type="checkbox" class="stkBr" value="${b.id}" ${on?'checked':''} style="width:17px;height:17px;flex:0 0 auto">${nm}</label>`;}).join('');})()}
+        </div></div>
       <button class="btn btn-g" id="stockBtn" onclick="saveStockBranch()">บันทึกสาขาคลัง</button>
     </div>`;
 }
 async function saveStockBranch(){
-  const v=(($('stockBranch')||{}).value||'').trim();const btn=$('stockBtn');if(btn)btn.disabled=true;
+  const ids=[...document.querySelectorAll('.stkBr:checked')].map(c=>c.value);
+  const v=ids.length?JSON.stringify(ids.map(Number)):'';const btn=$('stockBtn');if(btn)btn.disabled=true;
   try{
     const {error}=await sb.from('app_settings').upsert({key:'store_stock_branch',value:v},{onConflict:'key'});
     if(error)throw error;
-    toast(v?'ตั้งสาขาคลังแล้ว · ลูกค้าจะเห็นสินค้าหมดตามสต็อก':'ปิดเช็คสต็อกแล้ว','ok');if(btn)btn.disabled=false;
+    toast(ids.length?('ตั้งสาขาคลัง '+ids.length+' สาขาแล้ว · ลูกค้าจะเห็นสินค้าหมดตามสต็อก'):'ปิดเช็คสต็อกแล้ว','ok');if(btn)btn.disabled=false;
   }catch(e){toast('บันทึกไม่สำเร็จ: '+(e.message||e),'err');if(btn)btn.disabled=false;}
 }
 async function savePromoEnd(){

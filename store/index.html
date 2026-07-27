@@ -92,6 +92,10 @@ header{position:sticky;top:0;z-index:40;background:#fff;color:var(--ink);box-sha
 .promo-tag{background:var(--pc,#E1121D);color:#fff;font-size:10px;font-weight:800;text-align:center;padding:4px 8px;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .promo-art{width:100%;border-radius:14px;margin-bottom:12px;box-shadow:var(--sh);display:block}
 .promo-block{margin-bottom:24px}
+.promo-chip{align-self:flex-start;max-width:100%;font-size:9.5px;font-weight:800;color:#fff;background:var(--red);padding:2px 8px;border-radius:5px;line-height:1.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.promo-cat{margin-bottom:14px}
+.promo-cat-h{font-size:13px;font-weight:800;color:var(--ink);margin:2px 2px 8px;display:flex;align-items:center;gap:6px}
+.promo-cat-h span{color:var(--muted);font-weight:600;font-size:12px}
 .pcard:active{transform:scale(.98)}
 .pthumb{position:relative;aspect-ratio:1;background:linear-gradient(135deg,#f0f3f1,#e4eae7);display:grid;place-items:center;overflow:hidden}
 .pthumb img{width:100%;height:100%;object-fit:contain;padding:8px}
@@ -392,8 +396,8 @@ let curCat = 'ALL';
 let curSearch = '';
 let SHOP_QR = { url:'', note:'' };
 let PROMO_END = null;   // เวลาหมดโปรฯ (ตั้งในคอนโซลพนักงาน) — ถ้าไม่ตั้ง = นับถึงเที่ยงคืน
-let STOCK_BRANCH = null; // สาขาคลังสำหรับเช็คสต็อกหมด (app_settings store_stock_branch)
-let STOCK = {};          // barcode -> pos_qty ของสาขาคลัง
+let STOCK_BRANCH = [];   // สาขาคลัง (หลายสาขา) สำหรับเช็คสต็อกหมด (app_settings store_stock_branch)
+let STOCK = {};          // barcode -> pos_qty รวมทุกสาขาคลัง
 let PROMOS = [];        // แคมเปญโปรโมชั่น (store_promotions)
 let PROMO_BY_BC = {};   // barcode -> โปรแรกที่สินค้าอยู่
 
@@ -503,24 +507,26 @@ async function loadShopQR(){
       if(r.key==='store_qr_url')SHOP_QR.url=r.value||'';
       if(r.key==='store_qr_note')SHOP_QR.note=r.value||'';
       if(r.key==='store_promo_end'){const d=r.value?new Date(r.value):null;PROMO_END=(d&&!isNaN(d.getTime()))?d:null;}
-      if(r.key==='store_stock_branch'){const n=parseInt(r.value);STOCK_BRANCH=isNaN(n)?null:n;}
+      if(r.key==='store_stock_branch'){let arr=[];if(r.value){try{const a=JSON.parse(r.value);arr=Array.isArray(a)?a:[a];}catch(e){arr=String(r.value).split(',');}}STOCK_BRANCH=arr.map(x=>parseInt(x)).filter(x=>!isNaN(x));}
     });
   }catch(e){}
 }
 // โหลดสต็อก POS ของสาขาคลัง (เช็คสินค้าหมด) — ต้องโหลด SHOP_QR ก่อน (STOCK_BRANCH)
 async function loadStock(){
   STOCK={};
-  if(!STOCK_BRANCH)return;
+  if(!STOCK_BRANCH||!STOCK_BRANCH.length)return;
   try{
     const bcs=[...new Set(PRODUCTS.map(p=>String(p.barcode)).filter(Boolean))];
-    for(let i=0;i<bcs.length;i+=300){
-      const {data}=await sb.from('products').select('barcode,pos_qty').eq('branch_id',STOCK_BRANCH).eq('is_active',true).in('barcode',bcs.slice(i,i+300));
-      (data||[]).forEach(p=>{STOCK[String(p.barcode)]=Number(p.pos_qty)||0;});
+    for(const brId of STOCK_BRANCH){
+      for(let i=0;i<bcs.length;i+=300){
+        const {data}=await sb.from('products').select('barcode,pos_qty').eq('branch_id',brId).eq('is_active',true).in('barcode',bcs.slice(i,i+300));
+        (data||[]).forEach(p=>{const k=String(p.barcode);STOCK[k]=(Number(STOCK[k])||0)+(Number(p.pos_qty)||0);});
+      }
     }
   }catch(e){STOCK={};}
 }
-// สินค้าหมด? (มีสาขาคลัง + เจอสต็อก ≤ 0) · ไม่ตั้งสาขาคลัง = ไม่เช็ค (ถือว่ามีของ)
-function isOutOfStock(bc){ if(!STOCK_BRANCH)return false; return (Number(STOCK[bc])||0)<=0 && STOCK.hasOwnProperty(bc); }
+// สินค้าหมด? (มีสาขาคลัง + เจอสต็อกรวมทุกสาขา ≤ 0) · ไม่ตั้งสาขาคลัง = ไม่เช็ค (ถือว่ามีของ)
+function isOutOfStock(bc){ if(!STOCK_BRANCH||!STOCK_BRANCH.length)return false; return STOCK.hasOwnProperty(bc) && (Number(STOCK[bc])||0)<=0; }
 async function loadPromos(){
   try{
     const {data,error}=await sb.from('store_promotions').select('*').eq('is_active',true).order('sort_order',{ascending:true}).order('created_at');
@@ -699,12 +705,12 @@ function pcard(p){
     ? `<div class="save-flag" style="background:${pc}"><div class="sf-t">${esc(promo.badge_text)}</div></div>`
     : (disc>0?`<div class="save-flag"><div class="sf-s">SAVE</div><div class="sf-p">${disc}%</div></div>`:'');
   return `<div class="pcard${promo?' promo-framed':''}${oos?' oos':''}"${promo?` style="--pc:${pc}"`:''}>
-    ${promo&&!oos?`<div class="promo-tag">⚡ ${esc(promo.title)}</div>`:''}
     <div class="pthumb" onclick="openProduct('${esc(p.barcode)}')">${img}${ph}${oos?`<div class="oos-tag">${isLao()?'ສິນຄ້າໝົດ':'สินค้าหมด'}</div>`:ribbon}
       <button class="fav-btn" data-bc="${esc(p.barcode)}" onclick="event.stopPropagation();toggleFav('${esc(p.barcode)}')" aria-label="favorite">${isFav(p.barcode)?'❤️':'<span class="off">❤️</span>'}</button>
       ${oos?'':`<button class="padd-fab" onclick="event.stopPropagation();quickAdd('${esc(p.barcode)}')" aria-label="add">${svg(IC.plus,2.4)}</button>`}
     </div>
     <div class="pbody">
+      ${promo?`<div class="promo-chip" style="background:${pc}">⚡ ${esc(promo.title)}</div>`:''}
       <div class="pname" onclick="openProduct('${esc(p.barcode)}')">${esc(p.product_name)}</div>
       ${p.barcode?`<div class="pcat pbc">${esc(p.barcode)}</div>`:''}
       ${promoLimitBar(p)}
@@ -737,6 +743,22 @@ function onSearch(v){curSearch=v;if(v&&view!=='home'){view='home';curCat='ALL';}
 function promoProducts(){
   return PRODUCTS.filter(p=>unitWas(p)>0||(Number(p.pack_promo)>0&&Number(p.pack_normal)>Number(p.pack_promo))||(Number(p.box_promo)>0&&Number(p.box_normal)>Number(p.box_promo)));
 }
+// %ส่วนลดสูงสุดของสินค้า (ชิ้น/แพ็ค/ลัง) — ใช้เรียงลำดับ
+function discPct(p){
+  let d=0;const u=unitWas(p);if(u>0)d=Math.max(d,1-unitPrice(p)/u);
+  if(Number(p.pack_promo)>0&&Number(p.pack_normal)>Number(p.pack_promo))d=Math.max(d,1-Number(p.pack_promo)/Number(p.pack_normal));
+  if(Number(p.box_promo)>0&&Number(p.box_normal)>Number(p.box_promo))d=Math.max(d,1-Number(p.box_promo)/Number(p.box_normal));
+  return d;
+}
+// จัดกลุ่มสินค้าโปรฯ ตามประเภท · แต่ละประเภทเรียงตามส่วนลดมาก→น้อย
+function promoGrouped(items){
+  const by={};items.forEach(p=>{const c=p.category||'__x';(by[c]=by[c]||[]).push(p);});
+  const cats=Object.keys(by).sort((a,b)=>{const ia=CATS.indexOf(a),ib=CATS.indexOf(b);return (ia<0?9999:ia)-(ib<0?9999:ib);});
+  return cats.map(c=>{
+    const arr=by[c].slice().sort((x,y)=>discPct(y)-discPct(x));
+    return `<div class="promo-cat"><div class="promo-cat-h">${catIcon(c)} ${esc(catLabel(c))} <span>(${arr.length})</span></div><div class="grid">${arr.map(pcard).join('')}</div></div>`;
+  }).join('');
+}
 function viewPromo(){
   const list=promoProducts();
   const banner=`<div class="flashhero">
@@ -754,10 +776,10 @@ function viewPromo(){
     body=campaigns.map(pr=>{
       const items=(pr.barcodes||[]).map(bc=>PMAP[bc]).filter(Boolean);
       const art=pr.artwork_url?`<img class="promo-art" src="${esc(pr.artwork_url)}" alt="" onerror="this.style.display='none'">`:'';
-      return `<div class="promo-block">${art}<div class="sec-title"><span class="bar" style="background:${colorSafe(pr.badge_color)}"></span>${esc(pr.title)} <span style="color:var(--muted);font-weight:600;font-size:13px">(${items.length})</span></div><div class="grid">${items.map(pcard).join('')}</div></div>`;
+      return `<div class="promo-block">${art}<div class="sec-title"><span class="bar" style="background:${colorSafe(pr.badge_color)}"></span>${esc(pr.title)} <span style="color:var(--muted);font-weight:600;font-size:13px">(${items.length})</span></div>${promoGrouped(items)}</div>`;
     }).join('');
   }else if(list.length){
-    body=`<div class="sec-title"><span class="bar"></span>${esc(T('promotitle'))} <span style="color:var(--muted);font-weight:600;font-size:13px">(${list.length})</span></div><div class="grid">${list.map(pcard).join('')}</div>`;
+    body=`<div class="sec-title"><span class="bar"></span>${esc(T('promotitle'))} <span style="color:var(--muted);font-weight:600;font-size:13px">(${list.length})</span></div>${promoGrouped(list)}`;
   }else{
     body=`<div class="empty"><div class="ico">🎉</div><b>${esc(T('promoempty'))}</b><button class="btn btn-g" style="max-width:220px;margin:16px auto 0" onclick="go('home')">${esc(T('shopnow'))}</button></div>`;
   }
