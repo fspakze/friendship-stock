@@ -394,6 +394,8 @@ function labelFor(p,ut){if(ut==='box')return T('box');if(ut==='pack')return p.pa
 /* ============================================================
    Data load
    ============================================================ */
+// หมวดที่ซ่อนจากลูกค้า (เลิกขาย) — หมวด 24 หรือมีคำว่ายกเลิก
+function isHiddenCat(c){const s=String(c||'');return /^\s*24\s*[-.]/.test(s)||/ຍົກເລີກ|ຍົກເລິກ|ยกเลิก/.test(s);}
 let catalogError='';
 async function loadCatalog(attempt){
   attempt=attempt||1;
@@ -406,7 +408,7 @@ async function loadCatalog(attempt){
       if(!data||data.length<page)break;
       from+=page;
     }
-    PRODUCTS=all.filter(p=>unitPrice(p)>0||packPrice(p)>0||boxPrice(p)>0);
+    PRODUCTS=all.filter(p=>(unitPrice(p)>0||packPrice(p)>0||boxPrice(p)>0)&&!isHiddenCat(p.category));
     PMAP={};PRODUCTS.forEach(p=>{if(p.barcode)PMAP[p.barcode]=p;});
     const set=new Set();PRODUCTS.forEach(p=>{if(p.category)set.add(p.category);});
     CATS=Array.from(set).sort();
@@ -463,7 +465,7 @@ function render(){
   else if(view==='orders')app.innerHTML=viewOrders();
   else if(view==='account')app.innerHTML=viewAccount();
   else app.innerHTML=viewHome();
-  app.insertAdjacentHTML('beforeend',bottomNav());
+  if(view!=='cart'&&view!=='checkout')app.insertAdjacentHTML('beforeend',bottomNav());  // ตะกร้า/checkout ไม่มีแถบล่าง (กันทับปุ่มสั่งซื้อ)
   updateBadges();
   if(view==='orders')loadMyOrders();
   if(view==='promo')startPromoClock();
