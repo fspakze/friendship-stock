@@ -229,6 +229,17 @@ nav.bn .nb{position:absolute;top:8px;left:calc(50% + 6px);min-width:15px;height:
 .uopt .ul small{display:block;color:var(--muted);font-weight:500;font-size:11px}
 .uopt .up{font-weight:900;color:var(--red);font-size:15px}
 .uopt .up .m{display:block;font-size:10.5px;font-weight:700;color:var(--purple);text-align:right}
+/* related products in detail sheet */
+.rel-sec{margin-top:20px;border-top:1px solid var(--line);padding-top:15px}
+.rel-title{font-size:14px;font-weight:800;margin-bottom:11px;display:flex;align-items:center;gap:7px}
+.rel-title::before{content:"";width:4px;height:16px;border-radius:2px;background:var(--red)}
+.rel-row{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;margin:0 -18px;padding-left:18px;padding-right:18px}
+.rel-card{flex:0 0 116px;width:116px;cursor:pointer}
+.rel-thumb{aspect-ratio:1;background:linear-gradient(135deg,#f0f3f1,#e4eae7);border-radius:10px;overflow:hidden;display:grid;place-items:center;margin-bottom:6px}
+.rel-thumb img{width:100%;height:100%;object-fit:contain;padding:6px}
+.rel-ph{font-size:28px;font-weight:900;color:#c3ccc7}
+.rel-nm{font-size:11.5px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:30px}
+.rel-pr{font-size:13px;font-weight:900;color:var(--red);margin-top:3px}
 
 /* toast */
 #toast{position:fixed;left:50%;bottom:calc(var(--nav) + 16px);transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
@@ -650,7 +661,9 @@ function toggleLang(){lang=lang==='th'?'lo':'th';localStorage.setItem('fs_store_
 let pdUnit='unit';
 function openProduct(bc){
   const p=PMAP[bc];if(!p)return;
-  pdUnit='unit';
+  pdUnit='unit';pdQ=1;
+  const rel=relatedProducts(p);
+  const relHtml=rel.length?`<div class="rel-sec"><div class="rel-title">${isLao()?'ສິນຄ້າໃກ້ຄຽງ':'สินค้าใกล้เคียง'}</div><div class="rel-row">${rel.map(relCard).join('')}</div></div>`:'';
   const opts=[];
   if(unitPrice(p)>0)opts.push({ut:'unit',label:p.unit||T('unit'),price:unitPrice(p),was:unitWas(p),sub:''});
   if(packPrice(p)>0)opts.push({ut:'pack',label:p.pack_label||T('pack'),price:packPrice(p),was:0,sub:p.pack_qty?`${p.pack_qty} ${p.unit||''}`:''});
@@ -671,8 +684,27 @@ function openProduct(bc){
         </div>
       </div>
       <button class="btn btn-p" style="margin-top:14px" onclick="pdAdd('${esc(bc)}')">${svg(IC.cart)}${esc(T('addcart'))}</button>
+      ${relHtml}
     </div>`;
   openSheet(html);
+  const sh=$('sheet');if(sh)sh.scrollTop=0;
+}
+function relatedProducts(p){
+  let r=PRODUCTS.filter(x=>x.barcode!==p.barcode&&p.category&&x.category===p.category);
+  if(r.length<4&&p.product_group){
+    const seen=new Set(r.map(x=>x.barcode));
+    r=r.concat(PRODUCTS.filter(x=>x.barcode!==p.barcode&&x.product_group&&x.product_group===p.product_group&&!seen.has(x.barcode)));
+  }
+  return r.slice(0,12);
+}
+function relCard(x){
+  const img=x.image_url?`<img src="${esc(x.image_url)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">`:'';
+  const ph=`<div class="rel-ph" style="${x.image_url?'display:none':''}">${esc((x.product_name||'?').trim().charAt(0))}</div>`;
+  return `<div class="rel-card" onclick="openProduct('${esc(x.barcode)}')">
+    <div class="rel-thumb">${img}${ph}</div>
+    <div class="rel-nm">${esc(x.product_name)}</div>
+    <div class="rel-pr">${money(unitPrice(x))}</div>
+  </div>`;
 }
 function uoptHtml(o,on){
   return `<div class="uopt ${on?'on':''}" data-ut="${o.ut}" onclick="pdSelUnit('${o.ut}',this)">
