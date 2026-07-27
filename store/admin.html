@@ -417,6 +417,9 @@ function renderPromoEditor(){
       <div style="border-top:1px solid var(--line);padding-top:14px">
         <div style="font-weight:800;font-size:13.5px;margin-bottom:8px">🛒 เลือกสินค้าเข้าโปร (<span id="promoSelCount">${e.barcodes.length}</span>)</div>
         <div id="promoSelected" style="margin-bottom:10px">${promoSelectedHtml()}</div>
+        <textarea id="pBulkBc" placeholder="วางบาร์โค้ดหลายตัวพร้อมกันได้ (คั่นด้วยเว้นวรรค / ขึ้นบรรทัดใหม่ / , )" style="width:100%;border:1.5px solid var(--line-2);border-radius:10px;padding:10px 12px;min-height:58px;resize:vertical;margin-bottom:6px"></textarea>
+        <button class="btn btn-o sm" style="width:auto;padding:0 16px;margin-bottom:12px" onclick="addBulkBarcodes()">＋ เพิ่มจากบาร์โค้ดที่วาง</button>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">— หรือค้นหาทีละรายการ —</div>
         <input id="pSearch" placeholder="ค้นหาสินค้า (ชื่อ / บาร์โค้ด)" oninput="searchPromo(this.value)" value="${esc(e._q)}" style="width:100%;border:1.5px solid var(--line-2);border-radius:10px;padding:10px 12px;margin-bottom:8px">
         <div id="promoResults" style="max-height:240px;overflow-y:auto">${promoResultsHtml()}</div>
       </div>
@@ -449,6 +452,23 @@ function togglePromoBc(bc){
   const c=$('promoSelCount');if(c)c.textContent=_promoEdit.barcodes.length;
 }
 function searchPromo(v){_promoEdit._q=v;const r=$('promoResults');if(r)r.innerHTML=promoResultsHtml();}
+function addBulkBarcodes(){
+  const raw=(($('pBulkBc')||{}).value||'');
+  const codes=raw.split(/[\s,;]+/).map(s=>s.trim()).filter(Boolean);
+  if(!codes.length){toast('วางบาร์โค้ดก่อน','warn');return;}
+  const catSet=new Set(_catCache.map(p=>p.barcode));
+  let added=0,dup=0,notfound=0;const nf=[];
+  codes.forEach(c=>{
+    if(!catSet.has(c)){notfound++;if(nf.length<5)nf.push(c);return;}
+    if(_promoEdit.barcodes.includes(c)){dup++;return;}
+    _promoEdit.barcodes.push(c);added++;
+  });
+  const s=$('promoSelected');if(s)s.innerHTML=promoSelectedHtml();
+  const cnt=$('promoSelCount');if(cnt)cnt.textContent=_promoEdit.barcodes.length;
+  const r=$('promoResults');if(r)r.innerHTML=promoResultsHtml();
+  if($('pBulkBc'))$('pBulkBc').value='';
+  toast('เพิ่ม '+added+' รายการ'+(dup?' · ซ้ำ '+dup:'')+(notfound?' · ไม่พบ '+notfound+(nf.length?' ('+nf.join(',')+')':''):''), notfound?'warn':'ok');
+}
 function setPromoColor(c){_promoEdit.badge_color=c;document.querySelectorAll('.pcolor').forEach(el=>el.classList.toggle('on',el.dataset.c===c));}
 async function uploadPromoArt(input){
   const f=input.files&&input.files[0];if(!f)return;
