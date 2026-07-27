@@ -96,10 +96,20 @@ header{position:sticky;top:0;z-index:40;background:var(--green);color:#fff;box-s
 .pcat{font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.4px}
 .pbc{color:var(--muted);text-transform:none;letter-spacing:.5px;font-weight:600;font-family:'Consolas','Menlo',monospace}
 .pname{font-size:12.5px;font-weight:600;line-height:1.35;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:34px}
-.pprice{margin-top:auto;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.pprice{margin-top:auto;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .pprice .now{font-size:16px;font-weight:900;color:var(--red)}
 .pprice .was{font-size:11px;color:var(--muted);text-decoration:line-through}
-.punit{font-size:10.5px;color:var(--muted)}
+.punit{font-size:10.5px;color:var(--muted);text-align:right}
+/* circular add button on image corner */
+.padd-fab{position:absolute;right:8px;bottom:8px;width:38px;height:38px;border-radius:50%;background:var(--red);color:#fff;display:grid;place-items:center;box-shadow:0 3px 9px rgba(225,18,29,.42);z-index:2;transition:transform .12s,background .12s}
+.padd-fab:hover{background:var(--red-d,#B70E17)}
+.padd-fab:active{transform:scale(.9)}
+.padd-fab svg{width:20px;height:20px}
+/* promo limited-quantity bar */
+.limbar{margin:3px 0 1px}
+.limbar-track{height:7px;border-radius:4px;background:#F7D9D7;overflow:hidden}
+.limbar-fill{height:100%;background:linear-gradient(90deg,#F5A623,#E1121D);border-radius:4px}
+.limbar-lbl{font-size:9.5px;font-weight:800;color:var(--red);margin-top:2px;letter-spacing:.2px}
 .padd{margin-top:7px;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--amber);color:#fff;font-weight:800;font-size:12.5px;height:34px;border-radius:9px;transition:.15s}
 .padd:hover{background:var(--amber-d);color:#fff}
 .padd svg{width:15px;height:15px}
@@ -567,15 +577,24 @@ function pcard(p){
   const ph=`<div class="ph" style="${p.image_url?'display:none':''}">${esc((p.product_name||'?').trim().charAt(0))}</div>`;
   const promoBadge=was?`<span class="pbadge">-${Math.round((1-price/was)*100)}%</span>`:'';
   return `<div class="pcard">
-    <div class="pthumb" onclick="openProduct('${esc(p.barcode)}')">${img}${ph}${promoBadge}</div>
+    <div class="pthumb" onclick="openProduct('${esc(p.barcode)}')">${img}${ph}${promoBadge}
+      <button class="padd-fab" onclick="event.stopPropagation();quickAdd('${esc(p.barcode)}')" aria-label="add">${svg(IC.plus,2.4)}</button>
+    </div>
     <div class="pbody">
       ${p.barcode?`<div class="pcat pbc">${esc(p.barcode)}</div>`:''}
       <div class="pname" onclick="openProduct('${esc(p.barcode)}')">${esc(p.product_name)}</div>
+      ${promoLimitBar(p)}
       <div class="pprice"><span class="now">${money(price)}</span>${was?`<span class="was">${money(was)}</span>`:''}</div>
       <div class="punit">${esc(T('per'))} ${esc(p.unit||T('unit'))}</div>
-      ${inCart?stepperHtml(p.barcode,'unit',inCart.qty,'sm2'):`<button class="padd" onclick="quickAdd('${esc(p.barcode)}')">${svg(IC.plus)}${esc(T('add'))}</button>`}
+      ${inCart?stepperHtml(p.barcode,'unit',inCart.qty,'sm2'):''}
     </div>
   </div>`;
+}
+function promoLimitBar(p){
+  if(!(unitWas(p)>0))return '';
+  let h=0;const s=String(p.barcode||p.product_name||'');for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;
+  const sold=58+(h%37);   // 58–94% — เดิม deterministic ต่อสินค้า (คงที่ ไม่สุ่มใหม่ทุกครั้ง)
+  return `<div class="limbar"><div class="limbar-track"><div class="limbar-fill" style="width:${sold}%"></div></div><div class="limbar-lbl">🔥 ${isLao()?'ຈຳນວນຈຳກັດ':'จำนวนจำกัด'}</div></div>`;
 }
 function stepperHtml(bc,ut,q,cls){
   return `<div class="stepper" data-step>
@@ -670,7 +689,7 @@ function addToCart(bc,ut,qty){
   if(ex)ex.qty+=qty;else cart.push({barcode:bc,unit_type:ut,qty:qty});
   saveCart();
 }
-function quickAdd(bc){addToCart(bc,'unit',1);toast(T('added'),'ok');if(view==='home')render();}
+function quickAdd(bc){addToCart(bc,'unit',1);toast(T('added'),'ok');if(view==='home'||view==='promo')render();}
 function chgQty(bc,ut,d){
   const ex=cart.find(i=>i.barcode===bc&&i.unit_type===ut);if(!ex)return;
   ex.qty+=d;if(ex.qty<=0)cart=cart.filter(i=>!(i.barcode===bc&&i.unit_type===ut));
