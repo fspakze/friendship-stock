@@ -509,8 +509,8 @@ async function deletePromo(id){
 async function renderSettings(){
   const body=$('tabBody');
   body.innerHTML=`<div class="sec-title"><span class="bar"></span>ตั้งค่าร้าน</div><div class="card"><div class="skel" style="height:200px"></div></div>`;
-  let qrUrl='',qrNote='',promoEnd='',stockBranch='';let branches=[];
-  try{const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch']);(data||[]).forEach(r=>{if(r.key==='store_qr_url')qrUrl=r.value||'';if(r.key==='store_qr_note')qrNote=r.value||'';if(r.key==='store_promo_end')promoEnd=r.value||'';if(r.key==='store_stock_branch')stockBranch=r.value||'';});}catch(e){}
+  let qrUrl='',qrNote='',promoEnd='',stockBranch='',promoBanner='';let branches=[];
+  try{const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch','store_promo_banner']);(data||[]).forEach(r=>{if(r.key==='store_qr_url')qrUrl=r.value||'';if(r.key==='store_qr_note')qrNote=r.value||'';if(r.key==='store_promo_end')promoEnd=r.value||'';if(r.key==='store_stock_branch')stockBranch=r.value||'';if(r.key==='store_promo_banner')promoBanner=r.value||'';});}catch(e){}
   try{const {data}=await sb.from('branches').select('*');branches=(data||[]).filter(b=>b&&b.id!=null);}catch(e){}
   body.innerHTML=`<div class="sec-title"><span class="bar"></span>ตั้งค่าร้าน</div>
     <div class="card" style="max-width:520px">
@@ -527,6 +527,16 @@ async function renderSettings(){
       <div class="field"><label>หมายเหตุใต้ QR (ชื่อบัญชี / เลขบัญชี — ไม่ใส่ก็ได้)</label>
         <textarea id="qrNote" placeholder="เช่น บัญชี BCEL: xxx-xxxx&#10;ชื่อ: Friendship SuperMart">${esc(qrNote)}</textarea></div>
       <button class="btn btn-g" id="qrNoteBtn" onclick="saveQRNote()">บันทึกหมายเหตุ</button>
+    </div>
+    <div class="card" style="max-width:520px;margin-top:14px">
+      <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">🖼️ แบนเนอร์หัวโปรโมชั่น</div>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">ภาพนี้จะขึ้นเป็นหัวแท็บ "โปรฯ" ของลูกค้า แทนแถบ Flash Sale · แนะนำภาพแนวนอน (เช่น 1600×600) · <b>ลบออก = กลับไปใช้แถบ Flash Sale เดิม</b></div>
+      <div id="bnPrev" style="margin-bottom:12px">${promoBanner?`<img src="${esc(promoBanner)}" style="width:100%;border-radius:12px;display:block;box-shadow:var(--sh)">`:`<div style="border:1.5px dashed var(--line);border-radius:12px;display:grid;place-items:center;color:var(--muted);font-size:12px;height:110px">ยังไม่ได้ตั้งแบนเนอร์</div>`}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <label class="btn btn-p sm" for="bnFile" style="flex:1;min-width:150px">${svg(IC.gear,2)} เลือกรูปแบนเนอร์</label>
+        <input type="file" id="bnFile" accept="image/*" style="display:none" onchange="uploadPromoBanner(this)">
+        ${promoBanner?`<button class="btn btn-o" style="flex:0 0 auto;width:auto;padding:0 20px" onclick="clearPromoBanner()">ลบแบนเนอร์</button>`:''}
+      </div>
     </div>
     <div class="card" style="max-width:520px;margin-top:14px">
       <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">⏰ เวลาหมดโปรโมชั่น (Flash Sale)</div>
@@ -580,6 +590,28 @@ async function uploadQR(input){
     if(prev)prev.innerHTML=`<img class="qrprev" src="${esc(url)}">`;
     toast('ตั้งค่า QR ร้านแล้ว ลูกค้าเห็นทันที','ok');
   }catch(e){toast('อัปโหลดไม่สำเร็จ: '+(e.message||e),'err');renderSettings();}
+}
+async function uploadPromoBanner(input){
+  const f=input.files&&input.files[0];if(!f)return;
+  const prev=$('bnPrev');if(prev)prev.innerHTML='<div style="height:110px;display:grid;place-items:center;color:var(--muted);border:1.5px dashed var(--line);border-radius:12px">กำลังอัปโหลด...</div>';
+  try{
+    const ext=(f.name.split('.').pop()||'png').toLowerCase();
+    const path=`promo-banner-${Date.now()}.${ext}`;
+    const {error:upErr}=await sb.storage.from('store-slips').upload(path,f,{upsert:true,contentType:f.type});
+    if(upErr)throw upErr;
+    const {data:pub}=sb.storage.from('store-slips').getPublicUrl(path);
+    const url=pub.publicUrl;
+    const {error}=await sb.from('app_settings').upsert({key:'store_promo_banner',value:url},{onConflict:'key'});
+    if(error)throw error;
+    toast('ตั้งแบนเนอร์หัวโปรฯ แล้ว ลูกค้าเห็นทันที','ok');renderSettings();
+  }catch(e){toast('อัปโหลดไม่สำเร็จ: '+(e.message||e),'err');renderSettings();}
+}
+async function clearPromoBanner(){
+  try{
+    const {error}=await sb.from('app_settings').upsert({key:'store_promo_banner',value:''},{onConflict:'key'});
+    if(error)throw error;
+    toast('ลบแบนเนอร์แล้ว · กลับไปใช้แถบ Flash Sale','ok');renderSettings();
+  }catch(e){toast('ลบไม่สำเร็จ: '+(e.message||e),'err');}
 }
 async function saveQRNote(){
   const note=($('qrNote').value||'').trim();const btn=$('qrNoteBtn');btn.disabled=true;

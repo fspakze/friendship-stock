@@ -242,6 +242,11 @@ nav.bn .nb{position:absolute;top:8px;left:calc(50% + 6px);min-width:15px;height:
 .fh-timer{text-align:center;background:rgba(0,0,0,.22);border-radius:12px;padding:8px 12px;position:relative;z-index:1;flex-shrink:0}
 .fh-lbl{font-size:10px;opacity:.9;margin-bottom:3px}
 .fh-clock{font-size:20px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:1.5px}
+/* custom uploaded promo banner (แทนแถบ Flash Sale) */
+.promo-hero{position:relative;border-radius:16px;overflow:hidden;margin-bottom:14px;box-shadow:0 8px 24px rgba(0,0,0,.16)}
+.promo-hero img{width:100%;display:block}
+.promo-hero-timer{position:absolute;right:10px;bottom:10px;display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.55);color:#fff;padding:6px 13px;border-radius:12px}
+.promo-hero-timer .pht-lbl{font-size:10px;opacity:.92}
 
 /* ---------- Modal ---------- */
 .ov{position:fixed;inset:0;z-index:100;background:rgba(16,30,24,.55);display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(2px)}
@@ -396,6 +401,7 @@ let curCat = 'ALL';
 let curSearch = '';
 let SHOP_QR = { url:'', note:'' };
 let PROMO_END = null;   // เวลาหมดโปรฯ (ตั้งในคอนโซลพนักงาน) — ถ้าไม่ตั้ง = นับถึงเที่ยงคืน
+let PROMO_BANNER = '';  // ภาพแบนเนอร์หัวแท็บโปรฯ (อัปโหลดในคอนโซล) — ถ้าตั้ง = ใช้แทนแถบ Flash Sale
 let STOCK_BRANCH = [];   // สาขาคลัง (หลายสาขา) สำหรับเช็คสต็อกหมด (app_settings store_stock_branch)
 let STOCK = {};          // barcode -> pos_qty รวมทุกสาขาคลัง
 let PROMOS = [];        // แคมเปญโปรโมชั่น (store_promotions)
@@ -502,11 +508,12 @@ async function loadBranches(){
 }
 async function loadShopQR(){
   try{
-    const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch']);
+    const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch','store_promo_banner']);
     (data||[]).forEach(r=>{
       if(r.key==='store_qr_url')SHOP_QR.url=r.value||'';
       if(r.key==='store_qr_note')SHOP_QR.note=r.value||'';
       if(r.key==='store_promo_end'){const d=r.value?new Date(r.value):null;PROMO_END=(d&&!isNaN(d.getTime()))?d:null;}
+      if(r.key==='store_promo_banner')PROMO_BANNER=r.value||'';
       if(r.key==='store_stock_branch'){let arr=[];if(r.value){try{const a=JSON.parse(r.value);arr=Array.isArray(a)?a:[a];}catch(e){arr=String(r.value).split(',');}}STOCK_BRANCH=arr.map(x=>parseInt(x)).filter(x=>!isNaN(x));}
     });
   }catch(e){}
@@ -761,7 +768,9 @@ function promoGrouped(items){
 }
 function viewPromo(){
   const list=promoProducts();
-  const banner=`<div class="flashhero">
+  const banner = PROMO_BANNER
+    ? `<div class="promo-hero"><img src="${esc(PROMO_BANNER)}" alt="" onerror="this.parentNode.style.display='none'">${PROMO_END?`<div class="promo-hero-timer"><span class="pht-lbl">${esc(T('endsin'))}</span><span class="fh-clock" id="flashClock">--:--:--</span></div>`:''}</div>`
+    : `<div class="flashhero">
     <div class="fh-left"><div class="fh-bolt">⚡</div><div><div class="fh-t2">${esc(T('flashsale'))}</div><div class="fh-t1">${esc(T('promosub'))}</div></div></div>
     <div class="fh-timer"><div class="fh-lbl">${esc(T('endsin'))}</div><div class="fh-clock" id="flashClock">--:--:--</div></div>
   </div>`;
