@@ -52,6 +52,13 @@ header{position:sticky;top:0;z-index:40;background:#fff;color:var(--ink);box-sha
 .sbtn{width:28px;height:28px;display:grid;place-items:center;color:var(--green);flex-shrink:0;cursor:pointer;border-radius:8px;background:none;padding:0}
 .sbtn:active{background:var(--green-l)}
 .sbtn svg{width:19px;height:19px}
+.sbtn.rec{color:#fff;background:var(--red);animation:recpulse 1s infinite}
+@keyframes recpulse{0%,100%{opacity:1}50%{opacity:.55}}
+/* voice-search language picker (ภาษาพูด) */
+.voicebar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:7px 14px 2px}
+.vb-lbl{font-size:10.5px;color:var(--muted);font-weight:800}
+.vchip{border:1.5px solid var(--line-2);background:var(--card);color:var(--muted);border-radius:11px;padding:3px 12px;font-size:11px;font-weight:800;cursor:pointer;margin-right:2px}
+.vchip.on{background:var(--blue);border-color:var(--blue);color:#fff}
 .htools{display:flex;align-items:center;gap:4px}
 .hbtn{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;position:relative;color:var(--green);transition:background .15s}
 .hbtn:hover{background:var(--bg)}
@@ -391,6 +398,7 @@ const I18N = {
   }
 };
 let lang = localStorage.getItem('fs_store_lang') || 'lo';   // ลูกค้าปากเซ + สินค้าเป็นลาว → เริ่มเป็นลาว
+let voiceLang = localStorage.getItem('fs_store_voice_lang') || 'lo-LA';  // ภาษาพูดค้นหา (เลือกเอง ไทย/ลาว/EN)
 const T = k => (I18N[lang] && I18N[lang][k]) || I18N.th[k] || k;
 const isLao = () => lang === 'lo';
 
@@ -598,7 +606,7 @@ function header(showSearch){
     <div class="hbar">
       <div class="logo" onclick="go('home')"><img class="logo-img" src="${LOGO_SRC}" alt="Friendship SuperMart"></div>
       ${showSearch?`<div class="search">${svg(IC.search)}<input id="q" placeholder="${esc(T('search'))}" value="${esc(curSearch)}" oninput="onSearch(this.value)">
-        <button class="sbtn" onclick="startVoiceSearch()" title="${isLao()?'ຄົ້ນດ້ວຍສຽງ':'ค้นด้วยเสียง'}" aria-label="voice">${svg(IC.mic)}</button>
+        <button class="sbtn" id="voiceMic" onclick="startVoiceSearch()" title="${isLao()?'ຄົ້ນດ້ວຍສຽງ':'ค้นด้วยเสียง'}" aria-label="voice">${svg(IC.mic)}</button>
         <label class="sbtn" title="${isLao()?'ຄົ້ນຈາກຮູບ':'ค้นจากรูป'}" aria-label="photo">${svg(IC.cam)}<input type="file" accept="image/*" capture="environment" style="display:none" onchange="scanImageSearch(this)"></label>
       </div>`:'<div style="flex:1"></div>'}
       <div class="htools">
@@ -607,6 +615,7 @@ function header(showSearch){
         <button class="hbtn" onclick="go('cart')" title="${esc(T('cart'))}">${svg(IC.cart)}<span class="hbadge" data-cartbadge style="display:none">0</span></button>
       </div>
     </div>
+    ${showSearch?`<div class="voicebar"><span class="vb-lbl">${isLao()?'ພາສາເວົ້າ:':'ภาษาพูด:'}</span><span id="voiceLangChips">${voiceChipsHtml()}</span></div>`:''}
     <div class="promo-strip">${svg(IC.truck,2)}<span style="margin-left:4px">${isLao()?'ສັ່ງຊື້ອອນລາຍ ຮັບແຕ້ມສະສົມທຸກອໍເດີ':'สั่งซื้อออนไลน์ สะสมแต้มทุกออเดอร์'} · <b>${esc(T('pointsub'))}</b></span></div>
   </header>`;
 }
@@ -776,19 +785,25 @@ function stepperHtml(bc,ut,q,cls){
 function onSearch(v){curSearch=v;PAGE=1;if(v&&view!=='home'){view='home';curCat='ALL';}
   render();setTimeout(()=>{const q=$('q');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}},0);
 }
-// ค้นหาด้วยเสียง (Web Speech API) — ลาว/ไทยตามภาษาแอป
+// ค้นหาด้วยเสียง (Web Speech API) — เลือกภาษาพูดเอง ไทย/ลาว/EN (แม่นกว่าผูกกับ UI)
+function voiceChipsHtml(){
+  const opts=[['th-TH','ไทย'],['lo-LA','ລາວ'],['en-US','EN']];
+  return opts.map(([v,l])=>`<button class="vchip ${voiceLang===v?'on':''}" onclick="setVoiceLang('${v}')">${l}</button>`).join('');
+}
+function setVoiceLang(v){voiceLang=v;try{localStorage.setItem('fs_store_voice_lang',v);}catch(e){}const el=$('voiceLangChips');if(el)el.innerHTML=voiceChipsHtml();}
 function startVoiceSearch(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){toast(isLao()?'ອຸປະກອນບໍ່ຮອງຮັບການຄົ້ນຫາດ້ວຍສຽງ':'อุปกรณ์ไม่รองรับค้นหาด้วยเสียง','warn');return;}
-  try{
-    const rec=new SR();
-    rec.lang=isLao()?'lo-LA':'th-TH';
-    rec.interimResults=false;rec.maxAlternatives=1;
-    rec.onstart=()=>toast(isLao()?'ກຳລັງຟັງ... ເວົ້າຊື່ສິນຄ້າ':'กำลังฟัง... พูดชื่อสินค้า','info');
-    rec.onresult=(e)=>{const t=(e.results&&e.results[0]&&e.results[0][0]&&e.results[0][0].transcript)||'';if(t)onSearch(t.trim());};
-    rec.onerror=()=>toast(isLao()?'ຟັງບໍ່ໄດ້ ລອງໃໝ່':'ฟังไม่ได้ ลองใหม่','warn');
-    rec.start();
-  }catch(e){toast(isLao()?'ເປີດໄມໂຄຣໂຟນບໍ່ໄດ້':'เปิดไมโครโฟนไม่ได้','warn');}
+  if(!SR){toast(isLao()?'ບຣາວເຊີບໍ່ຮອງຮັບການເວົ້າ — ພິມຄົ້ນແທນ':'เบราว์เซอร์ไม่รองรับการพูด — พิมพ์ค้นแทน','warn');return;}
+  const btn=$('voiceMic');
+  let rec;try{rec=new SR();}catch(e){toast(isLao()?'ເປີດໄມໂຄຣໂຟນບໍ່ໄດ້':'เปิดไมโครโฟนไม่ได้','warn');return;}
+  rec.lang=voiceLang;rec.interimResults=false;rec.maxAlternatives=1;
+  const done=()=>{if(btn)btn.classList.remove('rec');};
+  if(btn)btn.classList.add('rec');
+  rec.onstart=()=>toast(isLao()?'ກຳລັງຟັງ... ເວົ້າຊື່ສິນຄ້າ':'กำลังฟัง... พูดชื่อสินค้า','info');
+  rec.onresult=(e)=>{done();const t=(e.results&&e.results[0]&&e.results[0][0]&&e.results[0][0].transcript)||'';if(t)onSearch(t.trim());};
+  rec.onerror=(e)=>{done();toast((isLao()?'ຟັງບໍ່ໄດ້ ລອງໃໝ່':'ฟังไม่ชัด ลองใหม่')+(e&&e.error?' ('+e.error+')':''),'warn');};
+  rec.onend=done;
+  try{rec.start();}catch(e){done();}
 }
 // ค้นหาจากรูป — อ่านบาร์โค้ดจากรูปถ่าย (BarcodeDetector)
 async function scanImageSearch(input){
