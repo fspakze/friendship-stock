@@ -113,6 +113,18 @@ header{position:sticky;top:0;z-index:40;background:#fff;color:var(--ink);box-sha
 .limbar-track{height:7px;border-radius:4px;background:#F7D9D7;overflow:hidden}
 .limbar-fill{height:100%;background:linear-gradient(90deg,#F5A623,#E1121D);border-radius:4px}
 .limbar-lbl{font-size:9.5px;font-weight:800;color:var(--red);margin-top:2px;letter-spacing:.2px}
+/* HORECA-style card: SAVE flag + price box + favorite heart */
+.save-flag{position:absolute;top:0;left:9px;z-index:2;background:var(--red);color:#fff;padding:5px 8px 12px;text-align:center;line-height:1;clip-path:polygon(0 0,100% 0,100% 100%,50% 80%,0 100%);box-shadow:0 3px 7px rgba(225,18,29,.4)}
+.save-flag .sf-s{font-size:8px;font-weight:700;letter-spacing:1.5px}
+.save-flag .sf-p{font-size:13px;font-weight:900;margin-top:1px}
+.save-flag .sf-t{font-size:10px;font-weight:900}
+.price-box{margin-top:auto;padding-top:6px;text-align:right}
+.p-unit{font-size:11px;font-weight:800;color:#7c3aed;line-height:1}
+.p-was{font-size:11px;color:#aab6ca;text-decoration:line-through;line-height:1.4}
+.p-now{font-size:17px;font-weight:900;color:var(--red);line-height:1.05}
+.p-now.plain{color:var(--ink)}
+.fav-btn{position:absolute;top:6px;right:6px;z-index:3;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.92);display:grid;place-items:center;font-size:15px;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.15);border:none;padding:0}
+.fav-btn .off{filter:grayscale(1);opacity:.42}
 .padd{margin-top:7px;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--amber);color:#fff;font-weight:800;font-size:12.5px;height:34px;border-radius:9px;transition:.15s}
 .padd:hover{background:var(--amber-d);color:#fff}
 .padd svg{width:15px;height:15px}
@@ -306,6 +318,7 @@ const I18N = {
     loginfail:'เบอร์หรือรหัสผ่านไม่ถูกต้อง', regphoneexist:'เบอร์นี้สมัครไว้แล้ว',
     ordering:'กำลังสั่งซื้อ...', uploading:'กำลังอัปโหลด...', close:'ปิด', continue:'ดำเนินการต่อ',
     flashsale:'FLASH SALE', promosub:'ดีลพิเศษ ลดราคาวันนี้', endsin:'หมดเวลาใน', promotitle:'สินค้าโปรโมชั่น', promoempty:'ยังไม่มีโปรโมชั่นตอนนี้',
+    favorites:'รายการโปรด', favadded:'เพิ่มรายการโปรดแล้ว', favremoved:'เอาออกจากรายการโปรดแล้ว', favempty:'ยังไม่มีรายการโปรด — กด ❤️ ที่สินค้าเพื่อบันทึก',
   },
   lo:{
     tagline:'ຄ້າສົ່ງ · ປາກເຊ', search:'ຄົ້ນຫາສິນຄ້າ...', all:'ທັງໝົດ', promo:'ໂປຣ',
@@ -338,6 +351,7 @@ const I18N = {
     loginfail:'ເບີ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກ', regphoneexist:'ເບີນີ້ສະໝັກໄວ້ແລ້ວ',
     ordering:'ກຳລັງສັ່ງຊື້...', uploading:'ກຳລັງອັບໂຫຼດ...', close:'ປິດ', continue:'ດຳເນີນຕໍ່',
     flashsale:'FLASH SALE', promosub:'ໂປຣພິເສດ ຫຼຸດລາຄາມື້ນີ້', endsin:'ໝົດເວລາໃນ', promotitle:'ສິນຄ້າໂປຣໂມຊັ່ນ', promoempty:'ຍັງບໍ່ມີໂປຣໂມຊັ່ນຕອນນີ້',
+    favorites:'ລາຍການໂປດ', favadded:'ເພີ່ມລາຍການໂປດແລ້ວ', favremoved:'ເອົາອອກຈາກລາຍການໂປດແລ້ວ', favempty:'ຍັງບໍ່ມີລາຍການໂປດ — ກົດ ❤️ ທີ່ສິນຄ້າເພື່ອບັນທຶກ',
   }
 };
 let lang = localStorage.getItem('fs_store_lang') || 'lo';   // ลูกค้าปากเซ + สินค้าเป็นลาว → เริ่มเป็นลาว
@@ -350,6 +364,7 @@ let CATS = [];
 let PMAP = {};           // barcode -> product
 let BRANCHES = [];
 let cart = JSON.parse(localStorage.getItem('fs_store_cart') || '[]');   // [{barcode,unit_type,qty}]
+let favs = JSON.parse(localStorage.getItem('fs_store_favs') || '[]');   // รายการโปรด (บาร์โค้ด) — เก็บในเครื่อง
 let token = localStorage.getItem('fs_store_token') || null;
 let profile = null;
 let view = 'home';
@@ -367,6 +382,15 @@ const $ = id => document.getElementById(id);
 function toast(msg,type){const t=document.createElement('div');t.className='toast '+(type||'');t.textContent=msg;$('toast').appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300);},2200);}
 function saveCart(){localStorage.setItem('fs_store_cart',JSON.stringify(cart));updateBadges();}
 function cartCount(){return cart.reduce((s,i)=>s+i.qty,0);}
+function isFav(bc){return favs.indexOf(bc)>=0;}
+function toggleFav(bc){
+  const i=favs.indexOf(bc);const nowFav=i<0;
+  if(nowFav)favs.push(bc);else favs.splice(i,1);
+  localStorage.setItem('fs_store_favs',JSON.stringify(favs));
+  document.querySelectorAll('.fav-btn').forEach(btn=>{if(btn.dataset.bc===bc)btn.innerHTML=nowFav?'❤️':'<span class="off">❤️</span>';});
+  toast(nowFav?T('favadded'):T('favremoved'),'ok');
+  if(curCat==='__FAV__'&&view==='home')render();   // อยู่ในตัวกรองโปรด → เอาที่กดออกไปหายทันที
+}
 
 /* SVG icons */
 const IC = {
@@ -522,7 +546,7 @@ function catBar(){
   const chip=(id,label)=>`<button class="chip ${curCat===id?'on':''}" onclick="selCat('${esc(id)}')">${esc(label)}</button>`;
   return `<div class="catbar"><div class="catbar-in">
     <button class="catdd" onclick="openCatMenu()">${svg(IC.grid,2)}<span>${isLao()?'ໝວດສິນຄ້າ':'หมวดหมู่สินค้า'}</span><span class="cv">${svg(IC.chevD)}</span></button>
-    <div class="catchips">${chip('ALL',T('all'))}${chip('__PROMO__','🔥 '+T('promo'))}${CATS.map(c=>chip(c,catIcon(c)+' '+catLabel(c))).join('')}</div>
+    <div class="catchips">${chip('ALL',T('all'))}${chip('__FAV__','❤️ '+T('favorites'))}${chip('__PROMO__','🔥 '+T('promo'))}${CATS.map(c=>chip(c,catIcon(c)+' '+catLabel(c))).join('')}</div>
   </div></div>`;
 }
 /* ---- category label / icon / color ---- */
@@ -555,6 +579,7 @@ function catColor(c){
 }
 function catCount(id){
   if(id==='ALL')return PRODUCTS.length;
+  if(id==='__FAV__')return PRODUCTS.filter(p=>isFav(p.barcode)).length;
   if(id==='__PROMO__')return PRODUCTS.filter(p=>unitWas(p)||(Number(p.pack_promo)>0)||(Number(p.box_promo)>0)).length;
   return PRODUCTS.filter(p=>p.category===id).length;
 }
@@ -566,6 +591,7 @@ function openCatMenu(){
   const html=`<div class="sheet-h"><h3>${isLao()?'ສິນຄ້າທຸກໝວດ':'สินค้าทุกหมวดหมู่'}</h3><button class="x" onclick="closeSheet()">✕</button></div>
     <div class="sheet-b" style="padding-top:0"><div class="catmenu">
       ${item('ALL','🛒',T('all'),'var(--blue-l)')}
+      ${item('__FAV__','❤️',T('favorites'),'var(--red-l)')}
       ${item('__PROMO__','🔥',isLao()?'ໂປຣໂມຊັ່ນ':'โปรโมชั่น','var(--red-l)')}
       ${CATS.map(c=>item(c,catIcon(c),catLabel(c),catColor(c))).join('')}
     </div></div>`;
@@ -576,7 +602,8 @@ function selCatMenu(id){curCat=id;closeSheet();window.scrollTo(0,0);render();}
 /* ---------- Home / catalog ---------- */
 function filteredProducts(){
   let list=PRODUCTS;
-  if(curCat==='__PROMO__')list=list.filter(p=>unitWas(p)||(Number(p.pack_promo)>0)||(Number(p.box_promo)>0));
+  if(curCat==='__FAV__')list=list.filter(p=>isFav(p.barcode));
+  else if(curCat==='__PROMO__')list=list.filter(p=>unitWas(p)||(Number(p.pack_promo)>0)||(Number(p.box_promo)>0));
   else if(curCat!=='ALL')list=list.filter(p=>p.category===curCat);
   if(curSearch.trim()){
     const q=curSearch.trim().toLowerCase();
@@ -594,9 +621,12 @@ function viewHome(){
       body=`<div class="empty"><div class="ico">🛒</div><b>${esc(T('noproducts'))}</b><div>${esc(T('loadingshop'))}</div></div>`;
     }
   }else if(!list.length){
-    body=`<div class="empty"><div class="ico">🔍</div><b>${esc(T('nofound'))}</b></div>`;
+    body=curCat==='__FAV__'
+      ? `<div class="empty"><div class="ico">🤍</div><b>${esc(T('favempty'))}</b><button class="btn btn-g" style="max-width:220px;margin:16px auto 0" onclick="selCat('ALL')">${esc(T('shopnow'))}</button></div>`
+      : `<div class="empty"><div class="ico">🔍</div><b>${esc(T('nofound'))}</b></div>`;
   }else{
-    body=`<div class="sec-title"><span class="bar"></span>${curCat==='ALL'?esc(T('products')):curCat==='__PROMO__'?('🔥 '+esc(T('promo'))):esc(curCat)} <span style="color:var(--muted);font-weight:600;font-size:13px">(${list.length})</span></div>
+    const secLabel=curCat==='ALL'?esc(T('products')):curCat==='__FAV__'?('❤️ '+esc(T('favorites'))):curCat==='__PROMO__'?('🔥 '+esc(T('promo'))):esc(catLabel(curCat));
+    body=`<div class="sec-title"><span class="bar"></span>${secLabel} <span style="color:var(--muted);font-weight:600;font-size:13px">(${list.length})</span></div>
       <div class="grid">${list.map(pcard).join('')}</div>`;
   }
   return header(true)+catBar()+`<div class="wrap">${body}</div>`;
@@ -608,19 +638,25 @@ function pcard(p){
   const inCart=cart.find(i=>i.barcode===p.barcode&&i.unit_type==='unit');
   const img=p.image_url?`<img src="${esc(p.image_url)}" loading="lazy" onerror="this.style.display='none';this.parentNode.querySelector('.ph').style.display='grid'">`:'';
   const ph=`<div class="ph" style="${p.image_url?'display:none':''}">${esc((p.product_name||'?').trim().charAt(0))}</div>`;
-  const badge=(promo&&promo.badge_text)?`<span class="pbadge" style="background:${pc}">${esc(promo.badge_text)}</span>`
-    :(was?`<span class="pbadge">-${Math.round((1-price/was)*100)}%</span>`:'');
+  const disc=was?Math.round((1-price/was)*100):0;
+  const ribbon=(promo&&promo.badge_text)
+    ? `<div class="save-flag" style="background:${pc}"><div class="sf-t">${esc(promo.badge_text)}</div></div>`
+    : (disc>0?`<div class="save-flag"><div class="sf-s">SAVE</div><div class="sf-p">${disc}%</div></div>`:'');
   return `<div class="pcard${promo?' promo-framed':''}"${promo?` style="--pc:${pc}"`:''}>
     ${promo?`<div class="promo-tag">⚡ ${esc(promo.title)}</div>`:''}
-    <div class="pthumb" onclick="openProduct('${esc(p.barcode)}')">${img}${ph}${badge}
+    <div class="pthumb" onclick="openProduct('${esc(p.barcode)}')">${img}${ph}${ribbon}
+      <button class="fav-btn" data-bc="${esc(p.barcode)}" onclick="event.stopPropagation();toggleFav('${esc(p.barcode)}')" aria-label="favorite">${isFav(p.barcode)?'❤️':'<span class="off">❤️</span>'}</button>
       <button class="padd-fab" onclick="event.stopPropagation();quickAdd('${esc(p.barcode)}')" aria-label="add">${svg(IC.plus,2.4)}</button>
     </div>
     <div class="pbody">
-      ${p.barcode?`<div class="pcat pbc">${esc(p.barcode)}</div>`:''}
       <div class="pname" onclick="openProduct('${esc(p.barcode)}')">${esc(p.product_name)}</div>
+      ${p.barcode?`<div class="pcat pbc">${esc(p.barcode)}</div>`:''}
       ${promoLimitBar(p)}
-      <div class="pprice"><span class="now">${money(price)}</span>${was?`<span class="was">${money(was)}</span>`:''}</div>
-      <div class="punit">${esc(T('per'))} ${esc(p.unit||T('unit'))}</div>
+      <div class="price-box">
+        <div class="p-unit">${esc(p.unit||T('unit'))}</div>
+        ${was?`<div class="p-was">${money(was)}</div>`:''}
+        <div class="p-now${was?'':' plain'}">${money(price)}</div>
+      </div>
       ${inCart?stepperHtml(p.barcode,'unit',inCart.qty,'sm2'):''}
     </div>
   </div>`;
