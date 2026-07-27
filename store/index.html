@@ -49,6 +49,9 @@ header{position:sticky;top:0;z-index:40;background:#fff;color:var(--ink);box-sha
 .search{flex:1;display:flex;align-items:center;gap:8px;background:var(--bg);border:1.5px solid var(--line-2);color:var(--ink);border-radius:10px;padding:0 12px;height:38px;min-width:0}
 .search svg{width:17px;height:17px;color:var(--muted);flex-shrink:0}
 .search input{border:none;outline:none;flex:1;min-width:0;background:none}
+.sbtn{width:28px;height:28px;display:grid;place-items:center;color:var(--green);flex-shrink:0;cursor:pointer;border-radius:8px;background:none;padding:0}
+.sbtn:active{background:var(--green-l)}
+.sbtn svg{width:19px;height:19px}
 .htools{display:flex;align-items:center;gap:4px}
 .hbtn{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;position:relative;color:var(--green);transition:background .15s}
 .hbtn:hover{background:var(--bg)}
@@ -410,6 +413,7 @@ let STOCK_BRANCH = [];   // สาขาคลัง (หลายสาขา) 
 let STOCK = {};          // barcode -> pos_qty รวมทุกสาขาคลัง
 let PROMOS = [];        // แคมเปญโปรโมชั่น (store_promotions)
 let PROMO_BY_BC = {};   // barcode -> โปรแรกที่สินค้าอยู่
+let CAT_BANNERS = {};   // ประเภท -> url แบนเนอร์หัวหมวด (app_settings store_cat_banners)
 let curPromo = null;    // แคมเปญที่เลือกดูในแท็บโปรฯ (null = หน้ารวมทุกโปร)
 let PAGE = 1;           // หน้าปัจจุบันของกริด (แบ่งหน้า กันมือถือค้าง)
 const PER_PAGE = 24;    // จำนวนสินค้าต่อหน้า
@@ -452,6 +456,8 @@ const IC = {
   chevD:'<path d="m6 9 6 6 6-6"/>',
   chevR:'<path d="m9 6 6 6-6 6"/>',
   bolt:'<path d="M13 2 3 14h8l-1 8 10-12h-8l1-8Z"/>',
+  mic:'<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/>',
+  cam:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2Z"/><circle cx="12" cy="13" r="4"/>',
 };
 const svg=(p,w)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w||2}" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 
@@ -515,12 +521,13 @@ async function loadBranches(){
 }
 async function loadShopQR(){
   try{
-    const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch','store_promo_banner']);
+    const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch','store_promo_banner','store_cat_banners']);
     (data||[]).forEach(r=>{
       if(r.key==='store_qr_url')SHOP_QR.url=r.value||'';
       if(r.key==='store_qr_note')SHOP_QR.note=r.value||'';
       if(r.key==='store_promo_end'){const d=r.value?new Date(r.value):null;PROMO_END=(d&&!isNaN(d.getTime()))?d:null;}
       if(r.key==='store_promo_banner')PROMO_BANNER=r.value||'';
+      if(r.key==='store_cat_banners'){try{CAT_BANNERS=r.value?JSON.parse(r.value):{};}catch(e){CAT_BANNERS={};}}
       if(r.key==='store_stock_branch'){let arr=[];if(r.value){try{const a=JSON.parse(r.value);arr=Array.isArray(a)?a:[a];}catch(e){arr=String(r.value).split(',');}}STOCK_BRANCH=arr.map(x=>parseInt(x)).filter(x=>!isNaN(x));}
     });
   }catch(e){}
@@ -590,7 +597,10 @@ function header(showSearch){
   return `<header>
     <div class="hbar">
       <div class="logo" onclick="go('home')"><img class="logo-img" src="${LOGO_SRC}" alt="Friendship SuperMart"></div>
-      ${showSearch?`<div class="search">${svg(IC.search)}<input id="q" placeholder="${esc(T('search'))}" value="${esc(curSearch)}" oninput="onSearch(this.value)"></div>`:'<div style="flex:1"></div>'}
+      ${showSearch?`<div class="search">${svg(IC.search)}<input id="q" placeholder="${esc(T('search'))}" value="${esc(curSearch)}" oninput="onSearch(this.value)">
+        <button class="sbtn" onclick="startVoiceSearch()" title="${isLao()?'ຄົ້ນດ້ວຍສຽງ':'ค้นด้วยเสียง'}" aria-label="voice">${svg(IC.mic)}</button>
+        <label class="sbtn" title="${isLao()?'ຄົ້ນຈາກຮູບ':'ค้นจากรูป'}" aria-label="photo">${svg(IC.cam)}<input type="file" accept="image/*" capture="environment" style="display:none" onchange="scanImageSearch(this)"></label>
+      </div>`:'<div style="flex:1"></div>'}
       <div class="htools">
         <button class="hbtn langpill" onclick="toggleLang()">${lang==='th'?'ລາວ':'ไทย'}</button>
         <button class="hbtn" onclick="go('account')" title="${esc(T('account'))}">${svg(IC.user)}</button>
@@ -697,7 +707,9 @@ function viewHome(){
   }else{
     const secLabel=curCat==='__FAV__'?('❤️ '+esc(T('favorites'))):curCat==='__PROMO__'?('🔥 '+esc(T('promo'))):esc(catLabel(curCat));
     const shown=list.slice(0,PAGE*PER_PAGE);
-    body=`<div class="sec-title"><button class="back-mini" onclick="selCat('ALL')">${svg(IC.back)}</button>${secLabel} <span style="color:var(--muted);font-weight:600;font-size:13px">(${list.length})</span></div>
+    const catBanner=(curCat!=='__FAV__'&&curCat!=='__PROMO__'&&!curSearch.trim()&&CAT_BANNERS[curCat])
+      ? `<div class="promo-hero"><img src="${esc(CAT_BANNERS[curCat])}" alt="" loading="lazy" decoding="async" onerror="this.parentNode.style.display='none'"></div>` : '';
+    body=`${catBanner}<div class="sec-title"><button class="back-mini" onclick="selCat('ALL')">${svg(IC.back)}</button>${secLabel} <span style="color:var(--muted);font-weight:600;font-size:13px">(${list.length})</span></div>
       <div class="grid">${shown.map(pcard).join('')}</div>${loadMore(shown.length,list.length)}`;
   }
   return header(true)+catBar()+`<div class="wrap">${body}</div>`;
@@ -763,6 +775,37 @@ function stepperHtml(bc,ut,q,cls){
 }
 function onSearch(v){curSearch=v;PAGE=1;if(v&&view!=='home'){view='home';curCat='ALL';}
   render();setTimeout(()=>{const q=$('q');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}},0);
+}
+// ค้นหาด้วยเสียง (Web Speech API) — ลาว/ไทยตามภาษาแอป
+function startVoiceSearch(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){toast(isLao()?'ອຸປະກອນບໍ່ຮອງຮັບການຄົ້ນຫາດ້ວຍສຽງ':'อุปกรณ์ไม่รองรับค้นหาด้วยเสียง','warn');return;}
+  try{
+    const rec=new SR();
+    rec.lang=isLao()?'lo-LA':'th-TH';
+    rec.interimResults=false;rec.maxAlternatives=1;
+    rec.onstart=()=>toast(isLao()?'ກຳລັງຟັງ... ເວົ້າຊື່ສິນຄ້າ':'กำลังฟัง... พูดชื่อสินค้า','info');
+    rec.onresult=(e)=>{const t=(e.results&&e.results[0]&&e.results[0][0]&&e.results[0][0].transcript)||'';if(t)onSearch(t.trim());};
+    rec.onerror=()=>toast(isLao()?'ຟັງບໍ່ໄດ້ ລອງໃໝ່':'ฟังไม่ได้ ลองใหม่','warn');
+    rec.start();
+  }catch(e){toast(isLao()?'ເປີດໄມໂຄຣໂຟນບໍ່ໄດ້':'เปิดไมโครโฟนไม่ได้','warn');}
+}
+// ค้นหาจากรูป — อ่านบาร์โค้ดจากรูปถ่าย (BarcodeDetector)
+async function scanImageSearch(input){
+  const f=input.files&&input.files[0];if(input)input.value='';if(!f)return;
+  if(!('BarcodeDetector' in window)){toast(isLao()?'ອຸປະກອນບໍ່ຮອງຮັບການສະແກນຮູບ (ໃຊ້ Chrome ມືຖື)':'อุปกรณ์ไม่รองรับสแกนจากรูป (ใช้ Chrome มือถือ)','warn');return;}
+  try{
+    toast(isLao()?'ກຳລັງອ່ານບາໂຄດ...':'กำลังอ่านบาร์โค้ด...','info');
+    const det=new BarcodeDetector();
+    const bmp=await createImageBitmap(f);
+    const codes=await det.detect(bmp);
+    if(codes&&codes.length&&codes[0].rawValue){
+      const code=String(codes[0].rawValue).trim();
+      toast((isLao()?'ພົບ: ':'พบ: ')+code,'ok');
+      onSearch(code);return;
+    }
+    toast(isLao()?'ບໍ່ພົບບາໂຄດ ລອງຖ່າຍໃໝ່ໃຫ້ຊັດ':'ไม่พบบาร์โค้ด ลองถ่ายใหม่ให้ชัด','warn');
+  }catch(e){toast(isLao()?'ອ່ານຮູບບໍ່ໄດ້':'อ่านรูปไม่ได้','warn');}
 }
 /* ---------- Promotion tab (flash sale) ---------- */
 function promoProducts(){

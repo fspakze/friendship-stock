@@ -509,9 +509,10 @@ async function deletePromo(id){
 async function renderSettings(){
   const body=$('tabBody');
   body.innerHTML=`<div class="sec-title"><span class="bar"></span>ตั้งค่าร้าน</div><div class="card"><div class="skel" style="height:200px"></div></div>`;
-  let qrUrl='',qrNote='',promoEnd='',stockBranch='',promoBanner='';let branches=[];
-  try{const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch','store_promo_banner']);(data||[]).forEach(r=>{if(r.key==='store_qr_url')qrUrl=r.value||'';if(r.key==='store_qr_note')qrNote=r.value||'';if(r.key==='store_promo_end')promoEnd=r.value||'';if(r.key==='store_stock_branch')stockBranch=r.value||'';if(r.key==='store_promo_banner')promoBanner=r.value||'';});}catch(e){}
+  let qrUrl='',qrNote='',promoEnd='',stockBranch='',promoBanner='',catBanners={};let branches=[];
+  try{const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch','store_promo_banner','store_cat_banners']);(data||[]).forEach(r=>{if(r.key==='store_qr_url')qrUrl=r.value||'';if(r.key==='store_qr_note')qrNote=r.value||'';if(r.key==='store_promo_end')promoEnd=r.value||'';if(r.key==='store_stock_branch')stockBranch=r.value||'';if(r.key==='store_promo_banner')promoBanner=r.value||'';if(r.key==='store_cat_banners'){try{catBanners=r.value?JSON.parse(r.value):{};}catch(e){catBanners={};}}});}catch(e){}
   try{const {data}=await sb.from('branches').select('*');branches=(data||[]).filter(b=>b&&b.id!=null);}catch(e){}
+  const categories=await loadStoreCategories();
   body.innerHTML=`<div class="sec-title"><span class="bar"></span>ตั้งค่าร้าน</div>
     <div class="card" style="max-width:520px">
       <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">💳 QR รับเงินร้าน</div>
@@ -555,7 +556,60 @@ async function renderSettings(){
           ${(function(){let arr=[];if(stockBranch){try{const a=JSON.parse(stockBranch);arr=(Array.isArray(a)?a:[a]).map(String);}catch(e){arr=String(stockBranch).split(',').map(s=>s.trim());}}return branches.map(b=>{const nm=esc(b.name_th||b.name_lo||b.name||b.branch_name||('สาขา '+b.id));const on=arr.includes(String(b.id));return `<label style="display:flex;align-items:center;gap:9px;font-weight:600;font-size:13.5px;cursor:pointer"><input type="checkbox" class="stkBr" value="${b.id}" ${on?'checked':''} style="width:17px;height:17px;flex:0 0 auto">${nm}</label>`;}).join('');})()}
         </div></div>
       <button class="btn btn-g" id="stockBtn" onclick="saveStockBranch()">บันทึกสาขาคลัง</button>
+    </div>
+    <div class="card" style="max-width:520px;margin-top:14px">
+      <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">🖼️ แบนเนอร์รายประเภทสินค้า</div>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:6px">อัปโหลดแบนเนอร์แยกแต่ละหมวด · แสดงเป็นหัวหมวดนั้นในเว็บลูกค้าเมื่อกดเข้าหมวด · แนะนำภาพแนวนอน · <b>เว้นว่าง = ไม่มีแบนเนอร์</b></div>
+      ${categories.length?categories.map(c=>{const url=catBanners[c]||'';const enc=encodeURIComponent(c).replace(/'/g,'%27');return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c)}</div>
+          ${url?`<img src="${esc(url)}" style="height:34px;border-radius:5px;margin-top:5px;display:block;max-width:100%">`:`<div style="font-size:11px;color:var(--muted);margin-top:3px">ยังไม่ตั้ง</div>`}
+        </div>
+        <label class="btn btn-p sm" style="flex:0 0 auto;width:auto;padding:0 12px">เลือกรูป<input type="file" accept="image/*" style="display:none" onchange="uploadCatBanner(this,'${enc}')"></label>
+        ${url?`<button class="btn btn-o sm" style="flex:0 0 auto;width:auto;padding:0 12px" onclick="clearCatBanner('${enc}')">ลบ</button>`:''}
+      </div>`;}).join(''):`<div style="font-size:12.5px;color:var(--muted);padding:8px 0">ยังไม่พบหมวดสินค้า (โหลดแคตตาล็อกไม่สำเร็จ)</div>`}
     </div>`;
+}
+// ดึงรายชื่อหมวดสินค้าทั้งหมด (paginate เลี่ยง cap 1000)
+async function loadStoreCategories(){
+  const set=new Set();
+  try{
+    for(let from=0;from<40000;from+=1000){
+      const {data,error}=await sb.from('v_store_catalog').select('category').range(from,from+999);
+      if(error||!data||!data.length)break;
+      data.forEach(r=>{if(r.category)set.add(r.category);});
+      if(data.length<1000)break;
+    }
+  }catch(e){}
+  return Array.from(set).sort();
+}
+async function loadCatBannersMap(){
+  try{const {data}=await sb.from('app_settings').select('value').eq('key','store_cat_banners').maybeSingle();
+    if(data&&data.value){try{return JSON.parse(data.value)||{};}catch(e){return {};}}}catch(e){}
+  return {};
+}
+async function uploadCatBanner(input,enc){
+  const f=input.files&&input.files[0];if(!f)return;const cat=decodeURIComponent(enc);
+  try{
+    const ext=(f.name.split('.').pop()||'png').toLowerCase();
+    const path=`cat-banner-${Date.now()}.${ext}`;
+    const {error:upErr}=await sb.storage.from('store-slips').upload(path,f,{upsert:true,contentType:f.type});
+    if(upErr)throw upErr;
+    const {data:pub}=sb.storage.from('store-slips').getPublicUrl(path);
+    const map=await loadCatBannersMap();map[cat]=pub.publicUrl;
+    const {error}=await sb.from('app_settings').upsert({key:'store_cat_banners',value:JSON.stringify(map)},{onConflict:'key'});
+    if(error)throw error;
+    toast('ตั้งแบนเนอร์หมวด "'+cat+'" แล้ว','ok');renderSettings();
+  }catch(e){toast('อัปโหลดไม่สำเร็จ: '+(e.message||e),'err');renderSettings();}
+}
+async function clearCatBanner(enc){
+  const cat=decodeURIComponent(enc);
+  try{
+    const map=await loadCatBannersMap();delete map[cat];
+    const {error}=await sb.from('app_settings').upsert({key:'store_cat_banners',value:JSON.stringify(map)},{onConflict:'key'});
+    if(error)throw error;
+    toast('ลบแบนเนอร์หมวด "'+cat+'" แล้ว','ok');renderSettings();
+  }catch(e){toast('ลบไม่สำเร็จ: '+(e.message||e),'err');}
 }
 async function saveStockBranch(){
   const ids=[...document.querySelectorAll('.stkBr:checked')].map(c=>c.value);
