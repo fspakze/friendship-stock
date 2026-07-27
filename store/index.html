@@ -141,6 +141,10 @@ header{position:sticky;top:0;z-index:40;background:#fff;color:var(--ink);box-sha
 .back-mini{width:26px;height:26px;border-radius:8px;background:var(--bg);display:inline-grid;place-items:center;margin-right:2px;vertical-align:middle}
 .back-mini svg{width:17px;height:17px}
 .sec-title .back-mini+*{vertical-align:middle}
+/* out of stock */
+.pcard.oos .pthumb img,.pcard.oos .pthumb .ph{opacity:.5;filter:grayscale(.6)}
+.pcard.oos .pname,.pcard.oos .price-box{opacity:.6}
+.oos-tag{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:3;background:rgba(22,35,59,.82);color:#fff;font-size:12px;font-weight:800;padding:6px 14px;border-radius:8px;white-space:nowrap}
 .padd{margin-top:7px;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--amber);color:#fff;font-weight:800;font-size:12.5px;height:34px;border-radius:9px;transition:.15s}
 .padd:hover{background:var(--amber-d);color:#fff}
 .padd svg{width:15px;height:15px}
@@ -388,6 +392,8 @@ let curCat = 'ALL';
 let curSearch = '';
 let SHOP_QR = { url:'', note:'' };
 let PROMO_END = null;   // เวลาหมดโปรฯ (ตั้งในคอนโซลพนักงาน) — ถ้าไม่ตั้ง = นับถึงเที่ยงคืน
+let STOCK_BRANCH = null; // สาขาคลังสำหรับเช็คสต็อกหมด (app_settings store_stock_branch)
+let STOCK = {};          // barcode -> pos_qty ของสาขาคลัง
 let PROMOS = [];        // แคมเปญโปรโมชั่น (store_promotions)
 let PROMO_BY_BC = {};   // barcode -> โปรแรกที่สินค้าอยู่
 
@@ -492,14 +498,29 @@ async function loadBranches(){
 }
 async function loadShopQR(){
   try{
-    const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end']);
+    const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch']);
     (data||[]).forEach(r=>{
       if(r.key==='store_qr_url')SHOP_QR.url=r.value||'';
       if(r.key==='store_qr_note')SHOP_QR.note=r.value||'';
       if(r.key==='store_promo_end'){const d=r.value?new Date(r.value):null;PROMO_END=(d&&!isNaN(d.getTime()))?d:null;}
+      if(r.key==='store_stock_branch'){const n=parseInt(r.value);STOCK_BRANCH=isNaN(n)?null:n;}
     });
   }catch(e){}
 }
+// โหลดสต็อก POS ของสาขาคลัง (เช็คสินค้าหมด) — ต้องโหลด SHOP_QR ก่อน (STOCK_BRANCH)
+async function loadStock(){
+  STOCK={};
+  if(!STOCK_BRANCH)return;
+  try{
+    const bcs=[...new Set(PRODUCTS.map(p=>String(p.barcode)).filter(Boolean))];
+    for(let i=0;i<bcs.length;i+=300){
+      const {data}=await sb.from('products').select('barcode,pos_qty').eq('branch_id',STOCK_BRANCH).eq('is_active',true).in('barcode',bcs.slice(i,i+300));
+      (data||[]).forEach(p=>{STOCK[String(p.barcode)]=Number(p.pos_qty)||0;});
+    }
+  }catch(e){STOCK={};}
+}
+// สินค้าหมด? (มีสาขาคลัง + เจอสต็อก ≤ 0) · ไม่ตั้งสาขาคลัง = ไม่เช็ค (ถือว่ามีของ)
+function isOutOfStock(bc){ if(!STOCK_BRANCH)return false; return (Number(STOCK[bc])||0)<=0 && STOCK.hasOwnProperty(bc); }
 async function loadPromos(){
   try{
     const {data,error}=await sb.from('store_promotions').select('*').eq('is_active',true).order('sort_order',{ascending:true}).order('created_at');
@@ -673,14 +694,15 @@ function pcard(p){
   const img=p.image_url?`<img src="${esc(p.image_url)}" loading="lazy" onerror="this.style.display='none';this.parentNode.querySelector('.ph').style.display='grid'">`:'';
   const ph=`<div class="ph" style="${p.image_url?'display:none':''}">${esc((p.product_name||'?').trim().charAt(0))}</div>`;
   const disc=was?Math.round((1-price/was)*100):0;
+  const oos=isOutOfStock(p.barcode);
   const ribbon=(promo&&promo.badge_text)
     ? `<div class="save-flag" style="background:${pc}"><div class="sf-t">${esc(promo.badge_text)}</div></div>`
     : (disc>0?`<div class="save-flag"><div class="sf-s">SAVE</div><div class="sf-p">${disc}%</div></div>`:'');
-  return `<div class="pcard${promo?' promo-framed':''}"${promo?` style="--pc:${pc}"`:''}>
-    ${promo?`<div class="promo-tag">⚡ ${esc(promo.title)}</div>`:''}
-    <div class="pthumb" onclick="openProduct('${esc(p.barcode)}')">${img}${ph}${ribbon}
+  return `<div class="pcard${promo?' promo-framed':''}${oos?' oos':''}"${promo?` style="--pc:${pc}"`:''}>
+    ${promo&&!oos?`<div class="promo-tag">⚡ ${esc(promo.title)}</div>`:''}
+    <div class="pthumb" onclick="openProduct('${esc(p.barcode)}')">${img}${ph}${oos?`<div class="oos-tag">${isLao()?'ສິນຄ້າໝົດ':'สินค้าหมด'}</div>`:ribbon}
       <button class="fav-btn" data-bc="${esc(p.barcode)}" onclick="event.stopPropagation();toggleFav('${esc(p.barcode)}')" aria-label="favorite">${isFav(p.barcode)?'❤️':'<span class="off">❤️</span>'}</button>
-      <button class="padd-fab" onclick="event.stopPropagation();quickAdd('${esc(p.barcode)}')" aria-label="add">${svg(IC.plus,2.4)}</button>
+      ${oos?'':`<button class="padd-fab" onclick="event.stopPropagation();quickAdd('${esc(p.barcode)}')" aria-label="add">${svg(IC.plus,2.4)}</button>`}
     </div>
     <div class="pbody">
       <div class="pname" onclick="openProduct('${esc(p.barcode)}')">${esc(p.product_name)}</div>
@@ -820,6 +842,7 @@ function pdAdd(bc){addToCart(bc,pdUnit,pdQ);pdQ=1;closeSheet();toast(T('added'),
 
 /* ---------- Cart ops ---------- */
 function addToCart(bc,ut,qty){
+  if(isOutOfStock(bc)){toast(isLao()?'ສິນຄ້າໝົດ':'สินค้าหมด','warn');return;}
   const ex=cart.find(i=>i.barcode===bc&&i.unit_type===ut);
   if(ex)ex.qty+=qty;else cart.push({barcode:bc,unit_type:ut,qty:qty});
   saveCart();
@@ -1146,7 +1169,7 @@ async function boot(){
   $('app').innerHTML=header(true)+catBar()+`<div class="wrap"><div class="grid">${'<div class="skel"></div>'.repeat(8)}</div></div>`+bottomNav();
   await loadCatalog();          // โหลดสินค้าก่อน (มี retry ในตัว) — ไม่ให้ query อื่นบล็อก
   render();
-  Promise.all([loadBranches(),loadShopQR(),loadPromos(),restoreSession()]).then(()=>render());  // โหลดพื้นหลังแล้ว re-render (โปรไฟล์/สาขา/QR/โปรโมชั่น)
+  Promise.all([loadBranches(),loadPromos(),restoreSession(),loadShopQR().then(loadStock)]).then(()=>render());  // พื้นหลัง: สาขา/โปร/session/QR+สต็อกคลัง → re-render
 }
 boot();
 </script>

@@ -411,6 +411,7 @@ function renderPromoEditor(){
     <div class="sheet-b">
       <div class="field"><label>ชื่อโปรโมชั่น *</label><input id="pTitle" value="${esc(e.title)}" placeholder="เช่น SPECIAL DEAL ลดแรง"></div>
       <div class="field"><label>ป้ายบนสินค้า (เช่น "ลด 15%")</label><input id="pBadge" value="${esc(e.badge_text)}" placeholder="ลด 15%"></div>
+      <div class="field"><label>ลำดับความสำคัญ (primary) — เลขน้อย = สำคัญกว่า · สินค้าอยู่หลายโปร ใช้ชื่อ/ป้ายของโปรเลขน้อยสุด</label><input id="pSort" type="number" value="${e.sort_order||0}" placeholder="0"></div>
       <div class="field"><label>สีป้าย/กรอบ</label><div style="display:flex;gap:8px">${swatch}</div></div>
       <div class="field"><label>รูป Artwork หัวข้อโปร (ไม่ใส่ก็ได้)</label>
         <div id="promoArtPrev" style="margin-bottom:8px">${art}</div>
@@ -493,7 +494,7 @@ async function savePromo(){
   const active=!!(($('pActive')||{}).checked);
   const btn=$('promoSaveBtn');if(btn)btn.disabled=true;
   try{
-    const {data,error}=await rpcStaff('rpc_store_promo_upsert',{p_id:_promoEdit.id,p_title:title,p_artwork:_promoEdit.artwork_url||null,p_badge_text:badge||null,p_badge_color:_promoEdit.badge_color||'#E1121D',p_barcodes:_promoEdit.barcodes,p_is_active:active,p_sort:_promoEdit.sort_order||0});
+    const {data,error}=await rpcStaff('rpc_store_promo_upsert',{p_id:_promoEdit.id,p_title:title,p_artwork:_promoEdit.artwork_url||null,p_badge_text:badge||null,p_badge_color:_promoEdit.badge_color||'#E1121D',p_barcodes:_promoEdit.barcodes,p_is_active:active,p_sort:Number(($('pSort')||{}).value)||0});
     if(error||!data||!data.ok)throw new Error((data&&data.error)||(error&&error.message)||'failed');
     toast('บันทึกโปรโมชั่นแล้ว','ok');closeSheet();renderPromos();
   }catch(e){toast('บันทึกไม่สำเร็จ: '+(e.message||e),'err');if(btn)btn.disabled=false;}
@@ -508,8 +509,9 @@ async function deletePromo(id){
 async function renderSettings(){
   const body=$('tabBody');
   body.innerHTML=`<div class="sec-title"><span class="bar"></span>ตั้งค่าร้าน</div><div class="card"><div class="skel" style="height:200px"></div></div>`;
-  let qrUrl='',qrNote='',promoEnd='';
-  try{const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end']);(data||[]).forEach(r=>{if(r.key==='store_qr_url')qrUrl=r.value||'';if(r.key==='store_qr_note')qrNote=r.value||'';if(r.key==='store_promo_end')promoEnd=r.value||'';});}catch(e){}
+  let qrUrl='',qrNote='',promoEnd='',stockBranch='';let branches=[];
+  try{const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch']);(data||[]).forEach(r=>{if(r.key==='store_qr_url')qrUrl=r.value||'';if(r.key==='store_qr_note')qrNote=r.value||'';if(r.key==='store_promo_end')promoEnd=r.value||'';if(r.key==='store_stock_branch')stockBranch=r.value||'';});}catch(e){}
+  try{const {data}=await sb.from('branches').select('*');branches=(data||[]).filter(b=>b&&b.id!=null);}catch(e){}
   body.innerHTML=`<div class="sec-title"><span class="bar"></span>ตั้งค่าร้าน</div>
     <div class="card" style="max-width:520px">
       <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">💳 QR รับเงินร้าน</div>
@@ -534,7 +536,21 @@ async function renderSettings(){
         <button class="btn btn-g" id="promoBtn" style="flex:1" onclick="savePromoEnd()">บันทึกเวลา</button>
         <button class="btn btn-o" style="flex:0 0 auto;width:auto;padding:0 20px" onclick="clearPromoEnd()">ล้าง</button>
       </div>
+    </div>
+    <div class="card" style="max-width:520px;margin-top:14px">
+      <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">📦 สาขาคลัง (เช็คสินค้าหมด)</div>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">เว็บลูกค้าเช็คสต็อกจากสาขานี้ · สต็อก ≤ 0 จะขึ้นป้าย "สินค้าหมด" + กดซื้อไม่ได้ · <b>เว้นว่าง = ไม่เช็ค (ถือว่ามีของ)</b></div>
+      <div class="field"><label>สาขาคลัง</label><select id="stockBranch"><option value="">— ไม่เช็ค —</option>${branches.map(b=>`<option value="${b.id}" ${String(stockBranch)===String(b.id)?'selected':''}>${esc(b.name||b.branch_name||('สาขา '+b.id))}</option>`).join('')}</select></div>
+      <button class="btn btn-g" id="stockBtn" onclick="saveStockBranch()">บันทึกสาขาคลัง</button>
     </div>`;
+}
+async function saveStockBranch(){
+  const v=(($('stockBranch')||{}).value||'').trim();const btn=$('stockBtn');if(btn)btn.disabled=true;
+  try{
+    const {error}=await sb.from('app_settings').upsert({key:'store_stock_branch',value:v},{onConflict:'key'});
+    if(error)throw error;
+    toast(v?'ตั้งสาขาคลังแล้ว · ลูกค้าจะเห็นสินค้าหมดตามสต็อก':'ปิดเช็คสต็อกแล้ว','ok');if(btn)btn.disabled=false;
+  }catch(e){toast('บันทึกไม่สำเร็จ: '+(e.message||e),'err');if(btn)btn.disabled=false;}
 }
 async function savePromoEnd(){
   const v=(($('promoEnd')||{}).value||'').trim();const btn=$('promoBtn');if(btn)btn.disabled=true;
