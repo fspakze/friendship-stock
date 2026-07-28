@@ -1104,7 +1104,11 @@ async function placeOrder(){
   let note=($('coNote')||{}).value||'';
   if(payStore)note=T('paystoretag')+(note?('\n'+note):'');   // มาร์กให้พนักงานเห็นว่าเก็บเงินที่สาขา
   try{
-    const {data,error}=await sb.rpc('rpc_store_place_order',{p_token:token,p_items:items,p_fulfillment:coFulfill,p_address:addr,p_branch_id:branch,p_note:note});
+    const base={p_token:token,p_items:items,p_fulfillment:coFulfill,p_address:addr,p_branch_id:branch,p_note:note};
+    let {data,error}=await sb.rpc('rpc_store_place_order',payStore?{...base,p_pay_method:'store'}:base);
+    if(error&&payStore&&/could not find the function|schema cache|PGRST202/i.test((error.message||'')+' '+(error.code||''))){
+      ({data,error}=await sb.rpc('rpc_store_place_order',base));  // RPC ยังไม่มี p_pay_method → note marker แจ้งพนักงานแทน
+    }
     if(error||!data||!data.ok){toast((data&&data.error)||'error','err');if(btn){btn.disabled=false;btn.textContent=T('placeorder');}return;}
     cart=[];saveCart();
     if(payStore)openStoreSuccess(data); else openPayment(data);

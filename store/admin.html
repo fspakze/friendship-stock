@@ -324,11 +324,12 @@ function orderCard(o){
   const items=(o.items||[]);
   const itemsHtml=items.map(i=>`<div class="it"><span>${esc(i.product_name)} <b>×${i.qty} ${esc(i.unit_label||'')}</b></span><b>${money(i.line_total)}</b></div>`).join('');
   const dest=o.fulfillment==='delivery'?`${svg(IC.truck,2)} จัดส่ง: ${esc(o.address||'-')}`:`${svg(IC.store,2)} รับที่ร้าน${o.branch_id?' (สาขา '+o.branch_id+')':''}`;
+  const payBadge=(o.pay_method==='store')?`<span class="stbadge" style="color:#B45309;background:#FEF3C7;margin-left:auto">💵 เก็บเงินที่สาขา</span>`:'';
   const slip=o.slip_url?`<img class="slipimg" src="${esc(o.slip_url)}" onclick="showImg('${esc(o.slip_url)}')" title="ดูสลิป">`:`<span class="mini">ยังไม่มีสลิป</span>`;
   return `<div class="acc" id="ord-${o.id}">
     <div class="hd"><div><div class="nm">${esc(o.order_no)}</div><div class="meta">${esc(o.customer_name||'-')} · 📞 ${esc(o.phone||'-')}</div></div>
       <span class="stbadge" style="color:${st[1]};background:${st[2]}">${esc(st[0])}</span></div>
-    <div class="meta" style="display:flex;align-items:center;gap:6px;margin-bottom:6px">${dest}</div>
+    <div class="meta" style="display:flex;align-items:center;gap:6px;margin-bottom:6px">${dest}${payBadge}</div>
     ${o.note?`<div class="meta" style="margin-bottom:6px">📝 ${esc(o.note)}</div>`:''}
     <div class="oitems">${itemsHtml}</div>
     <div class="row">
