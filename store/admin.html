@@ -311,6 +311,7 @@ function pickMember(mc){
 }
 
 /* ============ Tab: Orders ============ */
+let _ordCache=[];
 function renderOrders(){
   const body=$('tabBody');
   const filters=[['paid_review','รอตรวจสลิป'],['pending_payment','รอชำระ'],['confirmed','ยืนยันแล้ว'],['preparing','กำลังจัด'],['ready','พร้อมส่ง/รับ'],['completed','สำเร็จ'],['',' ทั้งหมด'],['cancelled','ยกเลิก']];
@@ -326,7 +327,7 @@ async function loadOrders(){
   try{
     const {data,error}=await rpcStaff('rpc_store_admin_orders',{p_status:ordFilter||null});
     if(error||!data||!data.ok)throw new Error((data&&data.error)||(error&&error.message)||'load failed');
-    const orders=data.orders||[];
+    const orders=data.orders||[];_ordCache=orders;
     if(!orders.length){el.innerHTML='<div class="empty"><div class="ico">📦</div><b>ไม่มีออเดอร์ในสถานะนี้</b></div>';return;}
     el.innerHTML=`<div class="grid2">${orders.map(orderCard).join('')}</div>`;
   }catch(e){el.innerHTML=`<div class="empty"><div class="ico">⚠️</div><b>โหลดไม่สำเร็จ</b><div>${esc(e.message||e)}</div></div>`;}
@@ -355,22 +356,36 @@ function orderCard(o){
 function orderActions(o){
   const b=(s,label,cls)=>`<button class="btn ${cls} sm" onclick="setOrderStatus('${o.id}','${s}')">${label}</button>`;
   const out=[];
-  if(o.status==='paid_review')out.push(b('confirmed','✓ ยืนยันรับเงิน + แจกแต้ม','btn-g'));
-  if(o.status==='pending_payment')out.push(`<span class="mini" style="align-self:center">รอลูกค้าโอน+ส่งสลิป</span>`);
-  if(o.status==='confirmed')out.push(b('preparing','เริ่มจัดสินค้า','btn-p'));
-  if(o.status==='preparing')out.push(b('ready','พร้อมส่ง/รับ','btn-p'));
-  if(o.status==='ready')out.push(b('completed','✓ สำเร็จ','btn-g'));
+  if(o.pay_method==='store'){
+    // เก็บเงินที่สาขา: ไม่ต้องรอสลิป → จัดสินค้าได้เลย → แจ้งพร้อมรับ → เก็บเงินสดตอนลูกค้ามารับ
+    if(o.status==='pending_payment'||o.status==='paid_review')out.push(b('preparing','✓ ยืนยัน + จัดสินค้า','btn-g'));
+    if(o.status==='confirmed')out.push(b('preparing','เริ่มจัดสินค้า','btn-p'));
+    if(o.status==='preparing')out.push(b('ready','✓ จัดเก็บเรียบร้อย (แจ้งลูกค้า)','btn-p'));
+    if(o.status==='ready')out.push(b('completed','💵 รับเงินสด + สำเร็จ','btn-g'));
+  }else{
+    if(o.status==='paid_review')out.push(b('confirmed','✓ ยืนยันรับเงิน + แจกแต้ม','btn-g'));
+    if(o.status==='pending_payment')out.push(`<span class="mini" style="align-self:center">รอลูกค้าโอน+ส่งสลิป</span>`);
+    if(o.status==='confirmed')out.push(b('preparing','เริ่มจัดสินค้า','btn-p'));
+    if(o.status==='preparing')out.push(b('ready','พร้อมส่ง/รับ','btn-p'));
+    if(o.status==='ready')out.push(b('completed','✓ สำเร็จ','btn-g'));
+  }
   if(!['completed','cancelled'].includes(o.status))out.push(b('cancelled','ยกเลิก','btn-r'));
   return out.join('');
 }
 async function setOrderStatus(id,status){
+  const o=_ordCache.find(x=>x.id===id)||{};const isStore=(o.pay_method==='store');
   if(status==='cancelled'&&!confirm('ยืนยันยกเลิกออเดอร์นี้?'))return;
   if(status==='confirmed'&&!confirm('ยืนยันว่าได้รับเงินแล้ว? ระบบจะแจกแต้มให้ลูกค้าทันที (ทำครั้งเดียว)'))return;
+  if(status==='completed'&&isStore&&!confirm('ยืนยันรับเงินสดจากลูกค้าเรียบร้อย? ระบบจะปิดออเดอร์'+(o.points_earned?' + แจกแต้ม '+o.points_earned:'')+' (ทำครั้งเดียว)'))return;
   const card=$('ord-'+id);const btns=card&&card.querySelectorAll('.actbtns button');if(btns)btns.forEach(b=>b.disabled=true);
   try{
     const {data,error}=await rpcStaff('rpc_store_set_order_status',{p_order_id:id,p_status:status});
     if(error||!data||!data.ok)throw new Error((data&&data.error)||(error&&error.message)||'failed');
-    toast(status==='confirmed'?'ยืนยันรับเงิน + แจกแต้มแล้ว':'อัปเดตสถานะ: '+stLabel(status),'ok');
+    let msg='อัปเดตสถานะ: '+stLabel(status);
+    if(status==='confirmed')msg='ยืนยันรับเงิน + แจกแต้มแล้ว';
+    else if(status==='ready'&&isStore)msg='แจ้งลูกค้าแล้ว: ออเดอร์พร้อมรับที่สาขา';
+    else if(status==='completed'&&isStore)msg='รับเงินสด + ปิดออเดอร์แล้ว'+(o.points_earned?' · แจกแต้ม '+o.points_earned:'');
+    toast(msg,'ok');
     loadOrders();
   }catch(e){toast('ผิดพลาด: '+(e.message||e),'err');if(btns)btns.forEach(b=>b.disabled=false);}
 }
