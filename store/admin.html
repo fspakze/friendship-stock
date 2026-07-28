@@ -430,8 +430,11 @@ function renderPromoEditor(){
         <div style="font-size:11.5px;color:var(--muted);margin-top:6px">แนะนำ PNG พื้นหลังโปร่งใส ขนาดจัตุรัส (เช่น 800×800) · เว้นมุมซ้ายบน/ขวาบนให้โล่ง (ป้ายลด% + หัวใจ)</div></div>
       <div class="row" style="margin:6px 0 14px"><label style="font-weight:700;font-size:13px">เปิดใช้งาน (โชว์ให้ลูกค้า)</label><input type="checkbox" id="pActive" ${e.is_active?'checked':''} style="width:20px;height:20px"></div>
       <div style="border-top:1px solid var(--line);padding-top:14px">
-        <div style="font-weight:800;font-size:13.5px;margin-bottom:8px">🛒 เลือกสินค้าเข้าโปร (<span id="promoSelCount">${e.barcodes.length}</span>)</div>
-        <div id="promoSelected" style="margin-bottom:10px">${promoSelectedHtml()}</div>
+        <div style="font-weight:800;font-size:13.5px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <span>🛒 เลือกสินค้าเข้าโปร (<span id="promoSelCount">${e.barcodes.length}</span>)</span>
+          <button id="selToggleBtn" class="btn btn-o sm" style="width:auto;padding:0 12px;flex:0 0 auto" onclick="togglePromoSel()">แสดงรายการ ▼</button>
+        </div>
+        <div id="promoSelected" style="display:none;margin-bottom:10px">${promoSelectedHtml()}</div>
         <textarea id="pBulkBc" placeholder="วางบาร์โค้ดหลายตัวพร้อมกันได้ (คั่นด้วยเว้นวรรค / ขึ้นบรรทัดใหม่ / , )" style="width:100%;border:1.5px solid var(--line-2);border-radius:10px;padding:10px 12px;min-height:58px;resize:vertical;margin-bottom:6px"></textarea>
         <button class="btn btn-o sm" style="width:auto;padding:0 16px;margin-bottom:12px" onclick="addBulkBarcodes()">＋ เพิ่มจากบาร์โค้ดที่วาง</button>
         <div style="font-size:12px;color:var(--muted);margin-bottom:6px">— หรือค้นหาทีละรายการ —</div>
@@ -452,6 +455,7 @@ function promoResultsHtml(){
       <div style="font-weight:900;color:${on?'var(--ok)':'var(--muted)'};font-size:19px;width:24px;text-align:center">${on?'✓':'+'}</div></div>`;
   }).join('');
 }
+function togglePromoSel(){const el=$('promoSelected'),btn=$('selToggleBtn');if(!el)return;const show=el.style.display==='none';el.style.display=show?'':'none';if(btn)btn.textContent=show?'ซ่อนรายการ ▲':'แสดงรายการ ▼';}
 function promoSelectedHtml(){
   const bcs=_promoEdit.barcodes;
   if(!bcs.length)return `<div style="font-size:12px;color:var(--muted)">ยังไม่เลือกสินค้า</div>`;
@@ -539,8 +543,8 @@ async function deletePromo(id){
 async function renderSettings(){
   const body=$('tabBody');
   body.innerHTML=`<div class="sec-title"><span class="bar"></span>ตั้งค่าร้าน</div><div class="card"><div class="skel" style="height:200px"></div></div>`;
-  let qrUrl='',qrNote='',promoEnd='',stockBranch='',promoBanner='',catBanners={},showStock=false;let branches=[];
-  try{const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch','store_promo_banner','store_cat_banners','store_show_stock']);(data||[]).forEach(r=>{if(r.key==='store_qr_url')qrUrl=r.value||'';if(r.key==='store_qr_note')qrNote=r.value||'';if(r.key==='store_promo_end')promoEnd=r.value||'';if(r.key==='store_stock_branch')stockBranch=r.value||'';if(r.key==='store_promo_banner')promoBanner=r.value||'';if(r.key==='store_cat_banners'){try{catBanners=r.value?JSON.parse(r.value):{};}catch(e){catBanners={};}}if(r.key==='store_show_stock')showStock=(r.value==='1'||r.value==='true');});}catch(e){}
+  let qrUrl='',qrNote='',promoEnd='',stockBranch='',promoBanner='',catBanners={},showStock=false,stripTh='',stripLo='',stripColor='';let branches=[];
+  try{const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch','store_promo_banner','store_cat_banners','store_show_stock','store_strip_th','store_strip_lo','store_strip_color']);(data||[]).forEach(r=>{if(r.key==='store_qr_url')qrUrl=r.value||'';if(r.key==='store_qr_note')qrNote=r.value||'';if(r.key==='store_promo_end')promoEnd=r.value||'';if(r.key==='store_stock_branch')stockBranch=r.value||'';if(r.key==='store_promo_banner')promoBanner=r.value||'';if(r.key==='store_cat_banners'){try{catBanners=r.value?JSON.parse(r.value):{};}catch(e){catBanners={};}}if(r.key==='store_show_stock')showStock=(r.value==='1'||r.value==='true');if(r.key==='store_strip_th')stripTh=r.value||'';if(r.key==='store_strip_lo')stripLo=r.value||'';if(r.key==='store_strip_color')stripColor=r.value||'';});}catch(e){}
   try{const {data}=await sb.from('branches').select('*');branches=(data||[]).filter(b=>b&&b.id!=null);}catch(e){}
   const categories=await loadStoreCategories();
   body.innerHTML=`<div class="sec-title"><span class="bar"></span>ตั้งค่าร้าน</div>
@@ -558,6 +562,14 @@ async function renderSettings(){
       <div class="field"><label>หมายเหตุใต้ QR (ชื่อบัญชี / เลขบัญชี — ไม่ใส่ก็ได้)</label>
         <textarea id="qrNote" placeholder="เช่น บัญชี BCEL: xxx-xxxx&#10;ชื่อ: Friendship SuperMart">${esc(qrNote)}</textarea></div>
       <button class="btn btn-g" id="qrNoteBtn" onclick="saveQRNote()">บันทึกหมายเหตุ</button>
+    </div>
+    <div class="card" style="max-width:520px;margin-top:14px">
+      <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">📢 แถบข้อความหัวเว็บ</div>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:12px">แถบสีใต้โลโก้ (บอกโปร/ประกาศ) · เว้นว่างทั้งคู่ = ใช้ข้อความเริ่มต้น</div>
+      <div class="field"><label>ข้อความ (ไทย)</label><input id="stripTh" value="${esc(stripTh)}" placeholder="สั่งซื้อออนไลน์ สะสมแต้มทุกออเดอร์ · สมาชิก Friendship"></div>
+      <div class="field"><label>ข้อความ (ลาว)</label><input id="stripLo" value="${esc(stripLo)}" placeholder="พิมพ์ข้อความภาษาลาว (เว้นว่าง = ใช้ค่าเริ่มต้น)"></div>
+      <div class="field"><label>สีพื้นแถบ</label><input type="color" id="stripColor" value="${esc(stripColor||'#E1121D')}" style="width:64px;height:40px;padding:2px;border:1.5px solid var(--line-2);border-radius:8px;cursor:pointer"></div>
+      <button class="btn btn-g" id="stripBtn" onclick="saveStrip()">บันทึกแถบข้อความ</button>
     </div>
     <div class="card" style="max-width:520px;margin-top:14px">
       <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">🖼️ แบนเนอร์หัวโปรโมชั่น</div>
@@ -648,6 +660,15 @@ async function clearCatBanner(enc){
     if(error)throw error;
     toast('ลบแบนเนอร์หมวด "'+cat+'" แล้ว','ok');renderSettings();
   }catch(e){toast('ลบไม่สำเร็จ: '+(e.message||e),'err');}
+}
+async function saveStrip(){
+  const th=(($('stripTh')||{}).value||'').trim();const lo=(($('stripLo')||{}).value||'').trim();const color=(($('stripColor')||{}).value||'').trim();
+  const btn=$('stripBtn');if(btn)btn.disabled=true;
+  try{
+    const {error}=await sb.from('app_settings').upsert([{key:'store_strip_th',value:th},{key:'store_strip_lo',value:lo},{key:'store_strip_color',value:color}],{onConflict:'key'});
+    if(error)throw error;
+    toast('บันทึกแถบข้อความแล้ว · ลูกค้าเห็นทันที','ok');if(btn)btn.disabled=false;
+  }catch(e){toast('บันทึกไม่สำเร็จ: '+(e.message||e),'err');if(btn)btn.disabled=false;}
 }
 async function saveShowStock(){
   const on=!!(($('showStockChk')||{}).checked);

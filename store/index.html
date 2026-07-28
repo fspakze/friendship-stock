@@ -436,6 +436,7 @@ let STOCK = {};          // barcode -> pos_qty รวมทุกสาขาค
 let PROMOS = [];        // แคมเปญโปรโมชั่น (store_promotions)
 let PROMO_BY_BC = {};   // barcode -> โปรแรกที่สินค้าอยู่
 let CAT_BANNERS = {};   // ประเภท -> url แบนเนอร์หัวหมวด (app_settings store_cat_banners)
+let STRIP = {th:'',lo:'',color:''};   // แถบหัวประกาศ (แก้เนื้อหา+สีได้ในคอนโซล)
 let STAFF = null;       // พนักงานล็อกอินดูสต๊อก {username,name,role}
 let SHOW_STOCK_CUST = false;  // โชว์สต๊อกให้ลูกค้าทั่วไป (app_settings store_show_stock)
 const STAFF_SALT = 'friendship_pakse_2026';   // ตรงกับแอปหลัก (verify_login)
@@ -546,7 +547,7 @@ async function loadBranches(){
 }
 async function loadShopQR(){
   try{
-    const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch','store_promo_banner','store_cat_banners','store_show_stock']);
+    const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch','store_promo_banner','store_cat_banners','store_show_stock','store_strip_th','store_strip_lo','store_strip_color']);
     (data||[]).forEach(r=>{
       if(r.key==='store_qr_url')SHOP_QR.url=r.value||'';
       if(r.key==='store_qr_note')SHOP_QR.note=r.value||'';
@@ -554,6 +555,9 @@ async function loadShopQR(){
       if(r.key==='store_promo_banner')PROMO_BANNER=r.value||'';
       if(r.key==='store_cat_banners'){try{CAT_BANNERS=r.value?JSON.parse(r.value):{};}catch(e){CAT_BANNERS={};}}
       if(r.key==='store_show_stock')SHOW_STOCK_CUST=(r.value==='1'||r.value==='true');
+      if(r.key==='store_strip_th')STRIP.th=r.value||'';
+      if(r.key==='store_strip_lo')STRIP.lo=r.value||'';
+      if(r.key==='store_strip_color')STRIP.color=r.value||'';
       if(r.key==='store_stock_branch'){let arr=[];if(r.value){try{const a=JSON.parse(r.value);arr=Array.isArray(a)?a:[a];}catch(e){arr=String(r.value).split(',');}}STOCK_BRANCH=arr.map(x=>parseInt(x)).filter(x=>!isNaN(x));}
     });
   }catch(e){}
@@ -649,6 +653,11 @@ function updateBadges(){
 }
 
 /* ---------- Header + category bar ---------- */
+function stripText(){
+  const c=isLao()?(STRIP.lo||''):(STRIP.th||'');
+  if(c.trim())return c;
+  return (isLao()?'ສັ່ງຊື້ອອນລາຍ ຮັບແຕ້ມສະສົມທຸກອໍເດີ · ':'สั่งซื้อออนไลน์ สะสมแต้มทุกออเดอร์ · ')+T('pointsub');
+}
 function header(showSearch){
   return `<header>
     <div class="hbar">
@@ -670,7 +679,7 @@ function header(showSearch){
         <button class="ls-opt ${lang==='lo'?'on':''}" onclick="setLang('lo')">ລາວ</button>
       </div>
     </div>`:''}
-    <div class="promo-strip">${svg(IC.truck,2)}<span style="margin-left:4px">${isLao()?'ສັ່ງຊື້ອອນລາຍ ຮັບແຕ້ມສະສົມທຸກອໍເດີ':'สั่งซื้อออนไลน์ สะสมแต้มทุกออเดอร์'} · <b>${esc(T('pointsub'))}</b></span></div>
+    <div class="promo-strip"${STRIP.color?` style="background:${colorSafe(STRIP.color)}"`:''}>${svg(IC.truck,2)}<span style="margin-left:4px">${esc(stripText())}</span></div>
   </header>`;
 }
 function catBar(){
