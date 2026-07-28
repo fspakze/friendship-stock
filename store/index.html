@@ -120,6 +120,10 @@ header{position:sticky;top:0;z-index:40;background:#fff;color:var(--ink);box-sha
 .pthumb{position:relative;aspect-ratio:1;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:8px}
 .pthumb img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block}
 .pthumb .ph{font-size:34px;font-weight:900;color:#c3ccc7}
+.pframe{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none;z-index:1}
+.pstock{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:800;color:var(--green-d);background:var(--green-l);border-radius:6px;padding:2px 7px;align-self:flex-start;margin-top:1px}
+.pstock svg{width:13px;height:13px}
+.pstock.out{color:var(--red);background:#FDECEC}
 .pbadge{position:absolute;top:7px;left:7px;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;box-shadow:var(--sh)}
 .pbody{padding:9px 10px 11px;display:flex;flex-direction:column;flex:1;gap:5px}
 .pcat{font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.4px}
@@ -430,6 +434,9 @@ let STOCK = {};          // barcode -> pos_qty รวมทุกสาขาค
 let PROMOS = [];        // แคมเปญโปรโมชั่น (store_promotions)
 let PROMO_BY_BC = {};   // barcode -> โปรแรกที่สินค้าอยู่
 let CAT_BANNERS = {};   // ประเภท -> url แบนเนอร์หัวหมวด (app_settings store_cat_banners)
+let STAFF = null;       // พนักงานล็อกอินดูสต๊อก {username,name,role}
+let SHOW_STOCK_CUST = false;  // โชว์สต๊อกให้ลูกค้าทั่วไป (app_settings store_show_stock)
+const STAFF_SALT = 'friendship_pakse_2026';   // ตรงกับแอปหลัก (verify_login)
 let curPromo = null;    // แคมเปญที่เลือกดูในแท็บโปรฯ (null = หน้ารวมทุกโปร)
 let PAGE = 1;           // หน้าปัจจุบันของกริด (แบ่งหน้า กันมือถือค้าง)
 const PER_PAGE = 24;    // จำนวนสินค้าต่อหน้า
@@ -537,13 +544,14 @@ async function loadBranches(){
 }
 async function loadShopQR(){
   try{
-    const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch','store_promo_banner','store_cat_banners']);
+    const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch','store_promo_banner','store_cat_banners','store_show_stock']);
     (data||[]).forEach(r=>{
       if(r.key==='store_qr_url')SHOP_QR.url=r.value||'';
       if(r.key==='store_qr_note')SHOP_QR.note=r.value||'';
       if(r.key==='store_promo_end'){const d=r.value?new Date(r.value):null;PROMO_END=(d&&!isNaN(d.getTime()))?d:null;}
       if(r.key==='store_promo_banner')PROMO_BANNER=r.value||'';
       if(r.key==='store_cat_banners'){try{CAT_BANNERS=r.value?JSON.parse(r.value):{};}catch(e){CAT_BANNERS={};}}
+      if(r.key==='store_show_stock')SHOW_STOCK_CUST=(r.value==='1'||r.value==='true');
       if(r.key==='store_stock_branch'){let arr=[];if(r.value){try{const a=JSON.parse(r.value);arr=Array.isArray(a)?a:[a];}catch(e){arr=String(r.value).split(',');}}STOCK_BRANCH=arr.map(x=>parseInt(x)).filter(x=>!isNaN(x));}
     });
   }catch(e){}
@@ -564,6 +572,36 @@ async function loadStock(){
 }
 // สินค้าหมด? (มีสาขาคลัง + เจอสต็อกรวมทุกสาขา ≤ 0) · ไม่ตั้งสาขาคลัง = ไม่เช็ค (ถือว่ามีของ)
 function isOutOfStock(bc){ if(!STOCK_BRANCH||!STOCK_BRANCH.length)return false; return STOCK.hasOwnProperty(bc) && (Number(STOCK[bc])||0)<=0; }
+// โชว์สต๊อกเมื่อ: พนักงานล็อกอิน หรือ ตั้งค่าเปิดให้ลูกค้า · ต้องตั้งสาขาคลังไว้ก่อน
+function showStock(){ return (!!STAFF||SHOW_STOCK_CUST) && STOCK_BRANCH && STOCK_BRANCH.length>0; }
+function stockNum(bc){ return Number(STOCK[bc])||0; }
+// ---- พนักงานล็อกอินดูสต๊อก (verify_login เดียวกับแอปหลัก) ----
+async function staffHash(pwd){const d=new TextEncoder().encode(pwd+STAFF_SALT);const b=await crypto.subtle.digest('SHA-256',d);return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}
+function restoreStaff(){try{const s=localStorage.getItem('fs_store_staff');if(s)STAFF=JSON.parse(s);}catch(e){STAFF=null;}}
+function openStaffLogin(){
+  openSheet(`<div class="sheet-h"><h3>${isLao()?'ເຂົ້າລະບົບພະນັກງານ':'เข้าระบบพนักงาน'}</h3><button class="x" onclick="closeSheet()">✕</button></div>
+    <div class="sheet-b">
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:12px">${isLao()?'ໃສ່ໄອດີ+ລະຫັດພະນັກງານ (ແອັບຫຼັກ) ເພື່ອເບິ່ງສະຕັອກສິນຄ້າ':'ใส่ไอดี+รหัสพนักงาน (แอปหลัก) เพื่อดูสต๊อกสินค้า'}</div>
+      <div class="field"><label>${isLao()?'ໄອດີພະນັກງານ':'ไอดีพนักงาน'}</label><input id="stfUser" autocomplete="username"></div>
+      <div class="field"><label>${isLao()?'ລະຫັດຜ່ານ':'รหัสผ่าน'}</label><input id="stfPass" type="password" autocomplete="current-password"></div>
+      <button class="btn btn-g" id="stfBtn" onclick="doStaffLogin()">${isLao()?'ເຂົ້າສູ່ລະບົບ':'เข้าสู่ระบบ'}</button>
+    </div>`);
+}
+async function doStaffLogin(){
+  const u=(($('stfUser')||{}).value||'').trim();const p=($('stfPass')||{}).value||'';
+  if(!u||!p){toast(T('reqfields'),'warn');return;}
+  const btn=$('stfBtn');if(btn)btn.disabled=true;
+  try{
+    const hash=await staffHash(p);
+    const {data,error}=await sb.rpc('verify_login',{p_username:u,p_hash:hash});
+    if(error)throw error;
+    if(!data){toast(isLao()?'ໄອດີ ຫຼື ລະຫັດບໍ່ຖືກ':'ไอดีหรือรหัสไม่ถูก','err');if(btn)btn.disabled=false;return;}
+    STAFF={username:data.username||u,name:data.full_name||data.username||u,role:data.role||''};
+    try{localStorage.setItem('fs_store_staff',JSON.stringify(STAFF));}catch(e){}
+    closeSheet();toast((isLao()?'ສະບາຍດີ ':'สวัสดี ')+STAFF.name+(isLao()?' · ເບິ່ງສະຕັອກໄດ້ແລ້ວ':' · ดูสต๊อกได้แล้ว'),'ok');render();
+  }catch(e){toast(String(e.message||e),'err');if(btn)btn.disabled=false;}
+}
+function staffLogout(){STAFF=null;try{localStorage.removeItem('fs_store_staff');}catch(e){}toast(isLao()?'ອອກຈາກລະບົບພະນັກງານແລ້ວ':'ออกจากระบบพนักงานแล้ว','info');render();}
 async function loadPromos(){
   try{
     const {data,error}=await sb.from('store_promotions').select('*').eq('is_active',true).order('sort_order',{ascending:true}).order('created_at');
@@ -761,18 +799,20 @@ function pcard(p){
   const ph=`<div class="ph" style="${p.image_url?'display:none':''}">${esc((p.product_name||'?').trim().charAt(0))}</div>`;
   const disc=was?Math.round((1-price/was)*100):0;
   const oos=isOutOfStock(p.barcode);
+  const frame=(promo&&promo.frame_url)?esc(promo.frame_url):'';   // กรอบ PNG ต่อแคมเปญ (ทับรูป · แทนกรอบสี/แถบชื่อ)
   const ribbon=(promo&&promo.badge_text)
     ? `<div class="save-flag" style="background:${pc}"><div class="sf-t">${esc(promo.badge_text)}</div></div>`
     : (disc>0?`<div class="save-flag"><div class="sf-s">SAVE</div><div class="sf-p">${disc}%</div></div>`:'');
-  return `<div class="pcard${promo?' promo-framed':''}${oos?' oos':''}"${promo?` style="--pc:${pc}"`:''}>
-    ${promo?`<div class="promo-top" style="background:${pc}">${esc(promo.title)}</div>`:`<div class="promo-top" aria-hidden="true"></div>`}
-    <div class="pthumb" onclick="openProduct('${esc(p.barcode)}')">${img}${ph}${oos?`<div class="oos-tag">${isLao()?'ສິນຄ້າໝົດ':'สินค้าหมด'}</div>`:ribbon}
+  return `<div class="pcard${(promo&&!frame)?' promo-framed':''}${oos?' oos':''}"${promo?` style="--pc:${pc}"`:''}>
+    ${(promo&&!frame)?`<div class="promo-top" style="background:${pc}">${esc(promo.title)}</div>`:`<div class="promo-top" aria-hidden="true"></div>`}
+    <div class="pthumb" onclick="openProduct('${esc(p.barcode)}')">${img}${ph}${frame?`<img class="pframe" src="${frame}" alt="" loading="lazy" decoding="async" onerror="this.remove()">`:''}${oos?`<div class="oos-tag">${isLao()?'ສິນຄ້າໝົດ':'สินค้าหมด'}</div>`:ribbon}
       <button class="fav-btn" data-bc="${esc(p.barcode)}" onclick="event.stopPropagation();toggleFav('${esc(p.barcode)}')" aria-label="favorite">${isFav(p.barcode)?'❤️':'<span class="off">❤️</span>'}</button>
       ${oos?'':`<button class="padd-fab" onclick="event.stopPropagation();quickAdd('${esc(p.barcode)}')" aria-label="add">${svg(IC.cart,2)}</button>`}
     </div>
     <div class="pbody">
       <div class="pname" onclick="openProduct('${esc(p.barcode)}')">${esc(p.product_name)}</div>
       ${p.barcode?`<div class="pcat pbc">${esc(p.barcode)}</div>`:''}
+      ${showStock()?`<div class="pstock${stockNum(p.barcode)<=0?' out':''}">${svg(IC.pkg,2)}<span>${isLao()?'ສະຕັອກ':'สต๊อก'}: <b>${stockNum(p.barcode).toLocaleString()}</b></span></div>`:''}
       ${promoLimitBar(p)}
       <div class="price-box">
         <div class="p-unit">${esc(p.unit||T('unit'))}</div>
@@ -1236,6 +1276,7 @@ function viewAccount(){
       <div style="max-width:360px;margin:0 auto;display:flex;flex-direction:column;gap:10px">
         <button class="btn btn-g" onclick="openAuth('login')">${esc(T('login'))}</button>
         <button class="btn btn-o" onclick="openAuth('register')">${esc(T('register'))}</button>
+        ${staffAccountRow()}
       </div></div>`;
   }
   const pts=profile.points||0;
@@ -1252,8 +1293,20 @@ function viewAccount(){
       <div style="flex:1"><div class="pv">${pts.toLocaleString()}</div><small>${esc(T('points'))} · ${profile.member_code?esc(T('member'))+' '+esc(profile.member_code):esc(T('nomember'))}</small></div>
     </div>
     <button class="btn btn-o" onclick="go('orders')">${svg(IC.bag)}${esc(T('myorders'))}</button>
+    ${staffAccountRow()}
     <button class="btn btn-o" style="color:var(--red)" onclick="doLogout()">${esc(T('logout'))}</button>
   </div>`;
+}
+function staffAccountRow(){
+  if(STAFF){
+    return `<div class="card" style="display:flex;align-items:center;gap:10px">
+      <div style="width:40px;height:40px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center">${svg(IC.pkg,2)}</div>
+      <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:13.5px">${isLao()?'ພະນັກງານ':'พนักงาน'}: ${esc(STAFF.name)}</div>
+      <div style="font-size:11.5px;color:var(--green-d)">${isLao()?'ເບິ່ງສະຕັອກສິນຄ້າໄດ້':'ดูสต๊อกสินค้าได้'} ✓</div></div>
+      <button class="btn btn-o" style="width:auto;padding:0 14px;height:36px" onclick="staffLogout()">${isLao()?'ອອກ':'ออก'}</button>
+    </div>`;
+  }
+  return `<button class="btn btn-o" onclick="openStaffLogin()">${svg(IC.pkg)}${isLao()?'ເຂົ້າລະບົບພະນັກງານ (ເບິ່ງສະຕັອກ)':'เข้าระบบพนักงาน (ดูสต๊อก)'}</button>`;
 }
 
 /* ---------- Auth ---------- */
@@ -1342,6 +1395,7 @@ function closeSheet(){$('ov').classList.remove('show');document.body.style.overf
    ============================================================ */
 async function boot(){
   document.documentElement.lang=lang==='lo'?'lo':'th';
+  restoreStaff();
   $('app').innerHTML=header(true)+catBar()+`<div class="wrap"><div class="grid">${'<div class="skel"></div>'.repeat(8)}</div></div>`+bottomNav();
   await loadCatalog();          // โหลดสินค้าก่อน (มี retry ในตัว) — ไม่ให้ query อื่นบล็อก
   render();

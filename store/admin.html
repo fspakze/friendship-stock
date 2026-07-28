@@ -397,6 +397,7 @@ async function openPromoEditor(id){
   const pr=id?_promoList.find(x=>x.id===id):null;
   _promoEdit={id:id||null,title:pr?pr.title:'',artwork_url:pr?(pr.artwork_url||''):'',badge_text:pr?(pr.badge_text||''):'',
     badge_color:pr?(pr.badge_color||'#E1121D'):'#E1121D',is_active:pr?pr.is_active:true,sort_order:pr?(pr.sort_order||0):0,
+    frame_url:pr?(pr.frame_url||''):'',
     barcodes:pr?(pr.barcodes||[]).slice():[],_q:''};
   openSheet('<div class="sheet-b"><div class="skel" style="height:120px"></div><div style="text-align:center;padding:10px;color:var(--muted)">กำลังโหลดรายการสินค้า...</div></div>');
   await ensureCatalog();
@@ -407,6 +408,7 @@ function renderPromoEditor(){
   const colors=['#E1121D','#F59E0B','#16A34A','#1461C4','#7C3AED'];
   const swatch=colors.map(c=>`<button class="pcolor ${e.badge_color===c?'on':''}" data-c="${c}" style="background:${c}" onclick="setPromoColor('${c}')"></button>`).join('');
   const art=e.artwork_url?`<img src="${esc(e.artwork_url)}" style="width:100%;border-radius:10px">`:'';
+  const frameImg=e.frame_url?`<img src="${esc(e.frame_url)}" style="width:120px;height:120px;object-fit:contain;border-radius:10px;border:1px solid var(--line);background:repeating-conic-gradient(#eee 0% 25%,#fff 0% 50%) 50%/16px 16px">`:'';
   openSheet(`
     <div class="sheet-h"><h3>${e.id?'แก้ไขโปรโมชั่น':'สร้างโปรโมชั่นใหม่'}</h3><button class="x" onclick="closeSheet()">✕</button></div>
     <div class="sheet-b">
@@ -418,6 +420,12 @@ function renderPromoEditor(){
         <div id="promoArtPrev" style="margin-bottom:8px">${art}</div>
         <label class="btn btn-o sm" for="pArt" style="width:auto;display:inline-flex;padding:0 16px">${svg(IC.gear,2)} เลือกรูป</label>
         <input type="file" id="pArt" accept="image/*" style="display:none" onchange="uploadPromoArt(this)"></div>
+      <div class="field"><label>🖼️ กรอบสินค้า PNG (โปร่งใส · สี่เหลี่ยมจัตุรัส · วางทับรูปสินค้าทุกตัวในโปรนี้)</label>
+        <div id="promoFramePrev" style="margin-bottom:8px">${frameImg}</div>
+        <label class="btn btn-o sm" for="pFrame" style="width:auto;display:inline-flex;padding:0 16px">${svg(IC.gear,2)} เลือกกรอบ PNG</label>
+        <input type="file" id="pFrame" accept="image/png,image/*" style="display:none" onchange="uploadPromoFrame(this)">
+        ${e.frame_url?`<button class="btn btn-r sm" style="width:auto;display:inline-flex;padding:0 14px;margin-left:6px" onclick="clearPromoFrame()">ลบกรอบ</button>`:''}
+        <div style="font-size:11.5px;color:var(--muted);margin-top:6px">แนะนำ PNG พื้นหลังโปร่งใส ขนาดจัตุรัส (เช่น 800×800) · เว้นมุมซ้ายบน/ขวาบนให้โล่ง (ป้ายลด% + หัวใจ)</div></div>
       <div class="row" style="margin:6px 0 14px"><label style="font-weight:700;font-size:13px">เปิดใช้งาน (โชว์ให้ลูกค้า)</label><input type="checkbox" id="pActive" ${e.is_active?'checked':''} style="width:20px;height:20px"></div>
       <div style="border-top:1px solid var(--line);padding-top:14px">
         <div style="font-weight:800;font-size:13.5px;margin-bottom:8px">🛒 เลือกสินค้าเข้าโปร (<span id="promoSelCount">${e.barcodes.length}</span>)</div>
@@ -488,14 +496,33 @@ async function uploadPromoArt(input){
     toast('อัปโหลด artwork แล้ว','ok');
   }catch(e){toast('อัปโหลดไม่สำเร็จ: '+(e.message||e),'err');if(prev)prev.innerHTML='';}
 }
+async function uploadPromoFrame(input){
+  const f=input.files&&input.files[0];if(!f)return;
+  const prev=$('promoFramePrev');if(prev)prev.innerHTML='<div style="color:var(--muted);font-size:12px">กำลังอัปโหลด...</div>';
+  try{
+    const ext=(f.name.split('.').pop()||'png').toLowerCase();const path=`frame-${Date.now()}.${ext}`;
+    const {error:upErr}=await sb.storage.from('store-slips').upload(path,f,{upsert:true,contentType:f.type});
+    if(upErr)throw upErr;
+    const {data:pub}=sb.storage.from('store-slips').getPublicUrl(path);
+    _promoEdit.frame_url=pub.publicUrl;
+    renderPromoEditor();
+    toast('อัปโหลดกรอบแล้ว','ok');
+  }catch(e){toast('อัปโหลดไม่สำเร็จ: '+(e.message||e),'err');if(prev)prev.innerHTML='';}
+}
+function clearPromoFrame(){_promoEdit.frame_url='';renderPromoEditor();}
 async function savePromo(){
   const title=(($('pTitle')||{}).value||'').trim();
   if(!title){toast('ใส่ชื่อโปรโมชั่น','warn');return;}
   const badge=(($('pBadge')||{}).value||'').trim();
   const active=!!(($('pActive')||{}).checked);
   const btn=$('promoSaveBtn');if(btn)btn.disabled=true;
+  const base={p_id:_promoEdit.id,p_title:title,p_artwork:_promoEdit.artwork_url||null,p_badge_text:badge||null,p_badge_color:_promoEdit.badge_color||'#E1121D',p_barcodes:_promoEdit.barcodes,p_is_active:active,p_sort:Number(($('pSort')||{}).value)||0};
   try{
-    const {data,error}=await rpcStaff('rpc_store_promo_upsert',{p_id:_promoEdit.id,p_title:title,p_artwork:_promoEdit.artwork_url||null,p_badge_text:badge||null,p_badge_color:_promoEdit.badge_color||'#E1121D',p_barcodes:_promoEdit.barcodes,p_is_active:active,p_sort:Number(($('pSort')||{}).value)||0});
+    let {data,error}=await rpcStaff('rpc_store_promo_upsert',{...base,p_frame:_promoEdit.frame_url||null});
+    if(error&&/could not find the function|schema cache|PGRST202/i.test((error.message||'')+' '+(error.code||''))){
+      ({data,error}=await rpcStaff('rpc_store_promo_upsert',base));  // RPC ยังไม่มี p_frame (ยังไม่รัน SQL) → บันทึกอย่างอื่นได้ก่อน
+      if(!error&&data&&data.ok)toast('บันทึกแล้ว (กรอบยังไม่เซฟ — ต้องรัน SQL store_promo_frame ก่อน)','warn');
+    }
     if(error||!data||!data.ok)throw new Error((data&&data.error)||(error&&error.message)||'failed');
     toast('บันทึกโปรโมชั่นแล้ว','ok');closeSheet();renderPromos();
   }catch(e){toast('บันทึกไม่สำเร็จ: '+(e.message||e),'err');if(btn)btn.disabled=false;}
@@ -510,8 +537,8 @@ async function deletePromo(id){
 async function renderSettings(){
   const body=$('tabBody');
   body.innerHTML=`<div class="sec-title"><span class="bar"></span>ตั้งค่าร้าน</div><div class="card"><div class="skel" style="height:200px"></div></div>`;
-  let qrUrl='',qrNote='',promoEnd='',stockBranch='',promoBanner='',catBanners={};let branches=[];
-  try{const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch','store_promo_banner','store_cat_banners']);(data||[]).forEach(r=>{if(r.key==='store_qr_url')qrUrl=r.value||'';if(r.key==='store_qr_note')qrNote=r.value||'';if(r.key==='store_promo_end')promoEnd=r.value||'';if(r.key==='store_stock_branch')stockBranch=r.value||'';if(r.key==='store_promo_banner')promoBanner=r.value||'';if(r.key==='store_cat_banners'){try{catBanners=r.value?JSON.parse(r.value):{};}catch(e){catBanners={};}}});}catch(e){}
+  let qrUrl='',qrNote='',promoEnd='',stockBranch='',promoBanner='',catBanners={},showStock=false;let branches=[];
+  try{const {data}=await sb.from('app_settings').select('key,value').in('key',['store_qr_url','store_qr_note','store_promo_end','store_stock_branch','store_promo_banner','store_cat_banners','store_show_stock']);(data||[]).forEach(r=>{if(r.key==='store_qr_url')qrUrl=r.value||'';if(r.key==='store_qr_note')qrNote=r.value||'';if(r.key==='store_promo_end')promoEnd=r.value||'';if(r.key==='store_stock_branch')stockBranch=r.value||'';if(r.key==='store_promo_banner')promoBanner=r.value||'';if(r.key==='store_cat_banners'){try{catBanners=r.value?JSON.parse(r.value):{};}catch(e){catBanners={};}}if(r.key==='store_show_stock')showStock=(r.value==='1'||r.value==='true');});}catch(e){}
   try{const {data}=await sb.from('branches').select('*');branches=(data||[]).filter(b=>b&&b.id!=null);}catch(e){}
   const categories=await loadStoreCategories();
   body.innerHTML=`<div class="sec-title"><span class="bar"></span>ตั้งค่าร้าน</div>
@@ -557,6 +584,14 @@ async function renderSettings(){
           ${(function(){let arr=[];if(stockBranch){try{const a=JSON.parse(stockBranch);arr=(Array.isArray(a)?a:[a]).map(String);}catch(e){arr=String(stockBranch).split(',').map(s=>s.trim());}}return branches.map(b=>{const nm=esc(b.name_th||b.name_lo||b.name||b.branch_name||('สาขา '+b.id));const on=arr.includes(String(b.id));return `<label style="display:flex;align-items:center;gap:9px;font-weight:600;font-size:13.5px;cursor:pointer"><input type="checkbox" class="stkBr" value="${b.id}" ${on?'checked':''} style="width:17px;height:17px;flex:0 0 auto">${nm}</label>`;}).join('');})()}
         </div></div>
       <button class="btn btn-g" id="stockBtn" onclick="saveStockBranch()">บันทึกสาขาคลัง</button>
+    </div>
+    <div class="card" style="max-width:520px;margin-top:14px">
+      <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">📊 แสดงสต๊อกให้ลูกค้า</div>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:12px">เปิด = ลูกค้าทั่วไปเห็นจำนวนสต๊อกสินค้า (จากสาขาคลังด้านบน) · ปิด = เฉพาะพนักงานที่ล็อกอินในเว็บถึงจะเห็น · <b>ต้องตั้งสาขาคลังก่อน</b></div>
+      <label class="row" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;margin:0">
+        <span style="font-weight:700;font-size:13.5px">แสดงจำนวนสต๊อกให้ลูกค้าเห็น</span>
+        <input type="checkbox" id="showStockChk" ${showStock?'checked':''} style="width:22px;height:22px" onchange="saveShowStock()">
+      </label>
     </div>
     <div class="card" style="max-width:520px;margin-top:14px">
       <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">🖼️ แบนเนอร์รายประเภทสินค้า</div>
@@ -611,6 +646,14 @@ async function clearCatBanner(enc){
     if(error)throw error;
     toast('ลบแบนเนอร์หมวด "'+cat+'" แล้ว','ok');renderSettings();
   }catch(e){toast('ลบไม่สำเร็จ: '+(e.message||e),'err');}
+}
+async function saveShowStock(){
+  const on=!!(($('showStockChk')||{}).checked);
+  try{
+    const {error}=await sb.from('app_settings').upsert({key:'store_show_stock',value:on?'1':'0'},{onConflict:'key'});
+    if(error)throw error;
+    toast(on?'ลูกค้าจะเห็นจำนวนสต๊อกแล้ว':'ปิดแสดงสต๊อกให้ลูกค้าแล้ว','ok');
+  }catch(e){toast('บันทึกไม่สำเร็จ: '+(e.message||e),'err');}
 }
 async function saveStockBranch(){
   const ids=[...document.querySelectorAll('.stkBr:checked')].map(c=>c.value);
