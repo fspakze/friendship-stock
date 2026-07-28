@@ -1482,10 +1482,22 @@ function renderAuthSheet(){
         <div class="field"><label>${esc(T('biztype'))}</label><input id="auBiz" placeholder="${esc(T('biztypeph'))}"></div>`:''}
       <div class="field"><label>${esc(T('password'))}</label><input id="auPass" type="password" placeholder="••••••"></div>
       <button class="btn btn-g" id="auBtn" onclick="submitAuth()">${esc(authTab==='login'?T('signin'):T('signup'))}</button>
+      ${authTab==='login'?`<div style="text-align:center;margin-top:12px"><a onclick="forgotPw()" style="font-size:12.5px;color:var(--muted);text-decoration:underline;cursor:pointer">${isLao()?'ລືມລະຫັດຜ່ານ?':'ลืมรหัสผ่าน?'}</a></div>`:''}
     </div>`;
   openSheet(html);
 }
 function switchAuth(t){authTab=t;renderAuthSheet();}
+// ลืมรหัสผ่าน — ไม่มี email/SMS → ให้ติดต่อพนักงานร้านรีเซ็ตให้ (พนักงานตั้งรหัสชั่วคราวในคอนโซล)
+function forgotPw(){
+  const lo=isLao();
+  openSheet(`<div class="sheet-h"><h3>${lo?'ລືມລະຫັດຜ່ານ':'ลืมรหัสผ่าน'}</h3><button class="x" onclick="closeSheet()">✕</button></div>
+    <div class="sheet-b" style="text-align:center;padding:24px 22px 28px">
+      <div style="width:64px;height:64px;border-radius:50%;background:var(--green-l);color:var(--green);display:grid;place-items:center;margin:0 auto 16px">${svg(IC.lock,2)}</div>
+      <div style="font-size:14px;font-weight:800;margin-bottom:8px">${lo?'ຕິດຕໍ່ພະນັກງານຮ້ານ':'ติดต่อพนักงานร้าน'}</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.7">${lo?'ແຈ້ງເບີໂທທີ່ໃຊ້ສະໝັກ ພະນັກງານຈະຕັ້ງລະຫັດຊົ່ວຄາວໃຫ້ ແລ້ວທ່ານເຂົ້າລະບົບ ໄປປ່ຽນລະຫັດເອງພາຍຫຼັງໄດ້':'แจ้งเบอร์โทรที่ใช้สมัคร พนักงานจะตั้งรหัสชั่วคราวให้ แล้วท่านล็อกอินเข้าไปเปลี่ยนรหัสเองภายหลังได้'}</div>
+      <button class="btn btn-g" style="margin-top:22px" onclick="closeSheet()">${lo?'ຮັບຊາບ':'รับทราบ'}</button>
+    </div>`);
+}
 async function submitAuth(){
   const phone=($('auPhone')||{}).value||'';const pass=($('auPass')||{}).value||'';
   if(!phone.trim()||!pass.trim()){toast(T('reqfields'),'warn');return;}

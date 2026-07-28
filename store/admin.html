@@ -237,14 +237,14 @@ async function loadPendingCount(){
 }
 async function renderAccounts(){
   const body=$('tabBody');
-  body.innerHTML=`<div class="sec-title"><span class="bar"></span>บัญชีลูกค้ารออนุมัติ <button class="btn-o sm btn" style="margin-left:auto" onclick="renderAccounts()">${svg(IC.refresh,2)}</button></div><div class="skel"></div><div class="skel"></div>`;
+  body.innerHTML=`<div class="sec-title"><span class="bar"></span>บัญชีลูกค้ารออนุมัติ <button class="btn-o sm btn" style="margin-left:auto" onclick="renderAccounts()">${svg(IC.refresh,2)}</button><button class="btn btn-o sm" onclick="openResetPw()" title="รีเซ็ตรหัสผ่านลูกค้า" style="margin-left:6px;width:auto;padding:0 12px">🔑 รีเซ็ตรหัส</button></div><div class="skel"></div><div class="skel"></div>`;
   try{
     const {data,error}=await rpcStaff('rpc_store_pending_accounts',{});
     if(error||!data||!data.ok)throw new Error((data&&data.error)||(error&&error.message)||'load failed');
     const rows=data.rows||[];pendingCount=rows.length;
-    if(!rows.length){body.innerHTML=`<div class="sec-title"><span class="bar"></span>บัญชีลูกค้ารออนุมัติ <button class="btn-o sm btn" style="margin-left:auto" onclick="renderAccounts()">${svg(IC.refresh,2)}</button></div><div class="empty"><div class="ico">✅</div><b>ไม่มีบัญชีรออนุมัติ</b><div>บัญชีใหม่ที่ลูกค้าสมัครจะมาแสดงที่นี่</div></div>`;
+    if(!rows.length){body.innerHTML=`<div class="sec-title"><span class="bar"></span>บัญชีลูกค้ารออนุมัติ <button class="btn-o sm btn" style="margin-left:auto" onclick="renderAccounts()">${svg(IC.refresh,2)}</button><button class="btn btn-o sm" onclick="openResetPw()" title="รีเซ็ตรหัสผ่านลูกค้า" style="margin-left:6px;width:auto;padding:0 12px">🔑 รีเซ็ตรหัส</button></div><div class="empty"><div class="ico">✅</div><b>ไม่มีบัญชีรออนุมัติ</b><div>บัญชีใหม่ที่ลูกค้าสมัครจะมาแสดงที่นี่</div></div>`;
       updateTabCnt();return;}
-    body.innerHTML=`<div class="sec-title"><span class="bar"></span>บัญชีลูกค้ารออนุมัติ (${rows.length}) <button class="btn-o sm btn" style="margin-left:auto" onclick="renderAccounts()">${svg(IC.refresh,2)}</button></div>
+    body.innerHTML=`<div class="sec-title"><span class="bar"></span>บัญชีลูกค้ารออนุมัติ (${rows.length}) <button class="btn-o sm btn" style="margin-left:auto" onclick="renderAccounts()">${svg(IC.refresh,2)}</button><button class="btn btn-o sm" onclick="openResetPw()" title="รีเซ็ตรหัสผ่านลูกค้า" style="margin-left:6px;width:auto;padding:0 12px">🔑 รีเซ็ตรหัส</button></div>
       <div class="grid2">${rows.map(accCard).join('')}</div>`;
     updateTabCnt();
   }catch(e){body.innerHTML=`<div class="empty"><div class="ico">⚠️</div><b>โหลดไม่สำเร็จ</b><div>${esc(e.message||e)}</div></div>`;}
@@ -308,6 +308,32 @@ function pickMember(mc){
   const m=_msRows.find(x=>x.member_code===mc);
   closeSheet();
   toast('ผูกสมาชิก '+mc+(m&&m.name?' · '+m.name:''),'ok');
+}
+/* รีเซ็ตรหัสผ่านลูกค้า (ลูกค้าลืมรหัส → พนักงานตั้งรหัสชั่วคราวให้ แล้วบอกลูกค้าไปเปลี่ยนเอง) */
+function openResetPw(){
+  openSheet(`<div class="sheet-h"><h3>รีเซ็ตรหัสผ่านลูกค้า</h3><button class="x" onclick="closeSheet()">✕</button></div>
+    <div class="sheet-b">
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:12px">ลูกค้าลืมรหัส → กรอกเบอร์โทรที่ลูกค้าใช้สมัคร + ตั้งรหัสชั่วคราว แล้วบอกลูกค้าให้ล็อกอินด้วยรหัสนี้ (ลูกค้าเปลี่ยนเองทีหลังได้)</div>
+      <div class="field"><label>เบอร์โทรลูกค้า</label><input id="rpPhone" type="tel" inputmode="tel" placeholder="020 xxxx xxxx"></div>
+      <div class="field"><label>รหัสผ่านชั่วคราว</label><input id="rpNew" placeholder="อย่างน้อย 4 ตัว"></div>
+      <button class="btn btn-g" id="rpBtn" onclick="doResetPw()">${svg(IC.check,2)} ตั้งรหัสใหม่</button>
+    </div>`);
+  setTimeout(()=>{const p=$('rpPhone');if(p)p.focus();},100);
+}
+async function doResetPw(){
+  const phone=($('rpPhone')||{}).value||'';const np=($('rpNew')||{}).value||'';
+  if(!phone.trim()){toast('กรอกเบอร์โทร','warn');return;}
+  if(np.length<4){toast('รหัสผ่านอย่างน้อย 4 ตัว','warn');return;}
+  const btn=$('rpBtn');if(btn){btn.disabled=true;btn.textContent='...';}
+  try{
+    const {data,error}=await rpcStaff('rpc_store_admin_reset_password',{p_phone:phone.trim(),p_new:np});
+    if(error||!data||!data.ok){
+      const em=(data&&data.error)||'';
+      if(em==='not_found'){toast('ไม่พบบัญชีลูกค้าเบอร์นี้','err');if(btn){btn.disabled=false;btn.textContent='ตั้งรหัสใหม่';}return;}
+      throw new Error(em||(error&&error.message)||'failed');
+    }
+    closeSheet();toast('ตั้งรหัสใหม่ให้ '+(data.name||phone)+' แล้ว','ok');
+  }catch(e){toast('ผิดพลาด: '+(e.message||e),'err');if(btn){btn.disabled=false;btn.textContent='ตั้งรหัสใหม่';}}
 }
 
 /* ============ Tab: Orders ============ */
