@@ -111,6 +111,10 @@ header{position:sticky;top:0;z-index:40;background:#fff;color:var(--ink);box-sha
 .promo-art{width:100%;border-radius:14px;margin-bottom:12px;box-shadow:var(--sh);display:block}
 .promo-block{margin-bottom:24px}
 .promo-top{height:23px;line-height:23px;background:transparent;color:#fff;font-size:10px;font-weight:800;text-align:center;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.2px;flex-shrink:0}
+.promo-sort{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:2px 2px 14px}
+.ps-lbl{font-size:12px;color:var(--muted);font-weight:800}
+.ps-chip{border:1.5px solid var(--line-2);background:var(--card);color:var(--muted);border-radius:14px;padding:5px 14px;font-size:12.5px;font-weight:800;cursor:pointer}
+.ps-chip.on{background:var(--red);border-color:var(--red);color:#fff}
 .promo-cat{margin-bottom:14px}
 .promo-cat-h{font-size:13px;font-weight:800;color:var(--ink);margin:2px 2px 8px;display:flex;align-items:center;gap:6px}
 .promo-cat-h span{color:var(--muted);font-weight:600;font-size:12px}
@@ -441,6 +445,7 @@ let STAFF = null;       // พนักงานล็อกอินดูส�
 let SHOW_STOCK_CUST = false;  // โชว์สต๊อกให้ลูกค้าทั่วไป (app_settings store_show_stock)
 const STAFF_SALT = 'friendship_pakse_2026';   // ตรงกับแอปหลัก (verify_login)
 let curPromo = null;    // แคมเปญที่เลือกดูในแท็บโปรฯ (null = หน้ารวมทุกโปร)
+let promoSort = 'pct';  // เรียงสินค้าโปรฯ: 'pct'=ส่วนลด% · 'amt'=ประหยัดเงิน
 let PAGE = 1;           // หน้าปัจจุบันของกริด (แบ่งหน้า กันมือถือค้าง)
 const PER_PAGE = 24;    // จำนวนสินค้าต่อหน้า
 
@@ -898,6 +903,15 @@ function discPct(p){
   if(Number(p.box_promo)>0&&Number(p.box_normal)>Number(p.box_promo))d=Math.max(d,1-Number(p.box_promo)/Number(p.box_normal));
   return d;
 }
+// จำนวนเงินที่ประหยัด (ปกติ−โปร) สูงสุดของสินค้า (ชิ้น/แพ็ค/ลัง)
+function discAmount(p){
+  let d=0;const uw=unitWas(p);if(uw>0)d=Math.max(d,uw-unitPrice(p));
+  if(Number(p.pack_promo)>0&&Number(p.pack_normal)>Number(p.pack_promo))d=Math.max(d,Number(p.pack_normal)-Number(p.pack_promo));
+  if(Number(p.box_promo)>0&&Number(p.box_normal)>Number(p.box_promo))d=Math.max(d,Number(p.box_normal)-Number(p.box_promo));
+  return d;
+}
+function promoSortVal(p){return promoSort==='amt'?discAmount(p):discPct(p);}
+function setPromoSort(s){promoSort=s;PAGE=1;render();}
 // จัดกลุ่มสินค้าโปรฯ ตามประเภท · เรียงส่วนลดมาก→น้อย · แบ่งหน้า (limit = PAGE*PER_PAGE) กันมือถือค้าง
 function promoGroupedPaged(items){
   const by={};items.forEach(p=>{const c=p.category||'__x';(by[c]=by[c]||[]).push(p);});
@@ -905,7 +919,7 @@ function promoGroupedPaged(items){
   const limit=PAGE*PER_PAGE;let shown=0;let html='';
   for(const c of cats){
     if(shown>=limit)break;
-    const arr=by[c].slice().sort((x,y)=>discPct(y)-discPct(x));
+    const arr=by[c].slice().sort((x,y)=>promoSortVal(y)-promoSortVal(x));
     const take=arr.slice(0,Math.max(0,limit-shown));
     if(!take.length)continue;
     html+=`<div class="promo-cat"><div class="promo-cat-h">${catIcon(c)} ${esc(catLabel(c))} <span>(${arr.length})</span></div><div class="grid">${take.map(pcard).join('')}</div></div>`;
@@ -915,7 +929,8 @@ function promoGroupedPaged(items){
 }
 // แถวเลื่อนแนวนอนต่อแคมเปญ (หน้ารวมโปรฯ) + ดูทั้งหมด → เปิดแคมเปญนั้น
 function promoRow(pr,items){
-  const shown=items.slice(0,10);const more=items.length>shown.length;
+  const sorted=items.slice().sort((x,y)=>promoSortVal(y)-promoSortVal(x));
+  const shown=sorted.slice(0,10);const more=items.length>shown.length;
   const pc=colorSafe(pr.badge_color);
   return `<div class="home-sec">
     <div class="home-sec-h"><div class="hsh-title"><span class="bar" style="background:${pc}"></span>${esc(pr.title)} <span class="hsh-n">${items.length}</span></div>
@@ -942,6 +957,7 @@ function viewPromo(){
   </div>`;
   // ปุ่มเลือกแคมเปญ (ทั้งหมด / แต่ละโปร)
   const tabs=campaigns.length?`<div class="promo-tabs"><button class="ptab ${!curPromo?'on':''}" onclick="selPromo('')">${isLao()?'ທັງໝົດ':'ทั้งหมด'}</button>${campaigns.map(c=>`<button class="ptab ${String(curPromo)===String(c.id)?'on':''}" style="--pc:${colorSafe(c.badge_color)}" onclick="selPromo('${esc(c.id)}')">${esc(c.title)}</button>`).join('')}</div>`:'';
+  const sortBar=(campaigns.length||promoProducts().length)?`<div class="promo-sort"><span class="ps-lbl">${isLao()?'ຮຽງຕາມ:':'เรียงตาม:'}</span><button class="ps-chip ${promoSort==='pct'?'on':''}" onclick="setPromoSort('pct')">${isLao()?'ສ່ວນຫຼຸດ %':'ส่วนลด %'}</button><button class="ps-chip ${promoSort==='amt'?'on':''}" onclick="setPromoSort('amt')">${isLao()?'ປະຢັດ ₭':'ประหยัด ₭'}</button></div>`:'';
   let body;
   if(!PRODUCTS.length){
     body=catalogError?`<div class="empty"><div class="ico">⚠️</div><b>${esc(T('loadfail'))}</b><button class="btn btn-g" style="max-width:220px;margin:14px auto 0" onclick="reloadCatalog()">${esc(T('retry'))}</button></div>`
@@ -960,7 +976,7 @@ function viewPromo(){
   }else{
     body=`<div class="empty"><div class="ico">🎉</div><b>${esc(T('promoempty'))}</b><button class="btn btn-g" style="max-width:220px;margin:16px auto 0" onclick="go('home')">${esc(T('shopnow'))}</button></div>`;
   }
-  return header(true)+catBar()+`<div class="wrap">${banner}${tabs}${body}</div>`;
+  return header(true)+catBar()+`<div class="wrap">${banner}${tabs}${sortBar}${body}</div>`;
 }
 function startPromoClock(){
   if(_promoTimer){clearInterval(_promoTimer);_promoTimer=null;}
