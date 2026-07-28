@@ -346,6 +346,7 @@ const I18N = {
     subtotal:'ยอดสินค้า', delivery:'ค่าส่ง', free:'ฟรี', total:'ยอดรวม', checkout:'สั่งซื้อ',
     items:'รายการ', qty:'จำนวน', remove:'ลบ',
     fulfill:'รับสินค้าแบบ', deliv:'จัดส่งถึงที่', pickup:'รับที่ร้าน',
+    paymethod:'วิธีชำระเงิน', payqrnow:'จ่ายผ่าน QR', paystore:'เก็บเงินที่สาขา', paystoremsg:'💵 ชำระเงินที่สาขาตอนรับสินค้า', paystoretag:'💵 ชำระที่สาขา (เก็บเงินตอนรับ)',
     address:'ที่อยู่จัดส่ง', addressph:'บ้านเลขที่ / หมู่บ้าน / เมือง / จุดสังเกต', pickbranch:'เลือกสาขา',
     note:'หมายเหตุ (ถ้ามี)', noteph:'เช่น โทรก่อนส่ง / เวลารับ',
     placeorder:'ยืนยันสั่งซื้อ', ordersummary:'สรุปคำสั่งซื้อ',
@@ -379,6 +380,7 @@ const I18N = {
     subtotal:'ຍອດສິນຄ້າ', delivery:'ຄ່າສົ່ງ', free:'ຟຣີ', total:'ຍອດລວມ', checkout:'ສັ່ງຊື້',
     items:'ລາຍການ', qty:'ຈຳນວນ', remove:'ລຶບ',
     fulfill:'ຮັບສິນຄ້າແບບ', deliv:'ຈັດສົ່ງເຖິງທີ່', pickup:'ຮັບທີ່ຮ້ານ',
+    paymethod:'ວິທີຊຳລະເງິນ', payqrnow:'ຈ່າຍຜ່ານ QR', paystore:'ເກັບເງິນທີ່ສາຂາ', paystoremsg:'💵 ຊຳລະເງິນທີ່ສາຂາຕອນຮັບສິນຄ້າ', paystoretag:'💵 ຊຳລະທີ່ສາຂາ (ເກັບເງິນຕອນຮັບ)',
     address:'ທີ່ຢູ່ຈັດສົ່ງ', addressph:'ບ້ານເລກທີ / ບ້ານ / ເມືອງ / ຈຸດສັງເກດ', pickbranch:'ເລືອກສາຂາ',
     note:'ໝາຍເຫດ (ຖ້າມີ)', noteph:'ເຊັ່ນ ໂທກ່ອນສົ່ງ / ເວລາຮັບ',
     placeorder:'ຢືນຢັນສັ່ງຊື້', ordersummary:'ສະຫຼຸບຄຳສັ່ງຊື້',
@@ -497,7 +499,7 @@ function labelFor(p,ut){if(ut==='box')return T('box');if(ut==='pack')return p.pa
    Data load
    ============================================================ */
 // หมวดที่ซ่อนจากลูกค้า (เลิกขาย) — หมวด 24 หรือมีคำว่ายกเลิก
-function isHiddenCat(c){const s=String(c||'');return /^\s*24\s*[-.]/.test(s)||/ຍົກເລີກ|ຍົກເລິກ|ยกเลิก/.test(s);}
+function isHiddenCat(c){const s=String(c||'');return /^\s*24\s*[-.]/.test(s)||/ຍົກເລີກ|ຍົກເລິກ|ยกเลิก|ຊັບສີນ|ຊັບສິນ|ซับซิน|ทรัพย์สิน/.test(s);}
 let catalogError='';
 async function loadCatalog(attempt){
   attempt=attempt||1;
@@ -763,7 +765,7 @@ function pcard(p){
     ? `<div class="save-flag" style="background:${pc}"><div class="sf-t">${esc(promo.badge_text)}</div></div>`
     : (disc>0?`<div class="save-flag"><div class="sf-s">SAVE</div><div class="sf-p">${disc}%</div></div>`:'');
   return `<div class="pcard${promo?' promo-framed':''}${oos?' oos':''}"${promo?` style="--pc:${pc}"`:''}>
-    ${promo?`<div class="promo-top" style="background:${pc}">⚡ ${esc(promo.title)}</div>`:`<div class="promo-top" aria-hidden="true"></div>`}
+    ${promo?`<div class="promo-top" style="background:${pc}">${esc(promo.title)}</div>`:`<div class="promo-top" aria-hidden="true"></div>`}
     <div class="pthumb" onclick="openProduct('${esc(p.barcode)}')">${img}${ph}${oos?`<div class="oos-tag">${isLao()?'ສິນຄ້າໝົດ':'สินค้าหมด'}</div>`:ribbon}
       <button class="fav-btn" data-bc="${esc(p.barcode)}" onclick="event.stopPropagation();toggleFav('${esc(p.barcode)}')" aria-label="favorite">${isFav(p.barcode)?'❤️':'<span class="off">❤️</span>'}</button>
       ${oos?'':`<button class="padd-fab" onclick="event.stopPropagation();quickAdd('${esc(p.barcode)}')" aria-label="add">${svg(IC.cart,2)}</button>`}
@@ -884,11 +886,11 @@ function viewPromo(){
   if(sel&&sel.artwork_url) banner=promoBannerHtml(sel.artwork_url);
   else if(!sel&&PROMO_BANNER) banner=promoBannerHtml(PROMO_BANNER);
   else banner=`<div class="flashhero">
-    <div class="fh-left"><div class="fh-bolt">⚡</div><div><div class="fh-t2">${esc(T('flashsale'))}</div><div class="fh-t1">${esc(T('promosub'))}</div></div></div>
+    <div class="fh-left"><div><div class="fh-t2">${esc(T('flashsale'))}</div><div class="fh-t1">${esc(T('promosub'))}</div></div></div>
     <div class="fh-timer"><div class="fh-lbl">${esc(T('endsin'))}</div><div class="fh-clock" id="flashClock">--:--:--</div></div>
   </div>`;
   // ปุ่มเลือกแคมเปญ (ทั้งหมด / แต่ละโปร)
-  const tabs=campaigns.length?`<div class="promo-tabs"><button class="ptab ${!curPromo?'on':''}" onclick="selPromo('')">${isLao()?'ທັງໝົດ':'ทั้งหมด'}</button>${campaigns.map(c=>`<button class="ptab ${String(curPromo)===String(c.id)?'on':''}" style="--pc:${colorSafe(c.badge_color)}" onclick="selPromo('${esc(c.id)}')">⚡ ${esc(c.title)}</button>`).join('')}</div>`:'';
+  const tabs=campaigns.length?`<div class="promo-tabs"><button class="ptab ${!curPromo?'on':''}" onclick="selPromo('')">${isLao()?'ທັງໝົດ':'ทั้งหมด'}</button>${campaigns.map(c=>`<button class="ptab ${String(curPromo)===String(c.id)?'on':''}" style="--pc:${colorSafe(c.badge_color)}" onclick="selPromo('${esc(c.id)}')">${esc(c.title)}</button>`).join('')}</div>`:'';
   let body;
   if(!PRODUCTS.length){
     body=catalogError?`<div class="empty"><div class="ico">⚠️</div><b>${esc(T('loadfail'))}</b><button class="btn btn-g" style="max-width:220px;margin:14px auto 0" onclick="reloadCatalog()">${esc(T('retry'))}</button></div>`
@@ -1044,13 +1046,14 @@ function viewCart(){
 
 /* ---------- Checkout ---------- */
 let coFulfill='delivery';
+let coPay='qr';   // วิธีชำระเมื่อรับที่ร้าน: 'qr' = จ่ายผ่าน QR · 'store' = เก็บเงินที่สาขา
 function startCheckout(){
   if(!token){toast(T('needlogin'),'warn');openAuth('login');return;}
   go('checkout');
 }
 function viewCheckout(){
   const sub=cartSubtotal();const earn=pointsEarn();
-  const branchOpts=BRANCHES.map(b=>`<option value="${b.id}">${esc(b.name||b.branch_name||((isLao()?'ສາຂາ ':'สาขา ')+b.id))}</option>`).join('');
+  const branchOpts=BRANCHES.map(b=>`<option value="${b.id}">${esc(b.name_th||b.name_lo||b.name||b.branch_name||((isLao()?'ສາຂາ ':'สาขา ')+b.id))}</option>`).join('');
   return `${pageHead(T('checkout'),'cart')}
   <div class="wrap" style="padding-bottom:100px;display:flex;flex-direction:column;gap:14px">
     <div class="card">
@@ -1062,7 +1065,13 @@ function viewCheckout(){
       <div id="coDetail" style="margin-top:14px">
         ${coFulfill==='delivery'
           ? `<div class="field" style="margin-bottom:0"><label>${esc(T('address'))}</label><textarea id="coAddr" placeholder="${esc(T('addressph'))}"></textarea></div>`
-          : `<div class="field" style="margin-bottom:0"><label>${esc(T('pickbranch'))}</label><select id="coBranch">${branchOpts||`<option value="">-</option>`}</select></div>`}
+          : `<div class="field"><label>${esc(T('pickbranch'))}</label><select id="coBranch">${branchOpts||`<option value="">-</option>`}</select></div>
+             <div class="field" style="margin-bottom:0"><label>${esc(T('paymethod'))}</label>
+               <div class="seg">
+                 <div class="opt ${coPay==='qr'?'on':''}" onclick="setPay('qr')">${svg(IC.cart)}${esc(T('payqrnow'))}</div>
+                 <div class="opt ${coPay==='store'?'on':''}" onclick="setPay('store')">${svg(IC.store)}${esc(T('paystore'))}</div>
+               </div>
+             </div>`}
       </div>
     </div>
     <div class="card">
@@ -1084,19 +1093,35 @@ function viewCheckout(){
   </div></div>`;
 }
 function setFulfill(f){coFulfill=f;render();}
+function setPay(p){coPay=p;render();}
 async function placeOrder(){
   const btn=$('coBtn');if(btn){btn.disabled=true;btn.textContent=T('ordering');}
   const items=cart.map(i=>({barcode:i.barcode,unit_type:i.unit_type,qty:i.qty}));
   let addr=null,branch=null;
   if(coFulfill==='delivery'){addr=($('coAddr')||{}).value||'';if(!addr.trim()){toast(T('reqfields'),'warn');if(btn){btn.disabled=false;btn.textContent=T('placeorder');}return;}}
   else{branch=($('coBranch')||{}).value||null;branch=branch?parseInt(branch):null;}
-  const note=($('coNote')||{}).value||'';
+  const payStore=(coFulfill==='pickup'&&coPay==='store');
+  let note=($('coNote')||{}).value||'';
+  if(payStore)note=T('paystoretag')+(note?('\n'+note):'');   // มาร์กให้พนักงานเห็นว่าเก็บเงินที่สาขา
   try{
     const {data,error}=await sb.rpc('rpc_store_place_order',{p_token:token,p_items:items,p_fulfillment:coFulfill,p_address:addr,p_branch_id:branch,p_note:note});
     if(error||!data||!data.ok){toast((data&&data.error)||'error','err');if(btn){btn.disabled=false;btn.textContent=T('placeorder');}return;}
     cart=[];saveCart();
-    openPayment(data);
+    if(payStore)openStoreSuccess(data); else openPayment(data);
   }catch(e){toast(String(e.message||e),'err');if(btn){btn.disabled=false;btn.textContent=T('placeorder');}}
+}
+// สั่งซื้อสำเร็จแบบเก็บเงินที่สาขา (ไม่ต้องอัปสลิป)
+function openStoreSuccess(order){
+  const html=`<div class="sheet-b" style="text-align:center;padding:34px 24px 28px">
+    <div style="width:74px;height:74px;border-radius:50%;background:var(--green-l);color:var(--green);display:grid;place-items:center;margin:0 auto 16px">${svg(IC.check,3)}</div>
+    <div style="font-size:19px;font-weight:900;margin-bottom:6px">${esc(T('ordersuccess'))}</div>
+    <div style="font-size:12px;color:var(--muted)">${esc(T('orderno'))}</div>
+    <div style="font-size:16px;font-weight:900;color:var(--red);margin-bottom:14px">${esc(order.order_no)}</div>
+    <div style="font-size:13.5px;background:var(--green-l);color:var(--ink);border-radius:12px;padding:12px 14px;margin-bottom:22px;font-weight:700">${esc(T('paystoremsg'))}</div>
+    <button class="btn btn-g" onclick="closeSheet();go('orders')">${esc(T('vieworders'))}</button>
+    <button class="btn btn-o" style="margin-top:10px" onclick="closeSheet();go('home')">${esc(T('ordermore'))}</button>
+  </div>`;
+  openSheet(html);
 }
 
 /* ---------- Payment sheet ---------- */
