@@ -505,6 +505,7 @@ const IC = {
   bolt:'<path d="M13 2 3 14h8l-1 8 10-12h-8l1-8Z"/>',
   mic:'<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/>',
   cam:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2Z"/><circle cx="12" cy="13" r="4"/>',
+  lock:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
 };
 const svg=(p,w)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w||2}" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 
@@ -1339,7 +1340,7 @@ function orderCard(o){
     </div>
     <div style="border-top:1px solid var(--line);padding-top:8px;margin-bottom:8px">${itemsHtml}${more}</div>
     <div class="row">
-      <div style="font-size:12px;color:var(--muted)">${o.fulfillment==='delivery'?esc(T('deliv')):esc(T('pickup'))}${o.points_earned?` · <span style="color:var(--purple);font-weight:700">+${o.points_earned} ${esc(T('pts'))}</span>`:''}</div>
+      <div style="font-size:12px;color:var(--muted)">${o.fulfillment==='delivery'?esc(T('deliv')):esc(T('pickup'))}</div>
       <div style="font-size:16px;font-weight:900;color:var(--red)">${money(o.total)}</div>
     </div>
     ${canPay?`<button class="btn btn-p" style="height:42px;margin-top:10px" onclick='reopenPay(${JSON.stringify({order_no:o.order_no,order_id:o.id,total:o.total})})'>${esc(T('payslipnow'))}</button>`:''}
@@ -1356,7 +1357,7 @@ function viewAccount(){
       <div style="max-width:360px;margin:0 auto;display:flex;flex-direction:column;gap:10px">
         <button class="btn btn-g" onclick="openAuth('login')">${esc(T('login'))}</button>
         <button class="btn btn-o" onclick="openAuth('register')">${esc(T('register'))}</button>
-        ${staffAccountRow()}
+        ${staffSection()}
       </div></div>`;
   }
   const pts=profile.points||0;
@@ -1372,9 +1373,12 @@ function viewAccount(){
       <div>${svg(IC.star,2).replace('width="22"','')}</div>
       <div style="flex:1"><div class="pv">${pts.toLocaleString()}</div><small>${esc(T('points'))} · ${profile.member_code?esc(T('member'))+' '+esc(profile.member_code):esc(T('nomember'))}</small></div>
     </div>
+    <div style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:-6px">${isLao()?'ແຕ້ມສະສົມມາຈາກລະບົບຂາຍຈິງ ໜ້າຮ້ານ (ເບິ່ງຢ່າງດຽວ)':'แต้มสะสมมาจากระบบขายจริงหน้าร้าน (ดูอย่างเดียว)'}</div>
     <button class="btn btn-o" onclick="go('orders')">${svg(IC.bag)}${esc(T('myorders'))}</button>
-    ${staffAccountRow()}
+    <button class="btn btn-o" onclick="openEditProfile()">${svg(IC.user)}${isLao()?'ແກ້ໄຂຂໍ້ມູນບັນຊີ':'แก้ไขข้อมูลบัญชี'}</button>
+    <button class="btn btn-o" onclick="openChangePw()">${svg(IC.lock)}${isLao()?'ປ່ຽນລະຫັດຜ່ານ':'เปลี่ยนรหัสผ่าน'}</button>
     <button class="btn btn-o" style="color:var(--red)" onclick="doLogout()">${esc(T('logout'))}</button>
+    ${staffSection()}
   </div>`;
 }
 function staffAccountRow(){
@@ -1387,6 +1391,66 @@ function staffAccountRow(){
     </div>`;
   }
   return `<button class="btn btn-o" onclick="openStaffLogin()">${svg(IC.pkg)}${isLao()?'ເຂົ້າລະບົບພະນັກງານ (ເບິ່ງສະຕັອກ)':'เข้าระบบพนักงาน (ดูสต๊อก)'}</button>`;
+}
+// ส่วน "เฉพาะเจ้าหน้าที่" — แยกออกจากบัญชีลูกค้าให้ชัด (ลูกค้าทั่วไปไม่ต้องยุ่ง)
+function staffSection(){
+  const title=isLao()?'ສະເພາະເຈົ້າໜ້າທີ່':'เฉพาะเจ้าหน้าที่';
+  return `<div style="margin-top:8px;border-top:1px dashed var(--line);padding-top:14px">
+    <div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.6px;text-align:center;margin-bottom:10px">— ${esc(title)} —</div>
+    ${staffAccountRow()}
+  </div>`;
+}
+// แก้ไขข้อมูลบัญชีลูกค้า (ชื่อ / ประเภทกิจการ) — เบอร์โทร = ไอดีเข้าระบบ แก้ไม่ได้เอง
+function openEditProfile(){
+  if(!token||!profile){toast(T('needlogin'),'warn');return;}
+  const lo=isLao();
+  openSheet(`<div class="sheet-h"><h3>${lo?'ແກ້ໄຂຂໍ້ມູນບັນຊີ':'แก้ไขข้อมูลบัญชี'}</h3><button class="x" onclick="closeSheet()">✕</button></div>
+    <div class="sheet-b">
+      <div class="field"><label>${esc(T('phone'))}</label><input value="${esc(profile.phone||'')}" disabled style="opacity:.6"><div style="font-size:11px;color:var(--muted);margin-top:4px">${lo?'ເບີໂທ = ໄອດີເຂົ້າລະບົບ ປ່ຽນເອງບໍ່ໄດ້ (ຕິດຕໍ່ພະນັກງານ)':'เบอร์โทร = ไอดีเข้าระบบ เปลี่ยนเองไม่ได้ (ติดต่อพนักงาน)'}</div></div>
+      <div class="field"><label>${esc(T('name'))}</label><input id="epName" value="${esc(profile.name||'')}" placeholder="${esc(T('name'))}"></div>
+      <div class="field"><label>${esc(T('biztype'))}</label><input id="epBiz" value="${esc(profile.business_type||'')}" placeholder="${esc(T('biztypeph'))}"></div>
+      <button class="btn btn-g" id="epBtn" onclick="submitEditProfile()">${lo?'ບັນທຶກ':'บันทึก'}</button>
+    </div>`);
+}
+async function submitEditProfile(){
+  const name=($('epName')||{}).value||'';const biz=($('epBiz')||{}).value||'';
+  if(!name.trim()){toast(T('reqfields'),'warn');return;}
+  const btn=$('epBtn');if(btn){btn.disabled=true;btn.textContent='...';}
+  try{
+    const {data,error}=await sb.rpc('rpc_store_update_profile',{p_token:token,p_name:name,p_business:biz});
+    if(error||!data||!data.ok)throw new Error((data&&data.error)||(error&&error.message)||'failed');
+    await restoreSession();
+    closeSheet();toast(isLao()?'ບັນທຶກແລ້ວ':'บันทึกแล้ว','ok');go('account');
+  }catch(e){toast(String(e.message||e),'err');if(btn){btn.disabled=false;btn.textContent=isLao()?'ບັນທຶກ':'บันทึก';}}
+}
+// เปลี่ยนรหัสผ่าน (ต้องกรอกรหัสเดิม)
+function openChangePw(){
+  if(!token||!profile){toast(T('needlogin'),'warn');return;}
+  const lo=isLao();
+  openSheet(`<div class="sheet-h"><h3>${lo?'ປ່ຽນລະຫັດຜ່ານ':'เปลี่ยนรหัสผ่าน'}</h3><button class="x" onclick="closeSheet()">✕</button></div>
+    <div class="sheet-b">
+      <div class="field"><label>${lo?'ລະຫັດຜ່ານເດີມ':'รหัสผ่านเดิม'}</label><input id="cpOld" type="password" placeholder="••••••"></div>
+      <div class="field"><label>${lo?'ລະຫັດຜ່ານໃໝ່':'รหัสผ่านใหม่'}</label><input id="cpNew" type="password" placeholder="${lo?'ຢ່າງໜ້ອຍ 4 ຕົວ':'อย่างน้อย 4 ตัว'}"></div>
+      <div class="field"><label>${lo?'ຢືນຢັນລະຫັດຜ່ານໃໝ່':'ยืนยันรหัสผ่านใหม่'}</label><input id="cpNew2" type="password" placeholder="••••••"></div>
+      <button class="btn btn-g" id="cpBtn" onclick="submitChangePw()">${lo?'ບັນທຶກ':'บันทึก'}</button>
+    </div>`);
+}
+async function submitChangePw(){
+  const lo=isLao();
+  const oldp=($('cpOld')||{}).value||'';const np=($('cpNew')||{}).value||'';const np2=($('cpNew2')||{}).value||'';
+  if(!oldp||!np){toast(T('reqfields'),'warn');return;}
+  if(np.length<4){toast(lo?'ລະຫັດຜ່ານໃໝ່ຢ່າງໜ້ອຍ 4 ຕົວ':'รหัสผ่านใหม่อย่างน้อย 4 ตัว','warn');return;}
+  if(np!==np2){toast(lo?'ລະຫັດຜ່ານໃໝ່ບໍ່ກົງກັນ':'รหัสผ่านใหม่ไม่ตรงกัน','warn');return;}
+  const btn=$('cpBtn');if(btn){btn.disabled=true;btn.textContent='...';}
+  try{
+    const {data,error}=await sb.rpc('rpc_store_change_password',{p_token:token,p_old:oldp,p_new:np});
+    if(error||!data||!data.ok){
+      const em=(data&&data.error)||'';
+      if(em==='wrong_password'){toast(lo?'ລະຫັດຜ່ານເດີມບໍ່ຖືກຕ້ອງ':'รหัสผ่านเดิมไม่ถูกต้อง','err');if(btn){btn.disabled=false;btn.textContent=lo?'ບັນທຶກ':'บันทึก';}return;}
+      throw new Error(em||(error&&error.message)||'failed');
+    }
+    closeSheet();toast(lo?'ປ່ຽນລະຫັດຜ່ານແລ້ວ':'เปลี่ยนรหัสผ่านแล้ว','ok');
+  }catch(e){toast(String(e.message||e),'err');if(btn){btn.disabled=false;btn.textContent=lo?'ບັນທຶກ':'บันทึก';}}
 }
 
 /* ---------- Auth ---------- */

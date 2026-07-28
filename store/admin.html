@@ -347,8 +347,7 @@ function orderCard(o){
     <div class="oitems">${itemsHtml}</div>
     <div class="row">
       <div style="display:flex;align-items:center;gap:10px">${slip}
-        <div><div style="font-size:11px;color:var(--muted)">${o.points_earned?`<span style="color:var(--purple);font-weight:800">+${o.points_earned} แต้ม</span>`:''}</div>
-        <div style="font-size:18px;font-weight:900;color:var(--green-d)">${money(o.total)}</div></div></div>
+        <div><div style="font-size:18px;font-weight:900;color:var(--green-d)">${money(o.total)}</div></div></div>
     </div>
     <div class="actbtns">${orderActions(o)}</div>
   </div>`;
@@ -363,7 +362,7 @@ function orderActions(o){
     if(o.status==='preparing')out.push(b('ready','✓ จัดเก็บเรียบร้อย (แจ้งลูกค้า)','btn-p'));
     if(o.status==='ready')out.push(b('completed','💵 รับเงินสด + สำเร็จ','btn-g'));
   }else{
-    if(o.status==='paid_review')out.push(b('confirmed','✓ ยืนยันรับเงิน + แจกแต้ม','btn-g'));
+    if(o.status==='paid_review')out.push(b('confirmed','✓ ยืนยันรับเงิน','btn-g'));
     if(o.status==='pending_payment')out.push(`<span class="mini" style="align-self:center">รอลูกค้าโอน+ส่งสลิป</span>`);
     if(o.status==='confirmed')out.push(b('preparing','เริ่มจัดสินค้า','btn-p'));
     if(o.status==='preparing')out.push(b('ready','พร้อมส่ง/รับ','btn-p'));
@@ -375,16 +374,16 @@ function orderActions(o){
 async function setOrderStatus(id,status){
   const o=_ordCache.find(x=>x.id===id)||{};const isStore=(o.pay_method==='store');
   if(status==='cancelled'&&!confirm('ยืนยันยกเลิกออเดอร์นี้?'))return;
-  if(status==='confirmed'&&!confirm('ยืนยันว่าได้รับเงินแล้ว? ระบบจะแจกแต้มให้ลูกค้าทันที (ทำครั้งเดียว)'))return;
-  if(status==='completed'&&isStore&&!confirm('ยืนยันรับเงินสดจากลูกค้าเรียบร้อย? ระบบจะปิดออเดอร์'+(o.points_earned?' + แจกแต้ม '+o.points_earned:'')+' (ทำครั้งเดียว)'))return;
+  if(status==='confirmed'&&!confirm('ยืนยันว่าได้รับเงินแล้ว?'))return;
+  if(status==='completed'&&isStore&&!confirm('ยืนยันรับเงินสดจากลูกค้าเรียบร้อย? ระบบจะปิดออเดอร์นี้'))return;
   const card=$('ord-'+id);const btns=card&&card.querySelectorAll('.actbtns button');if(btns)btns.forEach(b=>b.disabled=true);
   try{
     const {data,error}=await rpcStaff('rpc_store_set_order_status',{p_order_id:id,p_status:status});
     if(error||!data||!data.ok)throw new Error((data&&data.error)||(error&&error.message)||'failed');
     let msg='อัปเดตสถานะ: '+stLabel(status);
-    if(status==='confirmed')msg='ยืนยันรับเงิน + แจกแต้มแล้ว';
+    if(status==='confirmed')msg='ยืนยันรับเงินแล้ว';
     else if(status==='ready'&&isStore)msg='แจ้งลูกค้าแล้ว: ออเดอร์พร้อมรับที่สาขา';
-    else if(status==='completed'&&isStore)msg='รับเงินสด + ปิดออเดอร์แล้ว'+(o.points_earned?' · แจกแต้ม '+o.points_earned:'');
+    else if(status==='completed')msg='ปิดออเดอร์เรียบร้อย';
     toast(msg,'ok');
     loadOrders();
   }catch(e){toast('ผิดพลาด: '+(e.message||e),'err');if(btns)btns.forEach(b=>b.disabled=false);}
