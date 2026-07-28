@@ -140,6 +140,8 @@ header{position:sticky;top:0;z-index:40;background:#fff;color:var(--ink);box-sha
 .pstock{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:800;color:var(--green-d);background:var(--green-l);border-radius:6px;padding:2px 7px;align-self:flex-start;margin-top:1px}
 .pstock svg{width:13px;height:13px}
 .pstock.out{color:var(--red);background:#FDECEC}
+.plabels{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:1px}
+.plabel{display:inline-flex;align-items:center;font-size:10.5px;font-weight:800;line-height:1.35}
 .pbadge{position:absolute;top:7px;left:7px;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;box-shadow:var(--sh)}
 .pbody{padding:9px 10px 11px;display:flex;flex-direction:column;flex:1;gap:5px}
 .pcat{font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.4px}
@@ -449,6 +451,8 @@ let STOCK_BRANCH = [];   // สาขาคลัง (หลายสาขา) 
 let STOCK = {};          // barcode -> pos_qty รวมทุกสาขาคลัง
 let PROMOS = [];        // แคมเปญโปรโมชั่น (store_promotions)
 let PROMO_BY_BC = {};   // barcode -> โปรแรกที่สินค้าอยู่
+let LABELS = [];        // ป้ายข้อความต่อสินค้า (store_labels)
+let LABEL_BY_BC = {};   // barcode -> [ป้าย...]
 let CAT_BANNERS = {};   // ประเภท -> url แบนเนอร์หัวหมวด (app_settings store_cat_banners)
 let STRIP = {th:'',lo:'',color:''};   // แถบหัวประกาศ (แก้เนื้อหา+สีได้ในคอนโซล)
 let STAFF = null;       // พนักงานล็อกอินดูสต๊อก {username,name,role}
@@ -634,6 +638,16 @@ async function loadPromos(){
   }catch(e){PROMOS=[];PROMO_BY_BC={};}
 }
 function promoFor(bc){return PROMO_BY_BC[bc]||null;}
+async function loadLabels(){
+  try{
+    const {data,error}=await sb.from('store_labels').select('*').eq('is_active',true).order('sort_order',{ascending:true}).order('created_at');
+    if(error)throw error;
+    LABELS=data||[];LABEL_BY_BC={};
+    LABELS.forEach(l=>{(l.barcodes||[]).forEach(bc=>{if(bc){(LABEL_BY_BC[bc]=LABEL_BY_BC[bc]||[]).push(l);}});});
+  }catch(e){LABELS=[];LABEL_BY_BC={};}
+}
+function labelsFor(bc){return LABEL_BY_BC[bc]||[];}
+function labelText(l){return isLao()?(l.label_lo||l.label_th||''):(l.label_th||l.label_lo||'');}
 function colorSafe(c){c=String(c||'').trim();if(/^#?[0-9a-fA-F]{3,8}$/.test(c))return c[0]==='#'?c:'#'+c;if(/^(rgb|hsl)a?\([0-9,.%\s]+\)$/.test(c))return c;return '#E1121D';}
 async function restoreSession(){
   if(!token){profile=null;return;}
@@ -864,6 +878,7 @@ function pcard(p){
       <div class="pname" onclick="openProduct('${esc(p.barcode)}')">${esc(p.product_name)}</div>
       ${p.barcode?`<div class="pcat pbc">${esc(p.barcode)}</div>`:''}
       ${showStock()?`<div class="pstock${stockNum(p.barcode)<=0?' out':''}">${svg(IC.pkg,2)}<span>${isLao()?'ສະຕັອກ':'สต๊อก'}: <b>${stockNum(p.barcode).toLocaleString()}</b></span></div>`:''}
+      ${labelsFor(p.barcode).length?`<div class="plabels">${labelsFor(p.barcode).map(l=>`<span class="plabel" style="color:${colorSafe(l.color)}">${l.icon?esc(l.icon)+' ':''}${esc(labelText(l))}</span>`).join('')}</div>`:''}
       ${promoLimitBar(p)}
       <div class="price-box">
         <div class="p-unit">${esc(p.unit||T('unit'))}</div>
@@ -1461,7 +1476,7 @@ async function boot(){
   $('app').innerHTML=header(true)+catBar()+`<div class="wrap"><div class="grid">${'<div class="skel"></div>'.repeat(8)}</div></div>`+bottomNav();
   await loadCatalog();          // โหลดสินค้าก่อน (มี retry ในตัว) — ไม่ให้ query อื่นบล็อก
   render();
-  Promise.all([loadBranches(),loadPromos(),restoreSession(),loadShopQR().then(loadStock)]).then(()=>render());  // พื้นหลัง: สาขา/โปร/session/QR+สต็อกคลัง → re-render
+  Promise.all([loadBranches(),loadPromos(),loadLabels(),restoreSession(),loadShopQR().then(loadStock)]).then(()=>render());  // พื้นหลัง: สาขา/โปร/ป้าย/session/QR+สต็อกคลัง → re-render
 }
 boot();
 </script>

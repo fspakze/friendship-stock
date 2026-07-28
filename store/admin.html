@@ -210,6 +210,7 @@ function render(){
       <button class="${curTab==='accounts'?'on':''}" onclick="setTab('accounts')">${svg(IC.user)} บัญชีรออนุมัติ ${pendingCount?`<span class="cnt">${pendingCount}</span>`:''}</button>
       <button class="${curTab==='orders'?'on':''}" onclick="setTab('orders')">${svg(IC.bag)} ออเดอร์</button>
       <button class="${curTab==='promos'?'on':''}" onclick="setTab('promos')">${svg(IC.promo)} โปรโมชั่น</button>
+      <button class="${curTab==='labels'?'on':''}" onclick="setTab('labels')">🏷️ ป้ายสินค้า</button>
       <button class="${curTab==='settings'?'on':''}" onclick="setTab('settings')">${svg(IC.gear)} ตั้งค่า</button>
     </div></div>
     <div class="wrap" id="tabBody"></div>`;
@@ -220,6 +221,7 @@ function renderTab(){
   if(curTab==='accounts')renderAccounts();
   else if(curTab==='orders')renderOrders();
   else if(curTab==='promos')renderPromos();
+  else if(curTab==='labels')renderLabels();
   else renderSettings();
 }
 
@@ -537,6 +539,84 @@ async function deletePromo(id){
   const pr=_promoList.find(x=>x.id===id);
   if(!confirm('ลบโปรโมชั่น "'+(pr?pr.title:'')+'"?'))return;
   try{const {data,error}=await rpcStaff('rpc_store_promo_delete',{p_id:id});if(error||!data||!data.ok)throw new Error((data&&data.error)||'failed');toast('ลบแล้ว','ok');renderPromos();}catch(e){toast('ลบไม่สำเร็จ: '+(e.message||e),'err');}
+}
+
+/* ============ Tab: Labels (ป้ายข้อความสินค้า) — ใช้ตัวเลือกบาร์โค้ดร่วมกับ promo ============ */
+let _labelList=[]; let _labelEdit=null;
+async function renderLabels(){
+  const body=$('tabBody');
+  const head=`<div class="sec-title"><span class="bar"></span>ป้ายข้อความสินค้า <button class="btn btn-g sm" style="margin-left:auto;width:auto;padding:0 16px" onclick="openLabelEditor(null)">🏷️ สร้างป้ายใหม่</button></div>`;
+  body.innerHTML=head+'<div class="skel"></div>';
+  try{
+    const {data,error}=await sb.from('store_labels').select('*').order('sort_order').order('created_at');
+    if(error)throw error;
+    _labelList=data||[];
+    if(!_labelList.length){body.innerHTML=head+`<div class="empty"><div class="ico">🏷️</div><b>ยังไม่มีป้าย</b><div>เช่น "สั่งเข้า ส่งเย็น" · กำหนดสินค้าด้วยบาร์โค้ด</div></div>`;return;}
+    body.innerHTML=head+`<div class="grid2">${_labelList.map(labelAdminCard).join('')}</div>`;
+  }catch(e){body.innerHTML=head+`<div class="empty"><div class="ico">⚠️</div><b>โหลดไม่สำเร็จ</b><div>${esc(e.message||e)}</div><div style="font-size:11.5px;margin-top:8px;color:var(--muted)">ถ้ายังไม่ได้รัน SQL store_labels ให้รันก่อน</div></div>`;}
+}
+function labelAdminCard(l){
+  const n=(l.barcodes||[]).length;const txt=(l.label_th||l.label_lo||'');
+  return `<div class="acc">
+    <div class="hd"><div><div class="nm"><span style="color:${l.color||'#E1121D'}">${l.icon?esc(l.icon)+' ':''}${esc(txt)}</span></div><div class="meta">${n} สินค้า</div></div>
+      <span class="stbadge" style="color:${l.is_active?'#0E7C5A':'#DC2626'};background:${l.is_active?'#E6F4EF':'#FEECEC'}">${l.is_active?'เปิด':'ปิด'}</span></div>
+    <div class="actbtns">
+      <button class="btn btn-o sm" style="flex:1" onclick="openLabelEditor('${l.id}')">แก้ไข</button>
+      <button class="btn btn-r sm" onclick="deleteLabel('${l.id}')">ลบ</button>
+    </div></div>`;
+}
+async function openLabelEditor(id){
+  const l=id?_labelList.find(x=>x.id===id):null;
+  _labelEdit={id:id||null,th:l?(l.label_th||''):'',lo:l?(l.label_lo||''):'',color:l?(l.color||'#E1121D'):'#E1121D',icon:l?(l.icon||''):'',is_active:l?l.is_active:true,sort_order:l?(l.sort_order||0):0};
+  _promoEdit={barcodes:l?(l.barcodes||[]).slice():[],_q:''};   // reuse ตัวเลือกบาร์โค้ดของ promo
+  openSheet('<div class="sheet-b"><div class="skel" style="height:120px"></div><div style="text-align:center;padding:10px;color:var(--muted)">กำลังโหลดรายการสินค้า...</div></div>');
+  await ensureCatalog();
+  renderLabelEditor();
+}
+function renderLabelEditor(){
+  const e=_labelEdit;
+  openSheet(`
+    <div class="sheet-h"><h3>${e.id?'แก้ไขป้าย':'สร้างป้ายใหม่'}</h3><button class="x" onclick="closeSheet()">✕</button></div>
+    <div class="sheet-b">
+      <div style="display:flex;gap:10px">
+        <div class="field" style="flex:0 0 auto"><label>ไอคอน</label><input id="lblIcon" value="${esc(e.icon)}" placeholder="🛒" maxlength="4" style="width:74px;text-align:center;font-size:18px"></div>
+        <div class="field" style="flex:1"><label>สีข้อความ</label><input type="color" id="lblColor" value="${esc(e.color||'#E1121D')}" style="width:100%;height:42px;padding:2px;border:1.5px solid var(--line-2);border-radius:8px;cursor:pointer"></div>
+      </div>
+      <div class="field"><label>ข้อความ (ไทย) *</label><input id="lblTh" value="${esc(e.th)}" placeholder="สั่งเข้า ส่งเย็น"></div>
+      <div class="field"><label>ข้อความ (ลาว)</label><input id="lblLo" value="${esc(e.lo)}" placeholder="ปล่อยว่าง = ใช้ข้อความไทย"></div>
+      <div class="field"><label>ลำดับ (เลขน้อยมาก่อน)</label><input id="lblSort" type="number" value="${e.sort_order||0}" placeholder="0"></div>
+      <div class="row" style="margin:6px 0 14px"><label style="font-weight:700;font-size:13px">เปิดใช้งาน (โชว์ให้ลูกค้า)</label><input type="checkbox" id="lblActive" ${e.is_active?'checked':''} style="width:20px;height:20px"></div>
+      <div style="border-top:1px solid var(--line);padding-top:14px">
+        <div style="font-weight:800;font-size:13.5px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <span>🛒 สินค้าที่ใช้ป้ายนี้ (<span id="promoSelCount">${_promoEdit.barcodes.length}</span>)</span>
+          <button id="selToggleBtn" class="btn btn-o sm" style="width:auto;padding:0 12px;flex:0 0 auto" onclick="togglePromoSel()">แสดงรายการ ▼</button>
+        </div>
+        <div id="promoSelected" style="display:none;margin-bottom:10px">${promoSelectedHtml()}</div>
+        <textarea id="pBulkBc" placeholder="วางบาร์โค้ดหลายตัวพร้อมกันได้ (คั่นด้วยเว้นวรรค / ขึ้นบรรทัดใหม่ / , )" style="width:100%;border:1.5px solid var(--line-2);border-radius:10px;padding:10px 12px;min-height:58px;resize:vertical;margin-bottom:6px"></textarea>
+        <button class="btn btn-o sm" style="width:auto;padding:0 16px;margin-bottom:12px" onclick="addBulkBarcodes()">＋ เพิ่มจากบาร์โค้ดที่วาง</button>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">— หรือค้นหาทีละรายการ —</div>
+        <input id="pSearch" placeholder="ค้นหาสินค้า (ชื่อ / บาร์โค้ด)" oninput="searchPromo(this.value)" value="${esc(_promoEdit._q)}" style="width:100%;border:1.5px solid var(--line-2);border-radius:10px;padding:10px 12px;margin-bottom:8px">
+        <div id="promoResults" style="max-height:240px;overflow-y:auto">${promoResultsHtml()}</div>
+      </div>
+      <button class="btn btn-g" id="labelSaveBtn" style="margin-top:16px" onclick="saveLabel()">${svg(IC.check,2)} บันทึกป้าย</button>
+    </div>`);
+}
+async function saveLabel(){
+  const th=(($('lblTh')||{}).value||'').trim();const lo=(($('lblLo')||{}).value||'').trim();
+  if(!th&&!lo){toast('ใส่ข้อความป้าย','warn');return;}
+  const color=(($('lblColor')||{}).value||'').trim();const icon=(($('lblIcon')||{}).value||'').trim();
+  const active=!!(($('lblActive')||{}).checked);const sort=Number(($('lblSort')||{}).value)||0;
+  const btn=$('labelSaveBtn');if(btn)btn.disabled=true;
+  try{
+    const {data,error}=await rpcStaff('rpc_store_label_upsert',{p_id:_labelEdit.id,p_th:th||null,p_lo:lo||null,p_color:color||'#E1121D',p_icon:icon||null,p_barcodes:_promoEdit.barcodes,p_is_active:active,p_sort:sort});
+    if(error||!data||!data.ok)throw new Error((data&&data.error)||(error&&error.message)||'failed');
+    toast('บันทึกป้ายแล้ว','ok');closeSheet();renderLabels();
+  }catch(e){toast('บันทึกไม่สำเร็จ: '+(e.message||e),'err');if(btn)btn.disabled=false;}
+}
+async function deleteLabel(id){
+  const l=_labelList.find(x=>x.id===id);
+  if(!confirm('ลบป้าย "'+(l?(l.label_th||l.label_lo||''):'')+'"?'))return;
+  try{const {data,error}=await rpcStaff('rpc_store_label_delete',{p_id:id});if(error||!data||!data.ok)throw new Error((data&&data.error)||'failed');toast('ลบแล้ว','ok');renderLabels();}catch(e){toast('ลบไม่สำเร็จ: '+(e.message||e),'err');}
 }
 
 /* ============ Tab: Settings ============ */
