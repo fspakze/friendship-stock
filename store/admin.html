@@ -286,21 +286,29 @@ function openMemberSearch(accId){
     </div>`);
   setTimeout(()=>{const q=$('msQ');if(q)q.focus();},100);
 }
+let _msRows=[];
 async function doMemberSearch(){
   const q=($('msQ').value||'').trim();const res=$('msRes');
   res.innerHTML='<div class="skel" style="height:50px"></div>';
   try{
-    const {data,error}=await rpcStaff('rpc_search_members',{p_q:q,p_type:'ALL',p_sort:'points.desc',p_limit:40});
-    if(error||!data||!data.ok)throw new Error((data&&data.error)||'search failed');
-    const rows=data.rows||[];
-    if(!rows.length){res.innerHTML='<div class="empty" style="padding:24px"><b>ไม่พบสมาชิก</b></div>';return;}
+    // rpc_search_members ใช้ auth คนละชื่อพารามิเตอร์กับ store staff (p_actor_username/p_actor_hash)
+    // และเช็คกับตาราง users จริง — actor คอนโซลนี้ล็อกอินผ่าน verify_login = main-app user จึงผ่าน
+    const {data,error}=await sb.rpc('rpc_search_members',{p_actor_username:actor.username,p_actor_hash:actor.hash,p_q:q,p_type:'ALL',p_sort:'points.desc',p_limit:40});
+    if(error||!data||!data.ok)throw new Error((data&&data.error)||(error&&error.message)||'search failed');
+    const rows=data.rows||[];_msRows=rows;
+    if(!rows.length){res.innerHTML='<div class="empty" style="padding:24px"><b>ไม่พบสมาชิก</b><div style="font-size:12px;color:var(--muted);margin-top:4px">ลองค้นด้วยเบอร์โทรหรือรหัส M-xxxx</div></div>';return;}
     res.innerHTML=rows.map(m=>`<div class="mres" onclick="pickMember('${esc(m.member_code)}')">
       <div><div style="font-weight:800;font-size:13.5px">${esc(m.name||'-')}</div>
-      <div style="font-size:11.5px;color:var(--muted)">${esc(m.member_code||'')} · ${esc(m.tel||m.mobile||'')}</div></div>
+      <div style="font-size:11.5px;color:var(--muted)">${esc(m.member_code||'')} · ${esc(m.tel||m.mobile||'')}${m.business_type?' · '+esc(m.business_type):''}</div></div>
       <div style="font-weight:800;color:var(--purple);font-size:13px">${Number(m.points||0).toLocaleString()} แต้ม</div></div>`).join('');
   }catch(e){res.innerHTML=`<div class="empty" style="padding:24px"><b>ค้นหาไม่สำเร็จ</b><div>${esc(e.message||e)}</div></div>`;}
 }
-function pickMember(mc){const inp=$('mc-'+msTarget);if(inp)inp.value=mc;closeSheet();toast('เลือกสมาชิก '+mc,'ok');}
+function pickMember(mc){
+  const inp=$('mc-'+msTarget);if(inp)inp.value=mc;
+  const m=_msRows.find(x=>x.member_code===mc);
+  closeSheet();
+  toast('ผูกสมาชิก '+mc+(m&&m.name?' · '+m.name:''),'ok');
+}
 
 /* ============ Tab: Orders ============ */
 function renderOrders(){
