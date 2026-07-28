@@ -68,6 +68,7 @@ header{position:sticky;top:0;z-index:40;background:#fff;color:var(--ink);box-sha
 .vchip{border:1.5px solid var(--line-2);background:var(--card);color:var(--muted);border-radius:11px;padding:3px 12px;font-size:11px;font-weight:800;cursor:pointer;margin-right:2px}
 .vchip.on{background:var(--blue);border-color:var(--blue);color:#fff}
 .htools{display:flex;align-items:center;gap:4px}
+@media(max-width:819px){.htools{display:none}}  /* มือถือ: บัญชี/ตะกร้าอยู่แถบล่างแล้ว → เหลือโลโก้+ค้นหาเต็มแถว */
 .hbtn{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;position:relative;color:var(--green);transition:background .15s}
 .hbtn:hover{background:var(--bg)}
 .hbtn svg{width:21px;height:21px}
@@ -806,11 +807,14 @@ function filteredProducts(){
   return list;
 }
 function viewHome(){
+  return header(true)+catBar()+`<div class="wrap" id="homeWrap">${homeBody()}</div>`;
+}
+// เนื้อหาหน้าแรก (แยกจาก header เพื่อให้ตอนค้นหา re-render เฉพาะส่วนนี้ ไม่แตะ input → แป้นพิมพ์ไม่กระพริบ)
+function homeBody(){
   if(!PRODUCTS.length){
-    const body=catalogError
+    return catalogError
       ? `<div class="empty"><div class="ico">⚠️</div><b>${esc(T('loadfail'))}</b><div style="margin:6px 0 16px;font-size:12px;word-break:break-word">${esc(catalogError)}</div><button class="btn btn-g" style="max-width:220px;margin:0 auto" onclick="reloadCatalog()">${esc(T('retry'))}</button></div>`
       : `<div class="empty"><div class="ico">🛒</div><b>${esc(T('noproducts'))}</b><div>${esc(T('loadingshop'))}</div></div>`;
-    return header(true)+catBar()+`<div class="wrap">${body}</div>`;
   }
   // หน้าแรก (ALL + ไม่ค้นหา) → แยกเป็นหมวด แถวเลื่อนแนวนอน + ดูทั้งหมด (แบบ Makro)
   if(curCat==='ALL' && !curSearch.trim()){
@@ -819,27 +823,24 @@ function viewHome(){
     const promoList=PRODUCTS.filter(p=>unitWas(p)>0||(Number(p.pack_promo)>0&&Number(p.pack_normal)>Number(p.pack_promo))||(Number(p.box_promo)>0&&Number(p.box_normal)>Number(p.box_promo)));
     if(promoList.length) secs+=homeSection('🔥 '+(isLao()?'ໂປຣໂມຊັ່ນ':'โปรโมชั่น'),'__PROMO__',promoList);
     CATS.forEach(c=>{ const items=PRODUCTS.filter(p=>p.category===c); if(items.length) secs+=homeSection(catIcon(c)+' '+catLabel(c),c,items); });
-    return header(true)+catBar()+`<div class="wrap">${secs}</div>`;
+    return secs;
   }
   // เลือกหมวด/โปร/โปรด หรือ ค้นหา → กริดแบนทั้งหมด
   const list=filteredProducts();
-  let body;
   if(!list.length){
-    body=curCat==='__FAV__'
+    return curCat==='__FAV__'
       ? `<div class="empty"><div class="ico">🤍</div><b>${esc(T('favempty'))}</b><button class="btn btn-g" style="max-width:220px;margin:16px auto 0" onclick="selCat('ALL')">${esc(T('shopnow'))}</button></div>`
       : `<div class="empty"><div class="ico">🔍</div><b>${esc(T('nofound'))}</b></div>`;
-  }else{
-    const secLabel=curCat==='__FAV__'?('❤️ '+esc(T('favorites'))):curCat==='__PROMO__'?('🔥 '+esc(T('promo'))):esc(catLabel(curCat));
-    const shown=list.slice(0,PAGE*PER_PAGE);
-    const catBanner=(curCat!=='__FAV__'&&curCat!=='__PROMO__'&&!curSearch.trim()&&CAT_BANNERS[curCat])
-      ? `<div class="promo-hero"><img src="${esc(CAT_BANNERS[curCat])}" alt="" loading="lazy" decoding="async" onerror="this.parentNode.style.display='none'"></div>` : '';
-    const groups=(curCat!=='__FAV__'&&curCat!=='__PROMO__'&&curCat!=='ALL'&&!curSearch.trim())?catGroups(curCat):[];
-    const groupBar=groups.length?`<div class="grpbar"><button class="grp-chip ${!curGroup?'on':''}" onclick="selGroup('')">${isLao()?'ທັງໝົດ':'ทั้งหมด'}</button>${groups.map(g=>`<button class="grp-chip ${curGroup===g?'on':''}" onclick="selGroup('${encJs(g)}')">${esc(groupLabel(g))}</button>`).join('')}</div>`:'';
-    const grpLabel=curGroup?` › ${esc(groupLabel(curGroup))}`:'';
-    body=`${catBanner}<div class="sec-title"><button class="back-mini" onclick="selCat('ALL')">${svg(IC.back)}</button>${secLabel}${grpLabel} <span style="color:var(--muted);font-weight:600;font-size:13px">(${list.length})</span></div>${groupBar}
-      <div class="grid">${shown.map(pcard).join('')}</div>${loadMore(shown.length,list.length)}`;
   }
-  return header(true)+catBar()+`<div class="wrap">${body}</div>`;
+  const secLabel=curCat==='__FAV__'?('❤️ '+esc(T('favorites'))):curCat==='__PROMO__'?('🔥 '+esc(T('promo'))):curSearch.trim()?('🔍 '+esc(T('search'))):esc(catLabel(curCat));
+  const shown=list.slice(0,PAGE*PER_PAGE);
+  const catBanner=(curCat!=='__FAV__'&&curCat!=='__PROMO__'&&!curSearch.trim()&&CAT_BANNERS[curCat])
+    ? `<div class="promo-hero"><img src="${esc(CAT_BANNERS[curCat])}" alt="" loading="lazy" decoding="async" onerror="this.parentNode.style.display='none'"></div>` : '';
+  const groups=(curCat!=='__FAV__'&&curCat!=='__PROMO__'&&curCat!=='ALL'&&!curSearch.trim())?catGroups(curCat):[];
+  const groupBar=groups.length?`<div class="grpbar"><button class="grp-chip ${!curGroup?'on':''}" onclick="selGroup('')">${isLao()?'ທັງໝົດ':'ทั้งหมด'}</button>${groups.map(g=>`<button class="grp-chip ${curGroup===g?'on':''}" onclick="selGroup('${encJs(g)}')">${esc(groupLabel(g))}</button>`).join('')}</div>`:'';
+  const grpLabel=curGroup?` › ${esc(groupLabel(curGroup))}`:'';
+  return `${catBanner}<div class="sec-title"><button class="back-mini" onclick="selCat('ALL')">${svg(IC.back)}</button>${secLabel}${grpLabel} <span style="color:var(--muted);font-weight:600;font-size:13px">(${list.length})</span></div>${groupBar}
+      <div class="grid">${shown.map(pcard).join('')}</div>${loadMore(shown.length,list.length)}`;
 }
 // ปุ่มโหลดเพิ่ม (แบ่งหน้า กันมือถือค้าง)
 function loadMore(shown,total){
@@ -903,8 +904,17 @@ function stepperHtml(bc,ut,q,cls){
     <button onclick="chgQty('${esc(bc)}','${ut}',1)">+</button>
   </div>`;
 }
-function onSearch(v){curSearch=v;PAGE=1;if(v&&view!=='home'){view='home';curCat='ALL';}
-  render();setTimeout(()=>{const q=$('q');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}},0);
+let _searchTimer=null;
+function onSearch(v){
+  curSearch=v;PAGE=1;
+  // ถ้าอยู่หน้าอื่น → ต้อง render เต็มเพื่อสลับเลย์เอาต์เป็นหน้าแรก (ครั้งเดียว ตอนเริ่มพิมพ์)
+  if(v&&view!=='home'){view='home';curCat='ALL';render();return;}
+  // อยู่หน้าแรกแล้ว → อัปเดตเฉพาะรายการสินค้า (#homeWrap) ไม่แตะ header/input → โฟกัสไม่หลุด แป้นพิมพ์ไม่กระพริบ
+  if(_searchTimer)clearTimeout(_searchTimer);
+  _searchTimer=setTimeout(()=>{
+    const w=$('homeWrap');
+    if(w)w.innerHTML=homeBody(); else render();
+  },180);
 }
 // ค้นหาด้วยเสียง (Web Speech API) — เลือกภาษาพูดเอง ไทย/ลาว/EN (แม่นกว่าผูกกับ UI)
 function voiceChipsHtml(){
