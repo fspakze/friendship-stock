@@ -93,7 +93,17 @@ header{position:sticky;top:0;z-index:40;background:#fff;color:var(--ink);box-sha
 .cati{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:22px;flex-shrink:0}
 .catl{flex:1;font-weight:700;font-size:14px;color:var(--ink)}
 .catl small{display:block;font-size:11px;color:var(--muted);font-weight:500}
-.catchev{color:var(--muted)}.catchev svg{width:18px;height:18px}
+.catchev{color:var(--muted);transition:transform .15s}.catchev svg{width:18px;height:18px}
+/* กลุ่มย่อยในเมนู (accordion) */
+.catsub{display:flex;flex-direction:column;background:var(--bg);border-bottom:1px solid var(--line)}
+.catsub-item{text-align:left;padding:10px 14px 10px 52px;font-size:13px;font-weight:700;color:var(--ink);border-bottom:1px solid var(--line)}
+.catsub-item:last-child{border-bottom:none}
+.catsub-item small{color:var(--muted);font-weight:600;margin-left:3px}
+.catsub-item.on{color:var(--blue);background:var(--blue-l)}
+/* แถบชิปกลุ่มย่อยบนหน้าหมวด */
+.grpbar{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+.grp-chip{white-space:nowrap;padding:6px 14px;border-radius:16px;background:var(--bg);border:1.5px solid var(--line-2);font-size:12.5px;font-weight:700;color:var(--muted);flex-shrink:0;scroll-snap-align:start}
+.grp-chip.on{background:var(--blue);border-color:var(--blue);color:#fff}
 
 /* ---------- Layout container ---------- */
 .wrap{max-width:1240px;margin:0 auto;padding:14px 12px}
@@ -446,6 +456,8 @@ let SHOW_STOCK_CUST = false;  // โชว์สต๊อกให้ลูก�
 const STAFF_SALT = 'friendship_pakse_2026';   // ตรงกับแอปหลัก (verify_login)
 let curPromo = null;    // แคมเปญที่เลือกดูในแท็บโปรฯ (null = หน้ารวมทุกโปร)
 let promoSort = 'pct';  // เรียงสินค้าโปรฯ: 'pct'=ส่วนลด% · 'amt'=ประหยัดเงิน
+let curGroup = '';      // กลุ่มสินค้าย่อย (product_group) ภายในหมวดที่เลือก
+let _catExpand = '';    // หมวดที่กางกลุ่มย่อยในเมนู (accordion)
 let PAGE = 1;           // หน้าปัจจุบันของกริด (แบ่งหน้า กันมือถือค้าง)
 const PER_PAGE = 24;    // จำนวนสินค้าต่อหน้า
 
@@ -730,21 +742,40 @@ function catCount(id){
   if(id==='__PROMO__')return PRODUCTS.filter(p=>unitWas(p)||(Number(p.pack_promo)>0)||(Number(p.box_promo)>0)).length;
   return PRODUCTS.filter(p=>p.category===id).length;
 }
+const encJs=(x)=>encodeURIComponent(String(x==null?'':x)).replace(/'/g,'%27');
+// กลุ่มสินค้าย่อย (product_group) ในหมวด
+function catGroups(cat){const s=new Set();PRODUCTS.forEach(p=>{if(p.category===cat&&p.product_group)s.add(p.product_group);});return [...s].sort();}
+function groupCount(cat,g){return PRODUCTS.filter(p=>p.category===cat&&(p.product_group||'')===g).length;}
+function groupLabel(g){return String(g||'').replace(/^\s*\d+\s*[-.\s]+/,'').trim()||String(g||'');}
 function openCatMenu(){
-  const item=(id,icon,label,color)=>`<button class="catmenu-item ${curCat===id?'on':''}" onclick="selCatMenu('${esc(id)}')">
+  const simple=(id,icon,label,color)=>`<button class="catmenu-item ${curCat===id?'on':''}" onclick="selCatMenu('${encJs(id)}','')">
     <span class="cati" style="background:${color}">${icon}</span>
     <span class="catl">${esc(label)}<small>${catCount(id)} ${esc(T('products'))}</small></span>
     <span class="catchev">${svg(IC.chevR)}</span></button>`;
+  const catBlock=(c)=>{
+    const groups=catGroups(c);const expanded=_catExpand===c;
+    let h=`<button class="catmenu-item ${curCat===c&&!curGroup?'on':''}" onclick="${groups.length?`toggleCatExpand('${encJs(c)}')`:`selCatMenu('${encJs(c)}','')`}">
+      <span class="cati" style="background:${catColor(c)}">${catIcon(c)}</span>
+      <span class="catl">${esc(catLabel(c))}<small>${catCount(c)} ${esc(T('products'))}${groups.length?' · '+groups.length+(isLao()?' ກຸ່ມ':' กลุ่ม'):''}</small></span>
+      <span class="catchev"${expanded?' style="transform:rotate(90deg)"':''}>${svg(IC.chevR)}</span></button>`;
+    if(expanded){
+      h+=`<div class="catsub"><button class="catsub-item ${curCat===c&&!curGroup?'on':''}" onclick="selCatMenu('${encJs(c)}','')">${isLao()?'ທັງໝົດ':'ทั้งหมด'} <small>(${catCount(c)})</small></button>`
+        +groups.map(g=>`<button class="catsub-item ${curCat===c&&curGroup===g?'on':''}" onclick="selCatMenu('${encJs(c)}','${encJs(g)}')">${esc(groupLabel(g))} <small>(${groupCount(c,g)})</small></button>`).join('')+`</div>`;
+    }
+    return h;
+  };
   const html=`<div class="sheet-h"><h3>${isLao()?'ສິນຄ້າທຸກໝວດ':'สินค้าทุกหมวดหมู่'}</h3><button class="x" onclick="closeSheet()">✕</button></div>
     <div class="sheet-b" style="padding-top:0"><div class="catmenu">
-      ${item('ALL','🛒',T('all'),'var(--blue-l)')}
-      ${item('__FAV__','❤️',T('favorites'),'var(--red-l)')}
-      ${item('__PROMO__','🔥',isLao()?'ໂປຣໂມຊັ່ນ':'โปรโมชั่น','var(--red-l)')}
-      ${CATS.map(c=>item(c,catIcon(c),catLabel(c),catColor(c))).join('')}
+      ${simple('ALL','🛒',T('all'),'var(--blue-l)')}
+      ${simple('__FAV__','❤️',T('favorites'),'var(--red-l)')}
+      ${simple('__PROMO__','🔥',isLao()?'ໂປຣໂມຊັ່ນ':'โปรโมชั่น','var(--red-l)')}
+      ${CATS.map(catBlock).join('')}
     </div></div>`;
   openSheet(html);
 }
-function selCatMenu(id){curCat=id;closeSheet();window.scrollTo(0,0);render();}
+function toggleCatExpand(cEnc){const c=decodeURIComponent(cEnc);_catExpand=(_catExpand===c)?'':c;openCatMenu();}
+function selCatMenu(idEnc,gEnc){curCat=decodeURIComponent(idEnc);curGroup=gEnc?decodeURIComponent(gEnc):'';view='home';PAGE=1;closeSheet();window.scrollTo(0,0);render();}
+function selGroup(gEnc){curGroup=gEnc?decodeURIComponent(gEnc):'';PAGE=1;window.scrollTo(0,0);render();}
 
 /* ---------- Home / catalog ---------- */
 function filteredProducts(){
@@ -752,6 +783,7 @@ function filteredProducts(){
   if(curCat==='__FAV__')list=list.filter(p=>isFav(p.barcode));
   else if(curCat==='__PROMO__')list=list.filter(p=>unitWas(p)||(Number(p.pack_promo)>0)||(Number(p.box_promo)>0));
   else if(curCat!=='ALL')list=list.filter(p=>p.category===curCat);
+  if(curGroup&&curCat!=='ALL'&&curCat!=='__FAV__'&&curCat!=='__PROMO__')list=list.filter(p=>(p.product_group||'')===curGroup);
   if(curSearch.trim()){
     const q=curSearch.trim().toLowerCase();
     list=list.filter(p=>(p.product_name||'').toLowerCase().includes(q)||(p.barcode||'').includes(q)||(p.category||'').toLowerCase().includes(q));
@@ -786,7 +818,10 @@ function viewHome(){
     const shown=list.slice(0,PAGE*PER_PAGE);
     const catBanner=(curCat!=='__FAV__'&&curCat!=='__PROMO__'&&!curSearch.trim()&&CAT_BANNERS[curCat])
       ? `<div class="promo-hero"><img src="${esc(CAT_BANNERS[curCat])}" alt="" loading="lazy" decoding="async" onerror="this.parentNode.style.display='none'"></div>` : '';
-    body=`${catBanner}<div class="sec-title"><button class="back-mini" onclick="selCat('ALL')">${svg(IC.back)}</button>${secLabel} <span style="color:var(--muted);font-weight:600;font-size:13px">(${list.length})</span></div>
+    const groups=(curCat!=='__FAV__'&&curCat!=='__PROMO__'&&curCat!=='ALL'&&!curSearch.trim())?catGroups(curCat):[];
+    const groupBar=groups.length?`<div class="grpbar"><button class="grp-chip ${!curGroup?'on':''}" onclick="selGroup('')">${isLao()?'ທັງໝົດ':'ทั้งหมด'}</button>${groups.map(g=>`<button class="grp-chip ${curGroup===g?'on':''}" onclick="selGroup('${encJs(g)}')">${esc(groupLabel(g))}</button>`).join('')}</div>`:'';
+    const grpLabel=curGroup?` › ${esc(groupLabel(curGroup))}`:'';
+    body=`${catBanner}<div class="sec-title"><button class="back-mini" onclick="selCat('ALL')">${svg(IC.back)}</button>${secLabel}${grpLabel} <span style="color:var(--muted);font-weight:600;font-size:13px">(${list.length})</span></div>${groupBar}
       <div class="grid">${shown.map(pcard).join('')}</div>${loadMore(shown.length,list.length)}`;
   }
   return header(true)+catBar()+`<div class="wrap">${body}</div>`;
@@ -992,7 +1027,7 @@ function startPromoClock(){
   };
   tick();_promoTimer=setInterval(tick,1000);
 }
-function selCat(id){curCat=id;view='home';PAGE=1;window.scrollTo(0,0);render();}
+function selCat(id){curCat=id;curGroup='';view='home';PAGE=1;window.scrollTo(0,0);render();}
 function toggleLang(){setLang(lang==='th'?'lo':'th');}
 function setLang(l){if(l!=='th'&&l!=='lo')return;if(l===lang)return;lang=l;try{localStorage.setItem('fs_store_lang',l);}catch(e){}document.documentElement.lang=l==='lo'?'lo':'th';render();}
 
