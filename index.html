@@ -10979,9 +10979,11 @@ function hcSetMenu() {
   showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;"><h3 style="font-size:15px;margin:0;">⚙️ ' + (isLao ? 'ຈັດການຊຸດ Catalog' : 'จัดการชุด Catalog') + '</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
     + '<div style="font-size:11px;color:var(--slate-400);margin-bottom:12px;">' + (isLao ? 'ຊຸດປັດຈຸບັນ' : 'ชุดปัจจุบัน') + ': <b style="color:var(--slate-700);">' + escapeHtml(_hcSet) + '</b></div>'
     + item('➕', (isLao ? 'ສ້າງຊຸດໃໝ່ (ວ່າງ)' : 'สร้างชุดใหม่ (ว่าง)'), 'closeModal();hcNewSet()')
-    + item('✏️', (isLao ? 'ປ່ຽນຊື່ຊຸດ' : 'เปลี่ยนชื่อชุด'), 'closeModal();hcRenameSet()')
+    + (_hcSet !== 'main' ? item('✏️', (isLao ? 'ປ່ຽນຊື່ຊຸດ' : 'เปลี่ยนชื่อชุด'), 'closeModal();hcRenameSet()') : '')
     + item('📑', (isLao ? 'ສຳເນົາຊຸດນີ້ (ສ້າງໃໝ່ຈາກຊຸດນີ້)' : 'คัดลอกชุดนี้ (สร้างใหม่จากชุดนี้)'), 'closeModal();hcCopySet()')
-    + (isAdmin ? item('🗑️', (isLao ? 'ລຶບຊຸດນີ້' : 'ลบชุดนี้'), 'closeModal();hcDeleteSet()', true) : ''));
+    + (isAdmin ? item('🔄', (isLao ? 'ລວມສິນຄ້າທຸກຊຸດເຂົ້າ main' : 'รวมสินค้าทุกชุดเข้า main'), 'closeModal();hcSyncAllToMain()') : '')
+    + (isAdmin && _hcSet !== 'main' ? item('🗑️', (isLao ? 'ລຶບຊຸດນີ້' : 'ลบชุดนี้'), 'closeModal();hcDeleteSet()', true) : '')
+    + (_hcSet === 'main' ? '<div style="font-size:11px;color:var(--slate-400);background:var(--slate-50);border-radius:9px;padding:9px 11px;margin-top:2px;line-height:1.5;">🔒 ' + (isLao ? 'ຊຸດ main = ຊຸດຫຼັກ ປ່ຽນຊື່/ລຶບບໍ່ໄດ້ · ລວມສິນຄ້າທຸກຊຸດອັດຕະໂນມັດ' : 'ชุด main = ชุดหลัก เปลี่ยนชื่อ/ลบไม่ได้ · รวมสินค้าทุกชุดอัตโนมัติ') + '</div>' : ''));
 }
 async function hcCopySet() {
   if (!hcRequireEdit()) return;
@@ -11058,6 +11060,7 @@ async function hcDeleteSet() {
 async function hcRenameSet() {
   if (!hcRequireEdit()) return;
   const isLao = lang === 'lo';
+  if (_hcSet === 'main') { showToast(isLao ? 'ຊຸດ main ປ່ຽນຊື່ບໍ່ໄດ້ (ຊຸດຫຼັກ ລວມສິນຄ້າທຸກຊຸດ)' : 'ชุด main เปลี่ยนชื่อไม่ได้ (ชุดหลัก รวมสินค้าทุกชุด)', 'warning'); return; }
   const oldName = _hcSet;
   const input = prompt(isLao ? 'ຕັ້ງຊື່ໃໝ່ໃຫ້ຊຸດ Catalog:' : 'ตั้งชื่อใหม่ให้ชุด Catalog:', oldName);
   if (input == null) return;
@@ -11376,6 +11379,43 @@ async function hcEnsureInMain(rows) {
     }
     return add.length;
   } catch (e) { console.warn('hcEnsureInMain', e); return 0; }
+}
+// รวมสินค้าจากทุกชุดเข้า main (admin) — กู้ main ที่ว่าง / เติมให้ครบ · ไม่ทับราคาเดิมใน main
+async function hcSyncAllToMain() {
+  const isLao = lang === 'lo';
+  if ((user && user.role) !== 'admin') { showToast(isLao ? 'ໄດ້ສະເພາະ admin' : 'ทำได้เฉพาะ admin', 'warning'); return; }
+  if (!confirm(isLao ? 'ດຶງສິນຄ້າຈາກທຸກຊຸດເຂົ້າ main? (ບໍ່ທັບລາຄາເດີມທີ່ມີໃນ main)' : 'ดึงสินค้าจากทุกชุดเข้า main? (ไม่ทับราคาเดิมที่มีใน main)')) return;
+  showToast(isLao ? 'ກຳລັງລວມ...' : 'กำลังรวม...', 'info');
+  try {
+    const all = await fetchAllQuery(() => sb.from('horeca_catalog').select('*').neq('catalog_set', 'main').order('id'));
+    const seen = new Set(); const uniq = [];
+    (all || []).forEach(r => { const bc = String(r.barcode || ''); if (!bc || seen.has(bc)) return; seen.add(bc); uniq.push(r); });
+    if (!uniq.length) { showToast(isLao ? 'ບໍ່ມີສິນຄ້າໃນຊຸດອື່ນ' : 'ไม่มีสินค้าในชุดอื่น', 'info'); return; }
+    const bcs = uniq.map(r => String(r.barcode));
+    const have = new Set();
+    for (let i = 0; i < bcs.length; i += 300) {
+      const { data } = await sb.from('horeca_catalog').select('barcode').eq('catalog_set', 'main').in('barcode', bcs.slice(i, i + 300));
+      (data || []).forEach(r => have.add(String(r.barcode)));
+    }
+    const add = [];
+    uniq.forEach(r => {
+      if (have.has(String(r.barcode))) return;
+      const o = Object.assign({}, r);
+      o.catalog_set = 'main';
+      delete o.id; delete o.is_favorite; delete o.is_hidden; delete o.sort_order;
+      add.push(o);
+    });
+    if (!add.length) { showToast(isLao ? 'main ມີສິນຄ້າຄົບແລ້ວ' : 'main มีสินค้าครบแล้ว', 'success'); return; }
+    let done = 0, failed = 0;
+    for (let i = 0; i < add.length; i += 300) {
+      const slice = add.slice(i, i + 300);
+      const { error } = await sb.from('horeca_catalog').upsert(slice, { onConflict: 'catalog_set,barcode' });
+      if (error) { failed += slice.length; console.warn('hcSyncAllToMain', error.message); } else done += slice.length;
+    }
+    if (typeof logActivity === 'function') logActivity('horeca_syncmain', 'added ' + done + (failed ? ' failed ' + failed : ''));
+    showToast('✓ ' + (isLao ? 'ເພີ່ມເຂົ້າ main ' : 'เพิ่มเข้า main ') + done + (isLao ? ' ລາຍການ' : ' รายการ') + (failed ? (isLao ? ' · ພາດ ' : ' · พลาด ') + failed : ''), failed ? 'warning' : 'success');
+    if (_hcSet === 'main') loadHoreca();
+  } catch (e) { showToast('Error: ' + (e.message || e), 'error'); }
 }
 async function hcToggleFav(id, event) {
   if (!hcCanEdit()) return;
@@ -38311,7 +38351,7 @@ window.renderChecklistPage = renderChecklistPage; window.loadChecklist = loadChe
 window.renderTempLogPage = renderTempLogPage; window.loadTempLogs = loadTempLogs; window.tmpSetType = tmpSetType; window.tmpSave = tmpSave;
 // HORECA Catalog
 window.renderHorecaPage = renderHorecaPage; window.loadHoreca = loadHoreca; window.hcSelectSet = hcSelectSet; window.hcNewSet = hcNewSet; window.hcDeleteSet = hcDeleteSet; window.hcScanBtn = hcScanBtn; window.hcLookup = hcLookup; window.hcOnPhoto = hcOnPhoto; window.hcSaveItem = hcSaveItem; window.hcUpdGP = hcUpdGP; window.hcSetCat = hcSetCat; window.hcToggleFavFilter = hcToggleFavFilter; window.hcToggleFav = hcToggleFav; window.hcEdit = hcEdit; window.hcFillCostFromPurchase = hcFillCostFromPurchase; window.hcSaveEdit = hcSaveEdit; window.hcShowBranchStock = hcShowBranchStock; window.hcSuperBranchId = hcSuperBranchId; window.hcDelete = hcDelete; window.hcImportOpen = hcImportOpen; window.hcHandleImport = hcHandleImport; window.hcExportExcel = hcExportExcel; window.hcExportPDF = hcExportPDF; window.hcOpenFontSettings = hcOpenFontSettings; window.hcSetFont = hcSetFont; window.hcResetFont = hcResetFont; window.hcResetDisplay = hcResetDisplay;
-window.hcRenameSet = hcRenameSet; window.hcPasteOpen = hcPasteOpen; window.hcPasteBarcodes = hcPasteBarcodes; window.hcToggleHidden = hcToggleHidden; window.hcToggleHiddenFilter = hcToggleHiddenFilter; window.hcSetCols = hcSetCols; window.hcOpenPromo = hcOpenPromo; window.hcApplyPromo = hcApplyPromo; window.hcClearPromo = hcClearPromo;
+window.hcRenameSet = hcRenameSet; window.hcSyncAllToMain = hcSyncAllToMain; window.hcPasteOpen = hcPasteOpen; window.hcPasteBarcodes = hcPasteBarcodes; window.hcToggleHidden = hcToggleHidden; window.hcToggleHiddenFilter = hcToggleHiddenFilter; window.hcSetCols = hcSetCols; window.hcOpenPromo = hcOpenPromo; window.hcApplyPromo = hcApplyPromo; window.hcClearPromo = hcClearPromo;
 window.hcToggleGroups = hcToggleGroups; window.hcOpenCatPicker = hcOpenCatPicker; window.hcPickCat = hcPickCat; window.hcPickFav = hcPickFav;
 window.hcToggleReorder = hcToggleReorder; window.hcMoveItem = hcMoveItem; window.hcCopySet = hcCopySet; window.hcExportGuard = hcExportGuard; window.hcSetGpMin = hcSetGpMin; window.hcSaveContact = hcSaveContact; window.hcShareText = hcShareText;
 window.hcuOpen = hcuOpen; window.hcuEdit = hcuEdit; window.hcuSave = hcuSave; window.hcuDelete = hcuDelete;
