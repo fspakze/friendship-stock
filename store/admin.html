@@ -211,6 +211,7 @@ function render(){
       <button class="${curTab==='orders'?'on':''}" onclick="setTab('orders')">${svg(IC.bag)} ออเดอร์</button>
       <button class="${curTab==='promos'?'on':''}" onclick="setTab('promos')">${svg(IC.promo)} โปรโมชั่น</button>
       <button class="${curTab==='labels'?'on':''}" onclick="setTab('labels')">🏷️ ป้ายสินค้า</button>
+      <button class="${curTab==='pages'?'on':''}" onclick="setTab('pages')">📄 หน้าข้อมูล</button>
       <button class="${curTab==='settings'?'on':''}" onclick="setTab('settings')">${svg(IC.gear)} ตั้งค่า</button>
     </div></div>
     <div class="wrap" id="tabBody"></div>`;
@@ -222,6 +223,7 @@ function renderTab(){
   else if(curTab==='orders')renderOrders();
   else if(curTab==='promos')renderPromos();
   else if(curTab==='labels')renderLabels();
+  else if(curTab==='pages')renderPages();
   else renderSettings();
 }
 
@@ -665,6 +667,68 @@ async function deleteLabel(id){
   const l=_labelList.find(x=>x.id===id);
   if(!confirm('ลบป้าย "'+(l?(l.label_th||l.label_lo||''):'')+'"?'))return;
   try{const {data,error}=await rpcStaff('rpc_store_label_delete',{p_id:id});if(error||!data||!data.ok)throw new Error((data&&data.error)||'failed');toast('ลบแล้ว','ok');renderLabels();}catch(e){toast('ลบไม่สำเร็จ: '+(e.message||e),'err');}
+}
+
+/* ============ Tab: หน้าข้อมูล (store_pages — เมนู drawer ฝั่งลูกค้า) ============ */
+let _pageList=[]; let _pageEdit=null;
+async function renderPages(){
+  const body=$('tabBody');
+  const head=`<div class="sec-title"><span class="bar"></span>หน้าข้อมูล (เมนู) <button class="btn btn-g sm" style="margin-left:auto;width:auto;padding:0 16px" onclick="openPageEditor(null)">📄 สร้างหน้าใหม่</button></div>
+    <div style="font-size:12px;color:var(--muted);margin:-4px 2px 12px">หน้าเหล่านี้จะโชว์ในเมนู ☰ ของเว็บลูกค้า (ติดต่อเรา / คำถามที่พบบ่อย / เกี่ยวกับร้าน ฯลฯ)</div>`;
+  body.innerHTML=head+'<div class="skel"></div>';
+  try{
+    const {data,error}=await sb.from('store_pages').select('*').order('sort_order').order('created_at');
+    if(error)throw error;
+    _pageList=data||[];
+    if(!_pageList.length){body.innerHTML=head+`<div class="empty"><div class="ico">📄</div><b>ยังไม่มีหน้าข้อมูล</b><div>กด "สร้างหน้าใหม่" เพื่อเริ่ม</div></div>`;return;}
+    body.innerHTML=head+`<div class="grid2">${_pageList.map(pageAdminCard).join('')}</div>`;
+  }catch(e){body.innerHTML=head+`<div class="empty"><div class="ico">⚠️</div><b>โหลดไม่สำเร็จ</b><div>${esc(e.message||e)}</div><div style="font-size:11.5px;margin-top:8px;color:var(--muted)">ถ้ายังไม่ได้รัน SQL store_pages ให้รันก่อน</div></div>`;}
+}
+function pageAdminCard(p){
+  const t=(p.title_th||p.title_lo||'');const body=(p.body_th||p.body_lo||'');
+  return `<div class="acc">
+    <div class="hd"><div><div class="nm">${p.icon?esc(p.icon)+' ':''}${esc(t)}</div><div class="meta">${esc(body.slice(0,50))}${body.length>50?'…':''}</div></div>
+      <span class="stbadge" style="color:${p.is_active?'#0E7C5A':'#DC2626'};background:${p.is_active?'#E6F4EF':'#FEECEC'}">${p.is_active?'เปิด':'ปิด'}</span></div>
+    <div class="actbtns">
+      <button class="btn btn-o sm" style="flex:1" onclick="openPageEditor('${p.id}')">แก้ไข</button>
+      <button class="btn btn-r sm" onclick="deletePage('${p.id}')">ลบ</button>
+    </div></div>`;
+}
+function openPageEditor(id){
+  const p=id?_pageList.find(x=>x.id===id):null;
+  _pageEdit={id:id||null,title_th:p?(p.title_th||''):'',title_lo:p?(p.title_lo||''):'',body_th:p?(p.body_th||''):'',body_lo:p?(p.body_lo||''):'',icon:p?(p.icon||''):'',is_active:p?p.is_active:true,sort_order:p?(p.sort_order||0):0};
+  const e=_pageEdit;
+  openSheet(`
+    <div class="sheet-h"><h3>${e.id?'แก้ไขหน้าข้อมูล':'สร้างหน้าใหม่'}</h3><button class="x" onclick="closeSheet()">✕</button></div>
+    <div class="sheet-b">
+      <div style="display:flex;gap:10px">
+        <div class="field" style="flex:0 0 auto"><label>ไอคอน</label><input id="pgIcon" value="${esc(e.icon)}" placeholder="📞" maxlength="4" style="width:74px;text-align:center;font-size:18px"></div>
+        <div class="field" style="flex:1"><label>ลำดับ (เลขน้อยมาก่อน)</label><input id="pgSort" type="number" value="${e.sort_order||0}" placeholder="0"></div>
+      </div>
+      <div class="field"><label>หัวข้อ (ไทย) *</label><input id="pgTitleTh" value="${esc(e.title_th)}" placeholder="ติดต่อเรา"></div>
+      <div class="field"><label>หัวข้อ (ลาว)</label><input id="pgTitleLo" value="${esc(e.title_lo)}" placeholder="ປ່ອຍວ່າງ = ໃຊ້ພາສາໄທ"></div>
+      <div class="field"><label>เนื้อหา (ไทย) *</label><textarea id="pgBodyTh" style="width:100%;border:1.5px solid var(--line-2);border-radius:10px;padding:10px 12px;min-height:120px;resize:vertical">${esc(e.body_th)}</textarea></div>
+      <div class="field"><label>เนื้อหา (ลาว)</label><textarea id="pgBodyLo" style="width:100%;border:1.5px solid var(--line-2);border-radius:10px;padding:10px 12px;min-height:120px;resize:vertical" placeholder="ປ່ອຍວ່າງ = ໃຊ້ພາສາໄທ">${esc(e.body_lo)}</textarea></div>
+      <div class="row" style="margin:6px 0 14px"><label style="font-weight:700;font-size:13px">เปิดใช้งาน (โชว์ในเมนูลูกค้า)</label><input type="checkbox" id="pgActive" ${e.is_active?'checked':''} style="width:20px;height:20px"></div>
+      <button class="btn btn-g" id="pageSaveBtn" onclick="savePage()">${svg(IC.check,2)} บันทึกหน้า</button>
+    </div>`);
+}
+async function savePage(){
+  const tth=(($('pgTitleTh')||{}).value||'').trim();const tlo=(($('pgTitleLo')||{}).value||'').trim();
+  const bth=(($('pgBodyTh')||{}).value||'').trim();const blo=(($('pgBodyLo')||{}).value||'').trim();
+  if(!tth&&!tlo){toast('ใส่หัวข้อ','warn');return;}
+  const icon=(($('pgIcon')||{}).value||'').trim();const active=!!(($('pgActive')||{}).checked);const sort=Number(($('pgSort')||{}).value)||0;
+  const btn=$('pageSaveBtn');if(btn)btn.disabled=true;
+  try{
+    const {data,error}=await rpcStaff('rpc_store_page_upsert',{p_id:_pageEdit.id,p_title_th:tth||null,p_title_lo:tlo||null,p_body_th:bth||null,p_body_lo:blo||null,p_icon:icon||null,p_is_active:active,p_sort:sort});
+    if(error||!data||!data.ok)throw new Error((data&&data.error)||(error&&error.message)||'failed');
+    toast('บันทึกหน้าแล้ว','ok');closeSheet();renderPages();
+  }catch(e){toast('บันทึกไม่สำเร็จ: '+(e.message||e),'err');if(btn)btn.disabled=false;}
+}
+async function deletePage(id){
+  const p=_pageList.find(x=>x.id===id);
+  if(!confirm('ลบหน้า "'+(p?(p.title_th||p.title_lo||''):'')+'"?'))return;
+  try{const {data,error}=await rpcStaff('rpc_store_page_delete',{p_id:id});if(error||!data||!data.ok)throw new Error((data&&data.error)||'failed');toast('ลบแล้ว','ok');renderPages();}catch(e){toast('ลบไม่สำเร็จ: '+(e.message||e),'err');}
 }
 
 /* ============ Tab: Settings ============ */

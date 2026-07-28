@@ -69,6 +69,21 @@ header{position:sticky;top:0;z-index:40;background:#fff;color:var(--ink);box-sha
 .vchip.on{background:var(--blue);border-color:var(--blue);color:#fff}
 .htools{display:flex;align-items:center;gap:4px}
 @media(max-width:819px){.htools{display:none}}  /* มือถือ: บัญชี/ตะกร้าอยู่แถบล่างแล้ว → เหลือโลโก้+ค้นหาเต็มแถว */
+.hmenu{display:flex;align-items:center;justify-content:center;width:34px;height:38px;color:var(--green);flex-shrink:0;background:none;border:none;cursor:pointer;padding:0}
+.hmenu svg{width:23px;height:23px}
+.drawer-ov{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:60;opacity:0;pointer-events:none;transition:opacity .22s}
+.drawer-ov.show{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;left:0;bottom:0;width:84%;max-width:340px;background:#fff;z-index:61;transform:translateX(-100%);transition:transform .25s cubic-bezier(.4,0,.2,1);overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column}
+.drawer.show{transform:translateX(0)}
+.dw-top{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+.dw-top img{height:34px;width:auto}
+.dw-x{width:34px;height:34px;border:none;background:var(--bg);border-radius:9px;font-size:18px;color:var(--ink);cursor:pointer}
+.dw-item{display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--line);cursor:pointer;font-size:14.5px;color:var(--ink);background:none;border-left:none;border-right:none;border-top:none;width:100%;text-align:left}
+.dw-item:active{background:var(--bg)}
+.dw-item svg{width:20px;height:20px;color:var(--green);flex-shrink:0}
+.dw-item .chev{margin-left:auto;color:var(--muted)}
+.dw-item .chev svg{width:16px;height:16px;color:var(--muted)}
+.dw-sec{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.6px;padding:14px 18px 6px}
 .hbtn{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;position:relative;color:var(--green);transition:background .15s}
 .hbtn:hover{background:var(--bg)}
 .hbtn svg{width:21px;height:21px}
@@ -347,6 +362,8 @@ nav.bn .nb{position:absolute;top:8px;left:calc(50% + 6px);min-width:15px;height:
 <div class="ov" id="ov" onclick="if(event.target===this)closeSheet()">
   <div class="sheet" id="sheet"></div>
 </div>
+<div class="drawer-ov" id="drawerOv" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer"></div>
 
 <script>
 /* ============================================================
@@ -452,6 +469,7 @@ let STOCK_BRANCH = [];   // สาขาคลัง (หลายสาขา) 
 let STOCK = {};          // barcode -> pos_qty รวมทุกสาขาคลัง
 let PROMOS = [];        // แคมเปญโปรโมชั่น (store_promotions)
 let PROMO_BY_BC = {};   // barcode -> โปรแรกที่สินค้าอยู่
+let STORE_PAGES = [];   // หน้าข้อมูลในเมนู drawer (store_pages) — แก้ในคอนโซลพนักงาน
 let LABELS = [];        // ป้ายข้อความต่อสินค้า (store_labels)
 let LABEL_BY_BC = {};   // barcode -> [ป้าย...]
 let CAT_BANNERS = {};   // ประเภท -> url แบนเนอร์หัวหมวด (app_settings store_cat_banners)
@@ -507,6 +525,8 @@ const IC = {
   mic:'<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/>',
   cam:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2Z"/><circle cx="12" cy="13" r="4"/>',
   lock:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  menu:'<path d="M3 6h18M3 12h18M3 18h18"/>',
+  phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2 4.2 2 2 0 0 1 4 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.6a2 2 0 0 1-.4 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.6 2.6.7A2 2 0 0 1 22 16.9Z"/>',
 };
 const svg=(p,w)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w||2}" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 
@@ -694,6 +714,7 @@ function stripText(){
 function header(showSearch){
   return `<header>
     <div class="hbar">
+      <button class="hmenu" onclick="openDrawer()" aria-label="menu">${svg(IC.menu)}</button>
       <div class="logo" onclick="go('home')"><img class="logo-img" src="${LOGO_SRC}" alt="Friendship SuperMart"></div>
       ${showSearch?`<div class="search">${svg(IC.search)}<input id="q" placeholder="${esc(T('search'))}" value="${esc(curSearch)}" oninput="onSearch(this.value)">
         <button class="sbtn" id="voiceMic" onclick="startVoiceSearch()" title="${isLao()?'ຄົ້ນດ້ວຍສຽງ':'ค้นด้วยเสียง'}" aria-label="voice">${svg(IC.mic)}</button>
@@ -723,6 +744,40 @@ function catBar(){
     <button class="catdd" onclick="openCatMenu()">${svg(IC.grid,2)}<span>${isLao()?'ໝວດສິນຄ້າ':'หมวดหมู่สินค้า'}</span><span class="cv">${svg(IC.chevD)}</span></button>
     <div class="catchips">${chip('ALL',T('all'))}${chip('__FAV__','❤️ '+T('favorites'))}${promoChip}${CATS.map(c=>chip(c,catIcon(c)+' '+catLabel(c))).join('')}</div>
   </div></div>`;
+}
+/* ---------- เมนู Tab (drawer สไลด์ออกด้านข้าง) — นำทาง + หน้าข้อมูลแก้ไขได้ ---------- */
+async function loadStorePages(){
+  try{const {data}=await sb.from('store_pages').select('*').eq('is_active',true).order('sort_order').order('created_at');STORE_PAGES=data||[];}
+  catch(e){STORE_PAGES=[];}
+}
+function openDrawer(){const d=$('drawer'),ov=$('drawerOv');if(!d||!ov)return;d.innerHTML=drawerHtml();ov.classList.add('show');d.classList.add('show');}
+function closeDrawer(){const d=$('drawer'),ov=$('drawerOv');if(ov)ov.classList.remove('show');if(d)d.classList.remove('show');}
+function drawerHtml(){
+  const lo=isLao();
+  const acct=(token&&profile)
+    ? `<div class="dw-item" onclick="closeDrawer();go('account')" style="background:var(--green-l)">${svg(IC.user)}<div style="flex:1"><div style="font-weight:800">${esc(profile.name||T('welcome'))}</div><div style="font-size:11.5px;color:var(--green-d)">${Number(profile.points||0).toLocaleString()} ${esc(T('points'))}</div></div><span class="chev">${svg(IC.chevR)}</span></div>`
+    : `<div style="padding:14px 16px;display:flex;gap:8px;border-bottom:1px solid var(--line)"><button class="btn btn-g" onclick="closeDrawer();openAuth('login')">${esc(T('login'))}</button><button class="btn btn-o" onclick="closeDrawer();openAuth('register')">${esc(T('register'))}</button></div>`;
+  const nav=[[IC.home,T('home'),"closeDrawer();go('home')"],[IC.bolt,T('promo'),"closeDrawer();go('promo')"],[IC.bag,T('myorders'),"closeDrawer();go('orders')"],[IC.cart,T('cart'),"closeDrawer();go('cart')"],[IC.user,T('account'),"closeDrawer();go('account')"]]
+    .map(([ic,label,act])=>`<button class="dw-item" onclick="${act}">${svg(ic)}<span>${esc(label)}</span><span class="chev">${svg(IC.chevR)}</span></button>`).join('');
+  const pages=STORE_PAGES.length?(`<div class="dw-sec">${lo?'ຂໍ້ມູນຮ້ານ':'ข้อมูลร้าน'}</div>`+STORE_PAGES.map(p=>{
+    const t=lo?(p.title_lo||p.title_th||''):(p.title_th||p.title_lo||'');
+    return `<button class="dw-item" onclick="closeDrawer();openStorePage('${p.id}')">${p.icon?`<span style="font-size:20px;width:20px;text-align:center;flex-shrink:0">${esc(p.icon)}</span>`:svg(IC.grid)}<span>${esc(t)}</span><span class="chev">${svg(IC.chevR)}</span></button>`;
+  }).join('')):'';
+  const langRow=`<div class="dw-sec">${lo?'ພາສາ':'ภาษา'}</div>
+    <div style="display:flex;gap:8px;padding:4px 16px 16px">
+      <button class="btn ${lang==='th'?'btn-g':'btn-o'}" onclick="closeDrawer();setLang('th')">ไทย</button>
+      <button class="btn ${lang==='lo'?'btn-g':'btn-o'}" onclick="closeDrawer();setLang('lo')">ລາວ</button>
+    </div>`;
+  return `<div class="dw-top"><img src="${LOGO_SRC}" alt="Friendship"><button class="dw-x" onclick="closeDrawer()">✕</button></div>
+    ${acct}${nav}${pages}${langRow}`;
+}
+function openStorePage(id){
+  const p=STORE_PAGES.find(x=>String(x.id)===String(id));if(!p)return;
+  const lo=isLao();
+  const title=lo?(p.title_lo||p.title_th||''):(p.title_th||p.title_lo||'');
+  const body=lo?(p.body_lo||p.body_th||''):(p.body_th||p.body_lo||'');
+  openSheet(`<div class="sheet-h"><h3>${p.icon?esc(p.icon)+' ':''}${esc(title)}</h3><button class="x" onclick="closeSheet()">✕</button></div>
+    <div class="sheet-b"><div style="white-space:pre-wrap;line-height:1.85;font-size:14px;color:var(--ink)">${esc(body)}</div></div>`);
 }
 /* ---- category label / icon / color ---- */
 function catLabel(c){
@@ -1565,7 +1620,7 @@ async function boot(){
   $('app').innerHTML=header(true)+catBar()+`<div class="wrap"><div class="grid">${'<div class="skel"></div>'.repeat(8)}</div></div>`+bottomNav();
   await loadCatalog();          // โหลดสินค้าก่อน (มี retry ในตัว) — ไม่ให้ query อื่นบล็อก
   render();
-  Promise.all([loadBranches(),loadPromos(),loadLabels(),restoreSession(),loadShopQR().then(loadStock)]).then(()=>render());  // พื้นหลัง: สาขา/โปร/ป้าย/session/QR+สต็อกคลัง → re-render
+  Promise.all([loadBranches(),loadPromos(),loadLabels(),loadStorePages(),restoreSession(),loadShopQR().then(loadStock)]).then(()=>render());  // พื้นหลัง: สาขา/โปร/ป้าย/หน้าข้อมูล/session/QR+สต็อกคลัง → re-render
 }
 boot();
 </script>
