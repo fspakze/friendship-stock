@@ -874,6 +874,25 @@ function selCatMenu(idEnc,gEnc){curCat=decodeURIComponent(idEnc);curGroup=gEnc?d
 function selGroup(gEnc){curGroup=gEnc?decodeURIComponent(gEnc):'';PAGE=1;window.scrollTo(0,0);render();}
 
 /* ---------- Home / catalog ---------- */
+// normalize สำหรับค้นหา: ตัดวรรณยุกต์/ไม้ไทย-ลาว (คนมักพิมพ์ผิดตรงนี้) + ยุบช่องว่าง
+function _norm(s){return String(s==null?'':s).toLowerCase().replace(/[\u0E48-\u0E4E\u0E31\u0EB1\u0EC8-\u0ECD]/g,'').replace(/\s+/g,' ').trim();}
+// Levenshtein แบบมีเพดาน (early-exit เกิน max = เร็ว) — วัดความต่างของคำ กันพิมพ์ผิด
+function _lev(a,b,max){
+  const la=a.length,lb=b.length;
+  if(Math.abs(la-lb)>max)return max+1;
+  let prev=new Array(lb+1);for(let j=0;j<=lb;j++)prev[j]=j;
+  for(let i=1;i<=la;i++){
+    const cur=new Array(lb+1);cur[0]=i;let rowMin=cur[0];const ca=a.charCodeAt(i-1);
+    for(let j=1;j<=lb;j++){
+      const cost=ca===b.charCodeAt(j-1)?0:1;
+      cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+cost);
+      if(cur[j]<rowMin)rowMin=cur[j];
+    }
+    if(rowMin>max)return max+1;
+    prev=cur;
+  }
+  return prev[lb];
+}
 function filteredProducts(){
   let list=PRODUCTS;
   if(curCat==='__FAV__')list=list.filter(p=>isFav(p.barcode));
@@ -881,8 +900,35 @@ function filteredProducts(){
   else if(curCat!=='ALL')list=list.filter(p=>p.category===curCat);
   if(curGroup&&curCat!=='ALL'&&curCat!=='__FAV__'&&curCat!=='__PROMO__')list=list.filter(p=>(p.product_group||'')===curGroup);
   if(curSearch.trim()){
-    const q=curSearch.trim().toLowerCase();
-    list=list.filter(p=>(p.product_name||'').toLowerCase().includes(q)||(p.barcode||'').includes(q)||(p.category||'').toLowerCase().includes(q));
+    const raw=curSearch.trim().toLowerCase();
+    const nq=_norm(raw);const nqns=nq.replace(/ /g,'');
+    // 1) ตรงตัว/บางส่วน (ดีสุด) — ชื่อ/ชื่อแบบตัดเว้นวรรค (พิมพ์ติดกัน)/บาร์โค้ด/หมวด
+    const exact=list.filter(p=>{
+      const nn=p._nm||(p._nm=_norm(p.product_name));
+      return nn.includes(nq)||(nqns&&nn.replace(/ /g,'').includes(nqns))||(p.barcode||'').includes(raw)||_norm(p.category).includes(nq);
+    });
+    // 2) เสริมคำใกล้เคียง (กันพิมพ์ผิด) — เทียบ edit distance ต่อคำในชื่อ · ทำเมื่อคำยาวพอ + ตรงตัวยังไม่มาก
+    if(nq.length>=2 && exact.length<25){
+      const tol=nq.length<=4?1:(nq.length<=7?2:3);
+      const seen=new Set(exact.map(p=>p.barcode));
+      const near=[];
+      for(const p of list){
+        if(seen.has(p.barcode))continue;
+        const nn=p._nm||(p._nm=_norm(p.product_name));
+        let best=99;
+        const words=nn.split(' ');
+        for(const w of words){
+          if(!w||Math.abs(w.length-nq.length)>tol)continue;
+          const d=_lev(nq,w,tol);
+          if(d<best)best=d;
+          if(best===0)break;
+        }
+        if(best<=tol)near.push([p,best]);
+      }
+      near.sort((a,b)=>a[1]-b[1]);
+      return exact.concat(near.map(x=>x[0]));
+    }
+    return exact;
   }
   return list;
 }
