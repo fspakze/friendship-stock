@@ -9662,6 +9662,10 @@ let _prcDateFilter = '';   // '' = ทุกวัน | 'YYYY-MM-DD' = เฉพ
 let _prcStatusFilter = 'pending';   // 'pending'=รอทำ | 'fixed'=ติดแล้ว | 'all'=ทั้งหมด (รวมป้ายตรง)
 let _prcSel = new Set();   // id ที่เลือกไว้ (สำหรับกด "ติดแล้วทั้งหมด")
 let _prcPendingType = 'both'; // รอทำ: 'wrong'=ราคาไม่ตรง | 'notag'=ไม่มีป้าย | 'both'=ทั้งสอง (ปุ่มเลือกดู ลดการ scroll)
+let _prcGroupBy = 'gondola';  // แบ่งรายงาน: 'gondola'=ตาม Gondola | 'scanner'=ตามไอดีผู้สแกน (Ball 2026-07-29 — พิมพ์ตามผู้สแกน/gondola)
+let _prcPrintGroups = {};     // token → [prc id...] สำหรับพิมพ์ป้ายทั้งกลุ่มทีเดียว (สร้างใหม่ทุก render)
+let _prcPrintGroupSeq = 0;
+function prcSetGroupBy(m) { _prcGroupBy = m; prcRenderList(); }
 
 // กรองตามหมวดที่เลือกดูในหน้ารอทำ
 function prcApplyPendingType(rows) {
@@ -9732,6 +9736,7 @@ async function prcRenderList() {
   const isLao = lang === 'lo';
   const listEl = document.getElementById('prcList');
   if (!listEl) return;
+  _prcPrintGroups = {}; _prcPrintGroupSeq = 0;   // สร้าง token พิมพ์กลุ่มใหม่ทุก render (กันอ้าง id เก่า)
   const today = localDayKey(new Date());
   const todayRows = _prcRows.filter(r => localDayKey(r.created_at) === today);
   const noTagRows = _prcRows.filter(r => !r.fixed && !r.is_match && prcNoTag(r));   // ไม่มีป้าย/shelf ว่าง → รอพิมพ์
@@ -9861,22 +9866,54 @@ async function prcRenderList() {
     </div>`;
   };
 
-  // ผู้ช่วย: จัดกลุ่มแถวตาม Gondola แล้ว render (เพื่อให้ปริ้น/ไล่ติดป้ายเป็นชุดตามชั้นวางจริง)
-  const renderByGondola = (rows) => {
+  // ผู้ช่วย: key/label ของกลุ่มตามโหมดที่เลือก (Gondola หรือ ไอดีผู้สแกน) — Ball 2026-07-29
+  const prcGroupOf = (r) => {
+    if (_prcGroupBy === 'scanner') {
+      const name = (r.created_by_name || '').trim();
+      if (!name) return { key: 'zzzz', label: isLao ? 'ບໍ່ລະບຸຜູ້ສະແກນ' : 'ไม่ระบุผู้สแกน' };
+      return { key: 'u_' + name, label: name };
+    }
+    return prcGondolaGroup(r.location_code);   // ตาม Gondola (เดิม)
+  };
+  // ผู้ช่วย: จัดกลุ่มแถวตามโหมด (Gondola/ผู้สแกน) แล้ว render — หัวกลุ่มมีปุ่มพิมพ์ป้ายทั้งกลุ่ม (ไล่ติดเป็นชุด)
+  const renderByGroup = (rows) => {
     const byGroup = {};
     rows.forEach(r => {
-      const g = prcGondolaGroup(r.location_code);
+      const g = prcGroupOf(r);
       (byGroup[g.key] = byGroup[g.key] || { label: g.label, rows: [] }).rows.push(r);
     });
-    return Object.keys(byGroup).sort(prcGroupCmp).map(k => {
+    // เรียง: Gondola = ตามเลขชั้น · ผู้สแกน = ตามชื่อ (ไม่ระบุ = ท้ายสุด)
+    const keys = Object.keys(byGroup);
+    if (_prcGroupBy === 'scanner') {
+      keys.sort((a, b) => a === 'zzzz' ? 1 : b === 'zzzz' ? -1 : byGroup[a].label.localeCompare(byGroup[b].label, 'th'));
+    } else {
+      keys.sort(prcGroupCmp);
+    }
+    const gIcon = _prcGroupBy === 'scanner' ? '👤' : '📍';
+    return keys.map(k => {
       const g = byGroup[k];
+      // พิมพ์ทั้งกลุ่ม: เฉพาะรายการที่ยังไม่ติด (ราคาผิด/ไม่มีป้าย) + คนมีสิทธิ์แก้ป้าย
+      const printable = g.rows.filter(r => !r.is_match && !r.fixed);
+      let printBtn = '';
+      if (prcCanFix() && printable.length) {
+        const tok = 'pg' + (_prcPrintGroupSeq++);
+        _prcPrintGroups[tok] = printable.map(r => r.id);
+        printBtn = '<button onclick="prcPrintGroupToken(\'' + tok + '\')" style="background:var(--fs-blue);color:white;border:none;border-radius:8px;padding:5px 10px;font-size:10.5px;font-weight:800;cursor:pointer;white-space:nowrap;">🖨️ ' + (isLao ? 'ພິມ' : 'พิมพ์') + ' ' + printable.length + '</button>';
+      }
       const head = '<div style="display:flex;align-items:center;gap:7px;background:var(--slate-100);border-radius:9px;padding:7px 11px;margin:9px 0 6px;">'
-        + '<span style="font-size:12px;font-weight:800;color:var(--slate-700);flex:1;">📍 ' + escapeHtml(g.label) + '</span>'
+        + '<span style="font-size:12px;font-weight:800;color:var(--slate-700);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + gIcon + ' ' + escapeHtml(g.label) + '</span>'
+        + printBtn
         + '<span style="background:var(--fs-blue);color:white;border-radius:9px;padding:1px 9px;font-size:10px;font-weight:800;">' + g.rows.length + '</span>'
         + '</div>';
       return head + g.rows.map(rowHtml).join('');
     }).join('');
   };
+  // แถบสลับโหมดแบ่งกลุ่ม (Gondola / ผู้สแกน)
+  const gBtn = (key, icon, th, lo) => '<button onclick="prcSetGroupBy(\'' + key + '\')" style="flex:1;background:' + (_prcGroupBy === key ? 'var(--fs-blue)' : 'var(--slate-100)') + ';color:' + (_prcGroupBy === key ? 'white' : 'var(--slate-600)') + ';border:none;border-radius:8px;padding:7px 4px;font-size:11px;font-weight:800;cursor:pointer;">' + icon + ' ' + (isLao ? lo : th) + '</button>';
+  const groupByBar = '<div style="display:flex;gap:5px;margin-bottom:8px;">'
+    + gBtn('gondola', '📍', 'ตาม Gondola', 'ຕາມ Gondola')
+    + gBtn('scanner', '👤', 'ตามผู้สแกน', 'ຕາມຜູ້ສະແກນ')
+    + '</div>';
 
   if (isPending) {
     // หน้ารอทำ: แยก 2 กลุ่มงานที่ต้องทำ — ❌ ราคาไม่ตรง / 🏷️ ไม่มีป้าย · แต่ละกลุ่มยังเรียงตาม Gondola (Ball 2026-07-08)
@@ -9887,7 +9924,7 @@ async function prcRenderList() {
       '<div style="display:flex;align-items:center;gap:8px;margin:14px 0 4px;padding:8px 12px;background:' + col + ';border-radius:10px;">'
       + '<span style="font-size:13px;font-weight:800;color:white;flex:1;">' + icon + ' ' + (isLao ? lo : th) + '</span>'
       + '<span style="background:rgba(255,255,255,.25);color:white;border-radius:9px;padding:1px 10px;font-size:11px;font-weight:800;">' + rows.length + '</span>'
-      + '</div>' + renderByGondola(rows)
+      + '</div>' + renderByGroup(rows)
     ) : '';
     // ปุ่มเลือกดูหมวด (วางข้างกัน) — ลดการ scroll เวลารายการเยอะ (Ball 2026-07-08)
     const tBtn = (key, icon, th, lo, n, col) => '<button onclick="prcSetPendingType(\'' + key + '\')" style="flex:1;background:' + (_prcPendingType === key ? col : 'var(--slate-100)') + ';color:' + (_prcPendingType === key ? 'white' : 'var(--slate-600)') + ';border:none;border-radius:8px;padding:8px 4px;font-size:11px;font-weight:800;cursor:pointer;">' + icon + ' ' + (isLao ? lo : th) + ' ' + n + '</button>';
@@ -9900,9 +9937,9 @@ async function prcRenderList() {
     const showNoTag = _prcPendingType !== 'wrong';
     const body = (showWrong ? section(wrongList, '❌', 'ราคาไม่ตรง — รอแก้ราคา', 'ລາຄາບໍ່ຕົງ — ລໍແກ້ລາຄາ', 'var(--fs-red)') : '')
       + (showNoTag ? section(noTagList, '🏷️', 'ไม่มีป้ายราคา — รอพิมพ์ป้าย', 'ບໍ່ມີປ້າຍລາຄາ — ລໍພິມປ້າຍ', '#d97706') : '');
-    listEl.innerHTML = toggle + (body || '<div style="text-align:center;padding:20px;color:var(--slate-400);font-size:12px;">' + (isLao ? 'ບໍ່ມີລາຍການໃນໝວດນີ້' : 'ไม่มีรายการในหมวดนี้') + '</div>');
+    listEl.innerHTML = groupByBar + toggle + (body || '<div style="text-align:center;padding:20px;color:var(--slate-400);font-size:12px;">' + (isLao ? 'ບໍ່ມີລາຍການໃນໝວດນີ້' : 'ไม่มีรายการในหมวดนี้') + '</div>');
   } else {
-    listEl.innerHTML = renderByGondola(mm);
+    listEl.innerHTML = groupByBar + renderByGroup(mm);
   }
 }
 
@@ -37971,6 +38008,17 @@ async function ptagPrintSelected() {
   await ptagResolveLocations(items);
   ptagOpenPrint(items);
 }
+// พิมพ์ป้ายทั้งกลุ่ม (ตาม Gondola / ผู้สแกน) — token ชี้ไป [prc id...] ที่หัวกลุ่มจับไว้ตอน render (Ball 2026-07-29)
+async function prcPrintGroupToken(tok) {
+  const ids = (typeof _prcPrintGroups !== 'undefined' ? _prcPrintGroups[tok] : null) || [];
+  const rows = (typeof _prcRows !== 'undefined' ? _prcRows : []).filter(function (r) { return ids.indexOf(r.id) !== -1; });
+  if (!rows.length) { showToast(lang === 'lo' ? 'ບໍ່ພົບປ້າຍໃນກຸ່ມນີ້' : 'ไม่พบป้ายในกลุ่มนี้', 'warning'); return; }
+  const items = rows.map(ptagItemFromPrc);
+  await ptagResolveNames(items);
+  await ptagResolveLocations(items);
+  ptagOpenPrint(items);
+}
+window.prcPrintGroupToken = prcPrintGroupToken; window.prcSetGroupBy = prcSetGroupBy;
 window.ptagPrintOne = ptagPrintOne; window.ptagPrintSelected = ptagPrintSelected; window.ptagSetMode = ptagSetMode;
 window.ptagDoPrint = ptagDoPrint; window.ptagOpenSettings = ptagOpenSettings; window.ptagSaveSettings = ptagSaveSettings; window.ptagBackToPrint = ptagBackToPrint;
 window.ptagSetProfile = ptagSetProfile;
