@@ -137,7 +137,10 @@ header{position:sticky;top:0;z-index:40;background:#fff;color:var(--ink);box-sha
 @media(min-width:560px){.grid{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:820px){.grid{grid-template-columns:repeat(4,1fr);gap:14px}}
 @media(min-width:1080px){.grid{grid-template-columns:repeat(5,1fr)}}
-.pcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--sh);transition:transform .12s,box-shadow .12s}
+.pcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--sh);transition:transform .12s}
+/* มือถือเก่าลื่นขึ้น: ข้าม render/decode การ์ดนอกจอ (content-visibility) + shadow เบาลง */
+.grid>.pcard{content-visibility:auto;contain-intrinsic-size:auto 300px}
+@media(max-width:819px){.pcard{box-shadow:0 1px 2px rgba(16,40,30,.05)}}
 .pcard.promo-framed{border:2px solid var(--pc,#E1121D);box-shadow:0 3px 12px rgba(225,18,29,.14)}
 .promo-tag{background:var(--pc,#E1121D);color:#fff;font-size:10px;font-weight:800;text-align:center;padding:4px 8px;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .promo-art{width:100%;border-radius:14px;margin-bottom:12px;box-shadow:var(--sh);display:block}
@@ -196,7 +199,7 @@ header{position:sticky;top:0;z-index:40;background:#fff;color:var(--ink);box-sha
 .fav-btn{position:absolute;top:6px;right:6px;z-index:3;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.92);display:grid;place-items:center;font-size:15px;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.15);border:none;padding:0}
 .fav-btn .off{filter:grayscale(1);opacity:.42}
 /* home category sections (Makro-style horizontal rows) */
-.home-sec{margin-bottom:18px}
+.home-sec{margin-bottom:18px;content-visibility:auto;contain-intrinsic-size:auto 340px}
 .home-sec-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 2px 10px}
 .hsh-title{font-size:16px;font-weight:800;display:flex;align-items:center;gap:7px;min-width:0}
 .hsh-n{font-size:12px;font-weight:700;color:var(--muted);flex-shrink:0}
@@ -313,7 +316,7 @@ nav.bn .nb{position:absolute;top:8px;left:calc(50% + 6px);min-width:15px;height:
 .promo-hero-timer .pht-lbl{font-size:10px;opacity:.92}
 
 /* ---------- Modal ---------- */
-.ov{position:fixed;inset:0;z-index:100;background:rgba(16,30,24,.55);display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(2px)}
+.ov{position:fixed;inset:0;z-index:100;background:rgba(16,30,24,.6);display:none;align-items:flex-end;justify-content:center}
 .ov.show{display:flex}
 @media(min-width:560px){.ov{align-items:center}}
 .sheet{background:var(--card);width:100%;max-width:460px;border-radius:20px 20px 0 0;max-height:92vh;overflow-y:auto;box-shadow:var(--sh-lg);animation:up .25s ease}
