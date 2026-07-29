@@ -700,6 +700,7 @@ function render(){
   updateBadges();
   if(view==='orders')loadMyOrders();
   if(view==='promo')startPromoClock();
+  if(view==='home'||view==='promo')armInfiniteScroll();  // โหลดเพิ่มอัตโนมัติเมื่อเลื่อนถึงล่าง
 }
 function updateBadges(){
   document.querySelectorAll('[data-cartbadge]').forEach(el=>{const c=cartCount();el.textContent=c;el.style.display=c?'':'none';});
@@ -900,7 +901,22 @@ function homeBody(){
 // ปุ่มโหลดเพิ่ม (แบ่งหน้า กันมือถือค้าง)
 function loadMore(shown,total){
   if(shown>=total)return '';
-  return `<div style="text-align:center;margin:18px 0 4px"><button class="btn btn-o" style="max-width:280px;margin:0 auto" onclick="PAGE++;render()">${isLao()?'ໂຫຼດເພີ່ມ':'โหลดเพิ่ม'} (${total-shown})</button></div>`;
+  // ปุ่มนี้เป็น fallback — ปกติ IntersectionObserver จะกดให้เองตอนเลื่อนใกล้ถึง (armInfiniteScroll)
+  return `<div style="text-align:center;margin:18px 0 4px"><button id="loadMoreBtn" class="btn btn-o" style="max-width:280px;margin:0 auto" onclick="loadMoreNow()">${isLao()?'ໂຫຼດເພີ່ມ':'โหลดเพิ่ม'} (${total-shown})</button></div>`;
+}
+function loadMoreNow(){
+  PAGE++;
+  if(view==='home'){const w=$('homeWrap');if(w){w.innerHTML=homeBody();armInfiniteScroll();return;}}
+  render();  // แท็บ Promotion / อื่นๆ → re-render (header คงเดิม scroll ไม่กระโดด)
+}
+// โหลดเพิ่มอัตโนมัติเมื่อเลื่อนใกล้ถึงปุ่ม (infinite scroll) — rootMargin เผื่อ 320px ให้ลื่น
+let _io=null;
+function armInfiniteScroll(){
+  if(_io){_io.disconnect();_io=null;}
+  if(!('IntersectionObserver' in window))return;
+  const btn=$('loadMoreBtn');if(!btn)return;
+  _io=new IntersectionObserver((ents)=>{ if(ents[0]&&ents[0].isIntersecting)loadMoreNow(); },{rootMargin:'320px'});
+  _io.observe(btn);
 }
 function homeSection(title,catId,items){
   const shown=items.slice(0,10);
@@ -968,7 +984,7 @@ function onSearch(v){
   if(_searchTimer)clearTimeout(_searchTimer);
   _searchTimer=setTimeout(()=>{
     const w=$('homeWrap');
-    if(w)w.innerHTML=homeBody(); else render();
+    if(w){w.innerHTML=homeBody();armInfiniteScroll();} else render();
   },180);
 }
 // ค้นหาด้วยเสียง (Web Speech API) — เลือกภาษาพูดเอง ไทย/ลาว/EN (แม่นกว่าผูกกับ UI)
