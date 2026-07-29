@@ -694,6 +694,12 @@ async function restoreSession(){
    Router / render
    ============================================================ */
 function go(v){view=v;PAGE=1;curPromo=null;window.scrollTo(0,0);render();}
+// กดโลโก้ = กลับหน้าแรกแบบสด: ล้างคำค้นหา + หมวด + กลุ่ม + ช่องค้นหา แล้วเลื่อนขึ้นบนสุด
+function goHomeFresh(){
+  curSearch='';curCat='ALL';curGroup='';curPromo=null;view='home';PAGE=1;
+  const q=$('q');if(q)q.value='';
+  window.scrollTo(0,0);render();
+}
 function selPromo(id){curPromo=id||null;PAGE=1;window.scrollTo(0,0);render();}
 let _promoTimer=null;
 function render(){
@@ -726,7 +732,7 @@ function header(showSearch){
   return `<header>
     <div class="hbar">
       <button class="hmenu" onclick="openDrawer()" aria-label="menu">${svg(IC.menu)}</button>
-      <div class="logo" onclick="go('home')"><img class="logo-img logo-full" src="${LOGO_SRC}" alt="Friendship SuperMart"><img class="logo-img logo-icon" src="${LOGO_ICON_SRC}" alt="Friendship"></div>
+      <div class="logo" onclick="goHomeFresh()"><img class="logo-img logo-full" src="${LOGO_SRC}" alt="Friendship SuperMart"><img class="logo-img logo-icon" src="${LOGO_ICON_SRC}" alt="Friendship"></div>
       ${showSearch?`<div class="search">${svg(IC.search)}<input id="q" placeholder="${esc(T('search'))}" value="${esc(curSearch)}" oninput="onSearch(this.value)">
         <button class="sbtn" id="voiceMic" onclick="startVoiceSearch()" title="${isLao()?'ຄົ້ນດ້ວຍສຽງ':'ค้นด้วยเสียง'}" aria-label="voice">${svg(IC.mic)}</button>
         <label class="sbtn" title="${isLao()?'ຄົ້ນຈາກຮູບ':'ค้นจากรูป'}" aria-label="photo">${svg(IC.cam)}<input type="file" accept="image/*" capture="environment" style="display:none" onchange="scanImageSearch(this)"></label>
