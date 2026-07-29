@@ -84,6 +84,10 @@ header{position:sticky;top:0;z-index:40;background:#fff;color:var(--ink);box-sha
 .dw-item .chev{margin-left:auto;color:var(--muted)}
 .dw-item .chev svg{width:16px;height:16px;color:var(--muted)}
 .dw-sec{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.6px;padding:14px 18px 6px}
+.dw-item .chev.rot{transform:rotate(90deg)}
+.dw-sub{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:11px 18px 11px 52px;border:none;border-bottom:1px solid var(--line);background:var(--bg);font-size:13.5px;color:var(--ink);cursor:pointer}
+.dw-sub:active{background:var(--line)}
+.dw-sub .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
 .hbtn{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;position:relative;color:var(--green);transition:background .15s}
 .hbtn:hover{background:var(--bg)}
 .hbtn svg{width:21px;height:21px}
@@ -751,15 +755,29 @@ async function loadStorePages(){
   try{const {data}=await sb.from('store_pages').select('*').eq('is_active',true).order('sort_order').order('created_at');STORE_PAGES=data||[];}
   catch(e){STORE_PAGES=[];}
 }
+let _dwPromoOpen=false;
 function openDrawer(){const d=$('drawer'),ov=$('drawerOv');if(!d||!ov)return;d.innerHTML=drawerHtml();ov.classList.add('show');d.classList.add('show');}
 function closeDrawer(){const d=$('drawer'),ov=$('drawerOv');if(ov)ov.classList.remove('show');if(d)d.classList.remove('show');}
+function toggleDrawerPromo(){_dwPromoOpen=!_dwPromoOpen;const d=$('drawer');if(d)d.innerHTML=drawerHtml();}
+function drawerGoPromo(id){closeDrawer();view='promo';curPromo=id||null;PAGE=1;window.scrollTo(0,0);render();}
 function drawerHtml(){
   const lo=isLao();
   const acct=(token&&profile)
     ? `<div class="dw-item" onclick="closeDrawer();go('account')" style="background:var(--green-l)">${svg(IC.user)}<div style="flex:1"><div style="font-weight:800">${esc(profile.name||T('welcome'))}</div><div style="font-size:11.5px;color:var(--green-d)">${Number(profile.points||0).toLocaleString()} ${esc(T('points'))}</div></div><span class="chev">${svg(IC.chevR)}</span></div>`
     : `<div style="padding:14px 16px;display:flex;gap:8px;border-bottom:1px solid var(--line)"><button class="btn btn-g" onclick="closeDrawer();openAuth('login')">${esc(T('login'))}</button><button class="btn btn-o" onclick="closeDrawer();openAuth('register')">${esc(T('register'))}</button></div>`;
-  const nav=[[IC.home,T('home'),"closeDrawer();go('home')"],[IC.bolt,T('promo'),"closeDrawer();go('promo')"],[IC.bag,T('myorders'),"closeDrawer();go('orders')"],[IC.cart,T('cart'),"closeDrawer();go('cart')"],[IC.user,T('account'),"closeDrawer();go('account')"]]
-    .map(([ic,label,act])=>`<button class="dw-item" onclick="${act}">${svg(ic)}<span>${esc(label)}</span><span class="chev">${svg(IC.chevR)}</span></button>`).join('');
+  const dwItem=(ic,label,act)=>`<button class="dw-item" onclick="${act}">${svg(ic)}<span>${esc(label)}</span><span class="chev">${svg(IC.chevR)}</span></button>`;
+  // Promotion = accordion: กดแล้วขยายรายการแคมเปญโปรฯ ที่มี (indent ไปทางขวา) · ถ้าไม่มีแคมเปญ = ลิงก์ตรง
+  const campaigns=PROMOS.filter(pr=>pr.is_active&&(pr.barcodes||[]).some(bc=>PMAP[bc]));
+  let promoBlock;
+  if(campaigns.length){
+    promoBlock=`<button class="dw-item" onclick="toggleDrawerPromo()">${svg(IC.bolt)}<span>${esc(T('promo'))}</span><span style="font-size:11px;color:var(--muted);margin-left:6px">${campaigns.length}</span><span class="chev ${_dwPromoOpen?'rot':''}">${svg(IC.chevR)}</span></button>`
+      +(_dwPromoOpen?(`<button class="dw-sub" onclick="drawerGoPromo('')"><span class="dot" style="background:var(--muted)"></span>${lo?'ທັງໝົດ':'ทั้งหมด'}</button>`
+        +campaigns.map(c=>`<button class="dw-sub" onclick="drawerGoPromo('${esc(c.id)}')"><span class="dot" style="background:${colorSafe(c.badge_color)}"></span>${esc(c.title)}</button>`).join('')):'');
+  } else {
+    promoBlock=dwItem(IC.bolt,T('promo'),"closeDrawer();go('promo')");
+  }
+  const nav=dwItem(IC.home,T('home'),"closeDrawer();go('home')")+promoBlock
+    +dwItem(IC.bag,T('myorders'),"closeDrawer();go('orders')")+dwItem(IC.cart,T('cart'),"closeDrawer();go('cart')")+dwItem(IC.user,T('account'),"closeDrawer();go('account')");
   const pages=STORE_PAGES.length?(`<div class="dw-sec">${lo?'ຂໍ້ມູນຮ້ານ':'ข้อมูลร้าน'}</div>`+STORE_PAGES.map(p=>{
     const t=lo?(p.title_lo||p.title_th||''):(p.title_th||p.title_lo||'');
     return `<button class="dw-item" onclick="closeDrawer();openStorePage('${p.id}')">${p.icon?`<span style="font-size:20px;width:20px;text-align:center;flex-shrink:0">${esc(p.icon)}</span>`:svg(IC.grid)}<span>${esc(t)}</span><span class="chev">${svg(IC.chevR)}</span></button>`;
