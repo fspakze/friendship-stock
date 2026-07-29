@@ -38129,8 +38129,8 @@ function renderOnlineUsersPage() {
   return '<div style="padding:14px 13px 90px;max-width:620px;margin:0 auto;">'
     + '<div style="display:flex;align-items:center;gap:9px;margin-bottom:12px;">'
     + '<button onclick="goPage(getHomePage())" style="border:1px solid var(--slate-200);background:white;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
-    + '<h2 style="font-size:18px;font-weight:800;color:var(--slate-800);margin:0;">🟢 ' + (isLao ? 'ໃຜອອນລາຍ' : 'ใครออนไลน์') + '</h2>'
-    + '<button onclick="loadOnlineUsers()" style="margin-left:auto;background:var(--slate-100);border:1px solid var(--slate-200);border-radius:9px;padding:8px 12px;font-size:12px;font-weight:800;cursor:pointer;">🔄 ' + (isLao ? 'ໂຫຼດ' : 'รีเฟรช') + '</button>'
+    + '<h2 style="font-size:18px;font-weight:800;color:var(--slate-800);margin:0;display:flex;align-items:center;gap:7px;"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#22c55e;flex-shrink:0;"></span>' + (isLao ? 'ໃຜອອນລາຍ' : 'ใครออนไลน์') + '</h2>'
+    + '<button onclick="loadOnlineUsers()" style="margin-left:auto;background:var(--slate-100);border:1px solid var(--slate-200);border-radius:9px;padding:8px 12px;font-size:12px;font-weight:800;cursor:pointer;">' + (isLao ? 'ໂຫຼດ' : 'รีเฟรช') + '</button>'
     + '</div>'
     + '<div style="font-size:11.5px;color:var(--slate-400);margin-bottom:12px;">' + (isLao ? 'ອອນລາຍ = ເຄື່ອນໄຫວພາຍໃນ 2 ນາທີ · ອັບເດດອັດຕະໂນມັດທຸກ 15 ວິ' : 'ออนไลน์ = เคลื่อนไหวภายใน 2 นาที · อัปเดตอัตโนมัติทุก 15 วิ') + '</div>'
     + '<div id="onlineList"><div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div></div>'
@@ -38151,11 +38151,11 @@ async function loadOnlineUsers() {
         + '<span style="width:10px;height:10px;border-radius:50%;background:#22c55e;flex-shrink:0;box-shadow:0 0 0 3px rgba(34,197,94,.18);"></span>'
         + '<div style="flex:1;min-width:0;">'
         + '<div style="font-size:14px;font-weight:800;color:var(--slate-900);line-height:1.3;">' + escapeHtml(u.full_name || u.username || '?') + '</div>'
-        + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + escapeHtml(String(u.role || '').toUpperCase()) + (u.branch_code ? ' · 🏪 ' + escapeHtml(u.branch_code) : '') + (u.page ? ' · ' + escapeHtml(presencePageLabel(u.page)) : '') + '</div>'
+        + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + escapeHtml(String(u.role || '').toUpperCase()) + (u.branch_code ? ' · ' + escapeHtml(u.branch_code) : '') + (u.page ? ' · ' + escapeHtml(presencePageLabel(u.page)) : '') + '</div>'
         + '</div>'
         + '<span style="font-size:10.5px;color:var(--slate-400);white-space:nowrap;">' + presenceAgo(u.last_seen) + '</span>'
         + '</div>';
-      box.innerHTML = '<div style="font-size:12.5px;font-weight:800;color:var(--emerald-700);margin-bottom:9px;">🟢 ' + rows.length + ' ' + (isLao ? 'ຄົນ' : 'คน') + '</div>' + rows.map(card).join('');
+      box.innerHTML = '<div style="font-size:12.5px;font-weight:800;color:var(--emerald-700);margin-bottom:9px;display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#22c55e;"></span>' + rows.length + ' ' + (isLao ? 'ຄົນ' : 'คน') + '</div>' + rows.map(card).join('');
     }
   } catch (e) {
     box.innerHTML = '<div style="color:var(--rose-500);padding:14px;font-size:12px;">Error: ' + escapeHtml(e.message) + '</div>';
@@ -38187,11 +38187,11 @@ function renderAccessLogPage() {
   return '<div style="padding:14px 13px 90px;max-width:620px;margin:0 auto;">'
     + '<div style="display:flex;align-items:center;gap:9px;margin-bottom:12px;">'
     + '<button onclick="goPage(getHomePage())" style="border:1px solid var(--slate-200);background:white;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--slate-600);cursor:pointer;">← ' + (isLao ? 'ກັບ' : 'กลับ') + '</button>'
-    + '<h2 style="font-size:18px;font-weight:800;color:var(--slate-800);margin:0;">📅 ' + (isLao ? 'ປະຫວັດເຂົ້າໃຊ້ງານ' : 'ประวัติเข้าใช้งาน') + '</h2>'
+    + '<h2 style="font-size:18px;font-weight:800;color:var(--slate-800);margin:0;">' + (isLao ? 'ປະຫວັດເຂົ້າໃຊ້ງານ' : 'ประวัติเข้าใช้งาน') + '</h2>'
     + '</div>'
     + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">'
     + '<input type="date" id="accessDayInput" value="' + escapeHtml(_accessDay) + '" onchange="accessSetDay(this.value)" style="flex:1;min-width:0;padding:10px 12px;border:1px solid var(--slate-300);border-radius:10px;font-size:14px;box-sizing:border-box;">'
-    + '<button onclick="accessExport()" style="background:var(--emerald-600);color:white;border:none;border-radius:10px;padding:10px 14px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;">📥 Export</button>'
+    + '<button onclick="accessExport()" style="background:var(--emerald-600);color:white;border:none;border-radius:10px;padding:10px 14px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;">Export</button>'
     + '</div>'
     + '<div id="accessControls" style="margin-bottom:10px;"></div>'
     + '<div id="accessList"><div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div></div>'
@@ -38254,13 +38254,13 @@ function accessRender() {
   const card = s => {
     const online = !s.logout_at && (Date.now() - new Date(s.last_seen).getTime() <= PRESENCE_ONLINE_MS);
     const stale = !s.logout_at && !online;
-    const endTxt = s.logout_at ? presenceTimeHM(s.logout_at) : (online ? '🟢' : presenceTimeHM(s.last_seen) + ' ⚠️');
+    const endTxt = s.logout_at ? presenceTimeHM(s.logout_at) : (online ? '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#22c55e;vertical-align:middle;"></span>' : presenceTimeHM(s.last_seen) + ' ⚠️');
     const badge = online ? '<span style="font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:20px;background:#dcfce7;color:#15803d;">' + (isLao ? 'ອອນລາຍ' : 'ออนไลน์') + '</span>' : (stale ? '<span style="font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:20px;background:#fef3c7;color:#b45309;">' + (isLao ? 'ຄ້າງ' : 'ค้าง') + '</span>' : '');
     return '<div style="border:1px solid var(--slate-200);border-radius:11px;padding:11px 13px;margin-bottom:8px;background:white;">'
       + '<div style="display:flex;align-items:center;gap:9px;">'
       + '<div style="flex:1;min-width:0;">'
       + '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;"><span style="font-size:14px;font-weight:800;color:var(--slate-900);">' + escapeHtml(s.full_name || s.username || '?') + '</span>' + badge + '</div>'
-      + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + escapeHtml(String(s.role || '').toUpperCase()) + (s.branch_code ? ' · 🏪 ' + escapeHtml(s.branch_code) : '') + '</div>'
+      + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + escapeHtml(String(s.role || '').toUpperCase()) + (s.branch_code ? ' · ' + escapeHtml(s.branch_code) : '') + '</div>'
       + '</div>'
       + '<div style="text-align:right;font-size:11px;color:var(--slate-600);white-space:nowrap;">'
       + '<div>' + presenceTimeHM(s.login_at) + ' → ' + endTxt + '</div>'
@@ -38269,7 +38269,7 @@ function accessRender() {
       + '</div>'
       + '</div>';
   };
-  box.innerHTML = '<div style="font-size:12.5px;font-weight:800;color:var(--slate-700);margin-bottom:9px;">📋 ' + rows.length + ' ' + (isLao ? 'ຮອບ' : 'รอบ') + ' · 👥 ' + users + ' ' + (isLao ? 'ຄົນ' : 'คน') + '</div>' + rows.map(card).join('');
+  box.innerHTML = '<div style="font-size:12.5px;font-weight:800;color:var(--slate-700);margin-bottom:9px;">' + rows.length + ' ' + (isLao ? 'ຮອບ' : 'รอบ') + ' · ' + users + ' ' + (isLao ? 'ຄົນ' : 'คน') + '</div>' + rows.map(card).join('');
 }
 function accessExport() {
   const isLao = lang === 'lo';
