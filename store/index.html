@@ -960,7 +960,7 @@ function pcard(p){
     ? `<div class="save-flag" style="background:${pc}"><div class="sf-t">${esc(promo.badge_text)}</div></div>`
     : (disc>0?`<div class="save-flag"><div class="sf-s">SAVE</div><div class="sf-p">${disc}%</div></div>`:'');
   return `<div class="pcard${(promo&&!frame)?' promo-framed':''}${oos?' oos':''}"${promo?` style="--pc:${pc}"`:''}>
-    ${(promo&&!frame)?`<div class="promo-top" style="background:${pc}">${esc(promo.title)}</div>`:`<div class="promo-top" aria-hidden="true"></div>`}
+    ${frame?'':(promo?`<div class="promo-top" style="background:${pc}">${esc(promo.title)}</div>`:`<div class="promo-top" aria-hidden="true"></div>`)}
     <div class="pthumb" onclick="openProduct('${esc(p.barcode)}')">${img}${ph}${frame?`<img class="pframe" src="${frame}" alt="" loading="lazy" decoding="async" onerror="this.remove()">`:''}${oos?`<div class="oos-tag">${isLao()?'ສິນຄ້າໝົດ':'สินค้าหมด'}</div>`:ribbon}
       <button class="fav-btn" data-bc="${esc(p.barcode)}" onclick="event.stopPropagation();toggleFav('${esc(p.barcode)}')" aria-label="favorite">${isFav(p.barcode)?'❤️':'<span class="off">❤️</span>'}</button>
       ${oos?'':`<button class="padd-fab" onclick="event.stopPropagation();quickAdd('${esc(p.barcode)}')" aria-label="add">${svg(IC.cart,2)}</button>`}
