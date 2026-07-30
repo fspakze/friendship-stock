@@ -716,7 +716,7 @@ function goHomeFresh(){
   const q=$('q');if(q)q.value='';
   window.scrollTo(0,0);render();
 }
-function selPromo(id){curPromo=id||null;PAGE=1;window.scrollTo(0,0);render();}
+function selPromo(id){view='promo';curPromo=id||null;PAGE=1;window.scrollTo(0,0);render();}  // เลือกโปร → ไปแท็บ Promotion ที่โปรนั้น (ใช้จากหน้าหลัก/หน้ารวมโปร)
 let _promoTimer=null;
 function render(){
   if(_promoTimer){clearInterval(_promoTimer);_promoTimer=null;}
@@ -967,7 +967,9 @@ function homeBody(){
   // หน้าแรก (ALL + ไม่ค้นหา) → แยกเป็นหมวด แถวเลื่อนแนวนอน + ดูทั้งหมด (แบบ Makro)
   if(curCat==='ALL' && !curSearch.trim()){
     let secs='';
-    if(PROMO_BANNER) secs+=`<div class="promo-hero" style="cursor:pointer" onclick="go('promo')"><img src="${esc(PROMO_BANNER)}" alt="" loading="lazy" decoding="async" onerror="this.parentNode.style.display='none'"></div>`;
+    const homeCamp=promoActiveCampaigns();
+    if(homeCamp.length) secs+=promoHeroCarousel(homeCamp,'home');   // ป้ายโปรเลื่อนได้ (แตะสไลด์=เปิดโปรนั้น)
+    else if(PROMO_BANNER) secs+=`<div class="promo-hero" style="cursor:pointer" onclick="go('promo')"><img src="${esc(PROMO_BANNER)}" alt="" loading="lazy" decoding="async" onerror="this.parentNode.style.display='none'"></div>`;
     const promoList=PRODUCTS.filter(p=>unitWas(p)>0||(Number(p.pack_promo)>0&&Number(p.pack_normal)>Number(p.pack_promo))||(Number(p.box_promo)>0&&Number(p.box_normal)>Number(p.box_promo)));
     if(promoList.length) secs+=homeSection('🔥 '+(isLao()?'ໂປຣໂມຊັ່ນ':'โปรโมชั่น'),'__PROMO__',promoList);
     CATS.forEach(c=>{ const items=PRODUCTS.filter(p=>p.category===c); if(items.length) secs+=homeSection(catIcon(c)+' '+catLabel(c),c,items); });
@@ -1178,7 +1180,9 @@ function promoStaticBanner(){
   </div>`;
 }
 // hero carousel: สไลด์ [ทั้งหมด, โปร1, โปร2, ...] เลื่อนซ้าย-ขวา → เปลี่ยน curPromo + สินค้าเปลี่ยนตาม
-function promoHeroCarousel(campaigns){
+// ctx='promo' (ในแท็บ Promotion — เลื่อน=เปลี่ยนสินค้า) | 'home' (หน้าหลัก — แตะสไลด์=เปิดโปรนั้น)
+function promoHeroCarousel(campaigns,ctx){
+  ctx=ctx||'promo';
   const cur=curPromo?String(curPromo):'';
   const slides=[{id:'',title:isLao()?'ໂປຣທັງໝົດ':'โปรโมชั่นทั้งหมด',art:PROMO_BANNER||'',color:'#E1121D',count:promoProducts().length}];
   campaigns.forEach(c=>slides.push({id:String(c.id),title:c.title||'',art:c.artwork_url||'',color:colorSafe(c.badge_color),count:(c.barcodes||[]).map(bc=>PMAP[bc]).filter(Boolean).length}));
@@ -1187,11 +1191,13 @@ function promoHeroCarousel(campaigns){
       ? `<img src="${esc(s.art)}" alt="${esc(s.title)}" decoding="async" onerror="this.style.display='none'">`
       : `<div class="phero-fallback" style="background:linear-gradient(120deg,${s.color},#1a1a1a)"><div class="phf-t">${esc(s.title)}</div><div class="phf-n">${s.count} ${isLao()?'ລາຍການ':'รายการ'}</div></div>`;
     const cap=s.art?`<div class="phero-cap">${esc(s.title)}</div>`:'';
-    return `<div class="phero-slide" data-pid="${esc(s.id)}" onclick="promoPick('${esc(s.id)}')">${inner}${cap}</div>`;
+    // home: แตะ=ไปแท็บ Promotion ที่โปรนั้น (สไลด์ทั้งหมด→เปิดหน้าโปร) · promo: แตะ=เลื่อนไปสไลด์นั้น
+    const click=ctx==='home'?(s.id?`selPromo('${esc(s.id)}')`:`go('promo')`):`promoPick('${esc(s.id)}')`;
+    return `<div class="phero-slide" data-pid="${esc(s.id)}" onclick="${click}">${inner}${cap}</div>`;
   }).join('');
   const dots=slides.map((s,i)=>`<button class="phero-dot ${String(s.id)===cur?'on':''}" onclick="promoHeroGo(${i})" aria-label="${esc(s.title)}"></button>`).join('');
   const arrows=slides.length>1?`<button class="phero-arrow l" onclick="promoHeroNav(-1)" aria-label="prev">‹</button><button class="phero-arrow r" onclick="promoHeroNav(1)" aria-label="next">›</button>`:'';
-  const timer=PROMO_END?`<div class="promo-hero-timer" style="top:10px;bottom:auto;z-index:3"><span class="pht-lbl">${esc(T('endsin'))}</span><span class="fh-clock" id="flashClock">--:--:--</span></div>`:'';
+  const timer=(ctx!=='home'&&PROMO_END)?`<div class="promo-hero-timer" style="top:10px;bottom:auto;z-index:3"><span class="pht-lbl">${esc(T('endsin'))}</span><span class="fh-clock" id="flashClock">--:--:--</span></div>`:'';
   return `<div class="phero"><div class="phero-track" id="pheroTrack" onscroll="promoHeroScroll()">${slideHtml}</div>${arrows}${timer}<div class="phero-dots">${dots}</div></div>`;
 }
 // เนื้อหาสินค้าตาม curPromo (ส่วนที่เปลี่ยนเวลาเลื่อน hero — อัปเดตแค่ #promoBody)
@@ -1228,8 +1234,8 @@ function promoCurIndex(){const campaigns=promoActiveCampaigns();if(!curPromo)ret
 function promoApply(id){
   const nid=id||null;
   if(String(nid||'')===String(curPromo||'')){return;}   // สไลด์เดิม ไม่ต้องทำอะไร
-  curPromo=nid;PAGE=1;
-  const b=$('promoBody');if(b){b.innerHTML=promoBody(promoActiveCampaigns());armInfiniteScroll();}
+  curPromo=nid;
+  const b=$('promoBody');if(b){PAGE=1;b.innerHTML=promoBody(promoActiveCampaigns());armInfiniteScroll();}  // อัปเดตสินค้าเฉพาะในแท็บ Promotion (home ไม่มี body → แค่เลื่อน hero)
   const idx=promoCurIndex();
   document.querySelectorAll('.phero-dot').forEach((d,i)=>d.classList.toggle('on',i===idx));
 }
