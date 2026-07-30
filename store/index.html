@@ -335,7 +335,7 @@ nav.bn .nb{position:absolute;top:8px;left:calc(50% + 6px);min-width:15px;height:
 .ov{position:fixed;inset:0;z-index:100;background:rgba(16,30,24,.6);display:none;align-items:flex-end;justify-content:center}
 .ov.show{display:flex}
 @media(min-width:560px){.ov{align-items:center}}
-.sheet{background:var(--card);width:100%;max-width:460px;border-radius:20px 20px 0 0;max-height:92vh;overflow-y:auto;box-shadow:var(--sh-lg);animation:up .25s ease}
+.sheet{background:var(--card);width:100%;max-width:460px;border-radius:20px 20px 0 0;max-height:100%;overflow-y:auto;box-shadow:var(--sh-lg);animation:up .25s ease}
 @media(min-width:560px){.sheet{border-radius:20px}}
 @keyframes up{from{transform:translateY(40px);opacity:.6}to{transform:translateY(0);opacity:1}}
 .sheet-h{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 8px;position:sticky;top:0;background:var(--card)}
@@ -1762,8 +1762,12 @@ function bottomNav(){
 }
 
 /* ---------- Sheet ---------- */
-function openSheet(html,noClose){$('sheet').innerHTML=html;$('ov').classList.add('show');document.body.style.overflow='hidden';}
-function closeSheet(){$('ov').classList.remove('show');document.body.style.overflow='';}
+// ปรับ overlay ให้สูงเท่าพื้นที่ที่มองเห็นจริง (เหนือคีย์บอร์ดมือถือ) — กัน sheet จมหลังคีย์บอร์ด + backdrop ใหญ่จนกดพลาดปิด
+function _ovSyncVV(){const ov=$('ov');const vv=window.visualViewport;if(!ov||!vv)return;ov.style.height=vv.height+'px';ov.style.top=vv.offsetTop+'px';ov.style.bottom='auto';}
+function _ovBindVV(){if(!window.visualViewport)return;_ovSyncVV();window.visualViewport.addEventListener('resize',_ovSyncVV);window.visualViewport.addEventListener('scroll',_ovSyncVV);}
+function _ovUnbindVV(){const ov=$('ov');if(window.visualViewport){window.visualViewport.removeEventListener('resize',_ovSyncVV);window.visualViewport.removeEventListener('scroll',_ovSyncVV);}if(ov){ov.style.height='';ov.style.top='';ov.style.bottom='';}}
+function openSheet(html,noClose){$('sheet').innerHTML=html;$('ov').classList.add('show');document.body.style.overflow='hidden';_ovBindVV();}
+function closeSheet(){$('ov').classList.remove('show');document.body.style.overflow='';_ovUnbindVV();}
 
 /* ============================================================
    Boot

@@ -105,7 +105,7 @@ header{background:#fff;color:var(--ink);position:sticky;top:0;z-index:30;box-sha
 .toast.ok{background:var(--green)}.toast.err{background:var(--red)}.toast.warn{background:var(--amber-d)}
 .ov{position:fixed;inset:0;z-index:100;background:rgba(16,30,24,.6);display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(2px)}
 .ov.show{display:flex}
-.sheet{background:var(--card);width:100%;max-width:460px;border-radius:18px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh-lg)}
+.sheet{background:var(--card);width:100%;max-width:460px;border-radius:18px;max-height:100%;overflow-y:auto;box-shadow:var(--sh-lg)}
 .sheet-h{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 8px}
 .sheet-h h3{font-size:17px;font-weight:800}.sheet-h .x{width:32px;height:32px;border-radius:9px;background:var(--bg);display:grid;place-items:center}
 .sheet-b{padding:6px 18px 20px}
@@ -936,8 +936,12 @@ async function saveQRNote(){
 
 /* ============ misc ============ */
 function updateTabCnt(){const btns=document.querySelectorAll('.tabnav button');/* re-render minimal */ if(actor){const t=document.querySelector('.tabnav-in');if(t){const b=t.querySelector('button');}}}
-function openSheet(html){$('sheet').innerHTML=html;$('ov').classList.add('show');}
-function closeSheet(){$('ov').classList.remove('show');}
+// ปรับ overlay สูงเท่าพื้นที่ที่เห็นจริง (เหนือคีย์บอร์ด) — กัน sheet จมหลังคีย์บอร์ด + กดพลาดปิด
+function _ovSyncVV(){const ov=$('ov');const vv=window.visualViewport;if(!ov||!vv)return;ov.style.height=vv.height+'px';ov.style.top=vv.offsetTop+'px';ov.style.bottom='auto';}
+function _ovBindVV(){if(!window.visualViewport)return;_ovSyncVV();window.visualViewport.addEventListener('resize',_ovSyncVV);window.visualViewport.addEventListener('scroll',_ovSyncVV);}
+function _ovUnbindVV(){const ov=$('ov');if(window.visualViewport){window.visualViewport.removeEventListener('resize',_ovSyncVV);window.visualViewport.removeEventListener('scroll',_ovSyncVV);}if(ov){ov.style.height='';ov.style.top='';ov.style.bottom='';}}
+function openSheet(html){$('sheet').innerHTML=html;$('ov').classList.add('show');_ovBindVV();}
+function closeSheet(){$('ov').classList.remove('show');_ovUnbindVV();}
 
 /* ============ boot ============ */
 (function(){
