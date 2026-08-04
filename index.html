@@ -17942,7 +17942,19 @@ function usePogExpected(qty) {
 async function openPanOGramModal(barcode, locationCode, editId = null, presetShelf = null) {
   const isLao = lang === 'lo';
   const isEdit = !!editId;
-  
+
+  // 🔎 สแกนได้ทั้ง Unit/Pack/Box/Other → แปลงเป็น "บาร์ชิ้น" (barcode_unit) เสมอ แล้วบันทึกเป็นบาร์ชิ้น
+  let _pogScanLevel = null;
+  try {
+    const _bp = await bpLookup(barcode);
+    if (_bp) {
+      _pogScanLevel = bpMatchLevel(_bp, barcode);
+      if (_pogScanLevel !== 'unit' && _bp.barcode_unit && String(_bp.barcode_unit).trim()) {
+        barcode = String(_bp.barcode_unit).trim();
+      }
+    }
+  } catch (e) {}
+
   // ถ้า edit → โหลดข้อมูลเดิม
   let existing = null;
   if (isEdit) {
@@ -17954,8 +17966,16 @@ async function openPanOGramModal(barcode, locationCode, editId = null, presetShe
   const { data: prod } = await sb
     .from('products').select('*')
     .eq('barcode', barcode).eq('branch_id', branch.id).maybeSingle();
-  
-  const prodName = prod ? (isLao ? (prod.name_lo || prod.name_th) : (prod.name_th || prod.name_lo)) : barcode;
+
+  let prodName = prod ? (isLao ? (prod.name_lo || prod.name_th) : (prod.name_th || prod.name_lo)) : null;
+  // ไม่มีสต๊อก/ยังไม่มีในสาขานี้ → ดึงชื่อจาก Master กลาง (โชว์ชื่อได้แม้ไม่มีสต๊อก)
+  if (!prodName) {
+    try {
+      const { data: mp } = await sb.from('master_products').select('name_th,name_lo').eq('barcode', barcode).maybeSingle();
+      if (mp) prodName = isLao ? (mp.name_lo || mp.name_th) : (mp.name_th || mp.name_lo);
+    } catch (e) {}
+  }
+  if (!prodName) prodName = barcode;
   
   // โหลด PoGs ที่มีอยู่ใน location นี้ (เพื่อเสนอ next seq + cache total per shelf)
   const { data: existingAtLoc } = await sb
@@ -17997,10 +18017,11 @@ async function openPanOGramModal(barcode, locationCode, editId = null, presetShe
     </h3>
     
     <div style="background:var(--slate-50);padding:9px 11px;border-radius:8px;margin-bottom:11px;">
-      <div style="font-size:11px;font-weight:700;color:var(--slate-900);">${prodName}</div>
+      <div style="font-size:11px;font-weight:700;color:var(--slate-900);">${prodName}${!prod ? `<span style="margin-left:6px;background:var(--slate-200);color:var(--slate-600);padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700;">${isLao ? 'ບໍ່ມີສະຕ໋ອກ' : 'ไม่มีสต๊อก'}</span>` : ''}</div>
       <div style="font-size:10px;color:var(--slate-500);font-family:monospace;">
         ${barcode} • Loc: <strong>${locationCode}</strong>
       </div>
+      ${(_pogScanLevel && _pogScanLevel !== 'unit') ? `<div style="font-size:9.5px;color:var(--emerald-600);font-weight:700;margin-top:4px;">${isLao ? 'ສະແກນບາໂຄ້ດ' : 'สแกนบาร์โค้ด'} ${_pogScanLevel === 'box' ? (isLao ? 'ລັງ' : 'ลัง') : _pogScanLevel === 'pack' ? (isLao ? 'ແພັກ' : 'แพ๊ค') : (isLao ? 'ອື່ນໆ' : 'อื่นๆ')} → ${isLao ? 'ບັນທຶກເປັນບາໂຄ້ດຊິ້ນ' : 'บันทึกเป็นบาร์ชิ้น'}</div>` : ''}
     </div>
     
     <div class="error-msg" id="pogErr"></div>
