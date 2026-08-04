@@ -20208,7 +20208,21 @@ async function exportPanOGramExcel() {
       showToast(isLao ? '⚠️ ບໍ່ມີຂໍ້ມູນ' : '⚠️ ไม่มีข้อมูล', 'warning');
       return;
     }
-    
+
+    // เติมชื่อจาก Master กลาง สำหรับสินค้าไม่มีในสาขา (ไม่มีสต๊อก → products join = null → ชื่อว่าง)
+    const _mNames = {};
+    const _missBc = [...new Set(pogs.filter(p => p.barcode && !(p.products && (p.products.name_lo || p.products.name_th))).map(p => p.barcode))];
+    for (let i = 0; i < _missBc.length; i += 300) {   // chunk กัน .in() ยาวเกิน
+      const chunk = _missBc.slice(i, i + 300);
+      if (!chunk.length) continue;
+      try {
+        const { data: mps } = await sb.from('master_products').select('barcode,name_th,name_lo').in('barcode', chunk);
+        (mps || []).forEach(m => { _mNames[m.barcode] = { name_lo: m.name_lo || '', name_th: m.name_th || '' }; });
+      } catch (e) {}
+    }
+    const _pgNameLo = p => (p.products?.name_lo) || (_mNames[p.barcode]?.name_lo) || (p.products?.name_th) || (_mNames[p.barcode]?.name_th) || '';
+    const _pgNameTh = p => (p.products?.name_th) || (_mNames[p.barcode]?.name_th) || (p.products?.name_lo) || (_mNames[p.barcode]?.name_lo) || '';
+
     const wb = XLSX.utils.book_new();
     
     // Sheet 1: Pan-O-Gram (รายละเอียดเต็ม)
@@ -20224,8 +20238,8 @@ async function exportPanOGramExcel() {
       sheet1.push([
         p.location_code, p.shelf, p.seq_in_shelf, p.total_in_shelf, p.position_code,
         p.barcode,
-        p.products?.name_lo || '',
-        p.products?.name_th || '',
+        _pgNameLo(p),
+        _pgNameTh(p),
         p.products?.unit_lo || p.products?.unit_th || '',
         p.facial, p.depth, p.stack, p.total_qty,
         p.products?.pos_qty || 0, sellPrice, value,
@@ -20250,7 +20264,7 @@ async function exportPanOGramExcel() {
        'Shelf Capacity (Per Planogram)', 'Actual Count', 'Variance', 'Notes']
     ];
     pogs.forEach(p => {
-      const name = p.products?.name_lo || p.products?.name_th || p.barcode;
+      const name = _pgNameLo(p) || p.barcode;
       const unit = p.products?.unit_lo || p.products?.unit_th || '';
       sheet2.push([
         p.position_code, p.location_code, p.shelf, p.seq_in_shelf,
@@ -20312,7 +20326,7 @@ async function exportPanOGramExcel() {
       const pos = Number(p.products?.pos_qty) || 0;
       const cap = Number(p.total_qty) || 0;
       if (!ordByBc[p.barcode]) ordByBc[p.barcode] = {
-        bc: p.barcode, name: p.products?.name_lo || p.products?.name_th || '',
+        bc: p.barcode, name: _pgNameLo(p),
         unit: p.products?.unit_lo || p.products?.unit_th || '', price: price, pos: pos, cap: 0, count: 0, locs: new Set()
       };
       const o = ordByBc[p.barcode];
