@@ -19121,6 +19121,26 @@ async function loadPanOGramManager() {
   }
   
   _pogManagerData = pogs || [];
+
+  // เติมชื่อจาก Master กลาง สำหรับสินค้าไม่มีในสาขา (ไม่มีสต๊อก → products=null → ชื่อว่าง)
+  // ยัดกลับเข้า p.products เพื่อให้ render/ค้นหา/filter ที่อ้าง p.products.name ทำงานได้ทั้งหมด
+  try {
+    const _missBc = [...new Set(_pogManagerData.filter(p => p.barcode && !(p.products && (p.products.name_lo || p.products.name_th))).map(p => p.barcode))];
+    if (_missBc.length) {
+      const _mName = {};
+      for (let i = 0; i < _missBc.length; i += 300) {   // chunk กัน .in() ยาวเกิน
+        const chunk = _missBc.slice(i, i + 300);
+        const { data: mps } = await sb.from('master_products').select('barcode,name_th,name_lo').in('barcode', chunk);
+        (mps || []).forEach(m => { _mName[m.barcode] = m; });
+      }
+      _pogManagerData.forEach(p => {
+        if (p.barcode && _mName[p.barcode] && !(p.products && (p.products.name_lo || p.products.name_th))) {
+          p.products = Object.assign({}, p.products || {}, { name_lo: _mName[p.barcode].name_lo || '', name_th: _mName[p.barcode].name_th || '' });
+        }
+      });
+    }
+  } catch (e) {}
+
   document.getElementById('pogMgrLoader').style.display = 'none';
   const content = document.getElementById('pogMgrContent');
   content.style.display = 'block';
