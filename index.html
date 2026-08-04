@@ -18659,6 +18659,14 @@ async function pogLoadAssign() {
         const { data: pr } = await sb.from('products').select('barcode,name_th,name_lo').eq('branch_id', branch.id).in('barcode', bcs);
         (pr || []).forEach(p => { nameMap[p.barcode] = (lang === 'lo' ? (p.name_lo || p.name_th) : (p.name_th || p.name_lo)) || p.barcode; });
       } catch (e) {}
+      // ไม่มีในสาขา (ไม่มีสต๊อก) → เติมชื่อจาก Master กลาง (โชว์ชื่อได้แม้ไม่มีสต๊อก)
+      const miss = bcs.filter(b => !nameMap[b]);
+      if (miss.length) {
+        try {
+          const { data: mp } = await sb.from('master_products').select('barcode,name_th,name_lo').in('barcode', miss);
+          (mp || []).forEach(m => { nameMap[m.barcode] = (lang === 'lo' ? (m.name_lo || m.name_th) : (m.name_th || m.name_lo)) || m.barcode; });
+        } catch (e) {}
+      }
     }
     // ชื่อผู้ระบุ (เฉพาะ admin ดูได้ — ไว้ตรวจสอบการทำงาน)
     const creators = {};
