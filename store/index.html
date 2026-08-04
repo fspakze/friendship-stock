@@ -709,7 +709,8 @@ async function restoreSession(){
 /* ============================================================
    Router / render
    ============================================================ */
-function go(v){view=v;PAGE=1;curPromo=null;window.scrollTo(0,0);render();}
+function _closeSheetSilent(){const ov=$('ov');if(ov)ov.classList.remove('show');document.body.style.overflow='';if(typeof _ovUnbindVV==='function')_ovUnbindVV();_pdBc=null;}
+function go(v){if(_pdBc)_closeSheetSilent();view=v;PAGE=1;curPromo=null;window.scrollTo(0,0);render();}
 // กดโลโก้ = กลับหน้าแรกแบบสด: ล้างคำค้นหา + หมวด + กลุ่ม + ช่องค้นหา แล้วเลื่อนขึ้นบนสุด
 function goHomeFresh(){
   curSearch='';curCat='ALL';curGroup='';curPromo=null;view='home';PAGE=1;
@@ -733,7 +734,53 @@ function render(){
   if(view==='orders')loadMyOrders();
   if(view==='promo'){startPromoClock();armPromoHero();}  // ตั้งตำแหน่ง hero ให้ตรงโปรที่เลือก
   if(view==='home'||view==='promo')armInfiniteScroll();  // โหลดเพิ่มอัตโนมัติเมื่อเลื่อนถึงล่าง
+  syncHash();  // อัปเดต URL (#) ให้ตรงหน้าปัจจุบัน
 }
+/* ---------- Router (hash: #home #promo #promo/<id> #cart #orders #account #product/<bc>) ---------- */
+let _pdBc=null;      // barcode ของ product sheet ที่เปิดอยู่ (null=ไม่เปิด/เป็น sheet อื่น)
+let _routing=false;  // true = กำลังตั้ง/ใช้ hash เอง → กัน loop
+function _stateToHash(){
+  const ov=$('ov');
+  if(_pdBc&&ov&&ov.classList.contains('show'))return '#product/'+encodeURIComponent(_pdBc);
+  if(view==='promo')return curPromo?('#promo/'+encodeURIComponent(String(curPromo))):'#promo';
+  if(view==='cart'||view==='orders'||view==='account')return '#'+view;
+  return '#home';
+}
+function syncHash(){
+  if(_routing)return;
+  const h=_stateToHash();
+  if((location.hash||'#home')===h)return;
+  _routing=true;
+  try{location.hash=h;}catch(e){}
+  setTimeout(function(){_routing=false;},0);
+}
+function applyHash(){
+  const parts=(location.hash||'').replace(/^#/,'').split('/');
+  const seg=parts[0]||'home';
+  const arg=parts[1]?decodeURIComponent(parts.slice(1).join('/')):'';
+  _routing=true;
+  try{
+    if(seg==='product'){
+      if(arg&&PMAP[arg]){ _pdBc=arg; if(view!=='home'&&view!=='promo'){view='home';curCat='ALL';} render(); openProduct(arg); }
+      else{ _pdBc=null;view='home';curCat='ALL';PAGE=1;render(); }
+    }else{
+      if(_pdBc){_pdBc=null;const ov=$('ov');if(ov)ov.classList.remove('show');document.body.style.overflow='';_ovUnbindVV();}  // ปิด product sheet ที่ค้าง
+      if(seg==='promo'){view='promo';curPromo=arg||null;}
+      else if(seg==='cart'||seg==='orders'||seg==='account'){view=seg;curPromo=null;}
+      else{view='home';curCat='ALL';curPromo=null;}
+      PAGE=1;window.scrollTo(0,0);render();
+    }
+  }catch(e){}
+  setTimeout(function(){_routing=false;},0);
+}
+// ตอนโหลดพื้นหลังเสร็จ (PROMOS/แคมเปญมาแล้ว) → re-apply ถ้าเป็นหน้าโปร/สินค้า ไม่งั้น render ปกติ
+function routeReload(){
+  const parts=(location.hash||'').replace(/^#/,'').split('/');const s=parts[0];
+  if(s==='promo'){applyHash();return;}
+  if(s==='product'){if(_pdBc)return;applyHash();return;}
+  render();
+}
+window.addEventListener('hashchange',function(){if(_routing)return;applyHash();});
 function updateBadges(){
   document.querySelectorAll('[data-cartbadge]').forEach(el=>{const c=cartCount();el.textContent=c;el.style.display=c?'':'none';});
 }
@@ -1238,6 +1285,7 @@ function promoApply(id){
   const b=$('promoBody');if(b){PAGE=1;b.innerHTML=promoBody(promoActiveCampaigns());armInfiniteScroll();}  // อัปเดตสินค้าเฉพาะในแท็บ Promotion (home ไม่มี body → แค่เลื่อน hero)
   const idx=promoCurIndex();
   document.querySelectorAll('.phero-dot').forEach((d,i)=>d.classList.toggle('on',i===idx));
+  if(view==='promo'&&!_routing){try{history.replaceState(null,'',_stateToHash());}catch(e){}}  // เลื่อนโปร → อัปเดต URL (ไม่เพิ่มประวัติ)
 }
 // เลื่อน hero ไป slide index → onscroll settle จะเรียก promoApply เอง
 function promoHeroGo(idx){const tr=$('pheroTrack');if(!tr)return;idx=Math.max(0,Math.min(tr.children.length-1,idx));tr.scrollTo({left:idx*tr.clientWidth,behavior:'smooth'});}
@@ -1297,6 +1345,7 @@ function openProduct(bc){
     </div>`;
   openSheet(html);
   const sh=$('sheet');if(sh)sh.scrollTop=0;
+  _pdBc=bc;syncHash();  // URL → #product/<bc> (แชร์ลิงก์สินค้า + ปุ่ม back ปิด sheet ได้)
 }
 function relatedProducts(p){
   let r=PRODUCTS.filter(x=>x.barcode!==p.barcode&&p.category&&x.category===p.category);
@@ -1767,7 +1816,8 @@ function _ovSyncVV(){const ov=$('ov');const vv=window.visualViewport;if(!ov||!vv
 function _ovBindVV(){if(!window.visualViewport)return;_ovSyncVV();window.visualViewport.addEventListener('resize',_ovSyncVV);window.visualViewport.addEventListener('scroll',_ovSyncVV);}
 function _ovUnbindVV(){const ov=$('ov');if(window.visualViewport){window.visualViewport.removeEventListener('resize',_ovSyncVV);window.visualViewport.removeEventListener('scroll',_ovSyncVV);}if(ov){ov.style.height='';ov.style.top='';ov.style.bottom='';}}
 function openSheet(html,noClose){$('sheet').innerHTML=html;$('ov').classList.add('show');document.body.style.overflow='hidden';_ovBindVV();}
-function closeSheet(){$('ov').classList.remove('show');document.body.style.overflow='';_ovUnbindVV();}
+function closeSheet(){$('ov').classList.remove('show');document.body.style.overflow='';_ovUnbindVV();
+  if(_pdBc){_pdBc=null;if(!_routing){if(history.length>1&&/^#product\//.test(location.hash||'')){history.back();}else{syncHash();}}}}  // ปิดสินค้า → คืน URL หน้าเดิม
 
 /* ============================================================
    Boot
@@ -1777,8 +1827,8 @@ async function boot(){
   restoreStaff();
   $('app').innerHTML=header(true)+catBar()+`<div class="wrap"><div class="grid">${'<div class="skel"></div>'.repeat(8)}</div></div>`+bottomNav();
   await loadCatalog();          // โหลดสินค้าก่อน (มี retry ในตัว) — ไม่ให้ query อื่นบล็อก
-  render();
-  Promise.all([loadBranches(),loadPromos(),loadLabels(),loadStorePages(),restoreSession(),loadShopQR().then(loadStock)]).then(()=>render());  // พื้นหลัง: สาขา/โปร/ป้าย/หน้าข้อมูล/session/QR+สต็อกคลัง → re-render
+  applyHash();                  // เปิดหน้าตาม URL ที่มา (แชร์ลิงก์/รีเฟรช) — ว่าง = หน้าหลัก
+  Promise.all([loadBranches(),loadPromos(),loadLabels(),loadStorePages(),restoreSession(),loadShopQR().then(loadStock)]).then(()=>routeReload());  // พื้นหลังเสร็จ → re-apply URL (แคมเปญโปรมาแล้ว) หรือ render ปกติ
 }
 boot();
 </script>
