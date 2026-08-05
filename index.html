@@ -20465,8 +20465,9 @@ async function pogImportParse(file) {
       const newCap = fac * dep * stk;
       const oldCap = (ex.facial || 1) * (ex.depth || 1) * (ex.stack || 1);
       const payload = {
+        // ⛔ ไม่เขียน total_qty — เป็น generated column (DB คำนวณ facial×depth×stack เอง) เขียนแล้ว error ทั้งชุด
         location_code: loc, shelf, seq_in_shelf: seq, total_in_shelf: tot,
-        facial: fac, depth: dep, stack: stk, total_qty: newCap,
+        facial: fac, depth: dep, stack: stk,
         max_qty: (ex.max_qty == null || ex.max_qty === oldCap) ? newCap : ex.max_qty,
         reorder_qty: (ex.reorder_qty == null || ex.reorder_qty === oldCap) ? newCap : ex.reorder_qty,
         notes: note || null, updated_at: new Date().toISOString(),
@@ -20523,10 +20524,23 @@ async function pogImportApply() {
     } catch (e) { fail++; if (errs.length < 5) errs.push('#' + r.id + ': ' + (e.message || e)); }
   }
   _pogImportRows = null;
-  closeModal();
   if (typeof logActivity === 'function') logActivity('pog_import', 'branch ' + branch.id + ' · ok ' + ok + ' · fail ' + fail);
-  showToast((fail ? '⚠️ ' : '✅ ') + (isLao ? 'ອັບເດດ ' : 'อัปเดต ') + ok + (fail ? ' · ' + (isLao ? 'ຜິດພາດ ' : 'ผิดพลาด ') + fail : ''), fail ? 'warning' : 'success');
   if (errs.length) console.warn('[FS] pog import errors:', errs);
+  if (fail) {
+    // โชว์ error จริงบนจอ (กันเดา — เห็นข้อความ PostgREST ตรงๆ)
+    showModal(
+      `<h3 style="color:var(--fs-orange);">⚠️ ${isLao ? 'ນຳເຂົ້າມີບັນຫາ' : 'นำเข้ามีปัญหา'}</h3>
+       <div style="font-size:12px;line-height:1.9;margin-bottom:8px;">
+         <div style="color:var(--fs-green);">✅ ${isLao ? 'ສຳເລັດ' : 'สำเร็จ'}: <strong>${ok}</strong></div>
+         <div style="color:var(--fs-red);">❌ ${isLao ? 'ຜິດພາດ' : 'ผิดพลาด'}: <strong>${fail}</strong></div>
+       </div>
+       <div style="background:#fff1f2;border:1px solid var(--rose-200);border-radius:8px;padding:8px 10px;font-size:10.5px;font-family:monospace;color:var(--fs-red);word-break:break-word;max-height:40vh;overflow:auto;">${escapeHtml(errs.join('\n'))}</div>
+       <div class="action-row" style="margin-top:11px;"><button class="btn btn-primary" onclick="closeModal()">${T('ok') || 'OK'}</button></div>`
+    );
+  } else {
+    closeModal();
+    showToast('✅ ' + (isLao ? 'ອັບເດດ ' : 'อัปเดต ') + ok, 'success');
+  }
   try {
     if (document.getElementById('pogMgrContent')) { await loadPanOGramManager(); }
     else if (_pogView === 'assign') { await pogLoadAssign(); }
