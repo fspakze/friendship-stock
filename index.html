@@ -20225,7 +20225,7 @@ async function exportPanOGramExcel() {
     // Load all PoGs for this branch — fetchAllQuery กัน limit 1000 (Excel ต้องครบทุกแถว)
     const pogs = await fetchAllQuery(() => sb
       .from('pan_o_grams')
-      .select('*, products(name_th, name_lo, unit_th, unit_lo, sell_price, pos_qty)')
+      .select('*, products(name_th, name_lo, unit_th, unit_lo, sell_price, pos_qty, is_active)')
       .eq('branch_id', branch.id)
       .order('location_code').order('shelf').order('seq_in_shelf').order('id'));
     if (!pogs || pogs.length === 0) {
@@ -20246,6 +20246,8 @@ async function exportPanOGramExcel() {
     }
     const _pgNameLo = p => (p.products?.name_lo) || (_mNames[p.barcode]?.name_lo) || (p.products?.name_th) || (_mNames[p.barcode]?.name_th) || '';
     const _pgNameTh = p => (p.products?.name_th) || (_mNames[p.barcode]?.name_th) || (p.products?.name_lo) || (_mNames[p.barcode]?.name_lo) || '';
+    // ⚠️ นับ pos เฉพาะสินค้า is_active=true — ปิดการขายแล้ว (is_active=false) แต่ pos เก่าค้าง = สต๊อก 0 (ตรงกับหน้าเช็คสต๊อก · MEMORY 7)
+    const _pgPos = p => (p.products && p.products.is_active) ? (Number(p.products.pos_qty) || 0) : 0;
 
     const wb = XLSX.utils.book_new();
     
@@ -20267,7 +20269,7 @@ async function exportPanOGramExcel() {
         _pgNameTh(p),
         p.products?.unit_lo || p.products?.unit_th || '',
         p.facial, p.depth, p.stack, p.total_qty,
-        p.products?.pos_qty || 0, sellPrice, value,
+        _pgPos(p), sellPrice, value,
         p.notes || '',
         p.created_at ? new Date(p.created_at).toLocaleString() : ''
       ]);
@@ -20323,7 +20325,7 @@ async function exportPanOGramExcel() {
     const posByBc = {};   // barcode -> {pos, price} · สต๊อกต่อ product นับครั้งเดียวทั้งสาขา (กันนับซ้ำเมื่อสินค้าอยู่หลาย gondola)
     pogs.forEach(p => {
       const price = p.products?.sell_price || 0;
-      const pos = Number(p.products?.pos_qty) || 0;
+      const pos = _pgPos(p);
       const cap = Number(p.total_qty) || 0;
       const loc = p.location_code;
       if (!byLoc[loc]) byLoc[loc] = { items: 0, capQty: 0, capValue: 0, stockQty: 0, stockValue: 0, shelves: new Set(), posSeen: new Set() };
@@ -20356,7 +20358,7 @@ async function exportPanOGramExcel() {
     pogs.forEach(p => {
       if (!p.barcode) return;
       const price = p.products?.sell_price || 0;
-      const pos = Number(p.products?.pos_qty) || 0;
+      const pos = _pgPos(p);
       const cap = Number(p.total_qty) || 0;
       if (!ordByBc[p.barcode]) ordByBc[p.barcode] = {
         bc: p.barcode, name: _pgNameLo(p),
