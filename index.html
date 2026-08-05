@@ -20454,20 +20454,17 @@ async function pogImportParse(file) {
       let tot = (cTot >= 0 ? toInt(row[cTot]) : null) || ex.total_in_shelf || seq;
       if (seq > tot) tot = seq;
       const loc = (cLoc >= 0 ? String(row[cLoc] || '').trim() : '') || ex.location_code;
-      const note = cNote >= 0 ? String(row[cNote] || '').trim() : (ex.notes || '');
       let bc = (cBc >= 0 ? String(row[cBc] || '').trim() : '') || ex.barcode;
       const bcChanged = bc && bc !== ex.barcode;
 
-      // notes ลาวมี combining marks → Excel เซฟแล้ว normalize เปลี่ยน (NFC/NFD) + บางตัวมี zero-width (U+200B)
-      // → ต้อง normalize + ตัด zero-width ก่อนเทียบ ไม่งั้น note ต่างทุกแถวทั้งที่ตาเห็นเหมือนเดิม (MEMORY 8)
-      const _normNote = s => String(s == null ? '' : s).normalize('NFC').split('').filter(function(c){var n=c.charCodeAt(0);return n!==0x200B&&n!==0x200C&&n!==0x200D&&n!==0xFEFF;}).join('').trim();
+      // ⛔ ไม่เทียบ/ไม่ import "หมายเหตุ" — Excel ทำอักษรลาวเพี้ยน (NFC ไม่ช่วยเพราะลาวไม่ compose + zero-width)
+      // → เดิม false-positive ทุกแถวที่มี note + import หมายเหตุเพี้ยนทับสะสม · หมายเหตุแก้ในแอปแทน
       const dLoc = loc !== ex.location_code, dShelf = shelf !== ex.shelf, dSeq = seq !== ex.seq_in_shelf,
-        dTot = tot !== ex.total_in_shelf, dFac = fac !== ex.facial, dDep = dep !== ex.depth, dStk = stk !== ex.stack,
-        dNote = _normNote(note) !== _normNote(ex.notes);
-      const changed = dLoc || dShelf || dSeq || dTot || dFac || dDep || dStk || dNote || bcChanged;
+        dTot = tot !== ex.total_in_shelf, dFac = fac !== ex.facial, dDep = dep !== ex.depth, dStk = stk !== ex.stack;
+      const changed = dLoc || dShelf || dSeq || dTot || dFac || dDep || dStk || bcChanged;
       if (!changed) { unchanged++; continue; }
       if (dLoc) chg.loc++; if (dShelf) chg.shelf++; if (dSeq) chg.seq++; if (dTot) chg.total++;
-      if (dFac) chg.facial++; if (dDep) chg.depth++; if (dStk) chg.stack++; if (dNote) chg.notes++; if (bcChanged) chg.barcode++;
+      if (dFac) chg.facial++; if (dDep) chg.depth++; if (dStk) chg.stack++; if (bcChanged) chg.barcode++;
 
       const newCap = fac * dep * stk;
       const oldCap = (ex.facial || 1) * (ex.depth || 1) * (ex.stack || 1);
@@ -20477,7 +20474,8 @@ async function pogImportParse(file) {
         facial: fac, depth: dep, stack: stk,
         max_qty: (ex.max_qty == null || ex.max_qty === oldCap) ? newCap : ex.max_qty,
         reorder_qty: (ex.reorder_qty == null || ex.reorder_qty === oldCap) ? newCap : ex.reorder_qty,
-        notes: note || null, updated_at: new Date().toISOString(),
+        // ไม่เขียน notes — กัน Excel ทำอักษรลาวเพี้ยนทับ (แก้หมายเหตุในแอป)
+        updated_at: new Date().toISOString(),
         last_audited_at: new Date().toISOString(), last_audited_by: user.id
       };
       // เปลี่ยนบาร์โค้ด → แปลงเป็นบาร์ชิ้น + refresh product_id
