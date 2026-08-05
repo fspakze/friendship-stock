@@ -20458,9 +20458,12 @@ async function pogImportParse(file) {
       let bc = (cBc >= 0 ? String(row[cBc] || '').trim() : '') || ex.barcode;
       const bcChanged = bc && bc !== ex.barcode;
 
+      // notes ลาวมี combining marks → Excel เซฟแล้ว normalize เปลี่ยน (NFC/NFD) + บางตัวมี zero-width (U+200B)
+      // → ต้อง normalize + ตัด zero-width ก่อนเทียบ ไม่งั้น note ต่างทุกแถวทั้งที่ตาเห็นเหมือนเดิม (MEMORY 8)
+      const _normNote = s => String(s == null ? '' : s).normalize('NFC').split('').filter(function(c){var n=c.charCodeAt(0);return n!==0x200B&&n!==0x200C&&n!==0x200D&&n!==0xFEFF;}).join('').trim();
       const dLoc = loc !== ex.location_code, dShelf = shelf !== ex.shelf, dSeq = seq !== ex.seq_in_shelf,
         dTot = tot !== ex.total_in_shelf, dFac = fac !== ex.facial, dDep = dep !== ex.depth, dStk = stk !== ex.stack,
-        dNote = (note || '') !== (ex.notes || '');
+        dNote = _normNote(note) !== _normNote(ex.notes);
       const changed = dLoc || dShelf || dSeq || dTot || dFac || dDep || dStk || dNote || bcChanged;
       if (!changed) { unchanged++; continue; }
       if (dLoc) chg.loc++; if (dShelf) chg.shelf++; if (dSeq) chg.seq++; if (dTot) chg.total++;
