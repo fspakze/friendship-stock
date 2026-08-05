@@ -20439,6 +20439,7 @@ async function pogImportParse(file) {
 
     const toInt = v => { const n = parseInt(String(v).replace(/[^\d-]/g, ''), 10); return isNaN(n) ? null : n; };
     const prepared = []; let notInBranch = 0, unchanged = 0, noId = 0;
+    const chg = { loc: 0, shelf: 0, seq: 0, total: 0, facial: 0, depth: 0, stack: 0, notes: 0, barcode: 0 };   // นับ diff รายคอลัมน์ (วินิจฉัย)
     for (let r = 1; r < aoa.length; r++) {
       const row = aoa[r]; if (!row || !row.length) continue;
       const idv = toInt(row[cID]);
@@ -20457,10 +20458,13 @@ async function pogImportParse(file) {
       let bc = (cBc >= 0 ? String(row[cBc] || '').trim() : '') || ex.barcode;
       const bcChanged = bc && bc !== ex.barcode;
 
-      const changed = (loc !== ex.location_code) || (shelf !== ex.shelf) || (seq !== ex.seq_in_shelf) ||
-        (tot !== ex.total_in_shelf) || (fac !== ex.facial) || (dep !== ex.depth) || (stk !== ex.stack) ||
-        ((note || '') !== (ex.notes || '')) || bcChanged;
+      const dLoc = loc !== ex.location_code, dShelf = shelf !== ex.shelf, dSeq = seq !== ex.seq_in_shelf,
+        dTot = tot !== ex.total_in_shelf, dFac = fac !== ex.facial, dDep = dep !== ex.depth, dStk = stk !== ex.stack,
+        dNote = (note || '') !== (ex.notes || '');
+      const changed = dLoc || dShelf || dSeq || dTot || dFac || dDep || dStk || dNote || bcChanged;
       if (!changed) { unchanged++; continue; }
+      if (dLoc) chg.loc++; if (dShelf) chg.shelf++; if (dSeq) chg.seq++; if (dTot) chg.total++;
+      if (dFac) chg.facial++; if (dDep) chg.depth++; if (dStk) chg.stack++; if (dNote) chg.notes++; if (bcChanged) chg.barcode++;
 
       const newCap = fac * dep * stk;
       const oldCap = (ex.facial || 1) * (ex.depth || 1) * (ex.stack || 1);
@@ -20484,6 +20488,10 @@ async function pogImportParse(file) {
     _pogImportRows = prepared;
 
     const brName = isLao ? (branch.name_lo || branch.name_th || branch.code) : (branch.name_th || branch.name_lo || branch.code);
+    // breakdown รายคอลัมน์ที่เปลี่ยน (วินิจฉัยว่า 98 มาจากไหน)
+    const chgLabels = { loc: isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง', shelf: isLao ? 'ຊັ້ນ' : 'ชั้น', seq: isLao ? 'ລຳດັບ' : 'ลำดับ', total: isLao ? 'ທັງໝົດ' : 'ทั้งหมด', facial: isLao ? 'ໜ້າ' : 'หน้า', depth: isLao ? 'ເລິກ' : 'ลึก', stack: isLao ? 'ຂັ້ນ' : 'ขั้น', notes: isLao ? 'ໝາຍເຫດ' : 'หมายเหตุ', barcode: 'Barcode' };
+    const chgStr = Object.keys(chg).filter(k => chg[k] > 0).map(k => chgLabels[k] + ' ' + chg[k]).join(' · ');
+    const chgHtml = chgStr ? `<div style="background:var(--fs-blue-tint,#eff6ff);border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:11px;color:var(--fs-blue);"><strong>${isLao ? 'ຖັນທີ່ປ່ຽນ' : 'คอลัมน์ที่เปลี่ยน'}:</strong> ${chgStr}</div>` : '';
     const warnOther = notInBranch > 0
       ? `<div style="background:#fff7ed;border:1px solid var(--amber-200,#fcd34d);color:#b45309;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:11px;">⚠️ ${isLao ? 'ຂ້າມ ' : 'ข้าม '}${notInBranch} ${isLao ? 'ແຖວ (ID ບໍ່ແມ່ນຂອງສາຂານີ້ — ອາດເປັນໄຟລ໌ຄົນລະສາຂາ)' : 'แถว (ID ไม่ใช่ของสาขานี้ — อาจเป็นไฟล์คนละสาขา)'}</div>`
       : '';
@@ -20494,7 +20502,7 @@ async function pogImportParse(file) {
          <div>📄 ${isLao ? 'ແຖວໃນໄຟລ໌' : 'แถวในไฟล์'}: <strong>${aoa.length - 1}</strong></div>
          <div style="color:var(--fs-green);">✅ ${isLao ? 'ຈະອັບເດດ (ມີການແກ້ໄຂ)' : 'จะอัปเดต (มีการแก้ไข)'}: <strong>${prepared.length}</strong></div>
          <div style="color:var(--slate-500);">➖ ${isLao ? 'ບໍ່ປ່ຽນ' : 'ไม่เปลี่ยน'}: ${unchanged}${noId ? ` · ${isLao ? 'ບໍ່ມີ ID' : 'ไม่มี ID'}: ${noId}` : ''}</div>
-       </div>${warnOther}
+       </div>${chgHtml}${warnOther}
        <div style="font-size:10.5px;color:var(--slate-400);margin:8px 0;">${isLao ? 'ອັບເດດເທົ່ານັ້ນ (ບໍ່ສ້າງ/ລຶບແຖວ) · ຄວາມຈຸ = ໜ້າ×ເລິກ×ຂັ້ນ' : 'อัปเดตเท่านั้น (ไม่สร้าง/ลบแถว) · ความจุ = หน้า×ลึก×ขั้น'}</div>
        <div class="action-row">
          <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
