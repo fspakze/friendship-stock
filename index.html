@@ -13995,7 +13995,7 @@ async function loadGapReport() {
     }
 
     let query = sb.from('gap_scans')
-      .select('*, users!user_id(full_name), assigned_user:users!assigned_to(full_name), resolver:users!resolved_by(full_name), products(name_th, name_lo, unit_th, unit_lo, cost_price, sell_price, pos_qty)');
+      .select('*, users!user_id(full_name), assigned_user:users!assigned_to(full_name), resolver:users!resolved_by(full_name), products(name_th, name_lo, unit_th, unit_lo, cost_price, sell_price, pos_qty, is_active)');
     if (!seeAll) query = query.eq('branch_id', branch.id);
 
     if (Array.isArray(statusFilter)) {
@@ -14008,7 +14008,7 @@ async function loadGapReport() {
       // ทุกสาขา — fetchAllQuery กัน limit 1000 (เดิม limit 3000 โดน cap เงียบ)
       _gapReportData = await fetchAllQuery(() => {
         let q = sb.from('gap_scans')
-          .select('*, users!user_id(full_name), assigned_user:users!assigned_to(full_name), resolver:users!resolved_by(full_name), products(name_th, name_lo, unit_th, unit_lo, cost_price, sell_price, pos_qty)');
+          .select('*, users!user_id(full_name), assigned_user:users!assigned_to(full_name), resolver:users!resolved_by(full_name), products(name_th, name_lo, unit_th, unit_lo, cost_price, sell_price, pos_qty, is_active)');
         if (Array.isArray(statusFilter)) q = q.in('status', statusFilter); else q = q.eq('status', statusFilter);
         return q.order('created_at', { ascending: false }).order('id');
       });
@@ -14784,7 +14784,7 @@ async function exportGapExcel() {
       'หน่วย': a.product?.unit_th || a.product?.unit_lo || '',
       'ตำแหน่ง': a.gondolas.join(', '),
       'จำนวนที่ต้องเติม': a.total_gap_qty,
-      'POS ปัจจุบัน': a.product?.pos_qty || 0,
+      'POS ปัจจุบัน': (a.product?.is_active ? a.product.pos_qty : 0) || 0,   // ปิดการขาย = 0 (กันสต๊อกผีเหมือน panogram · MEMORY 7)
       'ต้นทุน (₭)': a.product?.cost_price || 0,
       'มูลค่ารวม (₭)': a.total_gap_qty * (a.product?.cost_price || 0),
       'จำนวนการแจ้ง': a.entries.length
