@@ -20273,6 +20273,13 @@ async function exportPanOGramExcel() {
       ]);
     });
     const ws1 = XLSX.utils.aoa_to_sheet(sheet1);
+    // Shelf Capacity (N) = Facial(K)×Depth(L)×Stack(M) · Total Value (Q) = Capacity(N)×Sell(P)
+    // ใส่เป็นสูตร → แก้ Facial/Depth/Stack ใน Excel แล้วความจุ+มูลค่าอัปเดตให้เห็นทันที (import คิดใหม่จาก f×d×s อยู่แล้ว)
+    for (let i = 0; i < pogs.length; i++) {
+      const r = i + 2;   // แถว Excel (หัวตาราง = แถว 1)
+      ws1[`N${r}`] = { t: 'n', f: `K${r}*L${r}*M${r}`, v: pogs[i].total_qty || 0 };
+      ws1[`Q${r}`] = { t: 'n', f: `N${r}*P${r}`, v: (pogs[i].total_qty || 0) * (pogs[i].products?.sell_price || 0) };
+    }
     ws1['!cols'] = [
       {wch:8},
       {wch:9},{wch:6},{wch:5},{wch:7},{wch:14},
