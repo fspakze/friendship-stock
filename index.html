@@ -18522,10 +18522,11 @@ function renderPanoGramPage() {
     </div>` : ''}
     ${pogCanManage() ? `<div style="background:white;border:1.5px solid var(--violet-500);border-radius:12px;padding:12px;margin-bottom:10px;">
       <button class="btn" style="background:var(--fs-blue);color:white;font-size:12.5px;padding:11px;width:100%;margin-bottom:7px;font-weight:800;cursor:pointer;" onclick="openPanOGramManager()">📋 ${isLao ? 'ຈັດການ Pan-O-Gram (ແກ້/ຍ້າຍ/ລຶບ)' : 'จัดการ Pan-O-Gram (แก้/ย้าย/ลบ)'}</button>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:7px;">
         <button class="btn btn-secondary" style="font-size:11px;padding:9px;cursor:pointer;" onclick="exportPanOGramExcel()">📥 Export Excel</button>
         <button class="btn btn-secondary" style="font-size:11px;padding:9px;cursor:pointer;" onclick="openPrecountReport()">📊 ${isLao ? 'ຄວາມຈຸຊັ້ນ' : 'ความจุชั้น'}</button>
       </div>
+      <button class="btn btn-secondary" style="font-size:11px;padding:9px;cursor:pointer;width:100%;background:#ecfdf5;color:var(--emerald-600);border:1px solid var(--emerald-200,#a7f3d0);" onclick="pogImportExcel()">📤 ${isLao ? 'ນຳເຂົ້າ Excel (ອັບເດດຈາກໄຟລ໌)' : 'นำเข้า Excel (อัปเดตจากไฟล์)'}</button>
     </div>` : ''}
     <div id="pogSearchWrap" style="margin-bottom:10px;">
       <input id="pogSearchInp" oninput="pogSetSearch(this.value)" placeholder="🔍 ${isLao ? 'ຄົ້ນຫາ Gondola (ເຊັ່ນ 18E02, 18)' : 'ค้นหา Gondola (เช่น 18E02, 18)'}" style="width:100%;padding:11px;border:1px solid var(--slate-300);border-radius:9px;font-size:14px;box-sizing:border-box;">
@@ -19089,6 +19090,9 @@ async function openPanOGramManager() {
       <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;">${T('cancel')}</button>
       <button class="btn btn-primary" onclick="exportPanOGramExcel()" style="background:var(--emerald-500);flex:1;">
         📥 Excel
+      </button>
+      <button class="btn btn-primary" onclick="pogImportExcel()" style="background:var(--fs-blue);flex:1;">
+        📤 ${isLao ? 'ນຳເຂົ້າ' : 'นำเข้า'}
       </button>
       <button class="btn btn-primary" onclick="exportPogImage()" style="background:var(--violet-500);flex:1;">
         🖼️ ${isLao ? 'ຮູບ' : 'รูป'}
@@ -20247,7 +20251,7 @@ async function exportPanOGramExcel() {
     
     // Sheet 1: Pan-O-Gram (รายละเอียดเต็ม)
     const sheet1 = [
-      ['Location', 'Shelf', 'Seq', 'Total in Shelf', 'Position Code',
+      ['ID (ห้ามแก้)', 'Location', 'Shelf', 'Seq', 'Total in Shelf', 'Position Code',
        'Barcode', 'Name LO', 'Name TH', 'Unit',
        'Facial', 'Depth', 'Stack', 'Shelf Capacity',
        'POS Qty', 'Sell Price (₭)', 'Total Value (₭)', 'Notes', 'Created']
@@ -20256,6 +20260,7 @@ async function exportPanOGramExcel() {
       const sellPrice = p.products?.sell_price || 0;
       const value = (p.total_qty || 0) * sellPrice;
       sheet1.push([
+        p.id,
         p.location_code, p.shelf, p.seq_in_shelf, p.total_in_shelf, p.position_code,
         p.barcode,
         _pgNameLo(p),
@@ -20269,6 +20274,7 @@ async function exportPanOGramExcel() {
     });
     const ws1 = XLSX.utils.aoa_to_sheet(sheet1);
     ws1['!cols'] = [
+      {wch:8},
       {wch:9},{wch:6},{wch:5},{wch:7},{wch:14},
       {wch:16},{wch:30},{wch:30},{wch:7},
       {wch:6},{wch:6},{wch:6},{wch:14},
@@ -20382,6 +20388,143 @@ async function exportPanOGramExcel() {
     console.error('[FS] Export Pan-O-Gram error:', e);
     showToast('Error: ' + e.message, 'error');
   }
+}
+
+// ==================== PAN-O-GRAM IMPORT (แก้ไฟล์ export แล้วนำเข้ากลับ) ====================
+// อ่านชีต "Pan-O-Gram" → จับคู่ด้วย ID → อัปเดตเฉพาะแถวของ "สาขาที่เลือกอยู่" (ปลอดภัย: ไม่แตะสาขาอื่น/ไม่สร้างแถวใหม่)
+let _pogImportRows = null;
+function pogImportExcel() {
+  if (!pogCanManage()) { showToast(lang === 'lo' ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'warning'); return; }
+  if (typeof XLSX === 'undefined') { showToast('XLSX not loaded', 'error'); return; }
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.xlsx,.xls';
+  input.onchange = function (e) {
+    const file = e.target.files && e.target.files[0];
+    if (file) pogImportParse(file);
+    input.value = '';
+  };
+  input.click();
+}
+async function pogImportParse(file) {
+  const isLao = lang === 'lo';
+  try {
+    showToast(isLao ? 'ກຳລັງອ່ານໄຟລ໌...' : 'กำลังอ่านไฟล์...', 'info');
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const wsName = wb.SheetNames.find(n => /pan.?o.?gram/i.test(n)) || wb.SheetNames[0];
+    const ws = wb.Sheets[wsName];
+    if (!ws) { showToast(isLao ? 'ບໍ່ພົບຊີດ Pan-O-Gram' : 'ไม่พบชีต Pan-O-Gram', 'error'); return; }
+    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    if (aoa.length < 2) { showToast(isLao ? 'ໄຟລ໌ຫວ່າງ' : 'ไฟล์ว่าง', 'warning'); return; }
+    const header = aoa[0].map(h => String(h || '').trim().toLowerCase());
+    const findCol = (...names) => { for (const nm of names) { const i = header.findIndex(h => h === nm || h.startsWith(nm)); if (i >= 0) return i; } return -1; };
+    const cID = findCol('id (', 'id');
+    const cLoc = findCol('location'), cShelf = findCol('shelf'), cSeq = findCol('seq'), cTot = findCol('total in shelf');
+    const cBc = findCol('barcode'), cFac = findCol('facial'), cDep = findCol('depth'), cStk = findCol('stack'), cNote = findCol('notes');
+    if (cID < 0) { showToast(isLao ? 'ໄຟລ໌ບໍ່ມີຖັນ ID (ຕ້ອງ export ຈາກແອັບກ່ອນ)' : 'ไฟล์ไม่มีคอลัมน์ ID (ต้อง export จากแอปก่อน)', 'error'); return; }
+
+    // โหลดข้อมูลปัจจุบันของ "สาขาที่เลือกอยู่" → map by id (ล็อกให้แตะได้เฉพาะสาขานี้)
+    const cur = await fetchAllQuery(() => sb.from('pan_o_grams')
+      .select('id, location_code, shelf, seq_in_shelf, total_in_shelf, facial, depth, stack, total_qty, max_qty, reorder_qty, barcode, product_id')
+      .eq('branch_id', branch.id).order('id'));
+    const byId = {}; (cur || []).forEach(p => { byId[String(p.id)] = p; });
+
+    const toInt = v => { const n = parseInt(String(v).replace(/[^\d-]/g, ''), 10); return isNaN(n) ? null : n; };
+    const prepared = []; let notInBranch = 0, unchanged = 0, noId = 0;
+    for (let r = 1; r < aoa.length; r++) {
+      const row = aoa[r]; if (!row || !row.length) continue;
+      const idv = toInt(row[cID]);
+      if (idv == null) { noId++; continue; }
+      const ex = byId[String(idv)];
+      if (!ex) { notInBranch++; continue; }   // id ไม่ใช่ของสาขานี้ → ข้าม (กันแก้ข้ามสาขา)
+      const fac = (cFac >= 0 ? toInt(row[cFac]) : null) || ex.facial || 1;
+      const dep = (cDep >= 0 ? toInt(row[cDep]) : null) || ex.depth || 1;
+      const stk = (cStk >= 0 ? toInt(row[cStk]) : null) || ex.stack || 1;
+      const shelf = (cShelf >= 0 ? toInt(row[cShelf]) : null) || ex.shelf || 1;
+      let seq = (cSeq >= 0 ? toInt(row[cSeq]) : null) || ex.seq_in_shelf || 1;
+      let tot = (cTot >= 0 ? toInt(row[cTot]) : null) || ex.total_in_shelf || seq;
+      if (seq > tot) tot = seq;
+      const loc = (cLoc >= 0 ? String(row[cLoc] || '').trim() : '') || ex.location_code;
+      const note = cNote >= 0 ? String(row[cNote] || '').trim() : (ex.notes || '');
+      let bc = (cBc >= 0 ? String(row[cBc] || '').trim() : '') || ex.barcode;
+      const bcChanged = bc && bc !== ex.barcode;
+
+      const changed = (loc !== ex.location_code) || (shelf !== ex.shelf) || (seq !== ex.seq_in_shelf) ||
+        (tot !== ex.total_in_shelf) || (fac !== ex.facial) || (dep !== ex.depth) || (stk !== ex.stack) ||
+        ((note || '') !== (ex.notes || '')) || bcChanged;
+      if (!changed) { unchanged++; continue; }
+
+      const newCap = fac * dep * stk;
+      const oldCap = (ex.facial || 1) * (ex.depth || 1) * (ex.stack || 1);
+      const payload = {
+        location_code: loc, shelf, seq_in_shelf: seq, total_in_shelf: tot,
+        facial: fac, depth: dep, stack: stk, total_qty: newCap,
+        max_qty: (ex.max_qty == null || ex.max_qty === oldCap) ? newCap : ex.max_qty,
+        reorder_qty: (ex.reorder_qty == null || ex.reorder_qty === oldCap) ? newCap : ex.reorder_qty,
+        notes: note || null, updated_at: new Date().toISOString(),
+        last_audited_at: new Date().toISOString(), last_audited_by: user.id
+      };
+      // เปลี่ยนบาร์โค้ด → แปลงเป็นบาร์ชิ้น + refresh product_id
+      if (bcChanged) {
+        try { const _bp = await bpLookup(bc); if (_bp && bpMatchLevel(_bp, bc) !== 'unit' && _bp.barcode_unit) bc = String(_bp.barcode_unit).trim(); } catch (e) {}
+        payload.barcode = bc;
+        try { const { data: pr } = await sb.from('products').select('id').eq('barcode', bc).eq('branch_id', branch.id).maybeSingle(); payload.product_id = pr?.id || null; } catch (e) {}
+      }
+      prepared.push({ id: idv, payload });
+    }
+    _pogImportRows = prepared;
+
+    const brName = isLao ? (branch.name_lo || branch.name_th || branch.code) : (branch.name_th || branch.name_lo || branch.code);
+    const warnOther = notInBranch > 0
+      ? `<div style="background:#fff7ed;border:1px solid var(--amber-200,#fcd34d);color:#b45309;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:11px;">⚠️ ${isLao ? 'ຂ້າມ ' : 'ข้าม '}${notInBranch} ${isLao ? 'ແຖວ (ID ບໍ່ແມ່ນຂອງສາຂານີ້ — ອາດເປັນໄຟລ໌ຄົນລະສາຂາ)' : 'แถว (ID ไม่ใช่ของสาขานี้ — อาจเป็นไฟล์คนละสาขา)'}</div>`
+      : '';
+    showModal(
+      `<h3 style="display:flex;align-items:center;gap:7px;">📥 ${isLao ? 'ນຳເຂົ້າ Pan-O-Gram' : 'นำเข้า Pan-O-Gram'}</h3>
+       <div style="background:var(--slate-50);border-radius:9px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.9;">
+         <div>🏪 ${isLao ? 'ສາຂາ' : 'สาขา'}: <strong>${escapeHtml(brName)}</strong></div>
+         <div>📄 ${isLao ? 'ແຖວໃນໄຟລ໌' : 'แถวในไฟล์'}: <strong>${aoa.length - 1}</strong></div>
+         <div style="color:var(--fs-green);">✅ ${isLao ? 'ຈະອັບເດດ (ມີການແກ້ໄຂ)' : 'จะอัปเดต (มีการแก้ไข)'}: <strong>${prepared.length}</strong></div>
+         <div style="color:var(--slate-500);">➖ ${isLao ? 'ບໍ່ປ່ຽນ' : 'ไม่เปลี่ยน'}: ${unchanged}${noId ? ` · ${isLao ? 'ບໍ່ມີ ID' : 'ไม่มี ID'}: ${noId}` : ''}</div>
+       </div>${warnOther}
+       <div style="font-size:10.5px;color:var(--slate-400);margin:8px 0;">${isLao ? 'ອັບເດດເທົ່ານັ້ນ (ບໍ່ສ້າງ/ລຶບແຖວ) · ຄວາມຈຸ = ໜ້າ×ເລິກ×ຂັ້ນ' : 'อัปเดตเท่านั้น (ไม่สร้าง/ลบแถว) · ความจุ = หน้า×ลึก×ขั้น'}</div>
+       <div class="action-row">
+         <button class="btn btn-secondary" onclick="closeModal()">${T('cancel')}</button>
+         <button class="btn btn-primary" id="pogImpApplyBtn" onclick="pogImportApply()" style="background:var(--violet-500);"${prepared.length ? '' : ' disabled'}>
+           ${isLao ? 'ຢືນຢັນອັບເດດ' : 'ยืนยันอัปเดต'} (${prepared.length})
+         </button>
+       </div>`
+    );
+  } catch (e) {
+    console.error('[FS] Import Pan-O-Gram error:', e);
+    showToast('Error: ' + (e.message || e), 'error');
+  }
+}
+async function pogImportApply() {
+  const isLao = lang === 'lo';
+  const rows = _pogImportRows || [];
+  if (!rows.length) { closeModal(); return; }
+  const btn = document.getElementById('pogImpApplyBtn');
+  if (btn) { btn.disabled = true; btn.textContent = isLao ? 'ກຳລັງບັນທຶກ...' : 'กำลังบันทึก...'; }
+  let ok = 0, fail = 0; const errs = [];
+  for (const r of rows) {
+    try {
+      // .eq('branch_id') = ป้องกันซ้ำอีกชั้น ไม่มีทางแตะสาขาอื่น
+      const { error } = await sb.from('pan_o_grams').update(r.payload).eq('id', r.id).eq('branch_id', branch.id);
+      if (error) throw error;
+      ok++;
+    } catch (e) { fail++; if (errs.length < 5) errs.push('#' + r.id + ': ' + (e.message || e)); }
+  }
+  _pogImportRows = null;
+  closeModal();
+  if (typeof logActivity === 'function') logActivity('pog_import', 'branch ' + branch.id + ' · ok ' + ok + ' · fail ' + fail);
+  showToast((fail ? '⚠️ ' : '✅ ') + (isLao ? 'ອັບເດດ ' : 'อัปเดต ') + ok + (fail ? ' · ' + (isLao ? 'ຜິດພາດ ' : 'ผิดพลาด ') + fail : ''), fail ? 'warning' : 'success');
+  if (errs.length) console.warn('[FS] pog import errors:', errs);
+  try {
+    if (document.getElementById('pogMgrContent')) { await loadPanOGramManager(); }
+    else if (_pogView === 'assign') { await pogLoadAssign(); }
+    else { await pogLoadBoard(); }
+  } catch (e) {}
 }
 
 // ==================== PRECOUNT REPORT ====================
