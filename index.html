@@ -1861,7 +1861,7 @@ async function _phHistoryCompat(barcode) {
 let loc = null;
 
 // ผู้ใช้ที่ให้เข้าได้ "ทุกสาขา" เป็นรายบุคคล (นอกเหนือ role admin/scc/bcs/it) — เทียบ username แบบไม่สนพิมพ์เล็กใหญ่
-const ALL_BRANCH_USERS = ['audit-maneexai'];
+const ALL_BRANCH_USERS = ['audit-maneexai', 'audit1-ping'];
 function isAllBranch(u) {
   u = u || user;
   if (!u) return false;
