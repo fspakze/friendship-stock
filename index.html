@@ -2746,48 +2746,51 @@ function closeModal() {
 
 // โหลด branches list ตอนหน้า login
 async function loadBranchListForLogin() {
+  let data = null;
+  // ลองออนไลน์ก่อน (⚠️ Supabase throw ตอนเน็ตหลุด → try/catch)
   try {
-    const { data, error } = await sb.from('branches')
+    const res = await sb.from('branches')
       .select('id, code, name_th, name_lo, branch_type')
       .eq('is_active', true)
       .order('id');
-    
-    if (error) {
-      log('Load branches error:', error);
-      return;
-    }
-    
-    const sel = document.getElementById('loginBranch');
-    if (!sel) return;
-    
-    // Sort by type: hq → warehouse → minimart/mini/super/mall
-    const typeOrder = { 'hq': 1, 'super': 1, 'warehouse': 2, 'minimart': 3, 'mini': 3, 'mall': 3 };
-    const sorted = [...(data || [])].sort((a, b) => {
-      const oa = typeOrder[a.branch_type] || 9;
-      const ob = typeOrder[b.branch_type] || 9;
-      if (oa !== ob) return oa - ob;
-      return (a.code || '').localeCompare(b.code || '');
-    });
-    
-    const placeholderText = lang === 'lo' ? 'ກະລຸນາເລືອກສາຂາ' : 'กรุณาเลือกสาขา';
-    sel.innerHTML = `<option value="">-- ${placeholderText} --</option>` +
-      sorted.map(b => {
-        const displayName = lang === 'lo' ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo);
-        const typeLabel = (b.branch_type === 'hq' || b.branch_type === 'super') ? ' ⭐' : 
-                          (b.branch_type === 'warehouse') ? ' 📦' : '';
-        return `<option value="${b.id}" data-code="${b.code}">${displayName} (${b.code})${typeLabel}</option>`;
-      }).join('');
-    
-    // Restore last selected branch
-    const lastBranch = localStorage.getItem('fs_last_branch_id');
-    if (lastBranch) {
-      sel.value = lastBranch;
-    }
-    
-    log('Branches loaded for login:', data?.length);
-  } catch (e) {
-    console.error('[FS] loadBranchListForLogin error:', e);
+    if (!res.error) data = res.data;
+  } catch (e) { log('loadBranchListForLogin online failed:', e && e.message); }
+
+  // 🔌 ออฟไลน์/โหลดไม่ได้ → ใช้รายชื่อสาขาที่เก็บไว้ในเครื่อง (snapshot ตอนเคยล็อกอินออนไลน์)
+  if (!data || !data.length) {
+    try {
+      const cached = await fsKvGet('branches');
+      if (cached && cached.length) data = cached.filter(b => b.is_active !== false);
+    } catch (e) {}
   }
+  if (!data || !data.length) { log('loadBranchListForLogin: ไม่มีรายชื่อสาขา (ยังไม่เคยล็อกอินออนไลน์)'); return; }
+
+  const sel = document.getElementById('loginBranch');
+  if (!sel) return;
+
+  // Sort by type: hq → warehouse → minimart/mini/super/mall
+  const typeOrder = { 'hq': 1, 'super': 1, 'warehouse': 2, 'minimart': 3, 'mini': 3, 'mall': 3 };
+  const sorted = [...data].sort((a, b) => {
+    const oa = typeOrder[a.branch_type] || 9;
+    const ob = typeOrder[b.branch_type] || 9;
+    if (oa !== ob) return oa - ob;
+    return (a.code || '').localeCompare(b.code || '');
+  });
+
+  const placeholderText = lang === 'lo' ? 'ກະລຸນາເລືອກສາຂາ' : 'กรุณาเลือกสาขา';
+  sel.innerHTML = `<option value="">-- ${placeholderText} --</option>` +
+    sorted.map(b => {
+      const displayName = lang === 'lo' ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo);
+      const typeLabel = (b.branch_type === 'hq' || b.branch_type === 'super') ? ' ⭐' :
+                        (b.branch_type === 'warehouse') ? ' 📦' : '';
+      return `<option value="${b.id}" data-code="${b.code}">${displayName} (${b.code})${typeLabel}</option>`;
+    }).join('');
+
+  // Restore last selected branch
+  const lastBranch = localStorage.getItem('fs_last_branch_id');
+  if (lastBranch) sel.value = lastBranch;
+
+  log('Branches loaded for login:', data.length);
 }
 
 async function hashPassword(pwd) {
