@@ -15389,23 +15389,39 @@ async function scLookup() {
   const card = document.getElementById('scResultCard');
   if (card) card.innerHTML = `<div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>`;
 
+  // 🔌 ออฟไลน์ → ค้นจากข้อมูลในเครื่อง (ไม่ยิง Supabase ซึ่งจะ throw "Failed to fetch")
+  if (!fsIsOnline()) {
+    window._scBp = null; window._scBpLevel = 'unit'; window._scBpScanned = barcode;
+    const cached = await fsProductLookup(barcode);
+    if (cached) { _scCurrentProduct = cached; renderStockCheckResult(cached, null, null, null); }
+    else if (card) { card.innerHTML = `<div style="background:var(--amber-50);border:2px solid var(--amber-300);border-radius:11px;padding:15px;text-align:center;color:var(--amber-800);font-size:13px;font-weight:700;">📴 ${lang === 'lo' ? 'ບໍ່ພົບໃນຂໍ້ມູນທີ່ເກັບໄວ້ (ອອບໄລນ໌)' : 'ไม่พบในข้อมูลที่เก็บไว้ (ออฟไลน์)'}: <code>${escapeHtml(barcode)}</code></div>`; }
+    fsUpdateOfflineBadge();
+    return;
+  }
+
   // ⭐ pack/ลัง: ถ้าสแกนบาร์โค้ดแพ๊ค/ลัง → หาหน่วย (unit) ของสินค้าเดียวกัน แล้วค้นด้วย unit
   const bpRec = await bpLookup(barcode);
   const bpLevel = bpMatchLevel(bpRec, barcode);
   const searchBc = (bpRec && bpLevel !== 'unit' && bpRec.barcode_unit) ? String(bpRec.barcode_unit) : barcode;
   window._scBp = bpRec; window._scBpLevel = bpLevel; window._scBpScanned = barcode;
 
-  // Query product (ด้วย unit barcode)
-  const { data: prod, error } = await sb
-    .from('products')
-    .select('*')
-    .eq('barcode', searchBc)
-    .eq('branch_id', branch.id)
-    .eq('is_active', true)
-    .maybeSingle();
-  
+  // Query product (ด้วย unit barcode) · ⚠️ Supabase throw ตอนเน็ตหลุดกะทันหัน → try/catch แล้ว fallback cache
+  let prod = null, error = null;
+  try {
+    const res = await sb.from('products').select('*').eq('barcode', searchBc).eq('branch_id', branch.id).eq('is_active', true).maybeSingle();
+    prod = res.data; error = res.error;
+  } catch (e) { error = e; }
+
   if (error) {
-    showToast('Error: ' + error.message, 'error');
+    // เน็ตเพิ่งหลุด → ลองค้นจากข้อมูลในเครื่อง (บาร์ชิ้น)
+    const cached = (await fsProductLookup(searchBc)) || (await fsProductLookup(barcode));
+    if (cached) { _scCurrentProduct = cached; renderStockCheckResult(cached, null, null, null); fsUpdateOfflineBadge(); return; }
+    if (fsIsNetErr(error)) {
+      if (card) card.innerHTML = `<div style="background:var(--amber-50);border:2px solid var(--amber-300);border-radius:11px;padding:15px;text-align:center;color:var(--amber-800);font-size:13px;font-weight:700;">📴 ${lang === 'lo' ? 'ບໍ່ພົບໃນຂໍ້ມູນທີ່ເກັບໄວ້ (ອອບໄລນ໌)' : 'ไม่พบในข้อมูลที่เก็บไว้ (ออฟไลน์)'}: <code>${escapeHtml(barcode)}</code></div>`;
+      fsUpdateOfflineBadge();
+      return;
+    }
+    showToast('Error: ' + (error.message || error), 'error');
     if (card) card.innerHTML = '';
     return;
   }
