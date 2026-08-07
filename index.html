@@ -2956,6 +2956,7 @@ async function fsSyncSnapshot(reason) {
       const syncedAt = (await fsKvGet('products_synced_at')) || 0;
       const stale = (Date.now() - syncedAt) > 30 * 60 * 1000;
       if (marker !== branch.id || stale) {
+        _fsSyncState = 'syncing'; fsUpdateOfflineBadge();   // ⏳ แจ้ง "อย่าเพิ่งตัดเน็ต"
         const prods = await fetchAllQuery(() => sb.from('products').select('*').eq('branch_id', branch.id).eq('is_active', true).order('id'));
         if (prods && prods.length) {
           await fsIdbClear('products');
@@ -2964,24 +2965,42 @@ async function fsSyncSnapshot(reason) {
           await fsIdbBulkPut('products', clean);
           await fsKvSet('products_branch', branch.id);
           await fsKvSet('products_synced_at', Date.now());
-        }
+          _fsSyncState = 'idle'; fsFlashSyncDone(clean.length);   // ✓ พร้อมใช้ออฟไลน์
+        } else { _fsSyncState = 'idle'; fsUpdateOfflineBadge(); }
+      } else {
+        // สดอยู่แล้ว — พร้อมใช้ทันที แสดง ✓ ด้วยจำนวนที่เก็บไว้
+        let c = 0; try { c = await fsIdbCount('products'); } catch (e) {}
+        if (c > 0) fsFlashSyncDone(c);
       }
-    } catch (e) { log('product sync failed', e); }
+    } catch (e) { _fsSyncState = 'idle'; log('product sync failed', e); fsUpdateOfflineBadge(); }
     await fsKvSet('snapshot_at', Date.now());
     log('fsSyncSnapshot done in', Date.now() - t0, 'ms', reason || '');
   } catch (e) { log('fsSyncSnapshot error', e); }
   finally { _fsSyncing = false; fsUpdateOfflineBadge(); }
 }
 
-// ---- แถบแจ้ง "ไม่มีเน็ต / กำลัง sync" (ไม่บังปุ่ม — pointer-events:none) ----
+// ---- แถบสถานะล่างจอ: ออฟไลน์ / กำลังเตรียมข้อมูล / พร้อมใช้ / ส่งค้าง (แถบเดียว ไม่บังปุ่ม) ----
+let _fsSyncState = 'idle';   // 'idle' | 'syncing' (กำลังโหลดสินค้าลงเครื่อง)
+let _fsLastProdCount = 0;    // จำนวนสินค้าที่เก็บไว้ล่าสุด
+let _fsSyncedFlash = false;  // แสดง "✓ พร้อมใช้ออฟไลน์" ชั่วคราวหลังโหลดเสร็จ
+let _fsFlashTimer = null;
+function fsFlashSyncDone(count) {
+  _fsLastProdCount = count || 0;
+  _fsSyncedFlash = true;
+  fsUpdateOfflineBadge();
+  if (_fsFlashTimer) clearTimeout(_fsFlashTimer);
+  _fsFlashTimer = setTimeout(() => { _fsSyncedFlash = false; fsUpdateOfflineBadge(); }, 5000);
+}
 async function fsUpdateOfflineBadge() {
   try {
     const off = !fsIsOnline();
     let pending = 0;
     try { pending = await fsCountQueueLen(); } catch (e) {}
+    const syncing = _fsSyncState === 'syncing';
+    const show = off || pending || syncing || _fsSyncedFlash;
     let el = document.getElementById('fsOfflineBar');
     if (!el) {
-      if (!off && !pending) return;
+      if (!show) return;
       el = document.createElement('div');
       el.id = 'fsOfflineBar';
       el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99998;color:#fff;font-size:11px;font-weight:700;text-align:center;padding:4px 8px;pointer-events:none;box-shadow:0 -2px 8px rgba(0,0,0,.18);';
@@ -2989,15 +3008,22 @@ async function fsUpdateOfflineBadge() {
     }
     const pTxt = pending ? ((lang === 'lo' ? ' · ຄ້າງ ' : ' · ค้าง ') + pending) : '';
     if (off) {
+      // ออฟไลน์มาก่อนเสมอ (สำคัญสุด)
       el.textContent = ((lang === 'lo')
         ? '📴 ບໍ່ມີເນັດ — ຄົ້ນຫາໄດ້ · ການນັບເກັບໃນເຄື່ອງ'
         : '📴 ไม่มีเน็ต — ค้นหาได้ · การนับเก็บในเครื่อง') + pTxt;
       el.style.background = '#b45309';
+    } else if (syncing) {
+      el.textContent = (lang === 'lo') ? '⏳ ກຳລັງກຽມຂໍ້ມູນອອບໄລນ໌... (ຢ່າຫາກໍຕັດເນັດ)' : '⏳ กำลังเตรียมข้อมูลออฟไลน์... (อย่าเพิ่งตัดเน็ต)';
+      el.style.background = '#334155';
     } else if (pending) {
       el.textContent = (lang === 'lo' ? '↑ ກຳລັງສົ່ງການນັບຄ້າງ' : '↑ กำลังส่งการนับที่ค้าง') + pTxt;
       el.style.background = '#0d9488';
+    } else if (_fsSyncedFlash) {
+      el.textContent = ((lang === 'lo') ? '✓ ພ້ອມໃຊ້ອອບໄລນ໌ · ສິນຄ້າ ' : '✓ พร้อมใช้ออฟไลน์ · สินค้า ') + _fsLastProdCount.toLocaleString() + (lang === 'lo' ? ' ລາຍການ' : ' รายการ');
+      el.style.background = '#059669';
     }
-    el.style.display = (off || pending) ? 'block' : 'none';
+    el.style.display = show ? 'block' : 'none';
   } catch (e) {}
 }
 window.addEventListener('online', () => { fsUpdateOfflineBadge(); fsSyncSnapshot('online-event'); fsFlushCountQueue(); });
