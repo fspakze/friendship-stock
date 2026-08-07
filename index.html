@@ -2796,6 +2796,169 @@ async function hashPassword(pwd) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
+/* ==================== OFFLINE FOUNDATION (IndexedDB) ====================
+   เป้าหมาย: เน็ตหลุดก็ (A) ล็อกอินได้ (B) ค้นหา/สแกนสินค้าเจอ — ข้อมูล "อ่านอย่างเดียว"
+   ไม่แตะ logic บันทึกสต๊อก (= ระดับ 2 แยกทำ) · ทุกฟังก์ชันกันพัง:
+   IndexedDB ใช้ไม่ได้ (โหมดส่วนตัว/เบราว์เซอร์เก่า) = แอปทำงานปกติ แค่ไม่มีออฟไลน์ */
+const FS_IDB_NAME = 'fs_offline';
+const FS_IDB_VER = 1;
+let _fsIdbP = null;
+function fsIdbOpen() {
+  if (_fsIdbP) return _fsIdbP;
+  _fsIdbP = new Promise((resolve, reject) => {
+    let req;
+    try { req = indexedDB.open(FS_IDB_NAME, FS_IDB_VER); }
+    catch (e) { reject(e); return; }
+    req.onupgradeneeded = (ev) => {
+      const db = ev.target.result;
+      if (!db.objectStoreNames.contains('products')) db.createObjectStore('products', { keyPath: 'barcode' });
+      if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv', { keyPath: 'k' });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return _fsIdbP;
+}
+function fsIdbReq(store, mode, run) {
+  return fsIdbOpen().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(store, mode);
+    const r = run(tx.objectStore(store));
+    tx.oncomplete = () => resolve(r ? r.result : undefined);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('aborted'));
+  }));
+}
+function fsIdbGet(store, key) { return fsIdbReq(store, 'readonly', os => os.get(key)); }
+function fsIdbCount(store) { return fsIdbReq(store, 'readonly', os => os.count()); }
+function fsIdbPut(store, row) { return fsIdbReq(store, 'readwrite', os => os.put(row)); }
+function fsIdbClear(store) { return fsIdbReq(store, 'readwrite', os => os.clear()); }
+async function fsIdbBulkPut(store, rows) {
+  const db = await fsIdbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    const os = tx.objectStore(store);
+    for (let i = 0; i < rows.length; i++) os.put(rows[i]);
+    tx.oncomplete = () => resolve(rows.length);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('aborted'));
+  });
+}
+async function fsKvGet(k) { try { const r = await fsIdbGet('kv', k); return r ? r.v : null; } catch (e) { return null; } }
+async function fsKvSet(k, v) { try { return await fsIdbPut('kv', { k: k, v: v }); } catch (e) { return null; } }
+
+// สถานะเน็ต — navigator.onLine เป็นแค่ตัวช่วย (true ไม่การันตีว่าถึง Supabase จริง) จึงเช็คจาก error ด้วย
+function fsIsOnline() { return navigator.onLine !== false; }
+function fsIsNetErr(e) {
+  if (!fsIsOnline()) return true;
+  if (!e) return false;
+  const m = (e.message || e.error_description || e.details || '').toString().toLowerCase();
+  if (/failed to fetch|networkerror|network error|load failed|fetch|timeout|connection|net::|offline/.test(m)) return true;
+  return e.name === 'TypeError' || e.name === 'AbortError';
+}
+
+// ---- ล็อกอินออฟไลน์: เก็บ "ค่าเทียบ" แบบ hash 2 ชั้น (ในเครื่องใช้ยิง verify_login ไม่ได้ = ปลอดภัยกว่า) ----
+async function _fsAuthKey(hash) {
+  const data = new TextEncoder().encode(hash + '|offline|' + SALT);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+async function fsSaveAuthCache(username, hash, userObj, branchObj) {
+  try {
+    await fsKvSet('auth:' + String(username).toLowerCase(), {
+      username: username,
+      verify: await _fsAuthKey(hash),
+      user: userObj,
+      branch: branchObj,
+      savedAt: Date.now()
+    });
+  } catch (e) { log('fsSaveAuthCache failed', e); }
+}
+async function fsTryOfflineLogin(username, password, branchIdInt) {
+  const rec = await fsKvGet('auth:' + String(username).toLowerCase());
+  if (!rec || !rec.verify) return { ok: false, reason: 'no_cache' };
+  let vk;
+  try { vk = await _fsAuthKey(await hashPassword(password)); }
+  catch (e) { return { ok: false, reason: 'error' }; }
+  if (vk !== rec.verify) return { ok: false, reason: 'bad_password' };
+  const u = Object.assign({}, rec.user);
+  if (u.role === 'staff') u.role = 'counter';
+  const isAdmin = isAllBranch(u);
+  if (!isAdmin && u.branch_id && u.branch_id !== branchIdInt) return { ok: false, reason: 'branch_denied' };
+  // หา branch object: ใช้ของ login เดิม หรือจาก branches list ที่ sync ไว้
+  let br = (rec.branch && rec.branch.id === branchIdInt) ? rec.branch : null;
+  if (!br) {
+    const list = await fsKvGet('branches');
+    if (list && list.length) br = list.find(b => b.id === branchIdInt) || null;
+  }
+  if (!br) return { ok: false, reason: 'no_branch_cache' };
+  return { ok: true, user: u, branch: br };
+}
+
+// ---- ค้นหาสินค้าจากเครื่อง (ระดับ 3) ----
+async function fsProductLookup(barcode) {
+  try {
+    const p = await fsIdbGet('products', String(barcode).trim());
+    if (!p) return null;
+    p._offline = true;
+    return p;
+  } catch (e) { return null; }
+}
+
+// ---- Snapshot: ดึงข้อมูล "อ่านอย่างเดียว" ของสาขานี้เก็บลงเครื่อง (ทำตอนมีเน็ต เบื้องหลัง) ----
+let _fsSyncing = false;
+async function fsSyncSnapshot(reason) {
+  if (_fsSyncing || !fsIsOnline() || !branch || !branch.id) return;
+  _fsSyncing = true;
+  const t0 = Date.now();
+  try {
+    try { const { data: brs } = await sb.from('branches').select('*').order('id'); if (brs && brs.length) await fsKvSet('branches', brs); } catch (e) {}
+    try { const { data: zs } = await sb.from('zones').select('*').eq('branch_id', branch.id).eq('is_active', true).order('sort_order'); if (zs) await fsKvSet('zones:' + branch.id, zs); } catch (e) {}
+    try { const locs = await fetchAllQuery(() => sb.from('location_master').select('*').eq('branch_id', branch.id).eq('is_active', true).order('location_code').order('id')); if (locs) await fsKvSet('locations:' + branch.id, locs); } catch (e) {}
+    try { const { data: st } = await sb.from('app_settings').select('key, value'); if (st) await fsKvSet('app_settings', st); } catch (e) {}
+    // สินค้า (ระดับ 3) — โหลดใหม่เฉพาะเปลี่ยนสาขา หรือเก่ากว่า 30 นาที (กันเปลืองเน็ตมือถือ) · select('*') ให้เหมือน lookup ออนไลน์เป๊ะ
+    try {
+      const marker = await fsKvGet('products_branch');
+      const syncedAt = (await fsKvGet('products_synced_at')) || 0;
+      const stale = (Date.now() - syncedAt) > 30 * 60 * 1000;
+      if (marker !== branch.id || stale) {
+        const prods = await fetchAllQuery(() => sb.from('products').select('*').eq('branch_id', branch.id).eq('is_active', true).order('id'));
+        if (prods && prods.length) {
+          await fsIdbClear('products');
+          const seen = {}, clean = [];
+          for (let i = 0; i < prods.length; i++) { const p = prods[i]; if (p.barcode && !seen[p.barcode]) { seen[p.barcode] = 1; clean.push(p); } }
+          await fsIdbBulkPut('products', clean);
+          await fsKvSet('products_branch', branch.id);
+          await fsKvSet('products_synced_at', Date.now());
+        }
+      }
+    } catch (e) { log('product sync failed', e); }
+    await fsKvSet('snapshot_at', Date.now());
+    log('fsSyncSnapshot done in', Date.now() - t0, 'ms', reason || '');
+  } catch (e) { log('fsSyncSnapshot error', e); }
+  finally { _fsSyncing = false; fsUpdateOfflineBadge(); }
+}
+
+// ---- แถบแจ้ง "ไม่มีเน็ต" (ไม่บังปุ่ม — pointer-events:none) ----
+function fsUpdateOfflineBadge() {
+  try {
+    const off = !fsIsOnline();
+    let el = document.getElementById('fsOfflineBar');
+    if (!el) {
+      if (!off) return;
+      el = document.createElement('div');
+      el.id = 'fsOfflineBar';
+      el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99998;background:#b45309;color:#fff;font-size:11px;font-weight:700;text-align:center;padding:4px 8px;pointer-events:none;box-shadow:0 -2px 8px rgba(0,0,0,.18);';
+      document.body.appendChild(el);
+    }
+    el.textContent = (lang === 'lo')
+      ? '📴 ບໍ່ມີເນັດ — ໃຊ້ຂໍ້ມູນທີ່ເກັບໄວ້ (ຄົ້ນຫາໄດ້ · ບັນທຶກຕ້ອງມີເນັດ)'
+      : '📴 ไม่มีเน็ต — ใช้ข้อมูลที่เก็บไว้ (ค้นหาได้ · บันทึกต้องมีเน็ต)';
+    el.style.display = off ? 'block' : 'none';
+  } catch (e) {}
+}
+window.addEventListener('online', () => { fsUpdateOfflineBadge(); fsSyncSnapshot('online-event'); });
+window.addEventListener('offline', fsUpdateOfflineBadge);
+
 async function login() {
   const selectedBranchId = document.getElementById('loginBranch').value;
   const username = document.getElementById('username').value.trim();
@@ -2887,7 +3050,11 @@ async function login() {
     localStorage.setItem('fs_user', JSON.stringify(user));
     localStorage.setItem('fs_branch', JSON.stringify(branch));
     localStorage.setItem('fs_last_branch_id', String(branch.id));
-    
+
+    // 🔌 เก็บข้อมูลไว้ล็อกอิน/ค้นหาออฟไลน์ (เบื้องหลัง ไม่บล็อกการเข้าแอป)
+    fsSaveAuthCache(username, hash, user, branch);
+    fsSyncSnapshot('login');
+
     // 📋 Audit log — บันทึกก่อนเข้า app (กัน afterLogin re-render ขัดจังหวะ)
     logActivity('login', `${user.role} เข้าระบบ สาขา ${branch.code}`);
     
@@ -2895,6 +3062,35 @@ async function login() {
     
   } catch (e) {
     console.error('[FS] Login error:', e);
+    // 🔌 เน็ตหลุด → ลองล็อกอินจากข้อมูลที่เก็บไว้ในเครื่อง (ต้องเคยล็อกอินตอนมีเน็ตมาก่อน)
+    if (fsIsNetErr(e)) {
+      try {
+        const off = await fsTryOfflineLogin(username, password, parseInt(selectedBranchId));
+        if (off.ok) {
+          user = off.user;
+          branch = off.branch;
+          _actorAuthHash = null;   // ออฟไลน์ไม่มี hash ยืนยัน RPC (จัดการ user/PII ต้องมีเน็ต)
+          user.active_branch_id = branch.id;
+          localStorage.setItem('fs_user', JSON.stringify(user));
+          localStorage.setItem('fs_branch', JSON.stringify(branch));
+          localStorage.setItem('fs_last_branch_id', String(branch.id));
+          fsUpdateOfflineBadge();
+          await afterLogin();
+          return;
+        }
+        if (off.reason === 'bad_password') {
+          errEl.textContent = T('login_failed');
+          errEl.classList.add('show'); btn.disabled = false; btn.innerHTML = `<span>${T('login')}</span>`;
+          return;
+        }
+        // no_cache / no_branch_cache → เครื่องนี้ยังไม่มีข้อมูลออฟไลน์
+        errEl.textContent = (lang === 'lo')
+          ? 'ບໍ່ມີເນັດ ແລະ ເຄື່ອງນີ້ຍັງບໍ່ເຄີຍລັອກອິນຕອນມີເນັດ'
+          : 'ไม่มีเน็ต และเครื่องนี้ยังไม่เคยล็อกอินตอนมีเน็ต';
+        errEl.classList.add('show'); btn.disabled = false; btn.innerHTML = `<span>${T('login')}</span>`;
+        return;
+      } catch (e2) { log('offline login failed', e2); }
+    }
     errEl.textContent = T('login_failed') + ': ' + (e.message || e);
     errEl.classList.add('show');
     btn.disabled = false;
@@ -2983,17 +3179,26 @@ async function markDataUpdated(key) {
   } catch (e) { console.warn('[FS] markDataUpdated:', (e && e.message) || e); }
 }
 
+function _applyAppSettings(rows) {
+  const map = {};
+  (rows || []).forEach(r => { map[r.key] = r.value; });
+  _countMenuEnabled = !map.count_menu_enabled || map.count_menu_enabled !== 'off'; // default เปิด
+  _menuOff = {};
+  if (map.menu_off) { try { _menuOff = JSON.parse(map.menu_off) || {}; } catch (e) { _menuOff = {}; } }
+  _menuUserOverride = {};
+  if (map.menu_user_override) { try { _menuUserOverride = JSON.parse(map.menu_user_override) || {}; } catch (e) { _menuUserOverride = {}; } }
+}
 async function loadAppSettings() {
   try {
-    const { data } = await sb.from('app_settings').select('key, value').in('key', ['count_menu_enabled', 'menu_off', 'menu_user_override']);
-    const map = {};
-    (data || []).forEach(r => { map[r.key] = r.value; });
-    _countMenuEnabled = !map.count_menu_enabled || map.count_menu_enabled !== 'off'; // default เปิด
-    _menuOff = {};
-    if (map.menu_off) { try { _menuOff = JSON.parse(map.menu_off) || {}; } catch (e) { _menuOff = {}; } }
-    _menuUserOverride = {};
-    if (map.menu_user_override) { try { _menuUserOverride = JSON.parse(map.menu_user_override) || {}; } catch (e) { _menuUserOverride = {}; } }
-  } catch (e) { _countMenuEnabled = true; _menuOff = {}; _menuUserOverride = {}; }
+    const { data, error } = await sb.from('app_settings').select('key, value').in('key', ['count_menu_enabled', 'menu_off', 'menu_user_override']);
+    if (error) throw error;
+    _applyAppSettings(data);
+  } catch (e) {
+    // 🔌 เน็ตหลุด → ลองใช้ค่าที่เก็บไว้ (snapshot) ก่อน fallback default
+    const cached = await fsKvGet('app_settings');
+    if (cached && cached.length) _applyAppSettings(cached);
+    else { _countMenuEnabled = true; _menuOff = {}; _menuUserOverride = {}; }
+  }
 }
 window._getCountMenuEnabled = () => _countMenuEnabled;
 
@@ -3079,14 +3284,23 @@ async function loadZonesAndLocations() {
 
   // ⚠️ ถ้า query พลาด (เน็ตหลุด/RLS) ห้ามสรุปว่า "สาขาใหม่ไม่มีโซน" — จะเด้ง modal ให้ copy ข้อมูลซ้ำ
   if (zonesRes.error || locsErr) {
-    const qe = zonesRes.error || locsErr;
-    log('loadZonesAndLocations error:', qe);
-    showToast('Error: ' + (qe.message || 'load zones failed'), 'error');
-    return;
+    // 🔌 เน็ตหลุด → ลองใช้ข้อมูลที่เก็บไว้ในเครื่อง (snapshot) ก่อนยอมแพ้
+    let zc = null, lc = null;
+    try { zc = await fsKvGet('zones:' + branch.id); lc = await fsKvGet('locations:' + branch.id); } catch (e) {}
+    if ((zc && zc.length) || (lc && lc.length)) {
+      allZones = zc || [];
+      allLocations = lc || [];
+      log('loadZonesAndLocations: ใช้ข้อมูล offline cache');
+    } else {
+      const qe = zonesRes.error || locsErr;
+      log('loadZonesAndLocations error:', qe);
+      showToast('Error: ' + (qe.message || 'load zones failed'), 'error');
+      return;
+    }
+  } else {
+    allZones = zonesRes.data || [];
+    allLocations = locsAll || [];
   }
-
-  allZones = zonesRes.data || [];
-  allLocations = locsAll || [];
   
   // จัดกลุ่มตาม type
   locationsByType = {};
@@ -4655,7 +4869,9 @@ async function enterApp() {
   
   await ensureSession();
   renderApp();
-  
+  fsUpdateOfflineBadge();
+  if (fsIsOnline()) fsSyncSnapshot('enterApp');
+
   // 🔔 Setup realtime + request notification permission (admin/scc/bcs only)
   if (['admin', 'scc', 'bcs'].includes(user.role)) {
     setupGapRealtime();
@@ -17570,18 +17786,27 @@ async function lookupProduct(barcode) {
     .maybeSingle();
   
   if (ownErr) {
+    // 🔌 เน็ตหลุด → ลองค้นจากข้อมูลในเครื่อง (ระดับ 3)
+    const cached = await fsProductLookup(barcode);
+    if (cached) { log('Found in offline cache:', cached.id); curProduct = cached; renderProduct(cached); fsUpdateOfflineBadge(); return; }
     log('Lookup error (own branch):', ownErr);
     showToast('Error: ' + ownErr.message, 'error');
     return;
   }
-  
+
   if (ownData) {
     log('Found in own branch:', ownData.id);
     curProduct = ownData;
     renderProduct(ownData);
     return;
   }
-  
+
+  // 🔌 ออฟไลน์ + ไม่เจอในสาขา (query คืน null) → ลอง cache ก่อน แล้วข้าม STEP 2 (หาสาขาอื่นต้องมีเน็ต)
+  if (!fsIsOnline()) {
+    const cached = await fsProductLookup(barcode);
+    if (cached) { log('Found in offline cache:', cached.id); curProduct = cached; renderProduct(cached); fsUpdateOfflineBadge(); return; }
+  }
+
   // STEP 2: ไม่เจอในสาขาตัวเอง → หาในสาขาอื่นเพื่อช่วยตัดสินใจ
   log('Not found in own branch, searching other branches...');
   const { data: otherData, error: otherErr } = await sb
