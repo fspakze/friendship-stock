@@ -50,6 +50,21 @@
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js" defer></script>
+<!-- Service Worker: เปิดแอปได้แม้เน็ตหลุด (network-first · ไม่แตะ Supabase) · พังไม่ได้แม้ลงทะเบียนล้ม -->
+<script>
+(function registerFsSW() {
+  if (!('serviceWorker' in navigator)) return;
+  window.addEventListener('load', function () {
+    try {
+      navigator.serviceWorker.register('sw.js').then(function (reg) {
+        console.log('[FS] service worker registered:', reg.scope);
+      }).catch(function (err) {
+        console.warn('[FS] service worker register failed:', err);
+      });
+    } catch (e) { console.warn('[FS] service worker error:', e); }
+  });
+})();
+</script>
 <style>
   :root {
     --teal-700: #0f766e; --teal-600: #0d9488; --teal-500: #14b8a6;
