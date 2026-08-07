@@ -2746,24 +2746,27 @@ function closeModal() {
 
 // โหลด branches list ตอนหน้า login
 async function loadBranchListForLogin() {
-  let data = null;
+  let data = null, fromOnline = false;
   // ลองออนไลน์ก่อน (⚠️ Supabase throw ตอนเน็ตหลุด → try/catch)
   try {
     const res = await sb.from('branches')
-      .select('id, code, name_th, name_lo, branch_type')
+      .select('id, code, name_th, name_lo, branch_type, is_active')
       .eq('is_active', true)
       .order('id');
-    if (!res.error) data = res.data;
+    if (!res.error && res.data) { data = res.data; fromOnline = true; }
   } catch (e) { log('loadBranchListForLogin online failed:', e && e.message); }
 
-  // 🔌 ออฟไลน์/โหลดไม่ได้ → ใช้รายชื่อสาขาที่เก็บไว้ในเครื่อง (snapshot ตอนเคยล็อกอินออนไลน์)
+  // 🔌 ออฟไลน์/โหลดไม่ได้ → ใช้รายชื่อสาขาที่เก็บไว้ในเครื่อง (เก็บตั้งแต่เคยเห็นหน้า login ตอนออนไลน์)
   if (!data || !data.length) {
     try {
       const cached = await fsKvGet('branches');
       if (cached && cached.length) data = cached.filter(b => b.is_active !== false);
     } catch (e) {}
   }
-  if (!data || !data.length) { log('loadBranchListForLogin: ไม่มีรายชื่อสาขา (ยังไม่เคยล็อกอินออนไลน์)'); return; }
+  if (!data || !data.length) { log('loadBranchListForLogin: ไม่มีรายชื่อสาขา (ยังไม่เคยเปิดหน้า login ตอนออนไลน์)'); return; }
+
+  // 💾 เก็บรายชื่อสาขาลงเครื่องทันที (robust: ออฟไลน์ครั้งหน้าเลือกสาขาได้ ไม่ต้องรอ login สำเร็จ)
+  if (fromOnline) { try { await fsKvSet('branches', data); } catch (e) {} }
 
   const sel = document.getElementById('loginBranch');
   if (!sel) return;
