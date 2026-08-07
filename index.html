@@ -2801,7 +2801,7 @@ async function hashPassword(pwd) {
    ไม่แตะ logic บันทึกสต๊อก (= ระดับ 2 แยกทำ) · ทุกฟังก์ชันกันพัง:
    IndexedDB ใช้ไม่ได้ (โหมดส่วนตัว/เบราว์เซอร์เก่า) = แอปทำงานปกติ แค่ไม่มีออฟไลน์ */
 const FS_IDB_NAME = 'fs_offline';
-const FS_IDB_VER = 1;
+const FS_IDB_VER = 2;   // v2: เพิ่ม store 'countqueue' (นับสต๊อกออฟไลน์ · ระดับ 2)
 let _fsIdbP = null;
 function fsIdbOpen() {
   if (_fsIdbP) return _fsIdbP;
@@ -2813,6 +2813,7 @@ function fsIdbOpen() {
       const db = ev.target.result;
       if (!db.objectStoreNames.contains('products')) db.createObjectStore('products', { keyPath: 'barcode' });
       if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv', { keyPath: 'k' });
+      if (!db.objectStoreNames.contains('countqueue')) db.createObjectStore('countqueue', { keyPath: 'id', autoIncrement: true });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -2829,8 +2830,10 @@ function fsIdbReq(store, mode, run) {
   }));
 }
 function fsIdbGet(store, key) { return fsIdbReq(store, 'readonly', os => os.get(key)); }
+function fsIdbGetAll(store) { return fsIdbReq(store, 'readonly', os => os.getAll()); }
 function fsIdbCount(store) { return fsIdbReq(store, 'readonly', os => os.count()); }
 function fsIdbPut(store, row) { return fsIdbReq(store, 'readwrite', os => os.put(row)); }
+function fsIdbDelete(store, key) { return fsIdbReq(store, 'readwrite', os => os.delete(key)); }
 function fsIdbClear(store) { return fsIdbReq(store, 'readwrite', os => os.clear()); }
 async function fsIdbBulkPut(store, rows) {
   const db = await fsIdbOpen();
@@ -2904,6 +2907,38 @@ async function fsProductLookup(barcode) {
   } catch (e) { return null; }
 }
 
+// ---- นับสต๊อกออฟไลน์ (ระดับ 2 · Option A: เฉพาะ Gondola ที่จองไว้ตอนมีเน็ต) ----
+// จำว่า user เปิด/จอง Gondola ไหนไว้ตอนมีเน็ต → ออฟไลน์ถึงนับ Gondola นั้นต่อได้
+function _fsClaimKey(sessionId, loc) { return 'claim:' + sessionId + ':' + loc; }
+async function fsClaimRecord(sessionId, loc, role) { try { await fsKvSet(_fsClaimKey(sessionId, loc), { role: role, at: Date.now() }); } catch (e) {} }
+async function fsClaimHas(sessionId, loc) { try { return !!(await fsKvGet(_fsClaimKey(sessionId, loc))); } catch (e) { return false; } }
+// คิวการนับที่บันทึกตอนออฟไลน์ → ส่งเข้า stock_counts ตอนเน็ตกลับ
+async function fsQueueCount(payload, meta) { try { await fsIdbPut('countqueue', { payload: payload, meta: meta || null, queuedAt: Date.now() }); return true; } catch (e) { return false; } }
+async function fsCountQueueLen() { try { return await fsIdbCount('countqueue'); } catch (e) { return 0; } }
+let _fsFlushing = false;
+async function fsFlushCountQueue() {
+  if (_fsFlushing || !fsIsOnline()) return;
+  _fsFlushing = true;
+  let ok = 0, fail = 0;
+  try {
+    const items = await fsIdbGetAll('countqueue');
+    for (let i = 0; i < (items || []).length; i++) {
+      const it = items[i];
+      try {
+        const { error } = await sb.from('stock_counts').insert(it.payload).select().single();
+        if (!error) { await fsIdbDelete('countqueue', it.id); ok++; }
+        else { fail++; log('flush insert error', error); }
+      } catch (e) { fail++; log('flush exception', e); }
+    }
+  } catch (e) { log('flush error', e); }
+  _fsFlushing = false;
+  if (ok) {
+    try { showToast((lang === 'lo' ? '↑ ສົ່ງການນັບທີ່ຄ້າງ ' : '↑ ส่งการนับที่ค้าง ') + ok + (lang === 'lo' ? ' ລາຍການແລ້ວ' : ' รายการแล้ว'), 'success'); } catch (e) {}
+    try { if (typeof loadSessionStats === 'function') loadSessionStats(); } catch (e) {}
+  }
+  fsUpdateOfflineBadge();
+}
+
 // ---- Snapshot: ดึงข้อมูล "อ่านอย่างเดียว" ของสาขานี้เก็บลงเครื่อง (ทำตอนมีเน็ต เบื้องหลัง) ----
 let _fsSyncing = false;
 async function fsSyncSnapshot(reason) {
@@ -2938,25 +2973,34 @@ async function fsSyncSnapshot(reason) {
   finally { _fsSyncing = false; fsUpdateOfflineBadge(); }
 }
 
-// ---- แถบแจ้ง "ไม่มีเน็ต" (ไม่บังปุ่ม — pointer-events:none) ----
-function fsUpdateOfflineBadge() {
+// ---- แถบแจ้ง "ไม่มีเน็ต / กำลัง sync" (ไม่บังปุ่ม — pointer-events:none) ----
+async function fsUpdateOfflineBadge() {
   try {
     const off = !fsIsOnline();
+    let pending = 0;
+    try { pending = await fsCountQueueLen(); } catch (e) {}
     let el = document.getElementById('fsOfflineBar');
     if (!el) {
-      if (!off) return;
+      if (!off && !pending) return;
       el = document.createElement('div');
       el.id = 'fsOfflineBar';
-      el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99998;background:#b45309;color:#fff;font-size:11px;font-weight:700;text-align:center;padding:4px 8px;pointer-events:none;box-shadow:0 -2px 8px rgba(0,0,0,.18);';
+      el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99998;color:#fff;font-size:11px;font-weight:700;text-align:center;padding:4px 8px;pointer-events:none;box-shadow:0 -2px 8px rgba(0,0,0,.18);';
       document.body.appendChild(el);
     }
-    el.textContent = (lang === 'lo')
-      ? '📴 ບໍ່ມີເນັດ — ໃຊ້ຂໍ້ມູນທີ່ເກັບໄວ້ (ຄົ້ນຫາໄດ້ · ບັນທຶກຕ້ອງມີເນັດ)'
-      : '📴 ไม่มีเน็ต — ใช้ข้อมูลที่เก็บไว้ (ค้นหาได้ · บันทึกต้องมีเน็ต)';
-    el.style.display = off ? 'block' : 'none';
+    const pTxt = pending ? ((lang === 'lo' ? ' · ຄ້າງ ' : ' · ค้าง ') + pending) : '';
+    if (off) {
+      el.textContent = ((lang === 'lo')
+        ? '📴 ບໍ່ມີເນັດ — ຄົ້ນຫາໄດ້ · ການນັບເກັບໃນເຄື່ອງ'
+        : '📴 ไม่มีเน็ต — ค้นหาได้ · การนับเก็บในเครื่อง') + pTxt;
+      el.style.background = '#b45309';
+    } else if (pending) {
+      el.textContent = (lang === 'lo' ? '↑ ກຳລັງສົ່ງການນັບຄ້າງ' : '↑ กำลังส่งการนับที่ค้าง') + pTxt;
+      el.style.background = '#0d9488';
+    }
+    el.style.display = (off || pending) ? 'block' : 'none';
   } catch (e) {}
 }
-window.addEventListener('online', () => { fsUpdateOfflineBadge(); fsSyncSnapshot('online-event'); });
+window.addEventListener('online', () => { fsUpdateOfflineBadge(); fsSyncSnapshot('online-event'); fsFlushCountQueue(); });
 window.addEventListener('offline', fsUpdateOfflineBadge);
 
 async function login() {
@@ -4870,7 +4914,7 @@ async function enterApp() {
   await ensureSession();
   renderApp();
   fsUpdateOfflineBadge();
-  if (fsIsOnline()) fsSyncSnapshot('enterApp');
+  if (fsIsOnline()) { fsSyncSnapshot('enterApp'); fsFlushCountQueue(); }
 
   // 🔔 Setup realtime + request notification permission (admin/scc/bcs only)
   if (['admin', 'scc', 'bcs'].includes(user.role)) {
@@ -22754,6 +22798,15 @@ async function saveCount() {
   // Workflow check - Counter/Verifier ต้องให้ CTL เปิดก่อน
   const r = user.role;
   if (['counter', 'verifier', 'audit'].includes(r) && loc?.location_code) {
+   if (!fsIsOnline()) {
+    // 🔌 ออฟไลน์ (Option A) — นับได้เฉพาะ Gondola ที่เปิด/จองไว้ตอนมีเน็ตแล้วเท่านั้น (เช็ค realtime ไม่ได้)
+    const _has = await fsClaimHas(session.id, loc.location_code);
+    if (!_has) {
+      showToast(lang === 'lo' ? '📴 ອອບໄລນ໌: ນັບໄດ້ສະເພາະ Gondola ທີ່ຈອງໄວ້ຕອນມີເນັດ' : '📴 ออฟไลน์: นับได้เฉพาะ Gondola ที่จองไว้ตอนมีเน็ต', 'warning');
+      releaseBtn();
+      return;
+    }
+   } else {
     const { data: gs } = await sb.from('gondola_status')
       .select('status, active_counter_id, active_verifier_id')
       .eq('session_id', session.id)
@@ -22829,8 +22882,11 @@ async function saveCount() {
         }
       }
     }
+    // ✅ จอง/ยืนยัน Gondola สำเร็จ (online) → จำไว้ให้ offline นับต่อได้ภายหลัง (Option A)
+    await fsClaimRecord(session.id, loc.location_code, ['verifier', 'audit'].includes(r) ? 'verifier' : 'counter');
+   }
   }
-  
+
   // ⭐ B6: ใช้ค่าที่ validate แล้วจากด้านบน (ช่องว่างถูกบล็อกไปแล้ว)
   const count = parseInt(countRaw, 10);
   const note = document.getElementById('noteInput').value.trim();
@@ -22857,16 +22913,28 @@ async function saveCount() {
   };
   
   log('Saving count:', insertData);
-  
+
+  // 🔌 ออฟไลน์ → เก็บการนับลง queue ในเครื่อง แล้ว sync ตอนเน็ตกลับ (Option A)
+  if (!fsIsOnline()) {
+    const okq = await fsQueueCount(insertData, { name: (curProduct.name_th || curProduct.name_lo || ''), qty: count });
+    if (!okq) { showToast('Error: offline save failed', 'error'); releaseBtn(); return; }
+    const n = await fsCountQueueLen();
+    showToast((lang === 'lo' ? '📴 ເກັບໃນເຄື່ອງ (ຄ້າງ ' : '📴 เก็บในเครื่อง (ค้าง ') + n + (lang === 'lo' ? ' ລໍຖ້າເນັດ)' : ' รอเน็ต)'), 'info');
+    cancelCount();
+    fsUpdateOfflineBadge();
+    releaseBtn();
+    return;
+  }
+
   const { data, error } = await sb.from('stock_counts').insert(insertData).select().single();
-  
+
   if (error) {
     console.error('[FS] Save error:', error);
     showToast('Error: ' + error.message, 'error');
     releaseBtn();   // ใช้ helper เดิม — กัน TypeError ถ้าปุ่มไม่อยู่ใน DOM แล้ว
     return;
   }
-  
+
   log('Saved successfully:', data);
   
   // Show feedback based on workflow_status
