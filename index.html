@@ -17820,21 +17820,29 @@ async function lookupProduct(barcode) {
     return;
   }
   
-  // STEP 1: ลองหาใน branch ปัจจุบันก่อน
-  const { data: ownData, error: ownErr } = await sb
-    .from('products')
-    .select('*')
-    .eq('barcode', barcode)
-    .eq('branch_id', branch.id)
-    .eq('is_active', true)
-    .maybeSingle();
-  
-  if (ownErr) {
-    // 🔌 เน็ตหลุด → ลองค้นจากข้อมูลในเครื่อง (ระดับ 3)
+  // 🔌 ออฟไลน์ → ค้นจากข้อมูลในเครื่องเลย (ไม่ยิง Supabase ซึ่งจะ throw "Failed to fetch")
+  if (!fsIsOnline()) {
     const cached = await fsProductLookup(barcode);
     if (cached) { log('Found in offline cache:', cached.id); curProduct = cached; renderProduct(cached); fsUpdateOfflineBadge(); return; }
+    showToast(lang === 'lo' ? '📴 ບໍ່ພົບໃນຂໍ້ມູນທີ່ເກັບໄວ້ (ອອບໄລນ໌)' : '📴 ไม่พบในข้อมูลที่เก็บไว้ (ออฟไลน์)', 'warning');
+    fsUpdateOfflineBadge();
+    return;
+  }
+
+  // STEP 1: ลองหาใน branch ปัจจุบันก่อน · ⚠️ Supabase throw ตอนเน็ตหลุดกะทันหัน (ไม่ใช่คืน {error}) → ต้อง try/catch
+  let ownData = null, ownErr = null;
+  try {
+    const res = await sb.from('products').select('*').eq('barcode', barcode).eq('branch_id', branch.id).eq('is_active', true).maybeSingle();
+    ownData = res.data; ownErr = res.error;
+  } catch (e) { ownErr = e; }
+
+  if (ownErr) {
+    // เน็ตเพิ่งหลุด/error → ลองค้นจากข้อมูลในเครื่อง (ระดับ 3)
+    const cached = await fsProductLookup(barcode);
+    if (cached) { log('Found in offline cache:', cached.id); curProduct = cached; renderProduct(cached); fsUpdateOfflineBadge(); return; }
+    if (fsIsNetErr(ownErr)) { showToast(lang === 'lo' ? '📴 ບໍ່ພົບໃນຂໍ້ມູນທີ່ເກັບໄວ້ (ອອບໄລນ໌)' : '📴 ไม่พบในข้อมูลที่เก็บไว้ (ออฟไลน์)', 'warning'); fsUpdateOfflineBadge(); return; }
     log('Lookup error (own branch):', ownErr);
-    showToast('Error: ' + ownErr.message, 'error');
+    showToast('Error: ' + (ownErr.message || ownErr), 'error');
     return;
   }
 
@@ -17843,12 +17851,6 @@ async function lookupProduct(barcode) {
     curProduct = ownData;
     renderProduct(ownData);
     return;
-  }
-
-  // 🔌 ออฟไลน์ + ไม่เจอในสาขา (query คืน null) → ลอง cache ก่อน แล้วข้าม STEP 2 (หาสาขาอื่นต้องมีเน็ต)
-  if (!fsIsOnline()) {
-    const cached = await fsProductLookup(barcode);
-    if (cached) { log('Found in offline cache:', cached.id); curProduct = cached; renderProduct(cached); fsUpdateOfflineBadge(); return; }
   }
 
   // STEP 2: ไม่เจอในสาขาตัวเอง → หาในสาขาอื่นเพื่อช่วยตัดสินใจ
