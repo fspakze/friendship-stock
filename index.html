@@ -3059,7 +3059,29 @@ async function login() {
   
   btn.disabled = true;
   btn.innerHTML = `<span class="loader"></span> ${T('logging_in')}`;
-  
+
+  // 🔌 ออฟไลน์ → ล็อกอินจาก cache ทันที ไม่ยิง Supabase (กันรอ timeout ~10 วิ)
+  if (!fsIsOnline()) {
+    const off = await fsTryOfflineLogin(username, password, parseInt(selectedBranchId));
+    if (off.ok) {
+      user = off.user; branch = off.branch; _actorAuthHash = null;
+      user.active_branch_id = branch.id;
+      localStorage.setItem('fs_user', JSON.stringify(user));
+      localStorage.setItem('fs_branch', JSON.stringify(branch));
+      localStorage.setItem('fs_last_branch_id', String(branch.id));
+      fsUpdateOfflineBadge();
+      await afterLogin();
+      return;
+    }
+    errEl.textContent = off.reason === 'bad_password'
+      ? T('login_failed')
+      : (lang === 'lo' ? 'ບໍ່ມີເນັດ ແລະ ເຄື່ອງນີ້ຍັງບໍ່ເຄີຍລັອກອິນຕອນມີເນັດ' : 'ไม่มีเน็ต และเครื่องนี้ยังไม่เคยล็อกอินตอนมีเน็ต');
+    errEl.classList.add('show');
+    btn.disabled = false;
+    btn.innerHTML = `<span>${T('login')}</span>`;
+    return;
+  }
+
   try {
     const hash = await hashPassword(password);
     log('Login attempt:', username, 'branch:', selectedBranchId);
@@ -3265,6 +3287,13 @@ function _applyAppSettings(rows) {
   if (map.menu_user_override) { try { _menuUserOverride = JSON.parse(map.menu_user_override) || {}; } catch (e) { _menuUserOverride = {}; } }
 }
 async function loadAppSettings() {
+  // 🔌 ออฟไลน์ → อ่านจาก cache ทันที ไม่ยิง query (กันรอ timeout)
+  if (!fsIsOnline()) {
+    const cached = await fsKvGet('app_settings');
+    if (cached && cached.length) _applyAppSettings(cached);
+    else { _countMenuEnabled = true; _menuOff = {}; _menuUserOverride = {}; }
+    return;
+  }
   try {
     const { data, error } = await sb.from('app_settings').select('key, value').in('key', ['count_menu_enabled', 'menu_off', 'menu_user_override']);
     if (error) throw error;
@@ -3347,9 +3376,21 @@ async function loadZonesAndLocations() {
     log('ERROR: No branch loaded');
     return;
   }
-  
+
+  // 🔌 ออฟไลน์ → อ่านจาก cache ทันที ไม่ยิง query (กันรอ timeout)
+  if (!fsIsOnline()) {
+    try {
+      allZones = (await fsKvGet('zones:' + branch.id)) || [];
+      allLocations = (await fsKvGet('locations:' + branch.id)) || [];
+    } catch (e) { allZones = []; allLocations = []; }
+    locationsByType = {};
+    allLocations.forEach(l => { if (!locationsByType[l.location_type]) locationsByType[l.location_type] = []; locationsByType[l.location_type].push(l); });
+    log('loadZonesAndLocations: offline cache', allZones.length, allLocations.length);
+    return;
+  }
+
   log('Loading zones + locations for branch:', branch.id);
-  
+
   let locsAll = null, locsErr = null;
   const [zonesRes] = await Promise.all([
     sb.from('zones').select('*').eq('branch_id', branch.id).eq('is_active', true).order('sort_order'),
@@ -4881,7 +4922,10 @@ async function ensureSession() {
     log('ERROR: No branch for session');
     return null;
   }
-  
+
+  // 🔌 ออฟไลน์ → ไม่สร้าง/เช็ค session ใหม่ (ใช้ session ที่มีในหน่วยความจำจากตอน online) กันรอ timeout
+  if (!fsIsOnline()) { log('ensureSession: offline, ใช้ session เดิม'); return session || null; }
+
   log('Ensuring session for branch:', branch.id);
   
   const { data: existing, error: selErr } = await sb
@@ -6634,6 +6678,7 @@ async function toggleGapScan() {
 async function logActivity(action, detail) {
   try {
     if (!sb) return;
+    if (!fsIsOnline()) return;   // 🔌 ออฟไลน์ → ข้าม audit log (กันยิง insert ค้าง/รอ timeout)
     const payload = {
       user_id: (typeof user !== 'undefined' && user) ? user.id : null,
       username: (typeof user !== 'undefined' && user) ? user.username : null,
