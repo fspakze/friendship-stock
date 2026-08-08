@@ -35099,6 +35099,7 @@ function etrkOpenTodo() {
   const rows = window._etrkTodo || [];
   showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;"><h3 style="font-size:15px;margin:0;">📋 ' + (isLao ? 'ຕ້ອງເຮັດໃນ Sabuysoft' : 'ต้องทำใน Sabuysoft') + '</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
     + '<div style="font-size:10.5px;color:var(--slate-400);margin-bottom:9px;">' + (isLao ? 'ເຮັດຈິງໃນ Sabuysoft ແລ້ວ ກົດ ✓ ເພື່ອຕັດອອກ' : 'ทำจริงใน Sabuysoft แล้ว กด ✓ เพื่อตัดออก') + '</div>'
+    + (rows.length ? '<button onclick="etrkExportTodo()" style="width:100%;background:var(--emerald-600);color:white;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:7px;">⬇️ Export .xlsx (Sabuysoft)</button>' : '')
     + '<div id="etrkTodoList" style="max-height:60vh;overflow-y:auto;">' + etrkTodoListHtml() + '</div>');
 }
 function etrkTodoListHtml() {
@@ -35132,6 +35133,36 @@ async function etrkMarkDone(id) {
   const lst = document.getElementById('etrkTodoList'); if (lst) lst.innerHTML = etrkTodoListHtml();
   etrkRenderTodoBar();
   showToast('✓ ' + (isLao ? 'ຕັດອອກແລ້ວ' : 'ตัดออกแล้ว'), 'success');
+}
+// Export .xlsx รายการที่ต้องทำใน Sabuysoft (Markdown/โอนสาขา/Markzero) — เอาไปคีย์ใน Sabuysoft
+function etrkExportTodo() {
+  const isLao = lang === 'lo';
+  const rows = window._etrkTodo || [];
+  if (!rows.length) { showToast(isLao ? 'ບໍ່ມີລາຍການ' : 'ไม่มีรายการ', 'warning'); return; }
+  if (typeof XLSX === 'undefined') { showToast('XLSX ຍັງໂຫຼດບໍ່ສຳເລັດ', 'error'); return; }
+  const order = ['marked_down', 'transferred', 'markzero'];
+  const statusLabel = (s) => s === 'transferred' ? (isLao ? 'ໂອນສາຂາ' : 'โอนสาขา') : (s === 'markzero' ? 'Markzero' : 'Markdown');
+  const sorted = [...rows].sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status));
+  const header = isLao
+    ? ['ປະເພດ', 'ບາໂຄດ', 'ຊື່ສິນຄ້າ', 'ຈຳນວນ', 'ລາຍລະອຽດ', 'Step', 'ວັນໝົດອາຍຸ']
+    : ['ประเภท', 'บาร์โค้ด', 'ชื่อสินค้า', 'จำนวน', 'รายละเอียด', 'Step', 'วันหมดอายุ'];
+  const aoa = [header];
+  sorted.forEach(b => {
+    let detail = '';
+    if (b.status === 'marked_down') detail = (isLao ? 'ບາ MD: ' : 'บาร์ MD: ') + (b.action_detail || b.barcode || '');
+    else if (b.status === 'transferred') detail = (isLao ? 'ໄປສາຂາ: ' : 'ไปสาขา: ') + (b.action_detail || '');
+    else detail = (isLao ? 'ຕັດສະຕ໊ອກເປັນ 0' : 'ตัดสต๊อกเป็น 0');
+    aoa.push([statusLabel(b.status), String(b.barcode || ''), b.product_name || '', Number(b.qty) || 0, detail, b.md_step || '', b.expiry_date || '']);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 34 }, { wch: 8 }, { wch: 26 }, { wch: 6 }, { wch: 12 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sabuysoft');
+  const bcode = (branch && branch.code) ? branch.code : 'branch';
+  const d = (typeof localDayKey === 'function') ? localDayKey(new Date()) : '';
+  XLSX.writeFile(wb, 'sabuysoft_todo_' + bcode + '_' + d + '.xlsx');
+  if (typeof logActivity === 'function') logActivity('etrk_export_todo', rows.length + ' items');
+  showToast('✓ Export ' + rows.length + (isLao ? ' ລາຍການ' : ' รายการ'), 'success');
 }
 
 function etrkBucketOf(dte) {
@@ -36849,6 +36880,7 @@ window.loadUpdateReminder = loadUpdateReminder;
 window.wrOnPhotoSelected = wrOnPhotoSelected;
 window.wrRemovePhoto = wrRemovePhoto;
 window.expDoMarkdown = expDoMarkdown;
+window.etrkExportTodo = etrkExportTodo;
 window.startScanForMd = startScanForMd;
 window.expConfirmToMd = expConfirmToMd;
 window.expDoMarkzero = expDoMarkzero;
