@@ -4026,6 +4026,8 @@ async function copyFromSupermart() {
 }
 
 function showZoneStep() {
+  // เผื่อ auto-login ซ่อน loginScreen ไว้ (กันวูบ) → ต้องโชว์กลับเพราะ step เลือกโซนอยู่ในนี้
+  const _ls = document.getElementById('loginScreen'); if (_ls) _ls.style.display = '';
   document.getElementById('step-login').classList.remove('active');
   document.getElementById('step-zone').classList.add('active');
   // textContent ไม่ parse HTML — ห้าม escapeHtml ซ้ำ (ชื่อที่มี ' จะโชว์เป็น &#39;)
@@ -39200,25 +39202,33 @@ if (typeof isPWAMode === 'function') {
   
   const saved = localStorage.getItem('fs_user');
   const savedBranch = localStorage.getItem('fs_branch');
-  
+  const loginScreen = document.getElementById('loginScreen');
+
   if (saved) {
+    // 🚀 มี session ค้างอยู่ → ซ่อนหน้า login ทันที กันเห็นหน้า login "วูบ" ก่อนเด้งเข้าแอป (Ball 2026-08-07)
+    if (loginScreen) loginScreen.style.display = 'none';
     try {
       user = JSON.parse(saved);
       if (user && user.role === 'staff') user.role = 'counter'; // Staff เลิกใช้ → counter (Ball 2026-07-08)
       if (savedBranch) branch = JSON.parse(savedBranch);
-      
-      // Re-fetch branch to make sure
-      if (!branch && (user.active_branch_id || user.branch_id)) {
+
+      // Re-fetch branch (เฉพาะออนไลน์ · ออฟไลน์ใช้ที่เก็บไว้ กัน query throw)
+      if (!branch && (user.active_branch_id || user.branch_id) && fsIsOnline()) {
         const bid = user.active_branch_id || user.branch_id;
-        const { data } = await sb.from('branches').select('*').eq('id', bid).maybeSingle();
-        branch = data;
+        try { const { data } = await sb.from('branches').select('*').eq('id', bid).maybeSingle(); branch = data; } catch (e) {}
       }
-      if (!branch) {
+      if (!branch && fsIsOnline()) {
         // Fallback: ลองหา SUPERMART หรือ PAKSE
-        const { data } = await sb.from('branches').select('*').in('code', ['SUPERMART', 'PAKSE']).order('id').limit(1).maybeSingle();
-        branch = data;
+        try { const { data } = await sb.from('branches').select('*').in('code', ['SUPERMART', 'PAKSE']).order('id').limit(1).maybeSingle(); branch = data; } catch (e) {}
       }
-      
+      // 🔌 ออฟไลน์ยังไม่มี branch → หาจากรายชื่อสาขาที่เก็บไว้ (cache)
+      if (!branch) {
+        const bid = user.active_branch_id || user.branch_id;
+        try { const list = await fsKvGet('branches'); if (list && bid) branch = list.find(b => b.id === bid) || null; } catch (e) {}
+      }
+      // กู้สาขาไม่ได้เลย → กลับหน้า login (ไม่เด้งเข้าแอปแบบไม่มีสาขา)
+      if (!branch) { if (loginScreen) loginScreen.style.display = ''; return; }
+
       const ctx = JSON.parse(localStorage.getItem('fs_context') || '{}');
       const needsZone = ['counter', 'verifier', 'audit'].includes(user.role);
       
@@ -39263,6 +39273,8 @@ if (typeof isPWAMode === 'function') {
       }
     } catch(e) {
       console.error('[FS] Auto-login error:', e);
+      // restore ล้มเหลว → แสดงหน้า login กลับ (ไม่ให้จอค้างว่าง)
+      if (loginScreen) loginScreen.style.display = '';
     }
   }
 })();
