@@ -38181,46 +38181,75 @@ async function poFetchSheet(name) {
   const ws = wb.Sheets[wb.SheetNames[0]];
   return XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
 }
+// หา index คอลัมน์จาก "หัวตาราง" (กันคอลัมน์ขยับเมื่อเพิ่ม/ลบ column) · ไม่พบหัว = ใช้ตำแหน่งคงที่ PO_COL เดิม
+function poResolveCols(header) {
+  const H = (header || []).map(h => String(h == null ? '' : h).replace(/\s+/g, ' ').trim());
+  const c = Object.assign({}, PO_COL);
+  const set = (key, re) => { for (let i = 0; i < H.length; i++) { if (re.test(H[i])) { c[key] = i; return; } } };
+  set('po_no', /เลข\s*PO/);
+  set('date', /วันที่เปิด/);
+  set('opener', /ผู้เปิด/);
+  set('cat', /หมวด/);
+  set('barcode', /รหัสสินค้า|SKU/i);
+  set('name', /ชื่อสินค้า/);
+  set('qty', /จำนวนสั่ง/);
+  set('unit', /หน่วยนับ/);
+  set('price', /ราคาต่อหน่วย/);
+  set('sentExt', /ส่ง\s*PO.*ภายนอก/);
+  set('extBuyer', /ผู้รับ/);
+  set('supplier', /ชื่อ\s*Supplier/i);
+  set('sentSup', /ส่ง\s*PO.*Supplier/i);
+  set('appt', /วันนัด/);
+  set('coord', /ระหว่างประสาน/);
+  set('shipped', /วันส่งออก/);
+  set('extNote', /หมายเหตุ\s*ฯ/);
+  set('received', /วันรับสินค้า/);
+  set('qtyRcv', /จำนวนรับ/);
+  set('status', /สถานะ/);
+  set('intNote', /^หมายเหตุ$/);
+  return c;
+}
 function poParseSheet(rows, poType) {
+  const C = poResolveCols(rows && rows[0]);   // กันคอลัมน์ขยับ: อ่านตำแหน่งจากหัวตาราง (fallback PO_COL เดิม)
   const groups = {}, order = [];
   let skipped = 0;   // แถวที่มีเลข PO แต่ชื่อว่าง/จำนวนอ่านไม่ได้ — ต้องรายงาน ไม่หายเงียบ
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i] || [];
-    const no = String(r[PO_COL.po_no] || '').trim();
+    const no = String(r[C.po_no] || '').trim();
     if (!/\/\d+\s*$/.test(no)) continue; // ต้องลงท้าย /เลข (กันแถวหัว/ว่าง)
     if (!groups[no]) {
-      const dc = poParseDate(r[PO_COL.date]);   // วันเปิด PO (col B) = ฐานจัดรอบเดือน 20-19
+      const dc = poParseDate(r[C.date]);   // วันเปิด PO (col B) = ฐานจัดรอบเดือน 20-19
       groups[no] = {
         po_no: no, po_type: poType, source_month: poCycleKey(dc),
         currency: poType === 'external' ? 'THB' : 'LAK', // ภายนอก = บาท เสมอ · ภายใน = กีบ (ปรับได้ในแอป)
-        coord_status: String(r[PO_COL.coord] || '').trim() || null, // ระหว่างประสานสั่งซื้อ (col 17)
-        created_by: String(r[PO_COL.opener] || '').trim() || null,
-        category: String(r[PO_COL.cat] || '').trim() || null,
-        supplier_name: String(r[PO_COL.supplier] || '').trim() || null,
-        ext_buyer: String(r[PO_COL.extBuyer] || '').trim() || null,
+        coord_status: String(r[C.coord] || '').trim() || null, // ระหว่างประสานสั่งซื้อ (col 17)
+        created_by: String(r[C.opener] || '').trim() || null,
+        category: String(r[C.cat] || '').trim() || null,
+        supplier_name: String(r[C.supplier] || '').trim() || null,
+        ext_buyer: String(r[C.extBuyer] || '').trim() || null,
         note: null, // header note ไม่มีในชีต (col 19/23 เป็นหมายเหตุรายสินค้า)
         date_created: dc,
-        date_sent_ext: poParseDate(r[PO_COL.sentExt]),
-        date_sent_supplier: poParseDate(r[PO_COL.sentSup]),
-        appointment_date: poParseDate(r[PO_COL.appt]),
-        date_shipped: poParseDate(r[PO_COL.shipped]),
-        date_received: poParseDate(r[PO_COL.received]),
+        date_sent_ext: poParseDate(r[C.sentExt]),
+        date_sent_supplier: poParseDate(r[C.sentSup]),
+        appointment_date: poParseDate(r[C.appt]),
+        date_shipped: poParseDate(r[C.shipped]),
+        date_received: poParseDate(r[C.received]),
         items: []
       };
       order.push(no);
     }
-    const nm = String(r[PO_COL.name] || '').trim();
-    const qty = poNum(r[PO_COL.qty]);
+    const nm = String(r[C.name] || '').trim();
+    const qty = poNum(r[C.qty]);
     if (!nm || qty <= 0) { skipped++; continue; }   // นับแถวที่อ่านไม่ได้ ไว้โชว์ในสรุป — ห้ามหายเงียบ (MEMORY 14)
     groups[no].items.push({
-      barcode: String(r[PO_COL.barcode] || '').trim(),
+      barcode: String(r[C.barcode] || '').trim(),
       product_name: nm,
-      unit: String(r[PO_COL.unit] || '').trim() || null,
+      unit: String(r[C.unit] || '').trim() || null,
       qty_ordered: qty,
-      unit_price: poNum(r[PO_COL.price]),
-      qty_received: poNum(r[PO_COL.qtyRcv]),
-      note: String(r[PO_COL.intNote] || '').trim() || null,     // ภายใน (col 23)
-      note_ext: String(r[PO_COL.extNote] || '').trim() || null  // ภายนอก (col 19)
+      unit_price: poNum(r[C.price]),
+      qty_received: poNum(r[C.qtyRcv]),
+      note: String(r[C.intNote] || '').trim() || null,     // ภายใน (col 23)
+      note_ext: String(r[C.extNote] || '').trim() || null  // ภายนอก (col 19)
     });
   }
   const list = order.map(no => groups[no]).filter(g => g.items.length);
