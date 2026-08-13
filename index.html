@@ -38253,6 +38253,7 @@ function poOpenImport() {
     + '<div style="font-size:11.5px;color:var(--slate-500);margin-bottom:12px;">' + (isLao ? 'ດຶງ PO_TRACKER ພາຍນອກ + ພາຍໃນ (ຊີດດຽວ) · ຈັດຮອບເດືອນຈາກວັນເປີດ PO ອັດຕະໂນມັດ' : 'ดึง PO_TRACKER ภายนอก + ภายใน (ชีตเดียว) · จัดรอบเดือนจากวันเปิด PO อัตโนมัติ') + '</div>'
     + '<div id="poImResult"></div>'
     + '<div style="display:flex;gap:9px;margin-top:12px;"><button onclick="closeModal()" style="flex:1;border:1px solid var(--slate-200);background:white;border-radius:10px;padding:12px;font-weight:700;color:var(--slate-600);cursor:pointer;">' + (isLao ? 'ປິດ' : 'ปิด') + '</button><button id="poImFetchBtn" onclick="poImportFetch()" style="flex:2;border:none;background:var(--fs-blue);color:white;border-radius:10px;padding:12px;font-weight:800;cursor:pointer;">🔎 ' + (isLao ? 'ດຶງຂໍ້ມູນ' : 'ดึงข้อมูล') + '</button></div>'
+    + '<div style="text-align:center;margin-top:9px;"><input type="file" id="poImFile" accept=".xlsx,.xls,.csv" multiple style="display:none;" onchange="poImportFile(this)"><button onclick="document.getElementById(\'poImFile\').click()" style="background:none;border:1px solid var(--slate-300);color:var(--slate-700);border-radius:9px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer;">📁 ' + (isLao ? 'ອັບໂຫຼດ Excel/CSV ແທນ' : 'อัพโหลด Excel/CSV แทน') + '</button><div style="font-size:10px;color:var(--slate-400);margin-top:4px;">' + (isLao ? 'CSV: ເລືອກ 2 ໄຟລ໌ (ພາຍນອກ+ພາຍໃນ) ພ້ອມກັນໄດ້' : 'CSV: เลือก 2 ไฟล์ (ภายนอก+ภายใน) พร้อมกันได้') + '</div></div>'
     + (['admin', 'scc'].includes((user && user.role) || '') ? '<div style="text-align:center;margin-top:10px;"><button onclick="poWbConfig()" style="background:none;border:none;color:var(--slate-400);font-size:11.5px;font-weight:700;cursor:pointer;text-decoration:underline;">⚙️ ' + (isLao ? 'ຕັ້ງຄ່າ ຂຽນກັບ Sheet' : 'ตั้งค่า เขียนกลับ Sheet') + '</button></div>' : '')
     + '</div>';
   showModal(html);
@@ -38273,25 +38274,72 @@ async function poImportFetch() {
     // ⚠️ enrich เฉพาะ PO ภายใน (กีบ) — purchase_history เป็นกีบ (Ball ยืนยัน 2026-07-19)
     // ห้าม enrich ใบภายนอก: ใบภายนอกเป็นบาท (THB) ถ้าทับด้วยต้นทุนกีบ ยอดทั้งใบเพี้ยนสกุล
     await poEnrichCosts(int); // ราคาต่อหน่วย (เฉพาะภายใน) = ต้นทุนล่าสุด (purchase_history, กีบ) ทับราคาชีตถ้ามี
-    _poImportData = { external: ext, internal: int };
-    const cnt = list => ({ po: list.length, items: list.reduce((a, g) => a + g.items.length, 0) });
-    const ce = cnt(ext), ci = cnt(int);
     const errE = (!Array.isArray(extRows) && extRows && extRows.__err) ? extRows.__err : '';
     const errI = (!Array.isArray(intRows) && intRows && intRows.__err) ? intRows.__err : '';
-    const rowLine = (label, c) => '<div style="display:flex;justify-content:space-between;padding:4px 0;"><span>' + label + '</span><b>' + c.po + ' ' + (isLao ? 'ໃບ' : 'ใบ') + ' / ' + c.items + ' ' + (isLao ? 'ລາຍການ' : 'รายการ') + '</b></div>';
-    const total = ce.po + ci.po;
-    const skipN = (ext._skipped || 0) + (int._skipped || 0);
-    const emptyN = (ext._emptyPo || 0) + (int._emptyPo || 0);
-    if (box) box.innerHTML = '<div style="background:#f8fafc;border-radius:10px;padding:12px;font-size:13px;">'
-      + rowLine(isLao ? 'ພາຍນອກ' : 'ภายนอก', ce)
-      + rowLine(isLao ? 'ພາຍໃນ' : 'ภายใน', ci)
-      + (skipN || emptyN ? '<div style="color:var(--amber-700);background:var(--amber-50);border-radius:7px;padding:5px 8px;font-size:11px;margin-top:5px;">⚠️ ' + (isLao ? 'ຂ້າມແຖວທີ່ອ່ານບໍ່ໄດ້ ' : 'ข้ามแถวที่อ่านไม่ได้ ') + skipN + (isLao ? ' ລາຍການ' : ' รายการ') + (emptyN ? ' · ' + (isLao ? 'ໃບທີ່ຫາຍທັງໃບ ' : 'ใบที่หายทั้งใบ ') + emptyN : '') + '</div>' : '')
-      + (errE ? '<div style="color:var(--rose-500);font-size:11px;margin-top:4px;">' + (isLao ? 'ນອກ' : 'นอก') + ': ' + escapeHtml(errE) + '</div>' : '')
-      + (errI ? '<div style="color:var(--rose-500);font-size:11px;margin-top:4px;">' + (isLao ? 'ໃນ' : 'ใน') + ': ' + escapeHtml(errI) + '</div>' : '')
-      + (total > 0 ? '<button onclick="poImportConfirm()" style="width:100%;margin-top:10px;border:none;background:#22c55e;color:white;border-radius:9px;padding:11px;font-weight:800;cursor:pointer;">✅ ' + (isLao ? 'ຢືນຢັນນຳເຂົ້າ' : 'ยืนยันนำเข้า') + ' (' + total + ' ' + (isLao ? 'ໃບ' : 'ใบ') + ')</button>' : '<div style="color:var(--slate-400);text-align:center;margin-top:8px;font-size:12px;">' + (isLao ? 'ບໍ່ພົບຂໍ້ມູນ' : 'ไม่พบข้อมูล') + '</div>')
-      + '</div>';
+    poRenderImportResult(ext, int, errE, errI);
   } catch (e) { if (box) box.innerHTML = '<div style="color:var(--rose-500);padding:12px;font-size:12px;">Error: ' + escapeHtml(e.message) + '</div>'; }
   if (btn) { btn.disabled = false; btn.textContent = '🔎 ' + (isLao ? 'ດຶງຂໍ້ມູນ' : 'ดึงข้อมูล'); }
+}
+// แสดงสรุปผล import + ปุ่มยืนยัน (ใช้ร่วมทั้งดึงจาก Sheet และอัพโหลด Excel)
+function poRenderImportResult(ext, int, errE, errI) {
+  const isLao = lang === 'lo';
+  const box = document.getElementById('poImResult');
+  _poImportData = { external: ext, internal: int };
+  const cnt = list => ({ po: list.length, items: list.reduce((a, g) => a + g.items.length, 0) });
+  const ce = cnt(ext), ci = cnt(int);
+  const rowLine = (label, c) => '<div style="display:flex;justify-content:space-between;padding:4px 0;"><span>' + label + '</span><b>' + c.po + ' ' + (isLao ? 'ໃບ' : 'ใบ') + ' / ' + c.items + ' ' + (isLao ? 'ລາຍການ' : 'รายการ') + '</b></div>';
+  const total = ce.po + ci.po;
+  const skipN = (ext._skipped || 0) + (int._skipped || 0);
+  const emptyN = (ext._emptyPo || 0) + (int._emptyPo || 0);
+  if (box) box.innerHTML = '<div style="background:#f8fafc;border-radius:10px;padding:12px;font-size:13px;">'
+    + rowLine(isLao ? 'ພາຍນອກ' : 'ภายนอก', ce)
+    + rowLine(isLao ? 'ພາຍໃນ' : 'ภายใน', ci)
+    + (skipN || emptyN ? '<div style="color:var(--amber-700);background:var(--amber-50);border-radius:7px;padding:5px 8px;font-size:11px;margin-top:5px;">⚠️ ' + (isLao ? 'ຂ້າມແຖວທີ່ອ່ານບໍ່ໄດ້ ' : 'ข้ามแถวที่อ่านไม่ได้ ') + skipN + (isLao ? ' ລາຍການ' : ' รายการ') + (emptyN ? ' · ' + (isLao ? 'ໃບທີ່ຫາຍທັງໃບ ' : 'ใบที่หายทั้งใบ ') + emptyN : '') + '</div>' : '')
+    + (errE ? '<div style="color:var(--rose-500);font-size:11px;margin-top:4px;">' + (isLao ? 'ນອກ' : 'นอก') + ': ' + escapeHtml(errE) + '</div>' : '')
+    + (errI ? '<div style="color:var(--rose-500);font-size:11px;margin-top:4px;">' + (isLao ? 'ໃນ' : 'ใน') + ': ' + escapeHtml(errI) + '</div>' : '')
+    + (total > 0 ? '<button onclick="poImportConfirm()" style="width:100%;margin-top:10px;border:none;background:#22c55e;color:white;border-radius:9px;padding:11px;font-weight:800;cursor:pointer;">✅ ' + (isLao ? 'ຢືນຢັນນຳເຂົ້າ' : 'ยืนยันนำเข้า') + ' (' + total + ' ' + (isLao ? 'ໃບ' : 'ใบ') + ')</button>' : '<div style="color:var(--slate-400);text-align:center;margin-top:8px;font-size:12px;">' + (isLao ? 'ບໍ່ພົບຂໍ້ມູນ' : 'ไม่พบข้อมูล') + '</div>')
+    + '</div>';
+}
+// อัพโหลดไฟล์ Excel/CSV (แทนการดึงจาก Google Sheet) — ใช้ parser เดิม
+//   .xlsx = หาชีต PO_TRACKER_ภายนอก/ภายใน ในไฟล์เดียว · .csv (จาก Google Drive) = 1 ประเภทต่อไฟล์ ดูจากชื่อไฟล์
+//   เลือกได้หลายไฟล์พร้อมกัน (ภายนอก + ภายใน)
+async function poImportFile(input) {
+  const isLao = lang === 'lo';
+  const files = (input && input.files) ? Array.from(input.files) : [];
+  input.value = '';   // เคลียร์ให้เลือกไฟล์เดิมซ้ำได้
+  if (!files.length) return;
+  const box = document.getElementById('poImResult');
+  if (box) box.innerHTML = '<div style="text-align:center;padding:16px;"><div class="loader" style="margin:0 auto;"></div></div>';
+  try {
+    const norm = s => String(s || '').replace(/\s/g, '');
+    const extParts = [], intParts = [];
+    for (const file of files) {
+      const rowsOf = ws => XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+      if (/\.csv$/i.test(file.name)) {
+        // CSV = 1 ประเภท · หาประเภทจากชื่อไฟล์ (Google Sheets export = "...ภายนอก.csv")
+        const type = /ภายนอก|external/i.test(file.name) ? 'external'
+          : (/ภายใน|internal/i.test(file.name) ? 'internal' : null);
+        if (!type) throw new Error((isLao ? 'ຕັ້ງຊື່ໄຟລ໌ CSV ໃຫ້ມີຄຳວ່າ ' : 'ตั้งชื่อไฟล์ CSV ให้มีคำว่า ') + '"ภายนอก" ' + (isLao ? 'ຫຼື' : 'หรือ') + ' "ภายใน": ' + file.name);
+        const wb = XLSX.read(await file.text(), { type: 'string' });
+        const parsed = poParseSheet(rowsOf(wb.Sheets[wb.SheetNames[0]]), type);
+        (type === 'external' ? extParts : intParts).push(parsed);
+      } else {
+        // .xlsx/.xls = หลายชีตในไฟล์เดียว
+        const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+        const findSheet = kw => wb.SheetNames.find(n => norm(n).includes(kw));
+        const extName = findSheet('ภายนอก') || findSheet('external');
+        const intName = findSheet('ภายใน') || findSheet('internal');
+        if (!extName && !intName) throw new Error((isLao ? 'ບໍ່ພົບຊີດ ພາຍນອກ/ພາຍໃນ ໃນ ' : 'ไม่พบชีต ภายนอก/ภายใน ใน ') + file.name);
+        if (extName) extParts.push(poParseSheet(rowsOf(wb.Sheets[extName]), 'external'));
+        if (intName) intParts.push(poParseSheet(rowsOf(wb.Sheets[intName]), 'internal'));
+      }
+    }
+    // รวมผลจากทุกไฟล์ (คง _skipped/_emptyPo)
+    const merge = parts => { const all = []; let sk = 0, em = 0; parts.forEach(p => { all.push.apply(all, p); sk += p._skipped || 0; em += p._emptyPo || 0; }); all._skipped = sk; all._emptyPo = em; return all; };
+    const ext = merge(extParts), int = merge(intParts);
+    await poEnrichCosts(int);   // ต้นทุนล่าสุด (เฉพาะภายใน กีบ) เหมือนตอนดึง Sheet
+    poRenderImportResult(ext, int, '', '');
+  } catch (e) { if (box) box.innerHTML = '<div style="color:var(--rose-500);padding:12px;font-size:12px;">Error: ' + escapeHtml(e.message) + '</div>'; }
 }
 async function poImportConfirm() {
   const isLao = lang === 'lo';
@@ -38403,7 +38451,7 @@ async function poWbSave() {
 }
 
 window.renderPOTrackPage = renderPOTrackPage; window.poInit = poInit;
-window.poOpenImport = poOpenImport; window.poImportFetch = poImportFetch; window.poImportConfirm = poImportConfirm;
+window.poOpenImport = poOpenImport; window.poImportFetch = poImportFetch; window.poImportConfirm = poImportConfirm; window.poImportFile = poImportFile;
 window.poWbConfig = poWbConfig; window.poWbSave = poWbSave;
 window.poSetStatus = poSetStatus; window.poSetType = poSetType; window.poSetBuyer = poSetBuyer; window.poSearchDebounce = poSearchDebounce; window.poSetCycle = poSetCycle;
 window.poOpenCreate = poOpenCreate; window.poSyncPrefix = poSyncPrefix; window.poAddItemRow = poAddItemRow; window.poRemoveItemRow = poRemoveItemRow; window.poLookup = poLookup; window.poSubmitCreate = poSubmitCreate;
