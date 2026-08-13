@@ -1883,6 +1883,9 @@ function isAllBranch(u) {
   if (['admin', 'scc', 'bcs', 'it'].includes(u.role)) return true;
   return ALL_BRANCH_USERS.includes(String(u.username || '').trim().toLowerCase());
 }
+// ผู้ได้รับมอบหมายให้จัดการผู้ใช้ (เพิ่ม/แก้ได้เฉพาะ counter/verifier/ctl ทุกสาขา) — บังคับซ้ำฝั่ง server ใน rpc_admin_upsert_user
+const USER_MGR_DELEGATES = ['bcs1-suea'];
+function userMgrDelegate(u) { u = u || user; return !!(u && USER_MGR_DELEGATES.includes(String(u.username || '').trim().toLowerCase())); }
 let session = null;
 let allZones = [];
 let allLocations = []; // location_master ทั้งหมด
@@ -27041,13 +27044,13 @@ function openUserModal(userId = null) {
         <option value="counter">👤 Counter — ${lang === 'lo' ? 'ນັບສະຕ໋ອກ' : 'ผู้นับสต๊อก'}</option>
         <option value="verifier">🔍 Verifier — ${lang === 'lo' ? 'ນັບຢືນຢັນ' : 'ผู้ตรวจนับ'}</option>
         <option value="ctl">🎯 CTL — ${lang === 'lo' ? 'ຄຸ້ມຄອງໜ້າງານ' : 'หัวหน้าหน้างาน'}</option>
-        <option value="bcs">📊 BCS — ${lang === 'lo' ? 'ຫົວໜ້າສາຂາ' : 'หัวหน้าสาขา'}</option>
+        ${(userMgrDelegate(user) && user.role !== 'admin') ? '' : `<option value="bcs">📊 BCS — ${lang === 'lo' ? 'ຫົວໜ້າສາຂາ' : 'หัวหน้าสาขา'}</option>`}
         ${user.role === 'admin' ? `
           <option value="it">🛠️ IT — ${lang === 'lo' ? 'ອັບເດດຂໍ້ມູນ + ຄວບຄຸມການນັບ' : 'อัปเดตข้อมูล + ควบคุมการนับ'}</option>
           <option value="scc">⚡ SCC — ${lang === 'lo' ? 'ສູນຄຸ້ມຄອງສະຕ໋ອກ' : 'ศูนย์ควบคุมสต๊อก'}</option>
           <option value="admin">👑 Admin — ${lang === 'lo' ? 'ຜູ້ດູແລລະບົບ' : 'ผู้ดูแลระบบ'}</option>
         ` : ''}
-        <option value="audit">🔍 Audit (Legacy)</option>
+        ${(userMgrDelegate(user) && user.role !== 'admin') ? '' : '<option value="audit">🔍 Audit (Legacy)</option>'}
       </select>
       ${user.role === 'admin' ? `
         <div style="font-size:10px;color:var(--violet-600);margin-top:4px;background:var(--violet-50);padding:5px 7px;border-radius:5px;border-left:3px solid var(--violet-500);">
@@ -27275,6 +27278,12 @@ async function saveUser() {
     errEl.textContent = lang === 'lo'
       ? 'ສະເພາະ Admin ເທົ່ານັ້ນທີ່ສ້າງ Admin/SCC/IT ໄດ້'
       : 'เฉพาะ Admin เท่านั้นที่สร้าง Admin/SCC/IT ได้';
+    errEl.classList.add('show');
+    return;
+  }
+  // 🛡️ Guard: ผู้ได้รับมอบหมาย (BCS1-Suea) เพิ่ม/แก้ได้เฉพาะ counter/verifier/ctl (server บังคับซ้ำใน rpc_admin_upsert_user)
+  if (userMgrDelegate(user) && user.role !== 'admin' && !['counter', 'verifier', 'ctl'].includes(role)) {
+    errEl.textContent = lang === 'lo' ? 'ທ່ານເພີ່ມໄດ້ສະເພາະ Counter/Verifier/CTL' : 'คุณเพิ่มได้เฉพาะ Counter/Verifier/CTL';
     errEl.classList.add('show');
     return;
   }
