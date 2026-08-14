@@ -3199,7 +3199,8 @@ async function login() {
   }
 }
 
-let _countMenuEnabled = true; // เปิด/ปิดเมนูนับสต๊อก (scan+tiebreaker) ของ counter/verifier
+let _countMenuEnabled = true; // เปิด/ปิดเมนูนับสต๊อก (scan+tiebreaker) ของ counter/verifier — คำนวณต่อสาขาปัจจุบัน
+let _countMenuRaw = 'on';      // ค่าดิบจาก app_settings: 'on' (ทุกสาขา) · 'off' (ปิดหมด) · 'branch:5,7' (เปิดเฉพาะ branch id ที่ระบุ)
 let _menuOff = {};            // จัดการเมนู (admin): {pageKey: true|'all'|[roles]} = ปิดเมนูนั้น
 let _menuUserOverride = {};   // สิทธิ์เฉพาะบุคคล (admin): {userId: {pageKey: true(เปิดเพิ่ม)/false(ปิดเฉพาะคน)}} — ทับสิทธิ์ตามตำแหน่ง
 function myMenuOverride() { return (user && _menuUserOverride[user.id]) || {}; }
@@ -3283,7 +3284,8 @@ async function markDataUpdated(key) {
 function _applyAppSettings(rows) {
   const map = {};
   (rows || []).forEach(r => { map[r.key] = r.value; });
-  _countMenuEnabled = !map.count_menu_enabled || map.count_menu_enabled !== 'off'; // default เปิด
+  _countMenuRaw = map.count_menu_enabled || 'on';
+  _recomputeCountMenu(); // คำนวณ _countMenuEnabled ตามสาขาปัจจุบัน (รองรับโหมด branch:...)
   _menuOff = {};
   if (map.menu_off) { try { _menuOff = JSON.parse(map.menu_off) || {}; } catch (e) { _menuOff = {}; } }
   _menuUserOverride = {};
@@ -3294,7 +3296,7 @@ async function loadAppSettings() {
   if (!fsIsOnline()) {
     const cached = await fsKvGet('app_settings');
     if (cached && cached.length) _applyAppSettings(cached);
-    else { _countMenuEnabled = true; _menuOff = {}; _menuUserOverride = {}; }
+    else { _countMenuRaw = 'on'; _countMenuEnabled = true; _menuOff = {}; _menuUserOverride = {}; }
     return;
   }
   try {
@@ -3305,35 +3307,97 @@ async function loadAppSettings() {
     // 🔌 เน็ตหลุด → ลองใช้ค่าที่เก็บไว้ (snapshot) ก่อน fallback default
     const cached = await fsKvGet('app_settings');
     if (cached && cached.length) _applyAppSettings(cached);
-    else { _countMenuEnabled = true; _menuOff = {}; _menuUserOverride = {}; }
+    else { _countMenuRaw = 'on'; _countMenuEnabled = true; _menuOff = {}; _menuUserOverride = {}; }
   }
+}
+// คำนวณ _countMenuEnabled จาก _countMenuRaw เทียบกับสาขาปัจจุบัน (เรียกซ้ำได้ทุกครั้งที่ branch เปลี่ยน)
+function _recomputeCountMenu() {
+  const raw = _countMenuRaw || 'on';
+  if (raw === 'off') { _countMenuEnabled = false; return; }
+  if (raw.indexOf('branch:') === 0) {
+    const ids = raw.slice(7).split(',').map(s => s.trim()).filter(Boolean);
+    _countMenuEnabled = !!branch && ids.includes(String(branch.id));
+    return;
+  }
+  _countMenuEnabled = true; // 'on' หรือค่าเก่า = เปิดทุกสาขา
 }
 window._getCountMenuEnabled = () => _countMenuEnabled;
 
-// เปิด/ปิดเมนูนับสต๊อก (admin/scc) → เก็บ Supabase → มีผลทุกเครื่อง
-async function toggleCountMenu() {
+// เปิด/ปิดเมนูนับสต๊อก (admin/scc/it) → เก็บ Supabase → มีผลทุกเครื่อง · รองรับเลือกเฉพาะสาขา
+// core: เขียนค่า count_menu_enabled ('on'/'off'/'branch:...') → recompute → re-render
+async function _setCountMenuValue(value, toastMsg) {
+  const isLao = lang === 'lo';
+  if (!['admin', 'scc', 'it'].includes(user.role)) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return false; }
+  const { error } = await sb.from('app_settings').upsert({ key: 'count_menu_enabled', value: value, updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: 'key' });
+  if (error) { showToast('Error: ' + error.message, 'error'); return false; }
+  _countMenuRaw = value;
+  _recomputeCountMenu();
+  logActivity('toggle_count_menu', value);
+  if (toastMsg) showToast(toastMsg, 'success');
+  // re-render shell เพื่อให้เมนูที่เปิดอยู่ (counter/verifier/ctl บนเครื่องเดียวกัน) อัปเดต
+  if (typeof renderApp === 'function') renderApp();
+  return true;
+}
+
+// แสดงสรุปสถานะสวิตช์นับ (ใช้ในการ์ด Settings)
+function _countMenuSummary() {
+  const isLao = lang === 'lo';
+  const raw = _countMenuRaw || 'on';
+  if (raw === 'off') return { icon: '⚪', color: 'var(--slate-400)', text: isLao ? 'ປິດທຸກສາຂາ' : 'ปิดทุกสาขา' };
+  if (raw.indexOf('branch:') === 0) {
+    const ids = raw.slice(7).split(',').map(s => s.trim()).filter(Boolean);
+    const brs = window._allBranchesCache || [];
+    const names = ids.map(id => { const b = brs.find(x => String(x.id) === id); return b ? (isLao ? (b.name_lo || b.code) : (b.name_th || b.code)) : ('#' + id); });
+    return { icon: '🟢', color: 'var(--teal-600)', text: (isLao ? 'ເປີດ ' : 'เปิด ') + ids.length + (isLao ? ' ສາຂາ: ' : ' สาขา: ') + names.join(', ') };
+  }
+  return { icon: '🟢', color: 'var(--teal-600)', text: isLao ? 'ເປີດທຸກສາຂາ' : 'เปิดทุกสาขา' };
+}
+
+// เปิด modal เลือกสาขาที่เปิดนับ (per-branch)
+async function openCountMenuBranchPicker() {
   const isLao = lang === 'lo';
   if (!['admin', 'scc', 'it'].includes(user.role)) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
-  const next = !_countMenuEnabled;
-  const { error } = await sb.from('app_settings').upsert({ key: 'count_menu_enabled', value: next ? 'on' : 'off', updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: 'key' });
-  if (error) { showToast('Error: ' + error.message, 'error'); return; }
-  _countMenuEnabled = next;
-  logActivity('toggle_count_menu', next ? 'on' : 'off');
-  showToast(next ? (isLao ? 'ເປີດເມນູນັບສະຕ໋ອກແລ້ວ' : 'เปิดเมนูนับสต๊อกแล้ว') : (isLao ? 'ປິດເມນູນັບສະຕ໋ອກແລ້ວ' : 'ปิดเมนูนับสต๊อกแล้ว'), 'success');
-  // อัปเดตปุ่ม toggle ทันที
-  const btn = document.getElementById('countMenuToggle');
-  const status = document.getElementById('countMenuStatus');
-  if (btn) {
-    btn.style.background = next ? 'var(--teal-500)' : 'var(--slate-300)';
-    const knob = btn.querySelector('span');
-    if (knob) knob.style.left = next ? '29px' : '3px';
+  let brs = window._allBranchesCache;
+  if (!brs || !brs.length) {
+    try { const { data } = await sb.from('branches').select('id, code, name_th, name_lo').order('id'); brs = data || []; window._allBranchesCache = brs; } catch (e) { brs = []; }
   }
-  if (status) {
-    status.style.color = next ? 'var(--teal-600)' : 'var(--slate-400)';
-    status.textContent = next ? (isLao ? '● ເປີດ' : '● เปิดอยู่') : (isLao ? '○ ປິດ' : '○ ปิดอยู่');
-  }
-  // re-render shell เพื่อให้เมนูที่เปิดอยู่ (counter/verifier/ctl บนเครื่องเดียวกัน) อัปเดต
-  if (typeof renderApp === 'function' && ['counter', 'verifier', 'ctl'].includes(user.role)) renderApp();
+  const raw = _countMenuRaw || 'on';
+  const allOn = (raw === 'on' || (raw !== 'off' && raw.indexOf('branch:') !== 0));
+  const onIds = raw.indexOf('branch:') === 0 ? raw.slice(7).split(',').map(s => s.trim()).filter(Boolean) : [];
+  const isChecked = (id) => allOn || onIds.includes(String(id));
+  const rows = (brs || []).map(b => {
+    const nm = isLao ? (b.name_lo || b.name_th || b.code) : (b.name_th || b.name_lo || b.code);
+    return `<label style="display:flex;align-items:center;gap:10px;padding:10px 11px;border:1px solid var(--slate-200);border-radius:9px;cursor:pointer;">
+      <input type="checkbox" class="cmBrChk" value="${b.id}" ${isChecked(b.id) ? 'checked' : ''} style="width:18px;height:18px;flex-shrink:0;">
+      <span style="flex:1;min-width:0;"><span style="font-weight:700;font-size:13px;color:var(--slate-800);">${escapeHtml(nm)}</span> <span style="font-family:monospace;font-size:10px;color:var(--slate-400);">(${escapeHtml(b.code || '')})</span></span>
+    </label>`;
+  }).join('');
+  showModal(`<h3 style="font-size:16px;margin:0 0 6px;">📦 ${isLao ? 'ເລືອກສາຂາທີ່ເປີດນັບ' : 'เลือกสาขาที่เปิดนับ'}</h3>
+    <div style="font-size:11px;color:var(--slate-500);margin-bottom:11px;line-height:1.5;">${isLao ? 'ຕິກສາຂາທີ່ຈະໃຫ້ Counter/Verifier ເຫັນເມນູນັບ · ບໍ່ຕິກ = ຊ່ອນເມນູນັບ' : 'ติกสาขาที่จะให้ Counter/Verifier เห็นเมนูนับ · ไม่ติก = ซ่อนเมนูนับ'}</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;">
+      <button class="btn btn-secondary" onclick="_cmPickAll(true)" style="flex:1;font-size:11px;padding:8px;">${isLao ? '✅ ເລືອກໝົດ' : '✅ เลือกทุกสาขา'}</button>
+      <button class="btn btn-secondary" onclick="_cmPickAll(false)" style="flex:1;font-size:11px;padding:8px;">${isLao ? '⬜ ລ້າງໝົດ' : '⬜ ล้างทุกสาขา'}</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow-y:auto;">${rows || ('<div style="color:var(--slate-400);font-size:12px;">' + (isLao ? 'ບໍ່ພົບສາຂາ' : 'ไม่พบสาขา') + '</div>')}</div>
+    <div class="action-row" style="margin-top:13px;"><button class="btn btn-secondary" onclick="closeModal()">${isLao ? 'ຍົກເລີກ' : 'ยกเลิก'}</button>
+    <button class="btn btn-primary" onclick="saveCountMenuBranches()">${isLao ? 'ບັນທຶກ' : 'บันทึก'}</button></div>`);
+}
+
+function _cmPickAll(on) {
+  document.querySelectorAll('.cmBrChk').forEach(c => { c.checked = !!on; });
+}
+
+async function saveCountMenuBranches() {
+  const isLao = lang === 'lo';
+  const boxes = Array.from(document.querySelectorAll('.cmBrChk'));
+  const total = boxes.length;
+  const checked = boxes.filter(c => c.checked).map(c => c.value);
+  let value;
+  if (checked.length === 0) value = 'off';
+  else if (checked.length === total) value = 'on';
+  else value = 'branch:' + checked.join(',');
+  const ok = await _setCountMenuValue(value, isLao ? 'ບັນທຶກສະຫວິດນັບແລ້ວ ✓' : 'บันทึกสวิตช์นับแล้ว ✓');
+  if (ok) closeModal();
 }
 
 
@@ -4609,7 +4673,8 @@ async function switchBranch(newBranchId) {
     
     branch = br;
     user.active_branch_id = br.id;
-    
+    _recomputeCountMenu(); // สาขาเปลี่ยน → คำนวณสวิตช์นับใหม่ (โหมด branch:...)
+
     // Persist
     localStorage.setItem('fs_branch', JSON.stringify(branch));
     localStorage.setItem('fs_user', JSON.stringify(user));
@@ -32383,19 +32448,20 @@ function renderSettingsPage() {
     
     ${['admin', 'scc', 'bcs', 'it'].includes(user.role) ? `
     ${['admin', 'scc', 'it'].includes(user.role) ? `
-    <!-- Toggle เมนูนับสต๊อก -->
+    <!-- เมนูนับสต๊อก — เลือกเปิดต่อสาขาได้ -->
+    ${(() => { const cm = _countMenuSummary(); return `
     <div style="background:white;border:2px solid var(--teal-200);border-radius:14px;padding:16px;margin-top:14px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-        <div style="flex:1;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="flex:1;min-width:0;">
           <div style="font-size:14px;font-weight:800;color:var(--slate-800);">📦 ${lang === 'lo' ? 'ເມນູນັບສະຕ໋ອກ (Counter/Verifier)' : 'เมนูนับสต๊อก (Counter/Verifier)'}</div>
-          <div style="font-size:11px;color:var(--slate-500);margin-top:3px;">${lang === 'lo' ? 'ເປີດເມື່ອຈະນັບສະຕ໋ອກ ປິດເມື່ອບໍ່ໃຊ້' : 'เปิดเมื่อจะนับสต๊อก · ปิดเมื่อไม่ใช้ (ซ่อน นับสต๊อค+ตัดสิน)'}</div>
+          <div style="font-size:11px;color:var(--slate-500);margin-top:3px;">${lang === 'lo' ? 'ເລືອກເປີດເປັນລາຍສາຂາໄດ້ · ປິດ = ຊ່ອນເມນູນັບ+ຕັດສິນ' : 'เลือกเปิดเป็นรายสาขาได้ · ปิด = ซ่อนเมนูนับ+ตัดสิน'}</div>
         </div>
-        <button id="countMenuToggle" onclick="toggleCountMenu()" style="flex-shrink:0;width:56px;height:30px;border-radius:20px;border:none;cursor:pointer;position:relative;background:${_countMenuEnabled ? 'var(--teal-500)' : 'var(--slate-300)'};transition:background 0.2s;">
-          <span style="position:absolute;top:3px;left:${_countMenuEnabled ? '29px' : '3px'};width:24px;height:24px;border-radius:50%;background:white;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></span>
-        </button>
       </div>
-      <div id="countMenuStatus" style="font-size:11px;font-weight:700;margin-top:9px;color:${_countMenuEnabled ? 'var(--teal-600)' : 'var(--slate-400)'};">${_countMenuEnabled ? (lang === 'lo' ? '● ເປີດ' : '● เปิดอยู่') : (lang === 'lo' ? '○ ປິດ' : '○ ปิดอยู่')}</div>
-    </div>
+      <div id="countMenuStatus" style="font-size:11px;font-weight:700;margin-top:9px;color:${cm.color};line-height:1.5;">${cm.icon} ${escapeHtml(cm.text)}</div>
+      <button class="btn" style="background:var(--teal-500);color:white;font-size:12px;padding:10px;width:100%;margin-top:10px;" onclick="openCountMenuBranchPicker()">
+        ⚙️ ${lang === 'lo' ? 'ເລືອກສາຂາທີ່ເປີດນັບ' : 'เลือกสาขาที่เปิดนับ'}
+      </button>
+    </div>`; })()}
     ` : ''}
 
     <!-- Branch Switcher (Admin Only) -->
@@ -36883,7 +36949,9 @@ window.scSetFilterReporter = scSetFilterReporter;
 window.scEditOpen = scEditOpen;
 window.scEditSave = scEditSave;
 window.scDelete = scDelete;
-window.toggleCountMenu = toggleCountMenu;
+window.openCountMenuBranchPicker = openCountMenuBranchPicker;
+window.saveCountMenuBranches = saveCountMenuBranches;
+window._cmPickAll = _cmPickAll;
 window.loadAppSettings = loadAppSettings;
 window.loadUpdateReminder = loadUpdateReminder;
 window.wrOnPhotoSelected = wrOnPhotoSelected;
