@@ -5780,6 +5780,7 @@ function goPage(page) {
   } else if (page === 'workflow') {
     c.innerHTML = renderWorkflowPage();
     loadWorkflowList();
+    loadCoverageGaps();
   } else if (page === 'floormap') {
     c.innerHTML = renderFloorMapPage();
     loadFloorMap();
@@ -32167,7 +32168,10 @@ function renderWorkflowPage() {
     
     <!-- Summary -->
     <div id="wfSummary"></div>
-    
+
+    <!-- นับข้ามจุด / ครอบคลุม (coverage) -->
+    <div id="wfCoverage"></div>
+
     <!-- Open New Gondola button -->
     <button class="btn btn-primary" onclick="openNewGondolaForCounter()" style="margin-bottom:11px;">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
@@ -32194,9 +32198,69 @@ function setWfFilter(f) {
   renderWorkflowList(window._wfData || []);
 }
 
+// 🚩 รายงาน "นับข้ามจุด" — ต่อ (สินค้า, ตำแหน่ง) ที่ counter/verifier นับไม่ครบคู่กัน
+//    (ผลต่างพวกนี้ไม่เข้า "ตัดสิน" เพราะตัดสินต้องมีทั้ง counter+verifier ที่จุดเดียวกัน)
+async function loadCoverageGaps() {
+  const el = document.getElementById('wfCoverage');
+  if (!el) return;
+  const isLao = lang === 'lo';
+  let items = [];
+  try { items = (await computeVarianceItems('session')).filter(it => !it.isOrphan); }
+  catch (e) { log('coverage error', e); el.innerHTML = ''; return; }
+
+  const byLoc = {}; // location_code -> { counterOnly:[], verifyOnly:[] }
+  items.forEach(it => {
+    const name = isLao ? (it.product && (it.product.name_lo || it.product.name_th)) : (it.product && (it.product.name_th || it.product.name_lo));
+    const locs = new Set([...Object.keys(it.counterLocs || {}), ...Object.keys(it.verifierLocs || {}), ...Object.keys(it.ctlLocs || {}), ...Object.keys(it.managerLocs || {})]);
+    locs.forEach(lk => {
+      const hasCounter = !!(it.counterLocs && it.counterLocs[lk]);
+      const hasVerify = !!((it.verifierLocs && it.verifierLocs[lk]) || (it.ctlLocs && it.ctlLocs[lk]) || (it.managerLocs && it.managerLocs[lk]));
+      if (hasCounter === hasVerify) return; // ครบคู่ (หรือไม่มีเลย) = ไม่ใช่ gap
+      const loc = lk || '?';
+      if (!byLoc[loc]) byLoc[loc] = { counterOnly: [], verifyOnly: [] };
+      const entry = { name: name || it.barcode || '?' };
+      if (hasCounter) byLoc[loc].counterOnly.push(entry);
+      else byLoc[loc].verifyOnly.push(entry);
+    });
+  });
+
+  const locKeys = Object.keys(byLoc);
+  const totalGap = locKeys.reduce((s, k) => s + byLoc[k].counterOnly.length + byLoc[k].verifyOnly.length, 0);
+
+  if (!totalGap) {
+    el.innerHTML = `<div style="background:var(--emerald-100);border:1px solid var(--emerald-500);border-radius:11px;padding:10px 13px;margin-bottom:11px;font-size:12px;font-weight:700;color:var(--emerald-600);">✅ ${isLao ? 'counter/verifier ນັບຄົບຄູ່ທຸກຈຸດ' : 'counter/verifier นับครบคู่ทุกจุด'}</div>`;
+    return;
+  }
+
+  locKeys.sort((a, b) => (byLoc[b].counterOnly.length + byLoc[b].verifyOnly.length) - (byLoc[a].counterOnly.length + byLoc[a].verifyOnly.length));
+
+  const chips = (list, color, label) => list.length ? `
+    <div style="margin-top:5px;">
+      <span style="font-size:10px;font-weight:800;color:${color};">${label} (${list.length})</span>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">
+        ${list.map(p => `<span style="font-size:10px;background:var(--slate-100);padding:2px 6px;border-radius:5px;color:var(--slate-700);">${escapeHtml(p.name)}</span>`).join('')}
+      </div>
+    </div>` : '';
+
+  el.innerHTML = `
+    <div style="background:var(--fs-orange-tint);border:2px solid var(--amber-500);border-radius:13px;padding:12px 13px;margin-bottom:11px;">
+      <div style="font-size:13px;font-weight:800;color:#92400e;display:flex;align-items:center;gap:6px;">
+        🚩 ${isLao ? 'ນັບຂ້າມຈຸດ' : 'นับข้ามจุด'} <span style="background:var(--rose-500);color:white;border-radius:10px;padding:1px 8px;font-size:11px;">${totalGap}</span>
+      </div>
+      <div style="font-size:10px;color:#92400e;margin-top:2px;margin-bottom:5px;">${isLao ? 'counter/verifier ນັບບໍ່ຄົບຄູ່ — ຜົນຕ່າງບໍ່ເຂົ້າ "ຕັດສິນ" ຕ້ອງຕາມນັບເພີ່ມ' : 'counter/verifier นับไม่ครบคู่ — ผลต่างไม่เข้า "ตัดสิน" ต้องตามนับเพิ่ม'}</div>
+      ${locKeys.map(lk => `
+        <div style="background:white;border-radius:9px;padding:8px 10px;margin-top:6px;">
+          <div style="font-size:12px;font-weight:800;color:var(--violet-600);">📍 ${escapeHtml(lk)}</div>
+          ${chips(byLoc[lk].counterOnly, 'var(--rose-500)', isLao ? '🔴 counter ນັບ · verifier ຍັງບໍ່ນັບ' : '🔴 counter นับ · verifier ยังไม่นับ')}
+          ${chips(byLoc[lk].verifyOnly, 'var(--amber-600)', isLao ? '🟠 verifier ນັບ · counter ຂ້າມ' : '🟠 verifier นับ · counter ข้าม')}
+        </div>
+      `).join('')}
+    </div>`;
+}
+
 async function loadWorkflowList() {
   if (!session) return;
-  
+
   log('Loading workflow list');
   
   const { data, error } = await sb.from('v_gondola_progress')
