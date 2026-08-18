@@ -4812,6 +4812,8 @@ async function openQuickLocPicker(forceMode = false) {
   // Group by Gondola number (same logic as Floor Map)
   function parseCode(code) {
     const upper = (code || '').toUpperCase().trim();
+    // 📦 Gondola พิเศษ "พื้น/นอกชั้น" — ปักไว้บนสุด สแกนนับสินค้าที่ไม่อยู่ใน Pan-O-Gram ได้
+    if (upper === 'FLOOR') return { groupKey: '!floor', groupLabel: (isLao ? '📦 ນອກຊັ້ນ/ພື້ນ' : '📦 นอกชั้น/พื้น'), type: 'FLOOR', bay: 0 };
     const numMatch = upper.match(/^(\d{2,})([A-Z]+)(\d+)$/);
     if (numMatch) return { 
       groupKey: numMatch[1], 
@@ -29960,7 +29962,9 @@ function renderFloorMapContent(data) {
   // Pattern: 01A01 + 01B03 + 01E02 → Gondola 01 group
   function parseFloorMapCode(code) {
     const upper = (code || '').toUpperCase().trim();
-    
+    // 📦 Gondola พิเศษ "พื้น/นอกชั้น"
+    if (upper === 'FLOOR') return { groupKey: '!floor', groupLabel: (lang === 'lo' ? '📦 ນອກຊັ້ນ/ພື້ນ' : '📦 นอกชั้น/พื้น'), type: 'FLOOR', bay: 0 };
+
     // 01A01, 02B03, 10AT05 → number-prefix
     const numMatch = upper.match(/^(\d{2,})([A-Z]+)(\d+)$/);
     if (numMatch) {
