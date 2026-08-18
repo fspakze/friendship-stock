@@ -1875,6 +1875,20 @@ async function _phHistoryCompat(barcode) {
 }
 let loc = null;
 
+// 📦 โหมดนับ "พื้น (นอกชั้น)" — สินค้าของ gondola ที่ยกมาวางพื้นเพื่อ grouping
+// นับตอน _floorMode=true → บันทึก location_code = <gondola>-FL แต่ gondola_code = <gondola> (ม้วนกลับเข้า gondola เดิม)
+let _floorMode = false;
+const FLOOR_SUFFIX = '-FL';
+function isFloorCode(code) { return typeof code === 'string' && code.toUpperCase().endsWith(FLOOR_SUFFIX); }
+function floorBaseCode(code) { return isFloorCode(code) ? code.slice(0, -FLOOR_SUFFIX.length) : code; }
+// ป้ายกำกับสั้นสำหรับโชว์ "พื้น/นอกชั้น" (ไทย/ลาว) — ใช้ในรายงาน/ป้าย
+function floorTag() { return (lang === 'lo') ? 'ພື້ນ' : 'พื้น'; }
+// แปลง location_code ให้อ่านง่าย: floor "01A01-FL" → "01A01 · 📦พื้น" · อื่นๆ คงเดิม
+function fmtLocDisplay(code) {
+  if (!code) return '';
+  return isFloorCode(code) ? (floorBaseCode(code) + ' · 📦' + floorTag()) : code;
+}
+
 // ผู้ใช้ที่ให้เข้าได้ "ทุกสาขา" เป็นรายบุคคล (นอกเหนือ role admin/scc/bcs/it) — เทียบ username แบบไม่สนพิมพ์เล็กใหญ่
 const ALL_BRANCH_USERS = ['audit-maneexai', 'audit1-ping'];
 function isAllBranch(u) {
@@ -4812,8 +4826,6 @@ async function openQuickLocPicker(forceMode = false) {
   // Group by Gondola number (same logic as Floor Map)
   function parseCode(code) {
     const upper = (code || '').toUpperCase().trim();
-    // 📦 Gondola พิเศษ "พื้น/นอกชั้น" — ปักไว้บนสุด สแกนนับสินค้าที่ไม่อยู่ใน Pan-O-Gram ได้
-    if (upper === 'FLOOR') return { groupKey: '!floor', groupLabel: (isLao ? '📦 ນອກຊັ້ນ/ພື້ນ' : '📦 นอกชั้น/พื้น'), type: 'FLOOR', bay: 0 };
     const numMatch = upper.match(/^(\d{2,})([A-Z]+)(\d+)$/);
     if (numMatch) return { 
       groupKey: numMatch[1], 
@@ -4836,9 +4848,10 @@ async function openQuickLocPicker(forceMode = false) {
     return { groupKey: 'zzz', groupLabel: '?', type: '?', bay: 0 };
   }
   
-  // Group locations
+  // Group locations (ข้าม 'FLOOR' ก้อนเดียวเดิม — เลิกใช้ เปลี่ยนเป็น toggle "พื้น" ต่อ gondola แล้ว)
   const groups = {};
   allLocations.forEach(l => {
+    if ((l.location_code || '').toUpperCase().trim() === 'FLOOR') return;
     const p = parseCode(l.location_code);
     if (!groups[p.groupKey]) groups[p.groupKey] = { label: p.groupLabel, items: [] };
     groups[p.groupKey].items.push({ ...l, _parsed: p });
@@ -16746,6 +16759,13 @@ function renderScanPage() {
         <button class="btn btn-danger" id="stopScanBtn" onclick="stopScan()" style="flex:1;display:none;">${T('stop')}</button>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:9px;"><button id="liteScanBtn" onclick="toggleLiteScan()" style="flex:1;border:1px solid var(--slate-200);background:var(--slate-50);color:var(--slate-500);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📱 โหมดไอโฟน</button><button onclick="triggerPhotoScan('count')" style="flex:1;border:1px solid var(--violet-300);background:var(--violet-50);color:var(--violet-700);border-radius:9px;padding:9px 6px;font-size:11px;font-weight:700;cursor:pointer;">📷 ถ่ายรูป</button></div>
+      <!-- 📦 โหมดนับ: ชั้นวาง / พื้น (นอกชั้น) — ผูกกับ Gondola ที่เลือกอยู่ -->
+      <div style="display:flex;gap:0;margin-bottom:9px;border:1px solid var(--slate-200);border-radius:9px;overflow:hidden;">
+        <button id="floorModeShelfBtn" onclick="setFloorMode(false)" style="flex:1;border:none;background:${_floorMode ? 'var(--slate-50)' : 'var(--violet-500)'};color:${_floorMode ? 'var(--slate-500)' : 'white'};padding:9px 6px;font-size:12px;font-weight:800;cursor:pointer;">🗄️ ${lang === 'lo' ? 'ຊັ້ນວາງ' : 'ชั้นวาง'}</button>
+        <button id="floorModeFloorBtn" onclick="setFloorMode(true)" style="flex:1;border:none;border-left:1px solid var(--slate-200);background:${_floorMode ? 'var(--amber-500)' : 'var(--slate-50)'};color:${_floorMode ? 'white' : 'var(--slate-500)'};padding:9px 6px;font-size:12px;font-weight:800;cursor:pointer;">📦 ${lang === 'lo' ? 'ພື້ນ (ນອກຊັ້ນ)' : 'พื้น (นอกชั้น)'}</button>
+      </div>
+      <div id="floorModeHint" style="display:${_floorMode ? 'block' : 'none'};background:var(--amber-50);border:1px solid var(--amber-300);border-radius:9px;padding:7px 11px;font-size:11px;color:var(--amber-700);margin-bottom:9px;line-height:1.5;">
+        📦 ${lang === 'lo' ? 'ກຳລັງນັບສິນຄ້າທີ່ຍົກມາວາງພື້ນ — ຈະຜູກກັບ Gondola ' : 'กำลังนับสินค้าที่ยกมาวางพื้น — จะผูกกับ Gondola '}<b id="floorModeGon">${loc ? floorBaseCode(loc.location_code) : '?'}</b></div>
       <!-- ⭐ วิธีใช้งานอย่างย่อ -->
       <button onclick="const h=document.getElementById('countHelpBox'); if(h) h.style.display = h.style.display==='none' ? 'block' : 'none';"
               style="border:none;background:none;color:var(--sky-600);font-size:11px;font-weight:700;cursor:pointer;padding:2px;text-align:center;width:100%;margin-bottom:7px;">
@@ -17456,6 +17476,41 @@ function toggleLiteScan() {
   updateLiteBtn();
   try { const sb2 = document.getElementById('stopScanBtn'); if (typeof stopScan === 'function' && sb2 && sb2.style.display !== 'none') stopScan(); } catch (e) {}
 }
+// 📦 สลับโหมดนับ: ชั้นวาง (false) / พื้น-นอกชั้น (true)
+function setFloorMode(on) {
+  _floorMode = !!on;
+  const isLao = lang === 'lo';
+  const shelfBtn = document.getElementById('floorModeShelfBtn');
+  const floorBtn = document.getElementById('floorModeFloorBtn');
+  const hint = document.getElementById('floorModeHint');
+  const gon = document.getElementById('floorModeGon');
+  if (shelfBtn) {
+    shelfBtn.style.background = _floorMode ? 'var(--slate-50)' : 'var(--violet-500)';
+    shelfBtn.style.color = _floorMode ? 'var(--slate-500)' : 'white';
+  }
+  if (floorBtn) {
+    floorBtn.style.background = _floorMode ? 'var(--amber-500)' : 'var(--slate-50)';
+    floorBtn.style.color = _floorMode ? 'white' : 'var(--slate-500)';
+  }
+  if (hint) hint.style.display = _floorMode ? 'block' : 'none';
+  if (gon) gon.textContent = loc ? floorBaseCode(loc.location_code) : '?';
+  // อัปเดตป้ายตำแหน่งให้เห็นชัดว่าอยู่โหมดพื้น
+  if (typeof updateScanLocBadge === 'function') updateScanLocBadge();
+  showToast(_floorMode
+    ? (isLao ? '📦 ໂໝດ ພື້ນ/ນອກຊັ້ນ' : '📦 โหมด พื้น/นอกชั้น')
+    : (isLao ? '🗄️ ໂໝດ ຊັ້ນວາງ' : '🗄️ โหมด ชั้นวาง'), 'info');
+}
+window.setFloorMode = setFloorMode;
+
+// อัปเดตป้ายตำแหน่งบนหน้าสแกน (โชว์ Gondola + โหมดพื้นถ้าเปิด)
+function updateScanLocBadge() {
+  const badge = document.getElementById('scanLocBadge');
+  if (!badge || !loc) return;
+  badge.textContent = _floorMode ? (floorBaseCode(loc.location_code) + ' · 📦' + floorTag()) : loc.location_code;
+  badge.style.background = _floorMode ? 'var(--amber-500)' : 'var(--violet-600)';
+}
+window.updateScanLocBadge = updateScanLocBadge;
+
 function updateLiteBtn() {
   const btn = document.getElementById('liteScanBtn');
   if (!btn) return;
@@ -23145,8 +23200,9 @@ async function saveCount() {
     branch_id: branch?.id || user.branch_id,
     product_id: curProduct.id,
     zone_id: zone?.id || null,
-    location_code: loc?.location_code || null,
-    gondola_code: loc?.location_code || null,  // เก็บ Location เต็มเป็น gondola_code ด้วย
+    // 📦 โหมดพื้น: location_code = <gondola>-FL (แยกจากชั้น) แต่ gondola_code = <gondola> เดิม → ม้วนกลับเข้า gondola
+    location_code: loc ? (_floorMode ? (loc.location_code + FLOOR_SUFFIX) : loc.location_code) : null,
+    gondola_code: loc?.location_code || null,  // เก็บ Location เต็มเป็น gondola_code ด้วย (ฐาน gondola เสมอ)
     user_id: user.id,
     counted_qty: count,
     pos_qty_snapshot: curProduct.pos_qty || 0,
@@ -23965,9 +24021,10 @@ function renderTiebreakerList() {
     if (Math.abs(valDiff) > 300000 || diff >= 20) { icon = '!'; color = 'var(--rose-500)'; bg = 'var(--rose-100)'; }
     else if (diff >= 5) { icon = '!'; color = 'var(--amber-500)'; bg = 'var(--amber-100)'; }
 
-    const pog = window._tbPogMap[item.product_id + '|' + (item.location_code || '')];
-    const shelfTxt = pog ? ` · ${isLao ? 'ຊັ້ນ' : 'ชั้น'} ${pog.shelf}/${pog.seq_in_shelf}` : '';
-    const locTxt = item.location_code ? ('📍 ' + item.location_code + shelfTxt) : (isLao ? '📍 ບໍ່ລະບຸຕຳແໜ່ງ' : '📍 ไม่ระบุตำแหน่ง');
+    const _isFloor = isFloorCode(item.location_code);
+    const pog = window._tbPogMap[item.product_id + '|' + floorBaseCode(item.location_code || '')];
+    const shelfTxt = (pog && !_isFloor) ? ` · ${isLao ? 'ຊັ້ນ' : 'ชั้น'} ${pog.shelf}/${pog.seq_in_shelf}` : '';
+    const locTxt = item.location_code ? ('📍 ' + fmtLocDisplay(item.location_code) + shelfTxt) : (isLao ? '📍 ບໍ່ລະບຸຕຳແໜ່ງ' : '📍 ไม่ระบุตำแหน่ง');
     const locChip = `<span style="display:inline-block;font-size:10px;font-weight:700;color:var(--violet-600);background:var(--violet-100);padding:2px 7px;border-radius:6px;margin-top:4px;">${escapeHtml(locTxt)}</span>`;
 
     const details = isAdmin ? `
@@ -24016,8 +24073,9 @@ function renderTiebreakerList() {
   }
 
   // โหมด loc: group ตามตำแหน่ง Pan-O-Gram → กลุ่มเรียงตาม diff สูงสุดในกลุ่ม · ในกลุ่มเรียง diff มาก→น้อย (ข้อ 5)
+  // จับกลุ่มตาม "ฐาน gondola" → ชั้น + พื้น ของ gondola เดียวกันอยู่กลุ่มเดียว (พื้น = การ์ดมีป้าย 📦พื้น)
   const groups = {};
-  items.forEach(it => { const k = it.location_code || '__none__'; (groups[k] = groups[k] || []).push(it); });
+  items.forEach(it => { const k = floorBaseCode(it.location_code || '') || '__none__'; (groups[k] = groups[k] || []).push(it); });
   const gkeys = Object.keys(groups).sort((a, b) => {
     const ma = Math.max.apply(null, groups[a].map(absVal));
     const mb = Math.max.apply(null, groups[b].map(absVal));
@@ -24068,10 +24126,14 @@ async function startTiebreaker(productId, zoneId, locationCode) {
       if (z) zone = z;
     }
     if (locationCode) {
-      const l = allLocations.find(ll => ll.location_code === locationCode);
+      // 📦 floor tiebreaker: loc = ฐาน gondola + เปิดโหมดพื้น → บันทึกกลับที่ <gondola>-FL → เคลียร์ถูกจุด
+      const baseCode = floorBaseCode(locationCode);
+      const l = allLocations.find(ll => ll.location_code === baseCode);
       if (l) loc = l;
+      if (typeof setFloorMode === 'function') setFloorMode(isFloorCode(locationCode));
+      else _floorMode = isFloorCode(locationCode);
     }
-    
+
     curProduct = p;
     curTask = { type: 'tiebreaker' };
     renderProduct(p);
@@ -24183,7 +24245,7 @@ async function showProductLocations(productId) {
       <tr class="${roleClass}">
         <td>
           <span class="prod-locs-zone">${zoneCode}</span>
-          <span class="prod-locs-loc">${locCode}</span>
+          <span class="prod-locs-loc">${escapeHtml(fmtLocDisplay(locCode))}</span>
         </td>
         <td><span class="prod-locs-role-badge ${roleBadge}">${roleLabel}</span></td>
         <td style="font-size:10px;color:var(--slate-500);">${userName}<br>${time}</td>
@@ -24954,6 +25016,7 @@ async function computeVarianceItems(periodOverride) {
       // — ถ้าใช้ priority ระดับ role รวม จะผิดตอน verifier ตรวจไม่ครบทุก gondola (ยอด verifier ต่ำกว่าจริง)
       const locSet = new Set([...Object.keys(p.counterLocs), ...Object.keys(p.verifierLocs), ...Object.keys(p.ctlLocs), ...Object.keys(p.managerLocs)]);
       const locCount = locSet.size;
+      const hasFloor = [...locSet].some(isFloorCode);  // 📦 มีการนับที่ "พื้น (นอกชั้น)" ของ gondola นี้หรือไม่
       let finalCount = 0;
       locSet.forEach(lk => {
         const best = p.managerLocs[lk] || p.ctlLocs[lk] || p.verifierLocs[lk] || p.counterLocs[lk];
@@ -24999,6 +25062,7 @@ async function computeVarianceItems(periodOverride) {
         level,
         needsRecount,
         locCount,          // จำนวนตำแหน่งที่รวมยอด (>1 = นับหลาย gondola)
+        hasFloor,          // 📦 มีการนับที่พื้น (นอกชั้น)
         isOrphan  // 🔥 flag สำหรับแสดงเตือน
       };
     });
@@ -25668,6 +25732,7 @@ function renderVarianceItem(p, fmt, isLao) {
           <span>${p.product?.barcode || ''}</span>
           ${p.gondola_code && _varianceFilter.groupBy !== 'gondola' ? `<span style="background:var(--violet-100);color:var(--violet-600);padding:1px 5px;border-radius:3px;font-weight:700;">📍 ${p.gondola_code}</span>` : ''}
           ${(p.locCount || 0) > 1 ? `<span style="background:var(--sky-100);color:var(--sky-600);padding:1px 5px;border-radius:3px;font-weight:700;">Σ ${p.locCount} ${isLao ? 'ຈຸດ' : 'จุด'}</span>` : ''}
+          ${p.hasFloor ? `<span style="background:var(--amber-100);color:var(--amber-700);padding:1px 5px;border-radius:3px;font-weight:700;">📦 ${floorTag()}</span>` : ''}
         </div>
         ${(p.counter_qty !== null || p.verifier_qty !== null) ? `
           <div style="font-size:9px;color:var(--slate-500);margin-top:2px;display:flex;gap:7px;">
@@ -25876,7 +25941,7 @@ async function openVarianceDetail(productId) {
             <div style="font-size:16px;flex-shrink:0;">${roleEmoji[h.count_role] || '📝'}</div>
             <div style="flex:1;min-width:0;">
               <div style="font-size:11px;font-weight:700;color:var(--slate-900);">${escapeHtml(h.users?.full_name || h.user_id)}</div>
-              <div style="font-size:9px;color:var(--slate-500);">${h.count_role} • ${time}</div>
+              <div style="font-size:9px;color:var(--slate-500);">${h.count_role} • ${time}${h.location_code ? ' • ' + (isFloorCode(h.location_code) ? '📦' + floorTag() : escapeHtml(h.location_code)) : ''}</div>
               ${h.note ? `<div style="font-size:9px;color:var(--slate-600);font-style:italic;margin-top:2px;">"${escapeHtml(h.note)}"</div>` : ''}
             </div>
             <div style="font-size:14px;font-weight:800;color:var(--slate-900);font-family:'Space Grotesk',monospace;">
@@ -25911,6 +25976,7 @@ async function exportVarianceExcel() {
     const allRows = _varianceData.map(p => ({
       Level: p.level,
       Gondola: p.gondola_code || '',
+      'พื้น(นอกชั้น)': p.hasFloor ? 'มี' : '',
       Barcode: p.product?.barcode || '',
       'ชื่อสินค้า': p.product?.name_th || p.product?.name_lo || '',
       'ชื่อ (ลาว)': p.product?.name_lo || '',
@@ -30038,8 +30104,6 @@ function renderFloorMapContent(data) {
   // Pattern: 01A01 + 01B03 + 01E02 → Gondola 01 group
   function parseFloorMapCode(code) {
     const upper = (code || '').toUpperCase().trim();
-    // 📦 Gondola พิเศษ "พื้น/นอกชั้น"
-    if (upper === 'FLOOR') return { groupKey: '!floor', groupLabel: (lang === 'lo' ? '📦 ນອກຊັ້ນ/ພື້ນ' : '📦 นอกชั้น/พื้น'), type: 'FLOOR', bay: 0 };
 
     // 01A01, 02B03, 10AT05 → number-prefix
     const numMatch = upper.match(/^(\d{2,})([A-Z]+)(\d+)$/);
@@ -32325,7 +32389,7 @@ async function loadCoverageGaps() {
       <div style="font-size:10px;color:#92400e;margin-top:2px;margin-bottom:5px;">${isLao ? 'counter/verifier ນັບບໍ່ຄົບຄູ່ — ຜົນຕ່າງບໍ່ເຂົ້າ "ຕັດສິນ" ຕ້ອງຕາມນັບເພີ່ມ' : 'counter/verifier นับไม่ครบคู่ — ผลต่างไม่เข้า "ตัดสิน" ต้องตามนับเพิ่ม'}</div>
       ${locKeys.map(lk => `
         <div style="background:white;border-radius:9px;padding:8px 10px;margin-top:6px;">
-          <div style="font-size:12px;font-weight:800;color:var(--violet-600);">📍 ${escapeHtml(lk)}</div>
+          <div style="font-size:12px;font-weight:800;color:var(--violet-600);">📍 ${escapeHtml(fmtLocDisplay(lk))}</div>
           ${chips(byLoc[lk].counterOnly, 'var(--rose-500)', isLao ? '🔴 counter ນັບ · verifier ຍັງບໍ່ນັບ' : '🔴 counter นับ · verifier ยังไม่นับ')}
           ${chips(byLoc[lk].verifyOnly, 'var(--amber-600)', isLao ? '🟠 verifier ນັບ · counter ຂ້າມ' : '🟠 verifier นับ · counter ข้าม')}
         </div>
