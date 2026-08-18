@@ -22121,7 +22121,11 @@ async function openZoneManager() {
     </div>
     
     <div id="zoneMgrContent" style="display:none;"></div>
-    
+
+    <button id="zoneMgrInactiveBtn" onclick="openInactiveGondolas()" style="display:none;width:100%;margin-top:9px;background:var(--amber-100);color:#92400e;border:1px solid var(--amber-500);border-radius:9px;font-size:12px;font-weight:700;padding:10px;cursor:pointer;">
+      📦 ${isLao ? 'Gondola ທີ່ປິດຢູ່' : 'Gondola ที่ปิดอยู่'} <span id="zoneMgrInactiveCount" style="background:var(--rose-500);color:white;border-radius:10px;padding:1px 8px;font-size:11px;margin-left:4px;">0</span>
+    </button>
+
     <div class="action-row" style="margin-top:11px;">
       <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;">${T('cancel')}</button>
       <button class="btn btn-primary" onclick="openCreateZoneModal()" style="background:var(--sky-500);flex:1;">
@@ -22129,7 +22133,7 @@ async function openZoneManager() {
       </button>
     </div>
   `);
-  
+
   await loadZoneManager();
 }
 
@@ -22155,6 +22159,77 @@ async function loadZoneManager() {
   const content = document.getElementById('zoneMgrContent');
   content.style.display = 'block';
   renderZoneManager();
+
+  // นับ Gondola ที่ปิดอยู่ → โชว์ปุ่มจัดการ (ถ้ามี)
+  try {
+    const { count } = await sb.from('location_master')
+      .select('id', { count: 'exact', head: true })
+      .eq('branch_id', branch.id).eq('is_active', false);
+    const btn = document.getElementById('zoneMgrInactiveBtn');
+    const cnt = document.getElementById('zoneMgrInactiveCount');
+    if (btn && cnt && (count || 0) > 0) { cnt.textContent = count; btn.style.display = 'block'; }
+  } catch (e) { log('inactive gondola count err', e); }
+}
+
+// 📦 จัดการ Gondola ที่ปิดอยู่ (is_active=false) — ลิสต์ + ปุ่มเปิดกลับในแอป (ไม่ต้องรัน SQL)
+async function openInactiveGondolas() {
+  const isLao = lang === 'lo';
+  if (!['admin', 'scc', 'bcs'].includes(user.role)) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
+  showModal(`<h3 style="display:flex;align-items:center;gap:7px;">📦 ${isLao ? 'Gondola ທີ່ປິດຢູ່' : 'Gondola ที่ปิดอยู่'}<span style="font-size:11px;color:var(--slate-500);font-weight:500;margin-left:auto;">${branch?.code || ''}</span></h3>
+    <div id="inactGonList" style="text-align:center;padding:20px;color:var(--slate-400);font-size:12px;">${isLao ? 'ກຳລັງໂຫລດ...' : 'กำลังโหลด...'}</div>`);
+  await loadInactiveGondolas();
+}
+
+async function loadInactiveGondolas() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('inactGonList');
+  if (!el) return;
+  let rows = [];
+  try {
+    rows = await fetchAllQuery(() => sb.from('location_master')
+      .select('id, location_code, location_type')
+      .eq('branch_id', branch.id).eq('is_active', false).order('location_code'));
+  } catch (e) { el.innerHTML = '❌ ' + ((e && e.message) || e); return; }
+
+  if (!rows.length) {
+    el.innerHTML = `<div style="padding:16px;color:var(--emerald-600);font-weight:700;font-size:12px;">✅ ${isLao ? 'ບໍ່ມີ Gondola ທີ່ປິດຢູ່' : 'ไม่มี Gondola ที่ปิดอยู่'}</div>
+      <button class="btn btn-secondary" onclick="closeModal()" style="width:100%;margin-top:9px;">${T('cancel')}</button>`;
+    return;
+  }
+
+  el.style.textAlign = 'left'; el.style.color = '';
+  el.innerHTML = `
+    <div style="font-size:11px;color:var(--slate-500);margin-bottom:8px;">${isLao ? 'ກົດ "ເປີດກັບ" ໃຫ້ Gondola ກັບມາເຫັນໃນແຜນຜັງ/ນັບ' : 'กด "เปิดกลับ" ให้ Gondola กลับมาเห็นในแผนผัง/นับ'}</div>
+    <button class="btn" onclick="reactivateAllGondolas()" style="width:100%;background:var(--emerald-500);color:white;font-size:12px;padding:9px;margin-bottom:9px;">✅ ${isLao ? 'ເປີດກັບທັງໝົດ' : 'เปิดกลับทั้งหมด'} (${rows.length})</button>
+    <div style="display:flex;flex-direction:column;gap:5px;max-height:46vh;overflow-y:auto;">
+      ${rows.map(r => `<div id="inactRow-${r.id}" style="display:flex;align-items:center;gap:9px;padding:8px 10px;background:var(--slate-50);border-radius:8px;">
+        <div style="flex:1;min-width:0;"><span style="font-family:'Space Grotesk',monospace;font-weight:800;font-size:13px;color:var(--slate-800);">${escapeHtml(r.location_code)}</span> <span style="font-size:10px;color:var(--slate-400);">${escapeHtml(r.location_type || '')}</span></div>
+        <button class="btn" onclick="reactivateGondola(${r.id})" style="background:var(--emerald-500);color:white;font-size:11px;padding:6px 12px;flex-shrink:0;">${isLao ? 'ເປີດກັບ' : 'เปิดกลับ'}</button>
+      </div>`).join('')}
+    </div>
+    <button class="btn btn-secondary" onclick="closeModal()" style="width:100%;margin-top:11px;">${T('cancel')}</button>`;
+}
+
+async function reactivateGondola(id) {
+  const isLao = lang === 'lo';
+  if (!['admin', 'scc', 'bcs'].includes(user.role)) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
+  const { error } = await sb.from('location_master').update({ is_active: true }).eq('id', id).eq('branch_id', branch.id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  const row = document.getElementById('inactRow-' + id); if (row) row.remove();
+  showToast('✅ ' + (isLao ? 'ເປີດກັບແລ້ວ' : 'เปิดกลับแล้ว'), 'success');
+  logActivity('gondola_reactivate', String(id));
+}
+
+async function reactivateAllGondolas() {
+  const isLao = lang === 'lo';
+  if (!['admin', 'scc', 'bcs'].includes(user.role)) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
+  if (!confirm(isLao ? 'ເປີດກັບ Gondola ທີ່ປິດຢູ່ທັງໝົດ?' : 'เปิดกลับ Gondola ที่ปิดอยู่ทั้งหมด?')) return;
+  const { error } = await sb.from('location_master').update({ is_active: true })
+    .eq('branch_id', branch.id).eq('is_active', false);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  showToast('✅ ' + (isLao ? 'ເປີດກັບທັງໝົດແລ້ວ' : 'เปิดกลับทั้งหมดแล้ว'), 'success');
+  logActivity('gondola_reactivate_all', branch?.code || '');
+  await loadInactiveGondolas();
 }
 
 function renderZoneManager() {
@@ -37152,6 +37227,9 @@ window.exportFullBackupExcel = exportFullBackupExcel;
 window.exportTableJSON = exportTableJSON;
 window.exportTableExcel = exportTableExcel;
 window.openEditGondolaModal = openEditGondolaModal;
+window.openInactiveGondolas = openInactiveGondolas;
+window.reactivateGondola = reactivateGondola;
+window.reactivateAllGondolas = reactivateAllGondolas;
 window.saveEditGondola = saveEditGondola;
 window.confirmDeleteGondola = confirmDeleteGondola;
 window.executeDeleteGondola = executeDeleteGondola;
