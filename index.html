@@ -18275,8 +18275,8 @@ function renderProduct(p) {
         <div class="count-label">${labelText}</div>
         <div class="count-controls">
           <button class="count-btn" onclick="adjustCount(-1)">−</button>
-          <input class="count-input mono" id="countInput" type="number" inputmode="numeric" value="${startValue}" min="0"
-                 onkeypress="if(event.key==='Enter'){event.preventDefault();document.getElementById('saveBtn')?.click();}">
+          <input class="count-input mono" id="countInput" type="number" inputmode="numeric" enterkeyhint="done" value="${startValue}" min="0"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();document.getElementById('saveBtn')?.click();}">
           <button class="count-btn" onclick="adjustCount(1)">+</button>
         </div>
         <!-- UX 3C: Quick action buttons -->
@@ -18285,10 +18285,10 @@ function renderProduct(p) {
                   style="flex:1;padding:7px;background:var(--rose-100);color:var(--rose-700);border:1px solid var(--rose-300);border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">
             ${lang === 'lo' ? '🚫 ໝົດ (0)' : '🚫 หมด (0)'}
           </button>
-          <button onclick="setCountValue(${p.pos_qty || 0})" title="${lang === 'lo' ? 'ກົງ POS' : 'ตรงกับ POS'}"
+          ${isAdmin ? `<button onclick="setCountValue(${p.pos_qty || 0})" title="${lang === 'lo' ? 'ກົງ POS' : 'ตรงกับ POS'}"
                   style="flex:1;padding:7px;background:var(--emerald-100);color:var(--emerald-700);border:1px solid var(--emerald-300);border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">
             ${lang === 'lo' ? '✓ ກົງ POS' : '✓ ตรง POS'} (${p.pos_qty || 0})
-          </button>
+          </button>` : ''}
         </div>
       </div>
       <textarea class="note-input" id="noteInput" rows="2" placeholder="${T('note_placeholder')}"></textarea>
@@ -18395,25 +18395,11 @@ async function loadPanOGramForProduct(product, locationCode) {
   
   // Cache เพื่อใช้ใน save
   _currentPog = atCurrent[0] || null;
-  
-  // 🎯 Auto-open Pan-O-Gram modal เมื่อ:
-  // 1. สินค้านี้ยังไม่มี PoG ที่ location ปัจจุบัน (atCurrent.length === 0)
-  // 2. และยังไม่เคยปฏิเสธสำหรับสินค้านี้ใน session
-  // 3. และผู้ใช้มีสิทธิ์ (canEditPog แล้วเช็คตอน caller)
-  if (atCurrent.length === 0) {
-    const skipKey = `pog_skip_${branch.id}_${product.barcode}_${locationCode}`;
-    const recentlyDeclined = sessionStorage.getItem(skipKey);
-    
-    if (!recentlyDeclined) {
-      // หน่วงเวลา 600ms ให้ render เสร็จก่อน + ผู้ใช้เห็น product card
-      setTimeout(() => {
-        // Double-check: ผู้ใช้ยังอยู่หน้านี้และ product ตัวเดิม
-        if (curProduct && curProduct.barcode === product.barcode) {
-          openPanOGramModal(product.barcode, locationCode);
-        }
-      }, 600);
-    }
-  }
+
+  // ⛔ 2026-08-18 (Ball): เลิก "auto-open Pan-O-Gram modal" ตอนนับ
+  //    สินค้าที่ยังไม่อยู่ใน Pan-O-Gram ของ Gondola นี้ → นับได้เลย ไม่ต้องเด้งฟอร์มแก้ตำแหน่ง
+  //    (ทำให้พนักงานสับสน + ล่าช้า) · ไปกำหนดตำแหน่งตอนทำ Pan-O-Gram ใหม่แทน
+  //    ยังมีปุ่ม "+ สร้าง/เพิ่มตำแหน่ง" ในการ์ดให้กดเองถ้าต้องการ
 }
 
 function renderPogChip(pog, isCurrent) {
@@ -23837,17 +23823,19 @@ async function openEditCount(countId) {
     
     <!-- Action buttons -->
     <input type="hidden" id="editCountId" value="${item.id}">
-    <div style="display:flex;gap:8px;margin-top:14px;">
-      ${canDelete ? `<button class="btn btn-danger" onclick="confirmDeleteCount()" 
-        style="flex:0 0 auto;padding:16px 18px;font-size:14px;font-weight:700;min-height:54px;display:flex;align-items:center;justify-content:center;background:var(--rose-500);">
-        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a2 2 0 012-2h2a2 2 0 012 2v3"/></svg>
+    <!-- ยกเลิกด้านบน (secondary) → ลบ/บันทึก อย่างละครึ่งด้านล่าง -->
+    <button class="btn btn-secondary" onclick="closeModal()"
+      style="width:100%;padding:12px;font-size:13px;font-weight:700;margin-top:14px;">
+      ${T('cancel')}
+    </button>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      ${canDelete ? `<button class="btn btn-danger" onclick="confirmDeleteCount()"
+        style="flex:1;padding:16px;font-size:14px;font-weight:800;min-height:54px;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--rose-500);">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a2 2 0 012-2h2a2 2 0 012 2v3"/></svg>
+        ${lang === 'lo' ? 'ລຶບ' : 'ลบ'}
       </button>` : ''}
-      <button class="btn btn-secondary" onclick="closeModal()" 
-        style="flex:1;padding:16px;font-size:14px;font-weight:700;min-height:54px;">
-        ${T('cancel')}
-      </button>
-      <button class="btn btn-primary" id="saveEditBtn" onclick="saveEditCount()" 
-        style="flex:1.5;padding:16px;font-size:14px;font-weight:800;min-height:54px;background:var(--fs-blue);box-shadow:0 4px 12px rgba(139,92,246,0.3);">
+      <button class="btn btn-primary" id="saveEditBtn" onclick="saveEditCount()"
+        style="flex:1;padding:16px;font-size:14px;font-weight:800;min-height:54px;background:var(--fs-blue);box-shadow:0 4px 12px rgba(139,92,246,0.3);">
         💾 ${T('save')}
       </button>
     </div>
