@@ -24577,29 +24577,23 @@ async function loadDashboard() {
     `;
   }
   
-  // Get all counts for stats (no join needed for counts)
-  // ⭐ B3: paginate กันตัดที่ 1,000 แถว (รอบนับใหญ่ตัวเลขจะผิด)
-  let counts = [], cErr = null;
+  // ⭐ นับต่อ distinct product (ยอด final) ให้ตรงกับหน้า "คลาดเคลื่อน" — ใช้ computeVarianceItems แหล่งเดียว
+  //    (เดิมนับ "แถว" stock_counts → verifier/L1-L4 บวมเพราะนับซ้ำ + นับทั้ง counter+verifier row = ไม่ตรงรายงาน)
+  let vItems = [];
   try {
-    counts = await fetchAllQuery(() => sb.from('stock_counts')
-      .select('count_role, variance_level, workflow_status, diff')
-      .eq('session_id', session.id));
-  } catch (e) { cErr = e; }
-  
-  if (cErr) log('Dashboard counts error:', cErr);
-  
-  const items = counts || [];
-  log('Dashboard items:', items.length);
-  
-  const counter = items.filter(x => x.count_role === 'counter').length;
-  const verifier = items.filter(x => x.count_role === 'verifier').length;
-  const ctl = items.filter(x => x.count_role === 'ctl_tiebreaker').length;
-  const matched = items.filter(x => x.workflow_status === 'matched').length;
-  
-  const l1 = items.filter(x => x.variance_level === 1).length;
-  const l2 = items.filter(x => x.variance_level === 2).length;
-  const l3 = items.filter(x => x.variance_level === 3).length;
-  const l4 = items.filter(x => x.variance_level === 4).length;
+    vItems = (await computeVarianceItems('session')).filter(it => !it.isOrphan);
+  } catch (e) { log('Dashboard variance error:', e); }
+  log('Dashboard distinct products:', vItems.length);
+
+  const counter  = vItems.filter(x => x.counter_qty !== null).length;
+  const verifier = vItems.filter(x => x.verifier_qty !== null).length;
+  const ctl      = vItems.filter(x => x.ctl_qty !== null).length;
+  const matched  = vItems.filter(x => x.counter_qty !== null && x.verifier_qty !== null && x.counter_qty === x.verifier_qty).length;
+
+  const l1 = vItems.filter(x => x.level === 'L1').length;
+  const l2 = vItems.filter(x => x.level === 'L2').length;
+  const l3 = vItems.filter(x => x.level === 'L3').length;
+  const l4 = vItems.filter(x => x.level === 'L4').length;
   
   document.getElementById('dCounter').textContent = counter;
   document.getElementById('dVerifier').textContent = verifier;
@@ -24788,30 +24782,20 @@ function calcVarianceLevel(pct, value) {
   return 'L1';
 }
 
-async function loadVarianceReport() {
-  if (!session && _varianceFilter.period === 'session') {
-    document.getElementById('varianceList').innerHTML = `
-      <div style="text-align:center;padding:40px 20px;color:var(--slate-400);">
-        <div style="font-size:48px;margin-bottom:11px;">📋</div>
-        <div style="font-size:13px;font-weight:700;color:var(--slate-600);">
-          ${lang === 'lo' ? 'ບໍ່ມີ session ໃຊ້ງານ' : 'ไม่มี session ใช้งาน'}
-        </div>
-      </div>
-    `;
-    return;
-  }
-  
-  try {
+// คำนวณ items ต่อ distinct product (final vs POS + variance level) — แหล่งความจริงเดียว ใช้ร่วมทั้งหน้าคลาดเคลื่อน + Dashboard (กันตัวเลขไม่ตรงกัน)
+async function computeVarianceItems(periodOverride) {
+  const _vp = periodOverride || (_varianceFilter && _varianceFilter.period) || 'session';
+  {
     // Build date filter
     let dateFilter = '';
     let sessionFilter = '';
-    if (_varianceFilter.period === 'session' && session) {
+    if (_vp === 'session' && session) {
       sessionFilter = session.id;
-    } else if (_varianceFilter.period === 'today') {
+    } else if (_vp === 'today') {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       dateFilter = today.toISOString();
-    } else if (_varianceFilter.period === 'week') {
+    } else if (_vp === 'week') {
       const week = new Date();
       week.setDate(week.getDate() - 7);
       dateFilter = week.toISOString();
@@ -24943,13 +24927,29 @@ async function loadVarianceReport() {
       };
     });
     
-    // เก็บ all items (รวม orphan) ไว้ใน _varianceAllData
+    return items;
+  }
+}
+
+async function loadVarianceReport() {
+  if (!session && _varianceFilter.period === 'session') {
+    document.getElementById('varianceList').innerHTML = `
+      <div style="text-align:center;padding:40px 20px;color:var(--slate-400);">
+        <div style="font-size:48px;margin-bottom:11px;">📋</div>
+        <div style="font-size:13px;font-weight:700;color:var(--slate-600);">
+          ${lang === 'lo' ? 'ບໍ່ມີ session ໃຊ້ງານ' : 'ไม่มี session ใช้งาน'}
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  try {
+    const items = await computeVarianceItems();
+    // เก็บ all items (รวม orphan) ไว้ใน _varianceAllData · _varianceData = valid เท่านั้น
     _varianceAllData = items;
-    
-    // _varianceData = items ที่ valid (มี product) เท่านั้น — แสดงในรายการหลัก
-    // (orphan แสดงใน section พิเศษ)
     _varianceData = items.filter(it => !it.isOrphan);
-    
+
     renderVarianceSummary();
     renderAdvancedKPI();
     renderVarianceList();
