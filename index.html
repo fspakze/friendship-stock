@@ -23820,51 +23820,85 @@ function renderTiebreakerPage() {
   `;
 }
 
+let _tbMode = 'loc'; // หน้าตัดสิน: 'loc'=group ตามตำแหน่ง Pan-O-Gram · 'diff'=เรียงตาม diff มาก→น้อย
 async function loadTiebreakerList() {
   if (!session) return;
-  
+
   log('Loading tiebreaker list');
-  
+
   let q = sb.from('v_needs_tiebreaker').select('*').eq('session_id', session.id);
   if (zone) q = q.eq('zone_id', zone.id);
-  
+
   const { data, error } = await q;
-  
+
   if (error) {
     log('Tiebreaker error:', error);
     showToast('Error: ' + error.message, 'error');
   }
-  
+
   const items = data || [];
   log('Tiebreaker items:', items.length);
-  
+  window._tbItems = items;
+
+  // ข้อ 3: ดึงตำแหน่งชั้น Pan-O-Gram ของสินค้าในลิสต์ (batch, chunk กัน .in เกิน) → โชว์ว่าอยู่ชั้น/ลำดับไหน
+  window._tbPogMap = {};
+  try {
+    const pids = [...new Set(items.map(i => i.product_id).filter(Boolean))];
+    for (let i = 0; i < pids.length; i += 200) {
+      const part = pids.slice(i, i + 200);
+      const rows = await fetchAllQuery(() => sb.from('pan_o_grams')
+        .select('product_id, location_code, shelf, seq_in_shelf')
+        .eq('branch_id', branch.id).in('product_id', part).order('id'));
+      (rows || []).forEach(r => {
+        const k = r.product_id + '|' + (r.location_code || '');
+        if (!window._tbPogMap[k]) window._tbPogMap[k] = r; // ตำแหน่งแรกของ product+gondola นั้นพอ
+      });
+    }
+  } catch (e) { log('tb pog lookup err', e); }
+
+  renderTiebreakerList();
+}
+
+function setTbMode(m) { _tbMode = m; renderTiebreakerList(); }
+
+function renderTiebreakerList() {
+  const items = window._tbItems || [];
   const list = document.getElementById('tbList');
   const countEl = document.getElementById('tbCount');
   if (countEl) countEl.textContent = items.length;
   if (!list) return;
-  
+
   if (!items.length) {
     list.innerHTML = `<div class="empty-state"><p>${T('no_history')}</p></div>`;
     return;
   }
-  
+
   const isAdmin = ['admin', 'scc', 'bcs'].includes(user.role);
-  
-  list.innerHTML = items.map(item => {
-    const name = lang === 'lo' ? (item.name_lo || item.name_th) : (item.name_th || item.name_lo);
-    const diff = Math.abs(item.cv_diff || 0);
+  const isLao = lang === 'lo';
+  const absDiff = it => Math.abs(it.cv_diff || 0);
+  const absVal  = it => Math.abs(Number(it.cv_value_diff || 0));
+
+  // การ์ด 1 ใบ (โชว์ตำแหน่ง Pan-O-Gram — ข้อ 3)
+  const card = (item) => {
+    const name = isLao ? (item.name_lo || item.name_th) : (item.name_th || item.name_lo);
+    const diff = absDiff(item);
     const valDiff = Number(item.cv_value_diff || 0);
-    let priority = 'low', icon = '·', color = 'var(--teal-700)', bg = 'var(--teal-100)';
-    if (valDiff > 300000 || diff >= 20) { priority = 'high'; icon = '!'; color = 'var(--rose-500)'; bg = 'var(--rose-100)'; }
-    else if (diff >= 5) { priority = 'medium'; icon = '!'; color = 'var(--amber-500)'; bg = 'var(--amber-100)'; }
-    
+    let icon = '·', color = 'var(--teal-700)', bg = 'var(--teal-100)';
+    if (Math.abs(valDiff) > 300000 || diff >= 20) { icon = '!'; color = 'var(--rose-500)'; bg = 'var(--rose-100)'; }
+    else if (diff >= 5) { icon = '!'; color = 'var(--amber-500)'; bg = 'var(--amber-100)'; }
+
+    const pog = window._tbPogMap[item.product_id + '|' + (item.location_code || '')];
+    const shelfTxt = pog ? ` · ${isLao ? 'ຊັ້ນ' : 'ชั้น'} ${pog.shelf}/${pog.seq_in_shelf}` : '';
+    const locTxt = item.location_code ? ('📍 ' + item.location_code + shelfTxt) : (isLao ? '📍 ບໍ່ລະບຸຕຳແໜ່ງ' : '📍 ไม่ระบุตำแหน่ง');
+    const locChip = `<span style="display:inline-block;font-size:10px;font-weight:700;color:var(--violet-600);background:var(--violet-100);padding:2px 7px;border-radius:6px;margin-top:4px;">${escapeHtml(locTxt)}</span>`;
+
     const details = isAdmin ? `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;padding:7px;background:var(--slate-50);border-radius:7px;margin-top:6px;">
         <div><span style="color:var(--slate-500);">Counter:</span> <strong>${item.counter_qty}</strong></div>
         <div><span style="color:var(--slate-500);">Verifier:</span> <strong>${item.verifier_qty}</strong></div>
         <div style="grid-column:1/-1;"><span style="color:var(--slate-500);">Diff:</span> <strong style="color:var(--rose-500);">${item.cv_diff > 0 ? '+' : ''}${item.cv_diff}</strong> (₭ ${valDiff.toLocaleString()})</div>
       </div>` : '';
-    
+
     return `
       <div class="history-item clickable" style="display:block;">
         <div style="display:flex;align-items:center;gap:9px;" onclick="startTiebreaker(${item.product_id}, ${item.zone_id || 'null'}, '${item.location_code || ''}')">
@@ -23872,6 +23906,7 @@ async function loadTiebreakerList() {
           <div style="flex:1;min-width:0;">
             <div class="history-name">${name}</div>
             <div class="history-meta">${item.barcode}</div>
+            ${locChip}
           </div>
         </div>
         ${details}
@@ -23886,6 +23921,35 @@ async function loadTiebreakerList() {
         </div>
       </div>
     `;
+  };
+
+  // ปุ่มสลับโหมด (ข้อ 5)
+  const btnStyle = on => `flex:1;font-size:11px;padding:8px;${on ? 'background:var(--violet-100);color:var(--violet-600);font-weight:800;' : ''}`;
+  const bar = `<div style="display:flex;gap:6px;margin-bottom:10px;">
+    <button class="btn btn-secondary" onclick="setTbMode('loc')" style="${btnStyle(_tbMode === 'loc')}">📍 ${isLao ? 'ຕາມຕຳແໜ່ງ' : 'ตามตำแหน่ง'}</button>
+    <button class="btn btn-secondary" onclick="setTbMode('diff')" style="${btnStyle(_tbMode === 'diff')}">🔻 ${isLao ? 'ຕາມ Diff' : 'ตาม Diff'}</button>
+  </div>`;
+
+  // โหมด diff: เรียงทั้งลิสต์ตามมูลค่า diff มาก→น้อย (ข้อ 5)
+  if (_tbMode === 'diff') {
+    const sorted = items.slice().sort((a, b) => (absVal(b) - absVal(a)) || (absDiff(b) - absDiff(a)));
+    list.innerHTML = bar + sorted.map(card).join('');
+    return;
+  }
+
+  // โหมด loc: group ตามตำแหน่ง Pan-O-Gram → กลุ่มเรียงตาม diff สูงสุดในกลุ่ม · ในกลุ่มเรียง diff มาก→น้อย (ข้อ 5)
+  const groups = {};
+  items.forEach(it => { const k = it.location_code || '__none__'; (groups[k] = groups[k] || []).push(it); });
+  const gkeys = Object.keys(groups).sort((a, b) => {
+    const ma = Math.max.apply(null, groups[a].map(absVal));
+    const mb = Math.max.apply(null, groups[b].map(absVal));
+    return mb - ma;
+  });
+  list.innerHTML = bar + gkeys.map(k => {
+    const rows = groups[k].slice().sort((a, b) => (absVal(b) - absVal(a)) || (absDiff(b) - absDiff(a)));
+    const label = k === '__none__' ? (isLao ? '— ບໍ່ລະບຸຕຳແໜ່ງ' : '— ไม่ระบุตำแหน่ง') : ('📍 ' + k);
+    const header = `<div style="margin:8px 0 6px;font-size:12px;font-weight:800;color:var(--violet-600);padding:6px 4px;border-bottom:2px solid var(--violet-100);">${escapeHtml(label)} <span style="color:var(--slate-400);font-weight:600;">(${rows.length})</span></div>`;
+    return header + rows.map(card).join('');
   }).join('');
 }
 
@@ -39266,6 +39330,7 @@ window.setCountValue = setCountValue;
 window.cancelCount = cancelCount;
 window.saveCount = saveCount;
 window.startTiebreaker = startTiebreaker;
+window.setTbMode = setTbMode;
 window.openUserModal = openUserModal;
 window.editUser = editUser;
 window.toggleUserActive = toggleUserActive;
