@@ -38671,6 +38671,7 @@ async function poSubmitClose(id) {
 const PO_SHEET_ID = '1UG4vvyfXu0CV23Ybf94Si7wc6FYwyr0o3PtYRJFneeQ';
 const PO_SHEET_EXT = 'PO_TRACKER_ภายนอก';   // ชีตเดียวรวมทุกเดือน (ไม่มีเลขเดือน) — จัดรอบจากวันเปิด PO
 const PO_SHEET_INT = 'PO_TRACKER_ภายใน';
+const PO_SHEET_ALL = 'PO_TRACKER_รวม';      // ชีตรวมภายนอก+ภายใน — เขียนกลับซ้ำเข้าทุกครั้ง (layout เดียวกัน: po_no=col A, barcode=col E)
 // ตำแหน่งคอลัมน์ (0-based) ตามชีตจริง (verify แล้ว 2026-07-14) — แถว 0 = หัวตาราง, ข้อมูลเริ่มแถว 1
 const PO_COL = { po_no: 0, date: 1, opener: 2, cat: 3, barcode: 4, name: 5, type: 7, qty: 8, unit: 9, price: 10, sentExt: 12, extBuyer: 13, supplier: 14, sentSup: 15, appt: 16, coord: 17, shipped: 18, extNote: 19, received: 20, qtyRcv: 21, status: 22, intNote: 23 };
 // ตัวเลือก "ระหว่างประสานสั่งซื้อ" (col 17 ในชีต) — ค่าต้องตรงชีตเป๊ะ (ใช้ write-back)
@@ -38919,6 +38920,13 @@ function poSheetName(poType, sm) { return (poType === 'internal' ? PO_SHEET_INT 
 function poToSheetDate(iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? (m[3] + '/' + m[2] + '/' + m[1]) : String(iso || ''); }
 function poWriteback(payload) {
   if (!_poWbUrl) return; // ปิดอยู่ (ยังไม่ตั้ง URL) = ไม่เขียนออก
+  _poWbPost(payload);
+  // เขียนซ้ำเข้าชีตรวม (PO_TRACKER_รวม) เสมอ — จับคู่ด้วยเลข PO/บาร์โค้ดเหมือนกัน (คนละ POST คนละแท็บ)
+  if (payload && payload.sheet && payload.sheet !== PO_SHEET_ALL) {
+    _poWbPost(Object.assign({}, payload, { sheet: PO_SHEET_ALL }));
+  }
+}
+function _poWbPost(payload) {
   try { fetch(_poWbUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) }); } catch (e) {}
 }
 
