@@ -18374,6 +18374,14 @@ async function loadPanOGramForProduct(product, locationCode) {
       html += `<div style="font-size:10px;color:var(--violet-600);font-weight:600;margin-bottom:4px;">
         ${isLao ? 'ໃນ' : 'ใน'} ${locationCode}:
       </div>`;
+      // 📚 สินค้าอยู่หลายชั้นใน gondola เดียวกัน → เตือนให้นับรวมทุกชั้น กรอกยอดเดียว (กันตัดสินไม่ครบชั้น)
+      if (atCurrent.length > 1) {
+        html += `<div style="font-size:10px;color:#92400e;background:var(--fs-orange-tint);border:1px solid var(--amber-300);border-radius:7px;padding:6px 8px;margin-bottom:5px;line-height:1.5;">
+          📚 ${isLao
+            ? `ສິນຄ້ານີ້ຢູ່ ${atCurrent.length} ຊັ້ນໃນ Gondola ນີ້ — ນັບລວມທຸກຊັ້ນ ແລ້ວໃສ່ຈຳນວນລວມເທື່ອດຽວ`
+            : `สินค้านี้อยู่ ${atCurrent.length} ชั้นใน Gondola นี้ — นับรวมทุกชั้น แล้วกรอกยอดรวมครั้งเดียว`}
+        </div>`;
+      }
       atCurrent.forEach(pog => {
         html += renderPogChip(pog, true);
       });
@@ -25098,6 +25106,7 @@ async function computeVarianceItems(periodOverride) {
         isComplete,        // ✅ นับครบทุก gondola ที่ Pan-O-Gram กำหนดหรือยัง (false = ยังไม่สรุป Diff)
         expectedLocs,      // จำนวน gondola ที่ควรนับ (จาก Pan-O-Gram)
         countedLocs,       // จำนวน gondola ที่นับแล้ว (ฐาน)
+        missingGons: missingLocs,  // gondola ที่ Pan-O-Gram มี แต่ยังไม่ได้นับ (ใช้ปุ่ม "สรุปเลย")
         isOrphan  // 🔥 flag สำหรับแสดงเตือน
       };
     });
@@ -25665,20 +25674,25 @@ function renderAdvancedKPI() {
 function renderVariancePending(isLao) {
   const pend = (_variancePending || []);
   if (!pend.length) return '';
+  // CTL/BCS/admin กด "สรุปเลย" ได้ (จุดที่ขาด = ไม่มีของแล้ว → บันทึก 0 ให้ครบ)
+  const canConclude = ['ctl', 'admin', 'scc', 'bcs'].includes(user.role);
   // เรียงตามจำนวนจุดที่ยังขาด (ขาดเยอะก่อน)
   const rows = pend.slice().sort((a, b) => (b.expectedLocs - b.countedLocs) - (a.expectedLocs - a.countedLocs));
   const items = rows.map(p => {
     const name = isLao ? (p.product?.name_lo || p.product?.name_th || p.barcode) : (p.product?.name_th || p.product?.name_lo || p.barcode);
     return `
-      <div onclick="openVarianceDetail(${p.product_id})" style="background:white;border:1px solid var(--amber-200);border-radius:8px;padding:8px 10px;margin-bottom:5px;cursor:pointer;display:flex;align-items:center;gap:9px;">
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:12px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</div>
-          <div style="font-size:9px;color:var(--slate-500);font-family:monospace;margin-top:1px;">${p.product?.barcode || ''}${p.gondola_code ? ` · 📍 ${p.gondola_code}` : ''}</div>
+      <div style="background:white;border:1px solid var(--amber-200);border-radius:8px;padding:8px 10px;margin-bottom:5px;">
+        <div onclick="openVarianceDetail(${p.product_id})" style="cursor:pointer;display:flex;align-items:center;gap:9px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</div>
+            <div style="font-size:9px;color:var(--slate-500);font-family:monospace;margin-top:1px;">${p.product?.barcode || ''}${p.gondola_code ? ` · 📍 ${p.gondola_code}` : ''}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            <div style="font-size:11px;font-weight:800;color:var(--amber-600);white-space:nowrap;">⏳ ${isLao ? 'ນັບແລ້ວ' : 'นับแล้ว'} ${p.countedLocs}/${p.expectedLocs} ${isLao ? 'ຈຸດ' : 'จุด'}</div>
+            <div style="font-size:9px;color:var(--slate-500);">${isLao ? 'ນັບໄດ້' : 'นับได้'} ${p.final_qty} · POS ${p.pos_qty}</div>
+          </div>
         </div>
-        <div style="text-align:right;flex-shrink:0;">
-          <div style="font-size:11px;font-weight:800;color:var(--amber-600);white-space:nowrap;">⏳ ${isLao ? 'ນັບແລ້ວ' : 'นับแล้ว'} ${p.countedLocs}/${p.expectedLocs} ${isLao ? 'ຈຸດ' : 'จุด'}</div>
-          <div style="font-size:9px;color:var(--slate-500);">${isLao ? 'ນັບໄດ້' : 'นับได้'} ${p.final_qty} · POS ${p.pos_qty}</div>
-        </div>
+        ${canConclude ? `<button onclick="event.stopPropagation();concludePendingProduct(${p.product_id})" style="width:100%;margin-top:6px;background:var(--emerald-100);color:var(--emerald-700);border:1px solid var(--emerald-500);border-radius:7px;padding:6px;font-size:11px;font-weight:800;cursor:pointer;">✓ ${isLao ? 'ສະຫຼຸບເລີຍ (ຈຸດທີ່ຂາດບໍ່ມີຂອງແລ້ວ)' : 'สรุปเลย (จุดที่ขาดไม่มีของแล้ว)'}</button>` : ''}
       </div>`;
   }).join('');
   return `
@@ -25694,6 +25708,61 @@ function renderVariancePending(isLao) {
       </div>
     </details>`;
 }
+
+// ✓ "สรุปเลย" — จุดที่ Pan-O-Gram มีแต่ยังไม่ได้นับ = ไม่มีของแล้ว → บันทึก 0 ให้ครบ แล้วสรุป Diff (CTL/BCS)
+function concludePendingProduct(productId) {
+  const p = (_variancePending || []).find(x => x.product_id === productId);
+  if (!p) return;
+  const isLao = lang === 'lo';
+  const name = isLao ? (p.product?.name_lo || p.product?.name_th || p.barcode) : (p.product?.name_th || p.product?.name_lo || p.barcode);
+  const miss = (p.missingGons || []);
+  showModal(`
+    <h3>✓ ${isLao ? 'ສະຫຼຸບເລີຍ' : 'สรุปเลย'}</h3>
+    <div style="background:var(--slate-50);padding:11px;border-radius:10px;margin-bottom:11px;">
+      <div style="font-size:13px;font-weight:700;color:var(--slate-900);">${escapeHtml(name)}</div>
+      <div style="font-size:11px;color:var(--slate-500);margin-top:4px;">${isLao ? 'ຈຸດທີ່ຂາດ' : 'จุดที่ขาด'}: <b>${miss.map(escapeHtml).join(', ') || '-'}</b></div>
+    </div>
+    <div style="font-size:12px;color:var(--slate-700);line-height:1.6;margin-bottom:12px;">
+      ${isLao
+        ? 'ຈະບັນທຶກ 0 ໃຫ້ຈຸດທີ່ຍັງບໍ່ໄດ້ນັບ (ຢືນຢັນວ່າບໍ່ມີຂອງແລ້ວ) → ສະຫຼຸບ Diff ທັນທີ'
+        : 'จะบันทึก 0 ให้จุดที่ยังไม่ได้นับ (ยืนยันว่าไม่มีของแล้ว) → สรุป Diff ทันที'}
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;">${T('cancel')}</button>
+      <button class="btn btn-primary" onclick="_doConcludePending(${productId})" style="flex:1;background:var(--emerald-500);">✓ ${isLao ? 'ຢືນຢັນ' : 'ยืนยัน'}</button>
+    </div>
+  `);
+}
+window.concludePendingProduct = concludePendingProduct;
+
+async function _doConcludePending(productId) {
+  const p = (_variancePending || []).find(x => x.product_id === productId);
+  if (!p) { closeModal(); return; }
+  const isLao = lang === 'lo';
+  const miss = (p.missingGons || []);
+  if (!miss.length) { closeModal(); loadVarianceReport(); return; }
+  const note = isLao ? 'ສະຫຼຸບເລີຍ: ຈຸດນີ້ບໍ່ມີຂອງແລ້ວ' : 'สรุปเลย: จุดนี้ไม่มีของแล้ว';
+  const rows = miss.map(g => ({
+    session_id: session.id,
+    branch_id: branch?.id || user.branch_id,
+    product_id: productId,
+    zone_id: p.zone_id || null,
+    location_code: g,
+    gondola_code: g,
+    user_id: user.id,
+    counted_qty: 0,
+    pos_qty_snapshot: p.pos_qty || 0,
+    count_role: 'manager_final',
+    is_markdown: false,
+    note: note
+  }));
+  const { error } = await sb.from('stock_counts').insert(rows);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  showToast(isLao ? '✓ ສະຫຼຸບແລ້ວ' : '✓ สรุปแล้ว', 'success');
+  closeModal();
+  loadVarianceReport();
+}
+window._doConcludePending = _doConcludePending;
 
 function renderVarianceList() {
   if (!_varianceData) return;
