@@ -24705,16 +24705,18 @@ async function loadDashboard() {
   
   // ⭐ นับต่อ distinct product (ยอด final) ให้ตรงกับหน้า "คลาดเคลื่อน" — ใช้ computeVarianceItems แหล่งเดียว
   //    (เดิมนับ "แถว" stock_counts → verifier/L1-L4 บวมเพราะนับซ้ำ + นับทั้ง counter+verifier row = ไม่ตรงรายงาน)
-  let vItems = [];
+  let vAll = [];
   try {
-    vItems = (await computeVarianceItems('session')).filter(it => !it.isOrphan);
+    vAll = (await computeVarianceItems('session')).filter(it => !it.isOrphan);
   } catch (e) { log('Dashboard variance error:', e); }
-  log('Dashboard distinct products:', vItems.length);
+  // L1-L4 = เฉพาะสินค้านับครบทุกจุด (ตรงกับหน้าคลาดเคลื่อน) · progress role = ทุกตัวที่นับแล้ว
+  const vItems = vAll.filter(it => it.isComplete);
+  log('Dashboard distinct products:', vAll.length, '(complete:', vItems.length + ')');
 
-  const counter  = vItems.filter(x => x.counter_qty !== null).length;
-  const verifier = vItems.filter(x => x.verifier_qty !== null).length;
-  const ctl      = vItems.filter(x => x.ctl_qty !== null).length;
-  const matched  = vItems.filter(x => x.counter_qty !== null && x.verifier_qty !== null && x.counter_qty === x.verifier_qty).length;
+  const counter  = vAll.filter(x => x.counter_qty !== null).length;
+  const verifier = vAll.filter(x => x.verifier_qty !== null).length;
+  const ctl      = vAll.filter(x => x.ctl_qty !== null).length;
+  const matched  = vAll.filter(x => x.counter_qty !== null && x.verifier_qty !== null && x.counter_qty === x.verifier_qty).length;
 
   const l1 = vItems.filter(x => x.level === 'L1').length;
   const l2 = vItems.filter(x => x.level === 'L2').length;
@@ -24785,6 +24787,7 @@ async function loadDashboard() {
 
 let _varianceData = null;
 let _varianceAllData = null; // includes orphans (deleted products)
+let _variancePending = null; // สินค้านับหลาย gondola ยังไม่ครบทุกจุด (ยังไม่สรุป Diff)
 let _varianceFilter = {
   level: 'L3',      // เริ่มที่ L3 (Recount) เพราะสำคัญสุด
   search: '',
@@ -24908,6 +24911,29 @@ function calcVarianceLevel(pct, value) {
   return 'L1';
 }
 
+// 📍 ดึง "ตำแหน่ง (Gondola) ที่สินค้าควรอยู่" จาก Pan-O-Gram → map product_id → Set(ฐาน gondola)
+//    ใช้เช็คว่านับครบทุกจุดหรือยัง (กัน Diff หลอกตอนนับหลาย gondola ยังไม่ครบ)
+async function fetchExpectedGondolas(productIds) {
+  const map = {};
+  const ids = [...new Set((productIds || []).filter(Boolean))];
+  for (let i = 0; i < ids.length; i += 200) {
+    const part = ids.slice(i, i + 200);
+    let rows = [];
+    try {
+      rows = await fetchAllQuery(() => sb.from('pan_o_grams')
+        .select('product_id, location_code')
+        .eq('branch_id', branch.id).in('product_id', part).order('id'));
+    } catch (e) { log('fetchExpectedGondolas err', e); }
+    (rows || []).forEach(r => {
+      if (!r.product_id) return;
+      const base = floorBaseCode(String(r.location_code || '').toUpperCase().trim());
+      if (!base) return;
+      (map[r.product_id] = map[r.product_id] || new Set()).add(base);
+    });
+  }
+  return map;
+}
+
 // คำนวณ items ต่อ distinct product (final vs POS + variance level) — แหล่งความจริงเดียว ใช้ร่วมทั้งหน้าคลาดเคลื่อน + Dashboard (กันตัวเลขไม่ตรงกัน)
 async function computeVarianceItems(periodOverride) {
   const _vp = periodOverride || (_varianceFilter && _varianceFilter.period) || 'session';
@@ -24988,6 +25014,9 @@ async function computeVarianceItems(periodOverride) {
       else if (c.count_role === 'manager_final') put('manager', 'managerLocs');
     });
 
+    // 📍 ตำแหน่งที่สินค้าควรอยู่ (Pan-O-Gram) → เช็คว่านับครบทุก gondola หรือยัง
+    const _expMap = await fetchExpectedGondolas((counts || []).map(c => c.product_id));
+
     // Calculate variance for each product
     const items = Object.values(byProduct).map(p => {
       // ยอดต่อ role = ผลรวมครั้งล่าสุดของทุกตำแหน่ง (null ถ้า role นั้นไม่ได้นับเลย)
@@ -25005,6 +25034,21 @@ async function computeVarianceItems(periodOverride) {
       const locSet = new Set([...Object.keys(p.counterLocs), ...Object.keys(p.verifierLocs), ...Object.keys(p.ctlLocs), ...Object.keys(p.managerLocs)]);
       const locCount = locSet.size;
       const hasFloor = [...locSet].some(isFloorCode);  // 📦 มีการนับที่ "พื้น (นอกชั้น)" ของ gondola นี้หรือไม่
+
+      // 📍 นับครบทุกจุดหรือยัง? — เทียบ gondola ที่นับ (ฐาน) กับที่ Pan-O-Gram กำหนด
+      //    ยังไม่ครบ → กันสรุป Diff หลอก (POS = ยอดรวมทั้งสาขา แต่ยังนับได้บางจุด)
+      const countedGons = new Set([...locSet].map(lk => floorBaseCode(String(lk || '').toUpperCase().trim())).filter(Boolean));
+      const expectedSet = _expMap[p.product_id] || null;
+      let isComplete = true, expectedLocs = 0, countedLocs = countedGons.size, missingLocs = [];
+      if (expectedSet && expectedSet.size > 0) {
+        expectedLocs = expectedSet.size;
+        missingLocs = [...expectedSet].filter(g => !countedGons.has(g));
+        isComplete = missingLocs.length === 0;
+      } else {
+        // ไม่มีใน Pan-O-Gram → สรุปตามที่นับ (ถือว่าครบ)
+        expectedLocs = countedLocs;
+        isComplete = true;
+      }
       let finalCount = 0;
       locSet.forEach(lk => {
         const best = p.managerLocs[lk] || p.ctlLocs[lk] || p.verifierLocs[lk] || p.counterLocs[lk];
@@ -25051,6 +25095,9 @@ async function computeVarianceItems(periodOverride) {
         needsRecount,
         locCount,          // จำนวนตำแหน่งที่รวมยอด (>1 = นับหลาย gondola)
         hasFloor,          // 📦 มีการนับที่พื้น (นอกชั้น)
+        isComplete,        // ✅ นับครบทุก gondola ที่ Pan-O-Gram กำหนดหรือยัง (false = ยังไม่สรุป Diff)
+        expectedLocs,      // จำนวน gondola ที่ควรนับ (จาก Pan-O-Gram)
+        countedLocs,       // จำนวน gondola ที่นับแล้ว (ฐาน)
         isOrphan  // 🔥 flag สำหรับแสดงเตือน
       };
     });
@@ -25074,9 +25121,12 @@ async function loadVarianceReport() {
 
   try {
     const items = await computeVarianceItems();
-    // เก็บ all items (รวม orphan) ไว้ใน _varianceAllData · _varianceData = valid เท่านั้น
+    // เก็บ all items (รวม orphan) ไว้ใน _varianceAllData
+    // _varianceData = นับครบแล้ว (เข้า L1-L4 + ของหาย) · _variancePending = ยังนับไม่ครบทุกจุด (กัน Diff หลอก)
     _varianceAllData = items;
-    _varianceData = items.filter(it => !it.isOrphan);
+    const _valid = items.filter(it => !it.isOrphan);
+    _varianceData = _valid.filter(it => it.isComplete);
+    _variancePending = _valid.filter(it => !it.isComplete);
 
     renderVarianceSummary();
     renderAdvancedKPI();
@@ -25611,6 +25661,40 @@ function renderAdvancedKPI() {
   container.innerHTML = html;
 }
 
+// ⏳ กล่อง "รอนับให้ครบทุกจุด" — สินค้าที่วางหลาย gondola แต่ยังนับไม่ครบ (ยังไม่สรุป Diff)
+function renderVariancePending(isLao) {
+  const pend = (_variancePending || []);
+  if (!pend.length) return '';
+  // เรียงตามจำนวนจุดที่ยังขาด (ขาดเยอะก่อน)
+  const rows = pend.slice().sort((a, b) => (b.expectedLocs - b.countedLocs) - (a.expectedLocs - a.countedLocs));
+  const items = rows.map(p => {
+    const name = isLao ? (p.product?.name_lo || p.product?.name_th || p.barcode) : (p.product?.name_th || p.product?.name_lo || p.barcode);
+    return `
+      <div onclick="openVarianceDetail(${p.product_id})" style="background:white;border:1px solid var(--amber-200);border-radius:8px;padding:8px 10px;margin-bottom:5px;cursor:pointer;display:flex;align-items:center;gap:9px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</div>
+          <div style="font-size:9px;color:var(--slate-500);font-family:monospace;margin-top:1px;">${p.product?.barcode || ''}${p.gondola_code ? ` · 📍 ${p.gondola_code}` : ''}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:11px;font-weight:800;color:var(--amber-600);white-space:nowrap;">⏳ ${isLao ? 'ນັບແລ້ວ' : 'นับแล้ว'} ${p.countedLocs}/${p.expectedLocs} ${isLao ? 'ຈຸດ' : 'จุด'}</div>
+          <div style="font-size:9px;color:var(--slate-500);">${isLao ? 'ນັບໄດ້' : 'นับได้'} ${p.final_qty} · POS ${p.pos_qty}</div>
+        </div>
+      </div>`;
+  }).join('');
+  return `
+    <details style="margin-bottom:11px;" open>
+      <summary style="cursor:pointer;background:var(--fs-orange-tint);border:2px solid var(--amber-500);border-radius:11px;padding:10px 13px;font-size:13px;font-weight:800;color:#92400e;list-style:none;display:flex;align-items:center;gap:6px;">
+        ⏳ ${isLao ? 'ລໍຖ້ານັບໃຫ້ຄົບທຸກຈຸດ' : 'รอนับให้ครบทุกจุด'}
+        <span style="background:var(--amber-500);color:white;border-radius:10px;padding:1px 8px;font-size:11px;">${pend.length}</span>
+        <span style="margin-left:auto;font-size:10px;font-weight:600;color:#92400e;">${isLao ? '(ຍັງບໍ່ສະຫຼຸບ Diff)' : '(ยังไม่สรุป Diff)'}</span>
+      </summary>
+      <div style="margin-top:7px;">
+        <div style="font-size:10px;color:#92400e;margin-bottom:6px;line-height:1.5;">${isLao ? 'ສິນຄ້າວາງຫຼາຍ Gondola ແຕ່ນັບຍັງບໍ່ຄົບ — POS ເປັນຍອດລວມທັງສາຂາ ຈຶ່ງຍັງທຽບ Diff ບໍ່ໄດ້ຈົນກວ່າຈະນັບຄົບທຸກຈຸດ' : 'สินค้าวางหลาย Gondola แต่ยังนับไม่ครบ — POS เป็นยอดรวมทั้งสาขา จึงยังเทียบ Diff ไม่ได้จนกว่าจะนับครบทุกจุด'}</div>
+        ${items}
+      </div>
+    </details>`;
+}
+
 function renderVarianceList() {
   if (!_varianceData) return;
   const isLao = lang === 'lo';
@@ -25634,13 +25718,16 @@ function renderVarianceList() {
   items.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
   
   const listEl = document.getElementById('varianceList');
-  
+
+  // ⏳ สินค้าที่นับหลาย gondola ยังไม่ครบทุกจุด → โชว้แยกไว้บนสุด (ยังไม่สรุป Diff · ไม่เข้า L1-L4)
+  const pendingHtml = renderVariancePending(isLao);
+
   if (items.length === 0) {
-    listEl.innerHTML = `
+    listEl.innerHTML = pendingHtml + `
       <div style="text-align:center;padding:40px 20px;color:var(--slate-400);">
         <div style="font-size:48px;margin-bottom:11px;">${_varianceFilter.level === 'L1' ? '✅' : '🎉'}</div>
         <div style="font-size:13px;font-weight:700;color:var(--slate-600);">
-          ${_varianceFilter.level === 'L1' 
+          ${_varianceFilter.level === 'L1'
             ? (isLao ? 'ບໍ່ມີສິນຄ້າທີ່ສະຕ໋ອກຕົງ' : 'ไม่มีสินค้าที่สต๊อกตรง')
             : (isLao ? `ບໍ່ມີສິນຄ້າໃນລະດັບ ${_varianceFilter.level}` : `ไม่มีสินค้าในระดับ ${_varianceFilter.level}`)}
         </div>
@@ -25648,9 +25735,9 @@ function renderVarianceList() {
     `;
     return;
   }
-  
+
   // Group by gondola?
-  let html = '';
+  let html = pendingHtml;
   
   if (_varianceFilter.groupBy === 'gondola') {
     // Group
@@ -25842,7 +25929,7 @@ function toggleVarianceGroup() {
 // ==================== VARIANCE DETAIL MODAL ====================
 async function openVarianceDetail(productId) {
   const isLao = lang === 'lo';
-  const item = _varianceData?.find(p => p.product_id === productId);
+  const item = _varianceData?.find(p => p.product_id === productId) || _variancePending?.find(p => p.product_id === productId);
   if (!item) return;
   
   const fmt = new Intl.NumberFormat('th-TH');
@@ -31523,6 +31610,16 @@ async function showLocationDetail(locationCode) {
   
   // Pivot: รวม count rows ของ product เดียวกันเป็น 1 บรรทัด
   const pivoted = pivotByProduct(items, usersById);
+
+  // 📍 สินค้าที่วางหลาย Gondola (จาก Pan-O-Gram) → ซ่อน Diff ในหน้านี้ (เทียบ POS รวมทั้งสาขาไม่ได้ ให้ไปดูรายงานคลาดเคลื่อน)
+  try {
+    const _expMap = await fetchExpectedGondolas(pivoted.map(pr => pr.product_id));
+    pivoted.forEach(pr => {
+      const s = _expMap[pr.product_id];
+      pr._locCount = s ? s.size : 1;
+      pr._multiLoc = !!(s && s.size >= 2);
+    });
+  } catch (e) { log('locDetail expLoc err', e); }
   
   // Calculate summary
   const totalItems = items.length;
@@ -31723,7 +31820,17 @@ function renderPivotRow(prod) {
       <div class="loc-piv-roles">${cntGrid}</div>
       
       <!-- Summary: POS | Final | Diff -->
-      ${isAdmin ? `
+      ${isAdmin ? (prod._multiLoc ? `
+      <div style="margin-top:6px;background:var(--fs-orange-tint);border:1px solid var(--amber-300);border-radius:8px;padding:7px 9px;display:flex;align-items:center;gap:8px;">
+        <div style="text-align:center;flex-shrink:0;">
+          <div style="font-size:8px;color:var(--slate-500);font-weight:700;text-transform:uppercase;">${lang === 'lo' ? 'ນັບຈຸດນີ້' : 'นับจุดนี้'}</div>
+          <div style="font-size:15px;font-weight:800;color:var(--teal-700);font-family:'Space Grotesk',monospace;">${prod.final_qty !== null ? prod.final_qty : '—'}</div>
+        </div>
+        <div style="flex:1;font-size:9px;color:#92400e;font-weight:600;line-height:1.4;">
+          📍 ${lang === 'lo' ? 'ຢູ່' : 'อยู่'} ${prod._locCount} ${lang === 'lo' ? 'ຈຸດ — Diff ເບິ່ງທີ່ລາຍງານຄາດເຄື່ອນ' : 'จุด — Diff ดูที่รายงานคลาดเคลื่อน'}
+        </div>
+      </div>
+      ` : `
       <div class="loc-piv-summary">
         <div class="loc-piv-sum-item">
           <div class="loc-piv-sum-lbl">POS</div>
@@ -31738,7 +31845,7 @@ function renderPivotRow(prod) {
           <div class="loc-piv-sum-val" style="color:${diffColor};">${diffText}</div>
         </div>
       </div>
-      ` : `
+      `) : `
       <div style="margin-top:6px;text-align:right;">
         <span style="font-family:'Space Grotesk',monospace;font-weight:800;font-size:16px;">${prod.final_qty !== null ? prod.final_qty : '—'} ${unit}</span>
       </div>
