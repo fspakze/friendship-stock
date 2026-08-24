@@ -8881,7 +8881,29 @@ async function roCalc() {
       if (inOutF === 'ex' && inOut === 'ภายใน') return;
       cand.push({ barcode: String(r.barcode), name: r.name, buyer: r.buyer || '', monthly: m, daily: m / 30, top: r.top_2026 || '', inOut: inOut, lastBuy: r.last_buy || null });
     });
-    if (!cand.length) { setMsg(isLao ? 'ບໍ່ມີສິນຄ້າທີ່ມີ AVG ຂາຍໃນສາຂານີ້' : 'ไม่มีสินค้าที่มี AVG ขายในสาขานี้'); _roRows = []; roRenderSummary(); return; }
+    // ของหมด (POS ≤ 0) — บังคับแนะนำทุกตัว แม้ปิดการขาย (is_active=false) หรือไม่มี AVG (Ball 2026-08-24)
+    const statusMap = {};
+    (statusRows || []).forEach(r => { statusMap[String(r.barcode)] = r; });
+    const candBc = new Set(cand.map(c => c.barcode));
+    const oosProdMap = {};
+    try {
+      const oosProd = await fetchAllQuery(() => sb.from('products').select('barcode,name_th,name_lo,pos_qty,cost_price,unit_th,unit_lo,is_active').eq('branch_id', branch.id).lte('pos_qty', 0).order('id'));
+      oosProd.forEach(p => {
+        const bc = String(p.barcode); oosProdMap[bc] = p;
+        if (candBc.has(bc)) return;              // มี candidate จาก AVG อยู่แล้ว
+        const st = statusMap[bc];
+        if (buyer && !st) return;                // กรอง buyer อยู่ แต่ไม่มี status ตรง buyer → ข้าม
+        const io = (st && st.in_out) || 'ภายนอก';
+        if (inOutF === 'in' && io !== 'ภายใน') return;
+        if (inOutF === 'ex' && io === 'ภายใน') return;
+        if (topOnly && !(st && String(st.top_2026 || '').toUpperCase().includes('TOP'))) return;
+        const bkey = st ? psBranchKey(st.branch_avg) : null;
+        const m = (st && st.branch_avg && bkey != null) ? (Number(st.branch_avg[bkey]) || 0) : 0;
+        cand.push({ barcode: bc, name: (st && st.name) || p.name_th || bc, buyer: (st && st.buyer) || '', monthly: m, daily: m / 30, top: (st && st.top_2026) || '', inOut: io, lastBuy: (st && st.last_buy) || null, forcedOOS: true });
+        candBc.add(bc);
+      });
+    } catch (e) {}
+    if (!cand.length) { setMsg(isLao ? 'ບໍ່ມີສິນຄ້າທີ່ຕ້ອງສັ່ງ' : 'ไม่มีสินค้าที่ต้องสั่ง'); _roRows = []; roRenderSummary(); return; }
     const bcs = cand.map(c => c.barcode);
 
     // ดึง POS + master (ประเภท/กลุ่ม/supplier) + packsize (chunk ละ 200)
@@ -8898,6 +8920,8 @@ async function roCalc() {
       (mp.data || []).forEach(m => { mpMap[String(m.barcode)] = m; });
       (bp.data || []).forEach(b => { bpMap[String(b.barcode_unit)] = b; });
     }
+    // ของหมดที่ปิดการขาย (is_active=false) จะไม่ถูกดึงในลูปบน (กรอง is_active) → เติมจาก oosProdMap
+    Object.keys(oosProdMap).forEach(bc => { if (!posMap[bc]) posMap[bc] = oosProdMap[bc]; });
     // ต้นทุนล่าสุดจาก purchase_history (ปิด anon → RPC) — สาขา FSMINI ไม่มี products.cost_price (=0) ต้องใช้ตัวนี้
     const costMap = {};
     for (let i = 0; i < bcs.length; i += 300) {
@@ -8925,9 +8949,10 @@ async function roCalc() {
       const pos = Number(p.pos_qty) || 0;
       const minStock = c.daily * lead;
       const maxStock = minStock + c.daily * cycle;
-      const need = Math.ceil(maxStock - pos);
-      if (need <= 0) return; // POS ≥ Max → ไม่ต้องสั่ง
-      const doh = pos / c.daily;
+      let need = Math.ceil(maxStock - pos);
+      if (c.daily <= 0) need = 0;                       // ไม่มี AVG (ของหมด) → ยังไม่รู้จำนวน (เติมด้วย Panogram/แก้เอง)
+      if (need <= 0 && !c.forcedOOS) return;            // ปกติ POS ≥ Max = ไม่ต้องสั่ง · ของหมดบังคับแสดงเสมอ
+      const doh = c.daily > 0 ? pos / c.daily : -1e9;   // ของหมดไม่มี AVG → ดันขึ้นบนสุด (เร่งด่วน)
       const r = {
         barcode: c.barcode, buyer: c.buyer, top: c.top, monthly: c.monthly, daily: c.daily,
         cat: cat, grp: grp, supplier: supplier, inOut: c.inOut, lead: lead, cycle: cycle, rule: rule, lastBuy: c.lastBuy,
