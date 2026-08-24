@@ -8955,6 +8955,7 @@ async function roCalc() {
           r.packLabel = n + ' ' + (lang === 'lo' ? 'ແພັກ' : 'แพ๊ค') + ' (' + upp + '/' + (lang === 'lo' ? 'ແພັກ' : 'แพ๊ค') + ')';
         }
       }
+      r.packUnit = packUnit;   // ชิ้น/ลัง (ไว้แยกคอลัมน์ + สูตรสั่งลัง×แพ๊คไซส์)
       // Planogram: ถ้าแนะนำสั่ง < ความจุ Panogram → เติมให้เต็มชั้น = Panogram − POS (ปัดขึ้นเป็นลังเหมือนเดิม)
       r.planoCap = capMap[c.barcode] || 0;
       if (r.planoCap > 0 && r.orderUnits < r.planoCap) {
@@ -9091,10 +9092,10 @@ async function roExport() {
   try {
     const wb = new ExcelJS.Workbook();
     const HEAD_FILL = 'FF1E3A8A', RED_FILL = 'FFFECACA', RED_INK = 'FFB91C1C';
-    // A Barcode·B ชื่อ·C NameLO·D ประเภท·E กลุ่ม·F หน่วย·G POS·H Status·I AVG/วัน·J DOH·K ใน/นอก·L Lead·M Cycle·N Min·O Max·P ต่ำกว่าMin·Q ซื้อล่าสุด·R แนะนำสั่ง·S Panogram·T สั่ง(ปรับ)·U DOHหลังสั่ง·V ต้นทุน·W มูลค่าสั่ง·X ลัง/แพ๊ค·Y บาร์โค้ดลัง·Z TOP
-    const headers = ['Barcode', 'ชื่อสินค้า', 'Name LO', 'ประเภทสินค้า', 'กลุ่มสินค้า', 'หน่วย', 'POS', 'Status', 'AVG/วัน', 'DOH (วัน)', 'ใน/นอก', 'Lead', 'Cycle', 'Min Stock', 'Max Stock', 'ต่ำกว่า Min', 'ซื้อล่าสุด', 'แนะนำสั่ง (Unit)', 'Panogram', 'สั่ง (ปรับ)', 'DOH หลังสั่ง (วัน)', 'ต้นทุน (₭)', 'มูลค่าการสั่ง (₭)', 'สั่งเป็นลัง/แพ๊ค', 'บาร์โค้ดลัง', 'TOP'];
-    const ORDER_I = 19, DOH2_I = 20, VAL_I = 22;   // สั่ง(ปรับ)=T · DOHหลังสั่ง=U · มูลค่า=W
-    const widths = [14, 26, 20, 14, 14, 8, 8, 14, 9, 9, 8, 7, 7, 10, 10, 10, 12, 14, 11, 11, 15, 13, 15, 14, 14, 6];
+    // A Barcode·B ชื่อ·C NameLO·D ประเภท·E กลุ่ม·F หน่วย·G POS·H Status·I AVG/วัน·J DOH·K ใน/นอก·L Lead·M Cycle·N Min·O Max·P ต่ำกว่าMin·Q ซื้อล่าสุด·R แนะนำสั่ง·S Panogram·T แพ๊คไซส์·U สั่ง(ลัง)·V สั่ง(ชิ้น)·W DOHหลังสั่ง·X ต้นทุน·Y มูลค่าสั่ง·Z บาร์โค้ดลัง·AA TOP
+    const headers = ['Barcode', 'ชื่อสินค้า', 'Name LO', 'ประเภทสินค้า', 'กลุ่มสินค้า', 'หน่วย', 'POS', 'Status', 'AVG/วัน', 'DOH (วัน)', 'ใน/นอก', 'Lead', 'Cycle', 'Min Stock', 'Max Stock', 'ต่ำกว่า Min', 'ซื้อล่าสุด', 'แนะนำสั่ง (Unit)', 'Panogram', 'แพ๊คไซส์ (ชิ้น/ลัง)', 'สั่ง (ลัง)', 'สั่ง (ชิ้น)', 'DOH หลังสั่ง (วัน)', 'ต้นทุน (₭)', 'มูลค่าการสั่ง (₭)', 'บาร์โค้ดลัง', 'TOP'];
+    const LANG_I = 20, PCS_I = 21, DOH2_I = 22, VAL_I = 24;   // สั่ง(ลัง)=U · สั่ง(ชิ้น)=V · DOHหลังสั่ง=W · มูลค่า=Y
+    const widths = [14, 26, 20, 14, 14, 8, 8, 14, 9, 9, 8, 7, 7, 10, 10, 10, 12, 14, 11, 13, 10, 11, 15, 13, 15, 14, 6];
     const byBuyer = {};
     rows.forEach(r => { const k = r.buyer || (isLao ? 'ບໍ່ລະບຸ' : 'ไม่ระบุ'); (byBuyer[k] = byBuyer[k] || []).push(r); });
     const usedNames = {};
@@ -9109,19 +9110,22 @@ async function roExport() {
       byBuyer[bk].forEach(r => {
         const rn = ws.rowCount + 1;
         const dayAvg = Math.round(r.daily * 10) / 10;
+        const pcb = r.packUnit || 1;                             // แพ๊คไซส์ (ชิ้น/ลัง)
+        const langQty = Math.round((r.orderFinal || 0) / pcb);  // สั่ง(ลัง) = ชิ้น/แพ๊คไซส์ (orderFinal เป็นพหุคูณของ pcb เสมอ)
         const dohAfterVal = (r.daily > 0) ? Math.round((r.pos + r.orderFinal) / r.daily) : '';
-        // DOH หลังสั่ง = (POS + สั่งปรับ)/AVGวัน · มูลค่า = สั่งปรับ×ต้นทุน — เป็นสูตร แก้ "สั่ง(ปรับ)" แล้วปรับตาม
-        const dohCell = { formula: 'IF(I' + rn + '<=0,"",ROUND((G' + rn + '+T' + rn + ')/I' + rn + ',0))', result: dohAfterVal };
-        const valCell = { formula: 'T' + rn + '*V' + rn, result: (r.orderFinal * (r.cost || 0)) };
+        // แก้ "สั่ง(ลัง)"[U] → สั่ง(ชิ้น)[V]=U×T → DOHหลังสั่ง[W]+มูลค่า[Y] ปรับตามอัตโนมัติ
+        const pcsCell = { formula: 'U' + rn + '*T' + rn, result: r.orderFinal };
+        const dohCell = { formula: 'IF(I' + rn + '<=0,"",ROUND((G' + rn + '+V' + rn + ')/I' + rn + ',0))', result: dohAfterVal };
+        const valCell = { formula: 'V' + rn + '*X' + rn, result: (r.orderFinal * (r.cost || 0)) };
         const row = ws.addRow([
           r.barcode, r.nameTh || r.name, r.nameLo || '', r.cat || '', r.grp || '', r.unit,
           r.pos, psCalcStatus(r.pos, r.monthly).th, dayAvg, (r.pos <= 0 ? 0 : Math.round(r.doh * 10) / 10),
           r.inOut || '', r.lead || '', r.cycle || '', r.minStock || 0, r.maxStock || 0, r.belowMin ? '🔴' : '',
-          r.lastBuy ? roFmtDate(r.lastBuy) : '', r.orderUnits, r.planoCap || 0, r.orderFinal,
-          dohCell, r.cost || 0, valCell, r.packLabel || '',
+          r.lastBuy ? roFmtDate(r.lastBuy) : '', r.orderUnits, r.planoCap || 0, pcb, langQty, pcsCell,
+          dohCell, r.cost || 0, valCell,
           (r.bpRec && (r.bpRec.barcode_box || r.bpRec.barcode_pack)) || '', r.top || ''
         ]);
-        row.getCell(VAL_I + 1).numFmt = '#,##0'; row.getCell(DOH2_I + 1).numFmt = '#,##0'; row.getCell(ORDER_I + 1).numFmt = '#,##0';
+        row.getCell(VAL_I + 1).numFmt = '#,##0'; row.getCell(DOH2_I + 1).numFmt = '#,##0'; row.getCell(PCS_I + 1).numFmt = '#,##0'; row.getCell(LANG_I + 1).numFmt = '#,##0';
         if (typeof dohAfterVal === 'number' && dohAfterVal > 90) {   // DOH หลังสั่ง > 90 วัน = สั่งมากไป → แดง
           const c = row.getCell(DOH2_I + 1); c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: RED_FILL } }; c.font = { bold: true, color: { argb: RED_INK } };
         }
