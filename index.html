@@ -19463,12 +19463,12 @@ async function pogExportShort() {
         const g = byBr[brId];
         const ws = wb.addWorksheet(safeSheet(g.name));
         const mkArr = (r, rn) => {
-          const hasCarton = r.carton > 1;
-          // สั่ง(ชิ้น) = สูตร สั่ง(ลัง)×ลัง/หน่วย (ถ้าเป็นลัง) · ไม่มีลัง = ตัวเลขตรงๆ (แก้เองได้)
-          const ordCell = hasCarton ? { formula: 'K' + rn + '*J' + rn, result: r.orderUnits } : r.orderUnits;
-          // DOH หลังสั่ง = สูตร (Stock+สั่งชิ้น)×30/AVG · AVG≤0 = "" (ไม่มียอดขาย คำนวณไม่ได้)
-          const dohCell = { formula: 'IF(M' + rn + '<=0,"",ROUND((H' + rn + '+L' + rn + ')*30/M' + rn + ',0))', result: (r.dohAfter != null ? r.dohAfter : '') };
-          return [g.name, r.bc, r.name, r.supplier || '', r.inOut || '', r.buyer || '', r.pgQty, r.stock, r.short, r.carton || '', hasCarton ? r.cartons : '', ordCell, (r.avgMonthly ? Math.round(r.avgMonthly) : 0), dohCell];
+          const pcb = r.carton > 1 ? r.carton : 1;               // ลัง/หน่วย: แพ๊ค 1*1*1 → 1 (ให้สั่งลัง=สั่งชิ้น)
+          const ordLang = r.carton > 1 ? r.cartons : r.short;    // สั่ง(ลัง) มีค่าเสมอ (แก้ที่ช่องนี้เป็นหลัก)
+          const ordCell = { formula: 'K' + rn + '*J' + rn, result: r.orderUnits };   // สั่ง(ชิ้น) = สั่งลัง×ลัง/หน่วย เสมอ
+          // DOH หลังสั่ง = สูตร (Stock+สั่งชิ้น)×30/AVG · AVG≤0 (ไม่มียอดขาย) = "ไม่มีกำหนด"
+          const dohCell = { formula: 'IF(M' + rn + '<=0,"ไม่มีกำหนด",ROUND((H' + rn + '+L' + rn + ')*30/M' + rn + ',0))', result: (r.avgMonthly > 0 ? r.dohAfter : 'ไม่มีกำหนด') };
+          return [g.name, r.bc, r.name, r.supplier || '', r.inOut || '', r.buyer || '', r.pgQty, r.stock, r.short, pcb, ordLang, ordCell, (r.avgMonthly ? Math.round(r.avgMonthly) : 0), dohCell];
         };
         const decorate = (row, r) => {
           row.getCell(ORD_I + 1).numFmt = '#,##0'; row.getCell(DOH_I + 1).numFmt = '#,##0';
@@ -19485,10 +19485,11 @@ async function pogExportShort() {
       const widths = [14, 26, 20, 10, 14, 14, 16, 15, 15, 12, 9, 9, 12, 20, 15, 30];
       const ws = wb.addWorksheet('Combined');
       const mkArr = (r, rn) => {
-        const hasCarton = r.carton > 1;
-        const ordCell = hasCarton ? { formula: 'L' + rn + '*K' + rn, result: r.orderUnits } : r.orderUnits;
-        const dohCell = { formula: 'IF(N' + rn + '<=0,"",ROUND((G' + rn + '+M' + rn + ')*30/N' + rn + ',0))', result: (r.dohAfter != null ? r.dohAfter : '') };
-        return [r.bc, r.name, r.supplier || '', r.inOut || '', r.buyer || '', r.posAll, r.posPog, r.cap, r.short, r.brCount, r.carton || '', hasCarton ? r.cartons : '', ordCell, (r.avgMonthly ? Math.round(r.avgMonthly) : 0), dohCell, r.brNames.join(', ')];
+        const pcb = r.carton > 1 ? r.carton : 1;
+        const ordLang = r.carton > 1 ? r.cartons : r.short;
+        const ordCell = { formula: 'L' + rn + '*K' + rn, result: r.orderUnits };
+        const dohCell = { formula: 'IF(N' + rn + '<=0,"ไม่มีกำหนด",ROUND((G' + rn + '+M' + rn + ')*30/N' + rn + ',0))', result: (r.avgMonthly > 0 ? r.dohAfter : 'ไม่มีกำหนด') };
+        return [r.bc, r.name, r.supplier || '', r.inOut || '', r.buyer || '', r.posAll, r.posPog, r.cap, r.short, r.brCount, pcb, ordLang, ordCell, (r.avgMonthly ? Math.round(r.avgMonthly) : 0), dohCell, r.brNames.join(', ')];
       };
       const decorate = (row, r) => {
         row.getCell(ORD_I + 1).numFmt = '#,##0'; row.getCell(DOH_I + 1).numFmt = '#,##0';
