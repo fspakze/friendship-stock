@@ -7494,19 +7494,21 @@ function psNormBranch(x) {
   // normalize ชื่อสาขา: lower, express->exp, ตัดอักขระคั่น (เทียบข้ามการสะกด)
   return String(x || '').toLowerCase().replace(/express/g, 'exp').replace(/[^a-z0-9\u0e00-\u0e7f]/g, '');
 }
-function psBranchKey(branchAvg) {
-  if (!branch) return null;
+function psBranchKey(branchAvg) { return psBranchKeyFor(branchAvg, branch); }
+// เหมือน psBranchKey แต่ระบุ record สาขาเองได้ (ใช้ตอนต้อง resolve หลายสาขาข้ามกัน เช่น รายงานสินค้าขาด Panogram)
+function psBranchKeyFor(branchAvg, brRec) {
+  if (!brRec) return null;
   const keys = branchAvg ? Object.keys(branchAvg) : [];
   // 1) explicit map ก่อน (ถ้ามี key อยู่จริงใน branchAvg)
-  if (PS_BRANCH_MAP[branch.code] && keys.includes(PS_BRANCH_MAP[branch.code])) return PS_BRANCH_MAP[branch.code];
-  const cand = [branch.code, branch.name_th, branch.name_lo].filter(Boolean).map(psNormBranch);
+  if (PS_BRANCH_MAP[brRec.code] && keys.includes(PS_BRANCH_MAP[brRec.code])) return PS_BRANCH_MAP[brRec.code];
+  const cand = [brRec.code, brRec.name_th, brRec.name_lo].filter(Boolean).map(psNormBranch);
   // 2) ตรงเป๊ะหลัง normalize (จับ EXP-TRADING <-> Express-TRADING, FS-SUPERMART <-> Super ฯลฯ)
   for (const k of keys) { if (cand.includes(psNormBranch(k))) return k; }
   // 3) SUPER fallback
   if (cand.some(c => c.includes('super'))) { const sk = keys.find(k => psNormBranch(k).includes('super')); if (sk) return sk; }
   // 4) substring match หลัง normalize
   for (const k of keys) { const nk = psNormBranch(k); if (nk && cand.some(c => c.includes(nk) || nk.includes(c))) return k; }
-  return PS_BRANCH_MAP[branch.code] || branch.code || null;
+  return PS_BRANCH_MAP[brRec.code] || brRec.code || null;
 }
 
 let _psStats = null;
@@ -19344,9 +19346,19 @@ async function pogOpenShortReport() {
       try { const { data } = await sb.from('barcode_packsize').select('barcode_unit, qty_unit, qty_pack, pcs_per_box').in('barcode_unit', chunk); (data || []).forEach(b => { let upb = Number(b.pcs_per_box) || 0; if (!upb && Number(b.qty_unit) && Number(b.qty_pack)) upb = Number(b.qty_unit) * Number(b.qty_pack); packMap[b.barcode_unit] = upb; }); } catch (e) {}
       try { const { data } = await sb.from('master_products').select('barcode, name_th, name_lo').in('barcode', chunk); (data || []).forEach(m => { nameMap[m.barcode] = (lang === 'lo' ? (m.name_lo || m.name_th) : (m.name_th || m.name_lo)) || m.barcode; }); } catch (e) {}
     }
-    // 5) ชื่อสาขา
-    const branchName = {};
-    try { const { data: brs } = await sb.from('branches').select('id, code, name_th, name_lo').in('id', [...brSet]); (brs || []).forEach(b => { branchName[b.id] = isLao ? (b.name_lo || b.name_th || b.code) : (b.name_th || b.name_lo || b.code); }); } catch (e) {}
+    // 5) ชื่อสาขา + เก็บ record เต็มไว้ resolve key ของ branch_avg (per สาขา)
+    const branchName = {}, brRecMap = {};
+    try { const { data: brs } = await sb.from('branches').select('id, code, name_th, name_lo').in('id', [...brSet]); (brs || []).forEach(b => { branchName[b.id] = isLao ? (b.name_lo || b.name_th || b.code) : (b.name_th || b.name_lo || b.code); brRecMap[b.id] = b; }); } catch (e) {}
+    // 6) AVG ขาย/เดือน ต่อสาขา (product_status.branch_avg = JSONB {ชื่อสาขา: ยอดเฉลี่ย/เดือน}) → ใช้คำนวณ DOH หลังสั่ง
+    const psAvg = {};   // { barcode: branch_avg object }
+    for (let i = 0; i < shortBcs.length; i += 300) {
+      const chunk = shortBcs.slice(i, i + 300);
+      try { const { data } = await sb.from('product_status').select('barcode, branch_avg').in('barcode', chunk); (data || []).forEach(s => { if (s.branch_avg) psAvg[String(s.barcode)] = s.branch_avg; }); } catch (e) {}
+    }
+    // ยอดขายเฉลี่ย/เดือน ของ (สินค้า, สาขา) — resolve key ตาม record สาขานั้น
+    const avgFor = (bc, brId) => { const ba = psAvg[bc]; if (!ba) return 0; const key = psBranchKeyFor(ba, brRecMap[brId]); const v = key != null ? Number(ba[key]) : 0; return isFinite(v) && v > 0 ? v : 0; };
+    // DOH หลังสั่ง (วัน) = (สต๊อกปัจจุบัน + ที่จะสั่ง) × 30 / ยอดขายเฉลี่ยต่อเดือน · ไม่มียอดขาย = ว่าง (คำนวณไม่ได้)
+    const dohAfter = (stock, order, avgMonthly) => (avgMonthly > 0 ? Math.round((stock + order) * 30 / avgMonthly) : null);
     // รวมข้ามสาขาต่อ barcode: ความจุตาม Panogram · สต๊อกในสาขาที่มี Panogram · สต๊อกทุกสาขา (ดูภาพรวม + มีของสาขาอื่นไหม)
     const totCapBc = {}, totPosPogBc = {}, totPosAllBc = {};
     Object.keys(capBB).forEach(k => {
@@ -19364,12 +19376,15 @@ async function pogOpenShortReport() {
       const cartons = carton > 1 ? Math.ceil(s.short / carton) : null;
       const orderUnits = cartons != null ? cartons * carton : s.short;
       const brNames = s.brs.map(x => branchName[x.br] || ('#' + x.br));
+      const posPog = totPosPogBc[bc] || 0;
+      const avgMonthly = s.brs.reduce((a, x) => a + avgFor(bc, x.br), 0);   // รวมยอดขายเฉลี่ยของเฉพาะสาขาที่ขาด
       return { bc, name: nameMap[bc] || bc, short: s.short, brCount: s.brs.length, brNames, carton, cartons, orderUnits, brs: s.brs,
-        posAll: totPosAllBc[bc] || 0, posPog: totPosPogBc[bc] || 0, cap: totCapBc[bc] || 0 };
+        posAll: totPosAllBc[bc] || 0, posPog: posPog, cap: totCapBc[bc] || 0,
+        avgMonthly: avgMonthly, dohAfter: dohAfter(posPog, orderUnits, avgMonthly) };
     }).sort((a, b) => b.short - a.short);
     // แยกสาขา: 1 แถว/(สินค้า×สาขา) (ปัดลังต่อสาขา)
     const byBranchRows = [];
-    sumRows.forEach(r => { r.brs.forEach(x => { const carton = r.carton; const cartons = carton > 1 ? Math.ceil(x.short / carton) : null; const orderUnits = cartons != null ? cartons * carton : x.short; byBranchRows.push({ bc: r.bc, name: r.name, br: x.br, brName: branchName[x.br] || ('#' + x.br), short: x.short, carton, cartons, orderUnits }); }); });
+    sumRows.forEach(r => { r.brs.forEach(x => { const carton = r.carton; const cartons = carton > 1 ? Math.ceil(x.short / carton) : null; const orderUnits = cartons != null ? cartons * carton : x.short; const stock = posBB[r.bc + '|' + x.br] || 0; const pgQty = capBB[r.bc + '|' + x.br] || 0; const avgMonthly = avgFor(r.bc, x.br); byBranchRows.push({ bc: r.bc, name: r.name, br: x.br, brName: branchName[x.br] || ('#' + x.br), short: x.short, carton, cartons, orderUnits, pgQty: pgQty, stock: stock, avgMonthly: avgMonthly, dohAfter: dohAfter(stock, orderUnits, avgMonthly) }); }); });
     byBranchRows.sort((a, b) => b.short - a.short);
     _pogShortData = { sum: sumRows, byBranch: byBranchRows };
     pogRenderShort();
@@ -19421,12 +19436,12 @@ function pogExportShort() {
   if (typeof XLSX === 'undefined') { showToast('XLSX not loaded', 'error'); return; }
   let aoa, sheet;
   if (_pogShortMode === 'byBranch') {
-    aoa = [['Barcode', 'ชื่อสินค้า', 'สาขา', 'ขาด', 'ลัง/หน่วย', 'สั่ง (ลัง)', 'สั่ง (ชิ้น)']];
-    _pogShortData.byBranch.forEach(r => aoa.push([r.bc, r.name, r.brName, r.short, r.carton || '', r.cartons != null ? r.cartons : '', r.orderUnits]));
+    aoa = [['Barcode', 'ชื่อสินค้า', 'สาขา', 'จำนวนตาม Panogram', 'Stock ปัจจุบัน (สาขา)', 'ขาด', 'ลัง/หน่วย', 'สั่ง (ลัง)', 'สั่ง (ชิ้น)', 'AVG ขาย/เดือน (สาขา)', 'DOH หลังสั่ง (วัน)']];
+    _pogShortData.byBranch.forEach(r => aoa.push([r.bc, r.name, r.brName, r.pgQty, r.stock, r.short, r.carton || '', r.cartons != null ? r.cartons : '', r.orderUnits, r.avgMonthly ? Math.round(r.avgMonthly) : '', r.dohAfter != null ? r.dohAfter : '']));
     sheet = 'ByBranch';
   } else {
-    aoa = [['Barcode', 'ชื่อสินค้า', 'Stock รวมทุกสาขา', 'Stock รวมสาขา Panogram', 'จำนวนตาม Panogram', 'ขาดรวม (ทุกสาขา)', 'จำนวนสาขาที่ขาด', 'ลัง/หน่วย', 'สั่ง (ลัง)', 'สั่งรวม (ชิ้น)', 'สาขาที่ขาด']];
-    _pogShortData.sum.forEach(r => aoa.push([r.bc, r.name, r.posAll, r.posPog, r.cap, r.short, r.brCount, r.carton || '', r.cartons != null ? r.cartons : '', r.orderUnits, r.brNames.join(', ')]));
+    aoa = [['Barcode', 'ชื่อสินค้า', 'Stock รวมทุกสาขา', 'Stock รวมสาขา Panogram', 'จำนวนตาม Panogram', 'ขาดรวม (ทุกสาขา)', 'จำนวนสาขาที่ขาด', 'ลัง/หน่วย', 'สั่ง (ลัง)', 'สั่งรวม (ชิ้น)', 'AVG ขาย/เดือน (รวมสาขาที่ขาด)', 'DOH หลังสั่ง (วัน)', 'สาขาที่ขาด']];
+    _pogShortData.sum.forEach(r => aoa.push([r.bc, r.name, r.posAll, r.posPog, r.cap, r.short, r.brCount, r.carton || '', r.cartons != null ? r.cartons : '', r.orderUnits, r.avgMonthly ? Math.round(r.avgMonthly) : '', r.dohAfter != null ? r.dohAfter : '', r.brNames.join(', ')]));
     sheet = 'Combined';
   }
   const wb = XLSX.utils.book_new();
