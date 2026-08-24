@@ -8941,22 +8941,28 @@ async function roCalc() {
       };
       // ปัดขึ้นเป็น ลัง/แพ๊ค
       const bp = bpMap[c.barcode];
+      let packUnit = 1;   // จำนวนต่อลัง/แพ๊ค (ไว้ปัดเศษ Planogram ให้เต็มลังเหมือนกัน)
       if (bp) {
         r.bpRec = bp;
         const upp = Number(bp.qty_unit) || 0;
         let upb = Number(bp.pcs_per_box) || 0;
         if (!upb && upp && (Number(bp.qty_pack) || 0)) upb = upp * Number(bp.qty_pack);
         if ((bp.barcode_box || bp.price_box) && upb > 1) {
-          const n = Math.ceil(need / upb); r.orderUnits = n * upb;
+          const n = Math.ceil(need / upb); r.orderUnits = n * upb; packUnit = upb;
           r.packLabel = n + ' ' + (lang === 'lo' ? 'ລັງ' : 'ลัง') + ' (' + upb + '/' + (lang === 'lo' ? 'ລັງ' : 'ลัง') + ')';
         } else if ((bp.barcode_pack || bp.price_pack) && upp > 1) {
-          const n = Math.ceil(need / upp); r.orderUnits = n * upp;
+          const n = Math.ceil(need / upp); r.orderUnits = n * upp; packUnit = upp;
           r.packLabel = n + ' ' + (lang === 'lo' ? 'ແພັກ' : 'แพ๊ค') + ' (' + upp + '/' + (lang === 'lo' ? 'ແພັກ' : 'แพ๊ค') + ')';
         }
       }
-      // Planogram: ถ้าแนะนำสั่ง < ความจุ Panogram → สั่งเติมให้เต็มชั้น (สั่งตาม Panogram)
+      // Planogram: ถ้าแนะนำสั่ง < ความจุ Panogram → เติมให้เต็มชั้น = Panogram − POS (ปัดขึ้นเป็นลังเหมือนเดิม)
       r.planoCap = capMap[c.barcode] || 0;
-      r.orderFinal = (r.planoCap > 0 && r.orderUnits < r.planoCap) ? r.planoCap : r.orderUnits;
+      if (r.planoCap > 0 && r.orderUnits < r.planoCap) {
+        const fill = Math.max(0, r.planoCap - pos);
+        r.orderFinal = packUnit > 1 ? Math.ceil(fill / packUnit) * packUnit : fill;
+      } else {
+        r.orderFinal = r.orderUnits;
+      }
       low.push(r);
     });
     low.sort((a, b) => a.doh - b.doh);
