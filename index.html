@@ -19437,22 +19437,15 @@ async function pogExportShort() {
   try {
     const wb = new ExcelJS.Workbook();
     const HEAD_FILL = 'FF1E3A8A', RED_FILL = 'FFFECACA', RED_INK = 'FFB91C1C';
-    // สร้าง 1 sheet: หัวตาราง + แถวข้อมูล + ไฮไลต์แดงช่อง DOH ที่เกิน 90
-    const buildSheet = (ws, headers, rows, dohIdx, widths) => {
+    const redCell = (row, idx) => { const c = row.getCell(idx + 1); c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: RED_FILL } }; c.font = { bold: true, color: { argb: RED_INK } }; };
+    // สร้าง 1 sheet: หัว + แถวข้อมูล · mkArr(r, excelRowNo) คืน array (ช่องสูตรใส่เป็น {formula,result}) · decorate = ไฮไลต์
+    const buildSheet = (ws, headers, dataRows, widths, mkArr, decorate) => {
       widths.forEach((w, i) => ws.getColumn(i + 1).width = w);
       const hr = ws.addRow(headers);
       hr.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       hr.alignment = { vertical: 'middle', wrapText: true };
       hr.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEAD_FILL } }; });
-      rows.forEach(arr => {
-        const row = ws.addRow(arr);
-        const dv = arr[dohIdx];
-        if (typeof dv === 'number' && dv > 90) {   // DOH หลังสั่ง > 90 วัน = สั่งมากไป → ไฮไลต์แดง
-          const cell = row.getCell(dohIdx + 1);
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: RED_FILL } };
-          cell.font = { bold: true, color: { argb: RED_INK } };
-        }
-      });
+      dataRows.forEach(r => { const rn = ws.rowCount + 1; const row = ws.addRow(mkArr(r, rn)); decorate(row, r); });
       ws.views = [{ state: 'frozen', ySplit: 1 }];
     };
     const usedNames = {};
@@ -19460,25 +19453,49 @@ async function pogExportShort() {
 
     if (_pogShortMode === 'byBranch') {
       // แยกสาขา: สาขา = คอลัมน์ A · แบ่ง 1 sheet ต่อ 1 สาขา
+      // คอลัมน์: A สาขา·B Barcode·C ชื่อ·D ซัพ·E ภายใน·F จัดซื้อ·G Panogram·H Stock·I ขาด·J ลัง/หน่วย·K สั่ง(ลัง)·L สั่ง(ชิ้น)·M AVG·N DOH
       const headers = ['สาขา', 'Barcode', 'ชื่อสินค้า', 'ซัพพลายเออร์', 'ภายใน/นอก', 'จัดซื้อ', 'จำนวนตาม Panogram', 'Stock ปัจจุบัน', 'ขาด', 'ลัง/หน่วย', 'สั่ง (ลัง)', 'สั่ง (ชิ้น)', 'AVG ขาย/เดือน', 'DOH หลังสั่ง (วัน)'];
-      const dohIdx = headers.length - 1;
+      const AVG_I = 12, DOH_I = 13, ORD_I = 11;
       const widths = [16, 14, 26, 20, 10, 14, 15, 13, 9, 9, 9, 11, 13, 15];
       const byBr = {};
       _pogShortData.byBranch.forEach(r => { (byBr[r.br] = byBr[r.br] || { name: r.brName, rows: [] }).rows.push(r); });
       Object.keys(byBr).forEach(brId => {
         const g = byBr[brId];
         const ws = wb.addWorksheet(safeSheet(g.name));
-        const rows = g.rows.map(r => [g.name, r.bc, r.name, r.supplier || '', r.inOut || '', r.buyer || '', r.pgQty, r.stock, r.short, r.carton || '', r.cartons != null ? r.cartons : '', r.orderUnits, r.avgMonthly ? Math.round(r.avgMonthly) : '', r.dohAfter != null ? r.dohAfter : '']);
-        buildSheet(ws, headers, rows, dohIdx, widths);
+        const mkArr = (r, rn) => {
+          const hasCarton = r.carton > 1;
+          // สั่ง(ชิ้น) = สูตร สั่ง(ลัง)×ลัง/หน่วย (ถ้าเป็นลัง) · ไม่มีลัง = ตัวเลขตรงๆ (แก้เองได้)
+          const ordCell = hasCarton ? { formula: 'K' + rn + '*J' + rn, result: r.orderUnits } : r.orderUnits;
+          // DOH หลังสั่ง = สูตร (Stock+สั่งชิ้น)×30/AVG · AVG≤0 = "" (ไม่มียอดขาย คำนวณไม่ได้)
+          const dohCell = { formula: 'IF(M' + rn + '<=0,"",ROUND((H' + rn + '+L' + rn + ')*30/M' + rn + ',0))', result: (r.dohAfter != null ? r.dohAfter : '') };
+          return [g.name, r.bc, r.name, r.supplier || '', r.inOut || '', r.buyer || '', r.pgQty, r.stock, r.short, r.carton || '', hasCarton ? r.cartons : '', ordCell, (r.avgMonthly ? Math.round(r.avgMonthly) : 0), dohCell];
+        };
+        const decorate = (row, r) => {
+          row.getCell(ORD_I + 1).numFmt = '#,##0'; row.getCell(DOH_I + 1).numFmt = '#,##0';
+          if (!(r.avgMonthly > 0)) redCell(row, AVG_I);              // ไม่มียอดขาย → AVG=0 แดง
+          if (typeof r.dohAfter === 'number' && r.dohAfter > 90) redCell(row, DOH_I);
+        };
+        buildSheet(ws, headers, g.rows, widths, mkArr, decorate);
       });
     } else {
       // รวมสาขา: sheet เดียว
+      // A Barcode·B ชื่อ·C ซัพ·D ภายใน·E จัดซื้อ·F StockทุกSาขา·G StockPanogram·H Panogram·I ขาด·J #สาขา·K ลัง/หน่วย·L สั่ง(ลัง)·M สั่ง(ชิ้น)·N AVG·O DOH·P สาขาที่ขาด
       const headers = ['Barcode', 'ชื่อสินค้า', 'ซัพพลายเออร์', 'ภายใน/นอก', 'จัดซื้อ', 'Stock รวมทุกสาขา', 'Stock รวมสาขา Panogram', 'จำนวนตาม Panogram', 'ขาดรวม (ทุกสาขา)', 'จำนวนสาขาที่ขาด', 'ลัง/หน่วย', 'สั่ง (ลัง)', 'สั่งรวม (ชิ้น)', 'AVG ขาย/เดือน (รวมสาขาที่ขาด)', 'DOH หลังสั่ง (วัน)', 'สาขาที่ขาด'];
-      const dohIdx = 14;
+      const AVG_I = 13, DOH_I = 14, ORD_I = 12;
       const widths = [14, 26, 20, 10, 14, 14, 16, 15, 15, 12, 9, 9, 12, 20, 15, 30];
       const ws = wb.addWorksheet('Combined');
-      const rows = _pogShortData.sum.map(r => [r.bc, r.name, r.supplier || '', r.inOut || '', r.buyer || '', r.posAll, r.posPog, r.cap, r.short, r.brCount, r.carton || '', r.cartons != null ? r.cartons : '', r.orderUnits, r.avgMonthly ? Math.round(r.avgMonthly) : '', r.dohAfter != null ? r.dohAfter : '', r.brNames.join(', ')]);
-      buildSheet(ws, headers, rows, dohIdx, widths);
+      const mkArr = (r, rn) => {
+        const hasCarton = r.carton > 1;
+        const ordCell = hasCarton ? { formula: 'L' + rn + '*K' + rn, result: r.orderUnits } : r.orderUnits;
+        const dohCell = { formula: 'IF(N' + rn + '<=0,"",ROUND((G' + rn + '+M' + rn + ')*30/N' + rn + ',0))', result: (r.dohAfter != null ? r.dohAfter : '') };
+        return [r.bc, r.name, r.supplier || '', r.inOut || '', r.buyer || '', r.posAll, r.posPog, r.cap, r.short, r.brCount, r.carton || '', hasCarton ? r.cartons : '', ordCell, (r.avgMonthly ? Math.round(r.avgMonthly) : 0), dohCell, r.brNames.join(', ')];
+      };
+      const decorate = (row, r) => {
+        row.getCell(ORD_I + 1).numFmt = '#,##0'; row.getCell(DOH_I + 1).numFmt = '#,##0';
+        if (!(r.avgMonthly > 0)) redCell(row, AVG_I);
+        if (typeof r.dohAfter === 'number' && r.dohAfter > 90) redCell(row, DOH_I);
+      };
+      buildSheet(ws, headers, _pogShortData.sum, widths, mkArr, decorate);
     }
     if (typeof _exceljsComma === 'function') _exceljsComma(wb);
     const buffer = await wb.xlsx.writeBuffer();
