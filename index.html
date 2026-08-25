@@ -8880,28 +8880,13 @@ async function roComputeRows(brRec, opts, onProgress) {
     if (inOutF === 'ex' && inOut === 'ภายใน') return;
     cand.push({ barcode: String(r.barcode), name: r.name, buyer: r.buyer || '', monthly: m, daily: m / 30, top: r.top_2026 || '', inOut: inOut, lastBuy: r.last_buy || null });
   });
-  // ของหมด (POS ≤ 0) — บังคับแนะนำทุกตัว แม้ปิดการขาย (is_active=false) หรือไม่มี AVG (Ball 2026-08-24)
-  const statusMap = {};
-  (statusRows || []).forEach(r => { statusMap[String(r.barcode)] = r; });
-  const candBc = new Set(cand.map(c => c.barcode));
+  // ⛔ ไม่แนะนำสินค้าที่ไม่มียอดขาย (AVG=0 = ขายไม่ออก/สินค้าตาย) แม้ของหมด/ติดลบ (Ball 2026-08-26)
+  //    กลับจาก "รวมของหมดทุกตัว" (08-24) — flood ของหมด AVG=0 (3,535 ตัว doh=-1e9) เรียงบนสุด บังสินค้าติดลบ+ขายจริง (doh~-48) ให้หาไม่เจอ
+  //    เกณฑ์ใหม่: candidate = AVG สาขานี้ > 0 เท่านั้น · ของหมด/ปิดการขาย/ติดลบ เข้าเฉพาะที่ยังมี AVG → oosProdMap แค่เติม posMap ให้ is_active=false candidate
   const oosProdMap = {};
   try {
     const oosProd = await fetchAllQuery(() => sb.from('products').select('barcode,name_th,name_lo,pos_qty,cost_price,unit_th,unit_lo,is_active').eq('branch_id', brId).or('pos_qty.lte.0,is_active.eq.false').order('id'));
-    oosProd.forEach(p => {
-      const bc = String(p.barcode); oosProdMap[bc] = p;
-      if (candBc.has(bc)) return;              // มี candidate จาก AVG อยู่แล้ว
-      if (!(Number(p.pos_qty) <= 0)) return;   // force-add เฉพาะของหมดจริง (POS≤0)
-      const st = statusMap[bc];
-      if (buyer && !st) return;                // กรอง buyer อยู่ แต่ไม่มี status ตรง buyer → ข้าม
-      const io = (st && st.in_out) || 'ภายนอก';
-      if (inOutF === 'in' && io !== 'ภายใน') return;
-      if (inOutF === 'ex' && io === 'ภายใน') return;
-      if (topOnly && !(st && String(st.top_2026 || '').toUpperCase().includes('TOP'))) return;
-      const bkey = st ? psBranchKeyFor(st.branch_avg, brRec) : null;
-      const m = (st && st.branch_avg && bkey != null) ? (Number(st.branch_avg[bkey]) || 0) : 0;
-      cand.push({ barcode: bc, name: (st && st.name) || p.name_th || bc, buyer: (st && st.buyer) || '', monthly: m, daily: m / 30, top: (st && st.top_2026) || '', inOut: io, lastBuy: (st && st.last_buy) || null, forcedOOS: true });
-      candBc.add(bc);
-    });
+    oosProd.forEach(p => { oosProdMap[String(p.barcode)] = p; });
   } catch (e) { }
   if (!cand.length) return [];
   const bcs = cand.map(c => c.barcode);
@@ -9290,11 +9275,11 @@ async function rcBuildAll(opts, onProgress) {
     const { data } = await sb.from('branches').select('id, code, name_th, name_lo, branch_type, is_active').order('id');
     rcBranches = data || []; window._allBranchesCache = rcBranches;
   }
-  const active = rcBranches.filter(b => b.is_active !== false);
+  const active = rcBranches.filter(b => b.is_active !== false && !/TEST/i.test(String(b.code || '')));   // กันสาขาทดสอบ (TEST-EXP)
   // หา ສາງ Trading (คลังกลาง) — code TRADING-WH ก่อน · fallback ประเภทเป็นคลัง/ສາງ · (EXP-TRADING = Mini Mart ไม่ใช่คลัง)
-  const trading = active.find(b => /TRADING-WH/i.test(String(b.code || '')))
-    || active.find(b => /(คลัง|ຄັງ|ສາງ|warehouse)/i.test(String(b.branch_type || '')));
-  const sellBranches = active.filter(b => !trading || b.id !== trading.id);   // Trading = ปลายทาง ไม่ใช่แหล่งขาย
+  const trading = active.find(b => String(b.branch_type || '') === 'warehouse')
+    || active.find(b => /TRADING-WH/i.test(String(b.code || '')));
+  const sellBranches = active.filter(b => (!trading || b.id !== trading.id) && String(b.branch_type || '') !== 'warehouse');   // Trading/คลัง = ปลายทาง ไม่ใช่แหล่งขาย
 
   const directLines = [];
   const consMap = {};   // barcode → {barcode,name,supplier,cat,pcb,cost,unit,byBranch:[],totalUnits}
