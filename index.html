@@ -9350,7 +9350,7 @@ async function rcBuildAll(opts, onProgress) {
   consPending.sort((a, b) => a.shortToCarton - b.shortToCarton);
   directLines.sort((a, b) => (a.supplier || '').localeCompare(b.supplier || '') || (a.branchName || '').localeCompare(b.branchName || ''));
 
-  return { trading, branchesCounted, directLines, consReady, consPending };
+  return { trading, sellBranches, branchesCounted, directLines, consReady, consPending };
 }
 
 async function rcCalc() {
@@ -9474,13 +9474,32 @@ async function rcExport() {
       const ws = mkSheet(isLao ? 'ສັ່ງເຂົ້າ Trading' : 'สั่งเข้า Trading', H, W, rows);
       if (canCost) { ws.getColumn(9).numFmt = '#,##0'; ws.getColumn(10).numFmt = '#,##0'; }
     }
-    // 2) ใบกระจาย Trading (แบ่งของกลับสาขา)
+    // 2) ใบกระจาย Trading — ตาราง matrix (สาขาเป็นคอลัมน์แนวนอน · 1 สินค้า/แถว เห็นครบทุกสาขา)
     {
-      const H = ['Barcode', 'ชื่อสินค้า', 'สาขา', 'จำนวนที่แบ่ง (ชิ้น)', 'ต่อลัง'];
-      const W = [14, 28, 22, 16, 8];
-      const rows = [];
-      d.consReady.forEach(it => it.byBranch.forEach(bb => rows.push([it.barcode, it.name, bb.branchName, bb.needUnits, it.pcb])));
-      mkSheet(isLao ? 'ໃບແບ່ງ Trading' : 'ใบกระจาย Trading', H, W, rows);
+      const ws = wb.addWorksheet(isLao ? 'ໃບແບ່ງ Trading' : 'ใบกระจาย Trading');
+      const brNm = b => (isLao ? (b.name_lo || b.name_th || b.code) : (b.name_th || b.name_lo || b.code)) || String(b.code || b.id);
+      const trNm = d.trading ? brNm(d.trading) : (isLao ? 'ສາງ Trading' : 'สาง Trading');
+      // ลำดับคอลัมน์: ສາງ Trading (ยอดรับรวม) ก่อน แล้วสาขาขายที่เหลือ (ตาม id)
+      const cols = [{ key: 'trading', name: trNm }].concat((d.sellBranches || []).map(b => ({ key: b.id, name: brNm(b) })));
+      const fixed = ['NO', 'Barcode', (isLao ? 'ຊື່ສິນຄ້າ' : 'ชื่อสินค้า'), (isLao ? 'ໜ່ວຍ' : 'หน่วย'), (isLao ? 'ຕໍ່ລັງ' : 'ต่อลัง')];
+      const nF = fixed.length;
+      // header 2 แถว: แถว1 = ชื่อ (fixed=น้ำเงิน · สาขา=เขียว) · แถว2 = "จำนวน" ใต้แต่ละสาขา
+      ws.addRow(fixed.concat(cols.map(c => c.name)));
+      ws.addRow(fixed.map(() => '').concat(cols.map(() => (isLao ? 'ຈຳນວນ' : 'จำนวน'))));
+      for (let i = 1; i <= nF; i++) ws.mergeCells(1, i, 2, i);   // fixed cols รวม 2 แถว
+      const W = [5, 14, 28, 8, 7].concat(cols.map(() => 12));
+      W.forEach((w, i) => ws.getColumn(i + 1).width = w);
+      const GREEN = 'FF16A34A';
+      [1, 2].forEach(rn => { const rr = ws.getRow(rn); rr.font = { bold: true, color: { argb: 'FFFFFFFF' } }; rr.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }; });
+      for (let i = 1; i <= nF; i++) ws.getCell(1, i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEAD_FILL } };
+      for (let i = nF + 1; i <= nF + cols.length; i++) { ws.getCell(1, i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } }; ws.getCell(2, i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } }; }
+      d.consReady.forEach((it, idx) => {
+        const byId = {}; it.byBranch.forEach(bb => { byId[bb.branchId] = (byId[bb.branchId] || 0) + bb.needUnits; });
+        const row = [idx + 1, it.barcode, it.name, it.unit, it.pcb];
+        cols.forEach(c => { row.push(c.key === 'trading' ? it.orderedUnits : (byId[c.key] || '')); });
+        ws.addRow(row);
+      });
+      ws.views = [{ state: 'frozen', xSplit: nF, ySplit: 2 }];
     }
     // 3) สั่งตรงเข้าสาขา
     {
