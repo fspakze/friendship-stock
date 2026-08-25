@@ -2242,7 +2242,7 @@ const I18N = {
     tc_data_gap_scans: 'Gap Scans (ເຕີມຄັງ/ສົ່ງຈັດຊື້)',
     tc_data_product_issues: 'ລາຍງານປັນຫາສິນຄ້າ',
     tc_data_stock_counts: 'ການນັບສະຕ໋ອກ',
-    tc_data_pan_o_grams: 'Pan-O-Gram',
+    tc_data_pan_o_grams: 'Planogram',
     tc_data_inventory_movements: 'ປະຫວັດການເຄື່ອນສະຕ໋ອກ',
     tc_count: 'ຈຳນວນ',
     tc_no_data: 'ບໍ່ມີຂໍ້ມູນ',
@@ -2615,7 +2615,7 @@ const I18N = {
     tc_data_gap_scans: 'Gap Scans (เติมคลัง/ส่งจัดซื้อ)',
     tc_data_product_issues: 'รายงานปัญหาสินค้า',
     tc_data_stock_counts: 'การนับสต๊อค',
-    tc_data_pan_o_grams: 'Pan-O-Gram',
+    tc_data_pan_o_grams: 'Planogram',
     tc_data_inventory_movements: 'ประวัติการเคลื่อนสต๊อค',
     tc_count: 'จำนวน',
     tc_no_data: 'ไม่มีข้อมูล',
@@ -3434,7 +3434,7 @@ async function afterLogin() {
       // มีระบบ zone → flow ปกติ: เลือก zone + location
       showZoneStep();
     } else {
-      // ไม่มี zone → ยังต้องเลือก Gondola (เพื่อผูก scan/Pan-O-Gram กับ location)
+      // ไม่มี zone → ยังต้องเลือก Gondola (เพื่อผูก scan/Planogram กับ location)
       // Set default zone อัตโนมัติ
       if (allZones && allZones.length > 0) {
         zone = allZones[0];
@@ -5171,7 +5171,7 @@ const MENU_CONFIG = {
     drawerGroups: [
       // 📚 คู่มือ SOP: เปิดเมนูให้ทุกตำแหน่งแล้ว (Ball 2026-07-16) — เห็นเฉพาะฉบับที่ sop_docs.roles อนุญาต
       { titleTh: 'คู่มือ', titleLo: 'ຄູ່ມື', items: ['sop'] },
-      { titleTh: 'Pan-O-Gram', titleLo: 'Pan-O-Gram', items: ['panogram'] },
+      { titleTh: 'Planogram', titleLo: 'Planogram', items: ['panogram'] },
       { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport', 'docsign'] },
       { titleTh: 'HORECA', titleLo: 'HORECA', items: ['horeca', 'membership'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -5181,7 +5181,7 @@ const MENU_CONFIG = {
     bottomTabs: ['stockcheck', 'pricecheck', 'tiebreaker', 'scan', 'history'],
     drawerGroups: [
       { titleTh: 'คู่มือ', titleLo: 'ຄູ່ມື', items: ['sop'] },
-      { titleTh: 'Pan-O-Gram', titleLo: 'Pan-O-Gram', items: ['panogram'] },
+      { titleTh: 'Planogram', titleLo: 'Planogram', items: ['panogram'] },
       { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport', 'docsign'] },
       { titleTh: 'HORECA', titleLo: 'HORECA', items: ['horeca', 'membership'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -5192,7 +5192,7 @@ const MENU_CONFIG = {
     bottomTabs: ['stockcheck', 'pricecheck', 'scan', 'gapscan', 'history'],
     drawerGroups: [
       { titleTh: 'คู่มือ', titleLo: 'ຄູ່ມື', items: ['sop'] },
-      { titleTh: 'Pan-O-Gram', titleLo: 'Pan-O-Gram', items: ['panogram'] },
+      { titleTh: 'Planogram', titleLo: 'Planogram', items: ['panogram'] },
       { titleTh: 'งาน', titleLo: 'ງານ', items: ['workreport', 'docsign'] },
       { titleTh: 'HORECA', titleLo: 'HORECA', items: ['horeca', 'membership'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -5214,7 +5214,7 @@ const MENU_CONFIG = {
     bottomTabs: ['stockcheck', 'docsign', 'gapscan', 'pricecheck', 'tiebreaker', 'workflow'],
     drawerGroups: [
       { titleTh: 'คู่มือ', titleLo: 'ຄູ່ມື', items: ['sop'] },
-      { titleTh: 'Pan-O-Gram', titleLo: 'Pan-O-Gram', items: ['panogram', 'floormap'] },
+      { titleTh: 'Planogram', titleLo: 'Planogram', items: ['panogram', 'floormap'] },
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'shrinkage', 'checklist', 'templog', 'workreport', 'worktrack'] },
       { titleTh: 'งานรายวัน SC', titleLo: 'ງານປະຈຳວັນ SC', items: ['scdaily', 'scdailylog'] },
       { titleTh: 'Daily Brief', titleLo: 'Daily Brief', items: ['dailybrief', 'brieflog'] },
@@ -5227,7 +5227,7 @@ const MENU_CONFIG = {
     bottomTabs: ['stockcheck', 'pricecheck', 'gapreport'],
     drawerGroups: [
       { titleTh: 'คู่มือ', titleLo: 'ຄູ່ມື', items: ['sop'] },
-      { titleTh: 'Pan-O-Gram', titleLo: 'Pan-O-Gram', items: ['panogram', 'floormap'] },
+      { titleTh: 'Planogram', titleLo: 'Planogram', items: ['panogram', 'floormap'] },
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'shrinkage', 'checklist', 'templog', 'workreport', 'worktrack', 'tiebreaker'] },
       { titleTh: 'Daily Brief', titleLo: 'Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: 'ติดตามงาน SC', titleLo: 'ຕິດຕາມງານ SC', items: ['scdailylog'] },
@@ -5262,7 +5262,7 @@ const MENU_CONFIG = {
     bottomTabs: ['stockcheck', 'pricecheck', 'gapreport'],
     drawerGroups: [
       { titleTh: 'คู่มือ', titleLo: 'ຄູ່ມື', items: ['sop'] },
-      { titleTh: 'Pan-O-Gram', titleLo: 'Pan-O-Gram', items: ['panogram', 'floormap'] },
+      { titleTh: 'Planogram', titleLo: 'Planogram', items: ['panogram', 'floormap'] },
       { titleTh: 'ปฏิบัติงาน', titleLo: 'ປະຕິບັດງານ', items: ['expirytrack', 'shrinkage', 'checklist', 'templog', 'workreport', 'worktrack', 'tiebreaker'] },
       { titleTh: 'Daily Brief', titleLo: 'Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: 'ติดตามงาน SC', titleLo: 'ຕິດຕາມງານ SC', items: ['scdailylog'] },
@@ -5321,7 +5321,7 @@ const PAGE_META = {
   templog: { iconSvg: '<path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>', labelTh: 'อุณหภูมิตู้แช่', labelLo: 'ອຸນຫະພູມຕູ້ແຊ່', page: 'templog' },
   horeca: { iconSvg: '<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>', labelTh: 'HORECA Catalog', labelLo: 'HORECA Catalog', page: 'horeca' },
   promotion: { iconSvg: '<path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>', labelTh: 'Promotion', labelLo: 'Promotion', page: 'promotion' },
-  panogram: { iconSvg: '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/>', labelTh: 'Pan-O-Gram', labelLo: 'Pan-O-Gram', page: 'panogram' },
+  panogram: { iconSvg: '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/>', labelTh: 'Planogram', labelLo: 'Planogram', page: 'panogram' },
   menumanage: { iconSvg: '<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="2" fill="currentColor" stroke="none"/>', labelTh: 'จัดการเมนู', labelLo: 'ຈັດການເມນູ', page: 'menumanage' },
   rolemenu: { iconSvg: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>', labelTh: 'สิทธิ์ตามตำแหน่ง', labelLo: 'ສິດຕາມຕຳແໜ່ງ', page: 'rolemenu' },
   potrack: { iconSvg: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/><path d="M9 10h6M12 7v6"/>', labelTh: 'PO Tracking', labelLo: 'PO Tracking', page: 'potrack' },
@@ -6122,7 +6122,7 @@ async function lookupGapProduct(barcode) {
       return;
     }
     
-    // หา Pan-O-Gram (ความจุชั้นวาง + min/max/reorder) ของสินค้านี้ในตำแหน่งนี้
+    // หา Planogram (ความจุชั้นวาง + min/max/reorder) ของสินค้านี้ในตำแหน่งนี้
     let shelfCapacity = 0;
     let pogMinQty = 0;
     let pogMaxQty = 0;
@@ -6413,7 +6413,7 @@ function renderGapProductCard(product, shelfCapacity) {
         </div>
         ${pogReorderQty > 0 ? `
           <div style="font-size:9px;color:var(--slate-500);margin-top:3px;text-align:center;">
-            💡 ${isLao ? 'ແນະນຳ' : 'แนะนำ'}: ${pogReorderQty} ${unit} (${isLao ? 'ຈາກ Pan-O-Gram' : 'จาก Pan-O-Gram'})
+            💡 ${isLao ? 'ແນະນຳ' : 'แนะนำ'}: ${pogReorderQty} ${unit} (${isLao ? 'ຈາກ Planogram' : 'จาก Planogram'})
           </div>
         ` : ''}
       </div>
@@ -6989,9 +6989,9 @@ const AL_ACTION_META = {
   branch_delete:    { emoji: '🗑️', color: 'var(--rose-500)',   th: 'ลบสาขา', lo: 'ລຶບສາຂາ', grp: 'other' },
   toggle_count_menu:{ emoji: '🔀', color: 'var(--slate-500)',  th: 'สลับเมนูนับสต๊อก', lo: 'ສະລັບເມນູນັບສະຕ໊ອກ', grp: 'other' },
   menu_config:      { emoji: '🔧', color: 'var(--slate-600)',  th: 'จัดการเมนู', lo: 'ຈັດການເມນູ', grp: 'other' },
-  pog_done:         { emoji: '📐', color: 'var(--emerald-600)',th: 'Pan-O-Gram เสร็จ', lo: 'Pan-O-Gram ສຳເລັດ', grp: 'other' },
-  pog_swap:         { emoji: '🔄', color: 'var(--amber-500)',  th: 'Pan-O-Gram เปลี่ยนสินค้า', lo: 'Pan-O-Gram ປ່ຽນສິນຄ້າ', grp: 'other' },
-  pog_move:         { emoji: '➡️', color: 'var(--fs-blue)',    th: 'Pan-O-Gram ย้ายตำแหน่ง', lo: 'Pan-O-Gram ຍ້າຍຕຳແໜ່ງ', grp: 'other' },
+  pog_done:         { emoji: '📐', color: 'var(--emerald-600)',th: 'Planogram เสร็จ', lo: 'Planogram ສຳເລັດ', grp: 'other' },
+  pog_swap:         { emoji: '🔄', color: 'var(--amber-500)',  th: 'Planogram เปลี่ยนสินค้า', lo: 'Planogram ປ່ຽນສິນຄ້າ', grp: 'other' },
+  pog_move:         { emoji: '➡️', color: 'var(--fs-blue)',    th: 'Planogram ย้ายตำแหน่ง', lo: 'Planogram ຍ້າຍຕຳແໜ່ງ', grp: 'other' },
   test_cleanup:     { emoji: '🧹', color: 'var(--violet-600)', th: 'ล้างข้อมูลทดสอบ', lo: 'ລ້າງຂໍ້ມູນທົດສອບ', grp: 'other' }
 };
 // หัวข้อ (กลุ่ม) สำหรับ chip กรอง — ครบทุก action
@@ -10155,7 +10155,7 @@ async function prcSaveNoTag() {
 
 // รายการที่ถือว่า "ไม่มีป้าย": no_tag=true หรือ ไม่มี shelf_price (record เก่าก่อนมีคอลัมน์ no_tag → shelf=null) — ใช้กับ record ที่ !is_match แล้ว (matched เช็คก่อนหน้า) (Ball 2026-07-08)
 function prcNoTag(r) { return !!r.no_tag || r.shelf_price == null; }
-// จัดกลุ่ม location_code เป็น Gondola (reuse pogParseLoc เดิมของ Pan-O-Gram — ตัวเดียวกันทั้งแอป)
+// จัดกลุ่ม location_code เป็น Gondola (reuse pogParseLoc เดิมของ Planogram — ตัวเดียวกันทั้งแอป)
 function prcGondolaGroup(locationCode) {
   const isLao = lang === 'lo';
   if (!locationCode) return { key: 'zzzz', label: isLao ? 'ບໍ່ລະບຸ Gondola' : 'ไม่ระบุ Gondola' };
@@ -14054,7 +14054,7 @@ const PAGE_PERM_DESC = {
   workflow: { d: 'จัดการรอบนับสต๊อก' },
   dashboard: { d: 'แดชบอร์ดสรุปการนับ' },
   kpi: { d: 'ตัวชี้วัด KPI' },
-  performance: { d: 'ผลงานพนักงาน (นับ + Pan-O-Gram)' },
+  performance: { d: 'ผลงานพนักงาน (นับ + Planogram)' },
   health: { d: 'สุขภาพชั้นวาง (variance/gap ต่อ gondola)' },
   variance: { d: 'รายงานคาดเคลื่อน (นับ vs POS)' },
   mgrdash: { d: 'ภาพรวมทุกสาขา (ผู้จัดการ)' },
@@ -15919,7 +15919,7 @@ async function scLoadMdBadge(barcode, mdBcFromStatus, nameTh, nameLo) {
 }
 
 // ==================== SESSION 5: PANOGRAM PICKER (from Stock Check) ====================
-// เปิดฟอร์ม Pan-O-Gram เต็ม (reuse openPanOGramModal เดิม)
+// เปิดฟอร์ม Planogram เต็ม (reuse openPanOGramModal เดิม)
 // - ถ้ามีอยู่แล้ว → เปิดในโหมด edit ทันที (locationCode เดิม)
 // - ถ้ายังไม่มี → ให้เลือก location ก่อน → เปิดฟอร์ม insert
 
@@ -18210,7 +18210,7 @@ async function lookupProduct(barcode) {
             💡 ${isLao ? 'ໃຊ້ສຳລັບ' : 'ใช้สำหรับ'}:
           </div>
           <div style="margin-bottom:3px;">
-            • 📐 ${isLao ? 'ສ້າງ Pan-O-Gram (ສິນຄ້າ out of stock ແຕ່ມີຊັ້ນວາງ)' : 'สร้าง Pan-O-Gram (สินค้า out of stock แต่มีชั้นวาง)'}
+            • 📐 ${isLao ? 'ສ້າງ Planogram (ສິນຄ້າ out of stock ແຕ່ມີຊັ້ນວາງ)' : 'สร้าง Planogram (สินค้า out of stock แต่มีชั้นวาง)'}
           </div>
           <div style="margin-bottom:3px;">
             • 🔢 ${isLao ? 'ນັບສະຕ໋ອກ ສິນຄ້າທີ່ບໍ່ໄດ້ນຳເຂົ້າ POS' : 'นับสต๊อก สินค้าที่ไม่ได้นำเข้า POS'}
@@ -18345,7 +18345,7 @@ function renderProduct(p) {
       <div class="product-barcode">${p.barcode}</div>
       ${metaSection}
       
-      <!-- Pan-O-Gram section (จะโหลดข้อมูล async) -->
+      <!-- Planogram section (จะโหลดข้อมูล async) -->
       <div id="pogSection" style="margin-top:9px;"></div>
       
       <div class="count-section ${modeClass}">
@@ -18390,14 +18390,14 @@ function renderProduct(p) {
     })();
   }
 
-  // Async: โหลดข้อมูล Pan-O-Gram ของสินค้านี้ที่ location ปัจจุบัน
+  // Async: โหลดข้อมูล Planogram ของสินค้านี้ที่ location ปัจจุบัน
   if (canEditPog && loc?.location_code) {
     loadPanOGramForProduct(p, loc.location_code);
   }
 }
 
 // ==================== PAN-O-GRAM ====================
-// เก็บข้อมูล Pan-O-Gram ของ product ปัจจุบัน (cache ระหว่าง scan)
+// เก็บข้อมูล Planogram ของ product ปัจจุบัน (cache ระหว่าง scan)
 let _currentPog = null;
 
 async function loadPanOGramForProduct(product, locationCode) {
@@ -18406,7 +18406,7 @@ async function loadPanOGramForProduct(product, locationCode) {
   
   _currentPog = null;
   
-  // โหลด Pan-O-Gram ทุกตำแหน่งของสินค้านี้ใน branch
+  // โหลด Planogram ทุกตำแหน่งของสินค้านี้ใน branch
   // ไม่ filter location เพราะอยากเห็นถ้ามีหลาย location
   const { data, error } = await sb
     .from('pan_o_grams')
@@ -18418,7 +18418,7 @@ async function loadPanOGramForProduct(product, locationCode) {
     .order('seq_in_shelf');
   
   if (error) {
-    log('Load Pan-O-Gram error:', error);
+    log('Load Planogram error:', error);
     return;
   }
   
@@ -18432,7 +18432,7 @@ async function loadPanOGramForProduct(product, locationCode) {
     <div style="background:var(--fs-blue-tint);border:1px solid var(--violet-300);border-radius:10px;padding:9px 11px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">
         <div style="font-size:11px;font-weight:700;color:var(--violet-600);display:flex;align-items:center;gap:5px;">
-          📐 Pan-O-Gram
+          📐 Planogram
         </div>
         <button onclick="openPanOGramModal('${product.barcode}', '${locationCode}')" 
                 style="background:var(--violet-500);color:white;border:none;border-radius:5px;padding:4px 9px;font-size:10px;font-weight:700;cursor:pointer;">
@@ -18443,7 +18443,7 @@ async function loadPanOGramForProduct(product, locationCode) {
   
   if (atCurrent.length === 0 && atOthers.length === 0) {
     html += `<div style="font-size:10px;color:var(--slate-500);font-style:italic;">
-      ${isLao ? 'ຍັງບໍ່ມີຂໍ້ມູນ Pan-O-Gram ສຳລັບສິນຄ້ານີ້' : 'ยังไม่มีข้อมูล Pan-O-Gram สำหรับสินค้านี้'}
+      ${isLao ? 'ຍັງບໍ່ມີຂໍ້ມູນ Planogram ສຳລັບສິນຄ້ານີ້' : 'ยังไม่มีข้อมูล Planogram สำหรับสินค้านี้'}
     </div>`;
   } else {
     // แสดงตำแหน่งใน location ปัจจุบัน
@@ -18481,9 +18481,9 @@ async function loadPanOGramForProduct(product, locationCode) {
   // Cache เพื่อใช้ใน save
   _currentPog = atCurrent[0] || null;
 
-  // ⛔ 2026-08-18 (Ball): เลิก "auto-open Pan-O-Gram modal" ตอนนับ
-  //    สินค้าที่ยังไม่อยู่ใน Pan-O-Gram ของ Gondola นี้ → นับได้เลย ไม่ต้องเด้งฟอร์มแก้ตำแหน่ง
-  //    (ทำให้พนักงานสับสน + ล่าช้า) · ไปกำหนดตำแหน่งตอนทำ Pan-O-Gram ใหม่แทน
+  // ⛔ 2026-08-18 (Ball): เลิก "auto-open Planogram modal" ตอนนับ
+  //    สินค้าที่ยังไม่อยู่ใน Planogram ของ Gondola นี้ → นับได้เลย ไม่ต้องเด้งฟอร์มแก้ตำแหน่ง
+  //    (ทำให้พนักงานสับสน + ล่าช้า) · ไปกำหนดตำแหน่งตอนทำ Planogram ใหม่แทน
   //    ยังมีปุ่ม "+ สร้าง/เพิ่มตำแหน่ง" ในการ์ดให้กดเองถ้าต้องการ
 }
 
@@ -18506,14 +18506,14 @@ function renderPogChip(pog, isCurrent) {
   `;
 }
 
-// Apply Pan-O-Gram expected quantity to count input
+// Apply Planogram expected quantity to count input
 function usePogExpected(qty) {
   const inp = document.getElementById('countInput');
   if (inp) {
     inp.value = qty;
     inp.focus();
     inp.select();
-    showToast(`✅ ${lang === 'lo' ? 'ໃຊ້ຄ່າ Pan-O-Gram' : 'ใช้ค่า Pan-O-Gram'}: ${qty}`, 'success');
+    showToast(`✅ ${lang === 'lo' ? 'ໃຊ້ຄ່າ Planogram' : 'ใช้ค่า Planogram'}: ${qty}`, 'success');
   }
 }
 
@@ -18590,7 +18590,7 @@ async function openPanOGramModal(barcode, locationCode, editId = null, presetShe
   
   showModal(`
     <h3 style="display:flex;align-items:center;gap:7px;">
-      📐 Pan-O-Gram
+      📐 Planogram
       ${isEdit ? `<span style="background:var(--amber-500);color:white;padding:2px 7px;border-radius:4px;font-size:10px;">${isLao ? 'ແກ້ໄຂ' : 'แก้ไข'}</span>` : ''}
     </h3>
     
@@ -18690,8 +18690,8 @@ async function openPanOGramModal(barcode, locationCode, editId = null, presetShe
       <span style="font-size:14px;">ℹ️</span>
       <div style="flex:1;line-height:1.4;">
         ${isLao 
-          ? `<strong>ລະດັບສະຕ໋ອກ</strong>: Max & Reorder = ${(existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1)} (ອັດຕະໂນມັດ) • Min = ${existing?.min_qty ?? 0}<br><span style="color:var(--violet-600);">⚙️ ປັບໄດ້ໃນ "ຈັດການ Pan-O-Gram"</span>` 
-          : `<strong>ระดับสต๊อก</strong>: Max & Reorder = ${(existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1)} (อัตโนมัติ) • Min = ${existing?.min_qty ?? 0}<br><span style="color:var(--violet-600);">⚙️ ปรับได้ในหน้า "จัดการ Pan-O-Gram"</span>`}
+          ? `<strong>ລະດັບສະຕ໋ອກ</strong>: Max & Reorder = ${(existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1)} (ອັດຕະໂນມັດ) • Min = ${existing?.min_qty ?? 0}<br><span style="color:var(--violet-600);">⚙️ ປັບໄດ້ໃນ "ຈັດການ Planogram"</span>` 
+          : `<strong>ระดับสต๊อก</strong>: Max & Reorder = ${(existing?.facial || 1) * (existing?.depth || 1) * (existing?.stack || 1)} (อัตโนมัติ) • Min = ${existing?.min_qty ?? 0}<br><span style="color:var(--violet-600);">⚙️ ปรับได้ในหน้า "จัดการ Planogram"</span>`}
       </div>
     </div>
     
@@ -18723,7 +18723,7 @@ async function openPanOGramModal(barcode, locationCode, editId = null, presetShe
       <div style="text-align:center;margin-top:8px;">
         <button onclick="dismissPogModal('${barcode}', '${locationCode}', true)" 
                 style="background:none;border:none;color:var(--slate-400);font-size:10px;cursor:pointer;text-decoration:underline;">
-          ${isLao ? 'ບໍ່ສ້າງ Pan-O-Gram ສຳລັບສິນຄ້ານີ້' : 'ไม่สร้าง Pan-O-Gram สำหรับสินค้านี้'}
+          ${isLao ? 'ບໍ່ສ້າງ Planogram ສຳລັບສິນຄ້ານີ້' : 'ไม่สร้าง Planogram สำหรับสินค้านี้'}
         </button>
       </div>
     ` : ''}
@@ -18927,9 +18927,9 @@ async function savePanOGram(barcode, locationCode, editId) {
     } catch (e2) {}
 
     closeModal();
-    // hook สำหรับหน้า Pan-O-Gram ใหม่ (รีเฟรชลิสต์ Gondola ที่กำลังกำหนด)
+    // hook สำหรับหน้า Planogram ใหม่ (รีเฟรชลิสต์ Gondola ที่กำลังกำหนด)
     if (typeof window._pogAfterSave === 'function') { try { window._pogAfterSave(); } catch (e2) {} }
-    // Refresh Pan-O-Gram section (หน้าตรวจสต๊อก)
+    // Refresh Planogram section (หน้าตรวจสต๊อก)
     if (curProduct) {
       try { loadPanOGramForProduct(curProduct, locationCode); } catch (e2) {}
     }
@@ -18951,7 +18951,7 @@ async function deletePanOGram(id) {
     .maybeSingle();
   
   if (!pog) {
-    showToast(isLao ? 'ບໍ່ພົບ Pan-O-Gram' : 'ไม่พบ Pan-O-Gram', 'error');
+    showToast(isLao ? 'ບໍ່ພົບ Planogram' : 'ไม่พบ Planogram', 'error');
     return;
   }
   
@@ -18960,8 +18960,8 @@ async function deletePanOGram(id) {
     : (pog.products?.name_th || pog.products?.name_lo || pog.barcode);
   
   const confirmMsg = isLao
-    ? `🗑️ ລົບ Pan-O-Gram?\n\nສິນຄ້າ: ${prodName}\nຕຳແໜ່ງ: ${pog.location_code} ຊັ້ນ${pog.shelf} ລຳດັບ${pog.seq_in_shelf}\nຄວາມຈຸ: ${pog.total_qty} ຊິ້ນ\n\n⚠️ ການລົບ Pan-O-Gram ບໍ່ກະທົບກັບການນັບສະຕ໋ອກທີ່ບັນທຶກໄວ້ແລ້ວ`
-    : `🗑️ ลบ Pan-O-Gram?\n\nสินค้า: ${prodName}\nตำแหน่ง: ${pog.location_code} ชั้น${pog.shelf} ลำดับ${pog.seq_in_shelf}\nความจุ: ${pog.total_qty} ชิ้น\n\n⚠️ การลบ Pan-O-Gram ไม่กระทบกับการนับสต๊อกที่บันทึกไว้แล้ว`;
+    ? `🗑️ ລົບ Planogram?\n\nສິນຄ້າ: ${prodName}\nຕຳແໜ່ງ: ${pog.location_code} ຊັ້ນ${pog.shelf} ລຳດັບ${pog.seq_in_shelf}\nຄວາມຈຸ: ${pog.total_qty} ຊິ້ນ\n\n⚠️ ການລົບ Planogram ບໍ່ກະທົບກັບການນັບສະຕ໋ອກທີ່ບັນທຶກໄວ້ແລ້ວ`
+    : `🗑️ ลบ Planogram?\n\nสินค้า: ${prodName}\nตำแหน่ง: ${pog.location_code} ชั้น${pog.shelf} ลำดับ${pog.seq_in_shelf}\nความจุ: ${pog.total_qty} ชิ้น\n\n⚠️ การลบ Planogram ไม่กระทบกับการนับสต๊อกที่บันทึกไว้แล้ว`;
   
   if (!confirm(confirmMsg)) return;
   
@@ -18977,7 +18977,7 @@ async function deletePanOGram(id) {
   }
 }
 
-// ==================== แก้ไขสินค้าใน Pan-O-Gram: เปลี่ยนสินค้า / ย้ายตำแหน่ง ====================
+// ==================== แก้ไขสินค้าใน Planogram: เปลี่ยนสินค้า / ย้ายตำแหน่ง ====================
 function pogRefreshAfterEdit(locationCode) {
   if (typeof window._pogAfterSave === 'function') { try { window._pogAfterSave(); } catch (e) {} }
   if (typeof curProduct !== 'undefined' && curProduct) { try { loadPanOGramForProduct(curProduct, locationCode); } catch (e) {} }
@@ -19063,7 +19063,7 @@ async function pogMoveConfirm(id, curLoc) {
   } catch (e) { setErr((e && e.message) || String(e)); }
 }
 
-// ==================== หน้า Pan-O-Gram (เมนูแยก: กำหนดตำแหน่งสินค้าต่อ Gondola ก่อนนับสต๊อก) ====================
+// ==================== หน้า Planogram (เมนูแยก: กำหนดตำแหน่งสินค้าต่อ Gondola ก่อนนับสต๊อก) ====================
 let _pogView = 'board';        // 'board' | 'assign'
 let _pogLoc = null;            // location_code ที่กำลังกำหนด
 let _pogShelfSel = 1;          // ชั้นที่เลือกในโหมด assign
@@ -19074,7 +19074,7 @@ let _pogAssign = { items: [], nameMap: {}, done: null, creators: {} };
 function pogCanAssign() { return ['admin', 'scc', 'bcs', 'ctl', 'verifier', 'counter', 'audit'].includes(user && user.role); }
 function pogCanComplete() { return ['admin', 'scc', 'bcs', 'ctl'].includes(user && user.role); }
 function pogCanSummary() { return ['admin', 'scc', 'bcs', 'ctl'].includes(user && user.role); }
-// จัดการ Pan-O-Gram เต็ม (แก้/ย้าย/สลับ/ลบตำแหน่ง + Export + ความจุชั้น) — Ball 2026-07-27: bcs ขึ้นไป (รวม ctl + IT)
+// จัดการ Planogram เต็ม (แก้/ย้าย/สลับ/ลบตำแหน่ง + Export + ความจุชั้น) — Ball 2026-07-27: bcs ขึ้นไป (รวม ctl + IT)
 function pogCanManage() { return ['admin', 'scc', 'bcs', 'ctl', 'it'].includes(user && user.role); }
 // จัดกลุ่ม location_code (สำเนา logic จาก parseLocationCode ที่ซ่อนใน scope อื่น)
 function pogParseLoc(code) {
@@ -19090,7 +19090,7 @@ function renderPanoGramPage() {
   const brName = isLao ? (branch.name_lo || branch.name_th || branch.code) : (branch.name_th || branch.name_lo || branch.code);
   return `
     <div style="margin-bottom:11px;">
-      <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">📐 Pan-O-Gram</h2>
+      <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">📐 Planogram</h2>
       <p style="font-size:11px;color:var(--slate-500);margin:0;">${isLao ? 'ກຳນົດຕຳແໜ່ງສິນຄ້າຕໍ່ Gondola ກ່ອນນັບສະຕ໋ອກ' : 'กำหนดตำแหน่งสินค้าต่อ Gondola ก่อนนับสต๊อก'} • 🏪 ${escapeHtml(brName)}</p>
     </div>
     ${pogCanSummary() ? `<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
@@ -19099,7 +19099,7 @@ function renderPanoGramPage() {
       <button onclick="pogOpenGondolaShort()" style="flex:1 1 30%;background:#fff7ed;color:var(--fs-orange);border:1px solid var(--amber-200,#fcd34d);border-radius:9px;padding:9px 5px;font-size:11.5px;font-weight:800;cursor:pointer;">🩺 ${isLao ? 'ຂາດຕໍ່ Gondola' : 'ขาดต่อ Gondola'}</button>
     </div>` : ''}
     ${pogCanManage() ? `<div style="background:white;border:1.5px solid var(--violet-500);border-radius:12px;padding:12px;margin-bottom:10px;">
-      <button class="btn" style="background:var(--fs-blue);color:white;font-size:12.5px;padding:11px;width:100%;margin-bottom:7px;font-weight:800;cursor:pointer;" onclick="openPanOGramManager()">📋 ${isLao ? 'ຈັດການ Pan-O-Gram (ແກ້/ຍ້າຍ/ລຶບ)' : 'จัดการ Pan-O-Gram (แก้/ย้าย/ลบ)'}</button>
+      <button class="btn" style="background:var(--fs-blue);color:white;font-size:12.5px;padding:11px;width:100%;margin-bottom:7px;font-weight:800;cursor:pointer;" onclick="openPanOGramManager()">📋 ${isLao ? 'ຈັດການ Planogram (ແກ້/ຍ້າຍ/ລຶບ)' : 'จัดการ Planogram (แก้/ย้าย/ลบ)'}</button>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:7px;">
         <button class="btn btn-secondary" style="font-size:11px;padding:9px;cursor:pointer;" onclick="exportPanOGramExcel()">📥 Export Excel</button>
         <button class="btn btn-secondary" style="font-size:11px;padding:9px;cursor:pointer;" onclick="openPrecountReport()">📊 ${isLao ? 'ຄວາມຈຸຊັ້ນ' : 'ความจุชั้น'}</button>
@@ -19344,7 +19344,7 @@ async function pogToggleDone(mk) {
 // สรุปความคืบหน้ารายสาขา (ผู้จัดการ)
 async function pogOpenSummary() {
   const isLao = lang === 'lo';
-  showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><h3 style="font-size:15px;margin:0;">📊 ' + (isLao ? 'ສະຫຼຸບ Pan-O-Gram ລາຍສາຂາ' : 'สรุป Pan-O-Gram รายสาขา') + '</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
+  showModal('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><h3 style="font-size:15px;margin:0;">📊 ' + (isLao ? 'ສະຫຼຸບ Planogram ລາຍສາຂາ' : 'สรุป Planogram รายสาขา') + '</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
     + '<div id="pogSumBody"><div class="loader" style="margin:14px auto;"></div></div>');
   try {
     // ดึงให้ครบทุกแถว (กัน limit 1000 — location_master ทุกสาขารวมกันเกิน 1000)
@@ -19729,7 +19729,7 @@ async function openPanOGramManager() {
   
   showModal(`
     <h3 style="display:flex;align-items:center;gap:7px;">
-      📐 ${isLao ? 'ຈັດການ Pan-O-Gram' : 'จัดการ Pan-O-Gram'}
+      📐 ${isLao ? 'ຈັດການ Planogram' : 'จัดการ Planogram'}
       <span style="font-size:11px;color:var(--slate-500);font-weight:500;margin-left:auto;">
         ${branch?.code || ''}
       </span>
@@ -19762,7 +19762,7 @@ async function openPanOGramManager() {
 async function loadPanOGramManager() {
   if (!branch) return;
   
-  // Load all Pan-O-Grams for this branch + products info — fetchAllQuery กัน limit 1000 (สาขาใหญ่เกิน)
+  // Load all Planograms for this branch + products info — fetchAllQuery กัน limit 1000 (สาขาใหญ่เกิน)
   let pogs = null, error = null;
   try {
     pogs = await fetchAllQuery(() => sb
@@ -19848,10 +19848,10 @@ function renderPanOGramManager() {
       <div style="text-align:center;padding:40px 20px;color:var(--slate-400);">
         <div style="font-size:48px;margin-bottom:11px;">📐</div>
         <div style="font-size:13px;font-weight:700;margin-bottom:5px;">
-          ${isLao ? 'ຍັງບໍ່ມີຂໍ້ມູນ Pan-O-Gram' : 'ยังไม่มีข้อมูล Pan-O-Gram'}
+          ${isLao ? 'ຍັງບໍ່ມີຂໍ້ມູນ Planogram' : 'ยังไม่มีข้อมูล Planogram'}
         </div>
         <div style="font-size:11px;">
-          ${isLao ? 'ໄປທີ່ Scan → ຍິງສິນຄ້າ → ກົດ Pan-O-Gram' : 'ไปที่ Scan → ยิงสินค้า → กดปุ่ม Pan-O-Gram'}
+          ${isLao ? 'ໄປທີ່ Scan → ຍິງສິນຄ້າ → ກົດ Planogram' : 'ไปที่ Scan → ยิงสินค้า → กดปุ่ม Planogram'}
         </div>
       </div>
     `;
@@ -20157,7 +20157,7 @@ function renderPogVisualLayout(items) {
   return html;
 }
 
-// ---------- Export รูป Pan-O-Gram (Canvas PNG เลียนแบบภาพในแอป แยกตาม Gondola) ----------
+// ---------- Export รูป Planogram (Canvas PNG เลียนแบบภาพในแอป แยกตาม Gondola) ----------
 function pogMgrFilteredItems() {
   let f = _pogManagerData || [];
   const fl = _pogManagerFilter || {};
@@ -20287,7 +20287,7 @@ function setPogView(view) {
 let _pogMgrSelected = new Set();
 
 // ==================== EDIT STOCK LEVELS (Admin only) ====================
-// เปิด modal สำหรับปรับ Min/Max/Reorder ของ Pan-O-Gram ทีละรายการ
+// เปิด modal สำหรับปรับ Min/Max/Reorder ของ Planogram ทีละรายการ
 async function openEditStockLevels(pogId) {
   const isLao = lang === 'lo';
   
@@ -20528,8 +20528,8 @@ async function bulkDeletePog() {
   const more = items.length > 5 ? `\n... +${items.length - 5} ${isLao ? 'ອື່ນໆ' : 'อื่นๆ'}` : '';
   
   const msg = isLao 
-    ? `ລົບ ${items.length} ຕຳແໜ່ງ Pan-O-Gram?\n\n${preview}${more}`
-    : `ลบ ${items.length} ตำแหน่ง Pan-O-Gram?\n\n${preview}${more}`;
+    ? `ລົບ ${items.length} ຕຳແໜ່ງ Planogram?\n\n${preview}${more}`
+    : `ลบ ${items.length} ตำแหน่ง Planogram?\n\n${preview}${more}`;
   
   if (!confirm(msg)) return;
   
@@ -20592,7 +20592,7 @@ async function bulkMovePogToLocation() {
   const sourceLocs = [...new Set(items.map(p => p.location_code))];
   
   showModal(`
-    <h3>🔄 ${isLao ? 'ຍ້າຍ Pan-O-Gram' : 'ย้าย Pan-O-Gram'}</h3>
+    <h3>🔄 ${isLao ? 'ຍ້າຍ Planogram' : 'ย้าย Planogram'}</h3>
     
     <div style="background:var(--violet-100);border-left:3px solid var(--violet-500);padding:9px 11px;border-radius:7px;margin-bottom:11px;">
       <div style="font-size:11px;color:var(--violet-600);font-weight:700;margin-bottom:5px;">
@@ -20745,7 +20745,7 @@ async function openEditPogLocationModal(currentLocCode) {
         📍 ${isLao ? 'ຈາກ' : 'จาก'}: <strong style="font-family:'Space Grotesk',monospace;">${currentLocCode}</strong>
       </div>
       <div style="font-size:10px;color:var(--slate-700);">
-        ${itemsInLoc.length} ${isLao ? 'ຕຳແໜ່ງ Pan-O-Gram' : 'ตำแหน่ง Pan-O-Gram'}
+        ${itemsInLoc.length} ${isLao ? 'ຕຳແໜ່ງ Planogram' : 'ตำแหน่ง Planogram'}
       </div>
     </div>
     
@@ -20802,8 +20802,8 @@ async function confirmEditPogLocation(fromLocCode, toLocCode) {
   const items = (_pogManagerData || []).filter(p => p.location_code === fromLocCode);
   
   if (!confirm(isLao 
-    ? `ປ່ຽນ ${items.length} ຕຳແໜ່ງ Pan-O-Gram\n\n${fromLocCode} → ${toLocCode}?`
-    : `เปลี่ยน ${items.length} ตำแหน่ง Pan-O-Gram\n\n${fromLocCode} → ${toLocCode}?`)) return;
+    ? `ປ່ຽນ ${items.length} ຕຳແໜ່ງ Planogram\n\n${fromLocCode} → ${toLocCode}?`
+    : `เปลี่ยน ${items.length} ตำแหน่ง Planogram\n\n${fromLocCode} → ${toLocCode}?`)) return;
   
   showToast(isLao ? '⏳ ກຳລັງປ່ຽນ...' : '⏳ กำลังเปลี่ยน...', 'success');
   
@@ -20907,7 +20907,7 @@ async function exportPanOGramExcel() {
 
     const wb = XLSX.utils.book_new();
     
-    // Sheet 1: Pan-O-Gram (รายละเอียดเต็ม)
+    // Sheet 1: Planogram (รายละเอียดเต็ม)
     const sheet1 = [
       ['ID (ห้ามแก้)', 'Location', 'Shelf', 'Seq', 'Total in Shelf', 'Position Code',
        'Barcode', 'Name LO', 'Name TH', 'Unit',
@@ -20946,7 +20946,7 @@ async function exportPanOGramExcel() {
       {wch:8},{wch:11},{wch:13},{wch:18},{wch:18}
     ];
     _xlsxComma(ws1);
-    XLSX.utils.book_append_sheet(wb, ws1, 'Pan-O-Gram');
+    XLSX.utils.book_append_sheet(wb, ws1, 'Planogram');
     
     // Sheet 2: Shelf Capacity Template (สำหรับ Counter ใช้นับ)
     const sheet2 = [
@@ -21045,18 +21045,18 @@ async function exportPanOGramExcel() {
     _xlsxComma(ws4);
     XLSX.utils.book_append_sheet(wb, ws4, 'สั่งสินค้า');
     
-    const fileName = `Pan-O-Gram_${branch.code}_${new Date().toISOString().slice(0,10)}.xlsx`;
+    const fileName = `Planogram_${branch.code}_${new Date().toISOString().slice(0,10)}.xlsx`;
     XLSX.writeFile(wb, fileName);
     
     showToast(`✅ ${isLao ? 'ດາວໂຫລດແລ້ວ' : 'ดาวน์โหลดแล้ว'} (${pogs.length} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'})`, 'success');
   } catch (e) {
-    console.error('[FS] Export Pan-O-Gram error:', e);
+    console.error('[FS] Export Planogram error:', e);
     showToast('Error: ' + e.message, 'error');
   }
 }
 
 // ==================== PAN-O-GRAM IMPORT (แก้ไฟล์ export แล้วนำเข้ากลับ) ====================
-// อ่านชีต "Pan-O-Gram" → จับคู่ด้วย ID → อัปเดตเฉพาะแถวของ "สาขาที่เลือกอยู่" (ปลอดภัย: ไม่แตะสาขาอื่น/ไม่สร้างแถวใหม่)
+// อ่านชีต "Planogram" → จับคู่ด้วย ID → อัปเดตเฉพาะแถวของ "สาขาที่เลือกอยู่" (ปลอดภัย: ไม่แตะสาขาอื่น/ไม่สร้างแถวใหม่)
 let _pogImportRows = null;
 function pogImportExcel() {
   if (!pogCanManage()) { showToast(lang === 'lo' ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'warning'); return; }
@@ -21079,7 +21079,7 @@ async function pogImportParse(file) {
     const wb = XLSX.read(buf, { type: 'array' });
     const wsName = wb.SheetNames.find(n => /pan.?o.?gram/i.test(n)) || wb.SheetNames[0];
     const ws = wb.Sheets[wsName];
-    if (!ws) { showToast(isLao ? 'ບໍ່ພົບຊີດ Pan-O-Gram' : 'ไม่พบชีต Pan-O-Gram', 'error'); return; }
+    if (!ws) { showToast(isLao ? 'ບໍ່ພົບຊີດ Planogram' : 'ไม่พบชีต Planogram', 'error'); return; }
     const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
     if (aoa.length < 2) { showToast(isLao ? 'ໄຟລ໌ຫວ່າງ' : 'ไฟล์ว่าง', 'warning'); return; }
     const header = aoa[0].map(h => String(h || '').trim().toLowerCase());
@@ -21155,7 +21155,7 @@ async function pogImportParse(file) {
       ? `<div style="background:#fff7ed;border:1px solid var(--amber-200,#fcd34d);color:#b45309;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:11px;">⚠️ ${isLao ? 'ຂ້າມ ' : 'ข้าม '}${notInBranch} ${isLao ? 'ແຖວ (ID ບໍ່ແມ່ນຂອງສາຂານີ້ — ອາດເປັນໄຟລ໌ຄົນລະສາຂາ)' : 'แถว (ID ไม่ใช่ของสาขานี้ — อาจเป็นไฟล์คนละสาขา)'}</div>`
       : '';
     showModal(
-      `<h3 style="display:flex;align-items:center;gap:7px;">📥 ${isLao ? 'ນຳເຂົ້າ Pan-O-Gram' : 'นำเข้า Pan-O-Gram'}</h3>
+      `<h3 style="display:flex;align-items:center;gap:7px;">📥 ${isLao ? 'ນຳເຂົ້າ Planogram' : 'นำเข้า Planogram'}</h3>
        <div style="background:var(--slate-50);border-radius:9px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.9;">
          <div>🏪 ${isLao ? 'ສາຂາ' : 'สาขา'}: <strong>${escapeHtml(brName)}</strong></div>
          <div>📄 ${isLao ? 'ແຖວໃນໄຟລ໌' : 'แถวในไฟล์'}: <strong>${aoa.length - 1}</strong></div>
@@ -21171,7 +21171,7 @@ async function pogImportParse(file) {
        </div>`
     );
   } catch (e) {
-    console.error('[FS] Import Pan-O-Gram error:', e);
+    console.error('[FS] Import Planogram error:', e);
     showToast('Error: ' + (e.message || e), 'error');
   }
 }
@@ -21227,8 +21227,8 @@ async function openPrecountReport() {
     
     <div style="background:var(--violet-100);border-left:3px solid var(--violet-500);padding:8px 11px;border-radius:7px;margin-bottom:11px;font-size:10px;color:var(--slate-700);line-height:1.5;">
       💡 ${isLao 
-        ? 'ຈຳນວນສິນຄ້າທີ່ຊັ້ນວາງສາມາດເກັບໄດ້ ຕາມຜັງ Pan-O-Gram (ບໍ່ແມ່ນຈຳນວນຈິງໃນ POS)' 
-        : 'จำนวนสินค้าที่ชั้นวางสามารถเก็บได้ ตามผัง Pan-O-Gram (ไม่ใช่จำนวนจริงใน POS)'}
+        ? 'ຈຳນວນສິນຄ້າທີ່ຊັ້ນວາງສາມາດເກັບໄດ້ ຕາມຜັງ Planogram (ບໍ່ແມ່ນຈຳນວນຈິງໃນ POS)' 
+        : 'จำนวนสินค้าที่ชั้นวางสามารถเก็บได้ ตามผัง Planogram (ไม่ใช่จำนวนจริงใน POS)'}
     </div>
     
     <div id="precountLoader" style="text-align:center;padding:25px;color:var(--slate-400);">
@@ -21263,7 +21263,7 @@ async function loadPrecountReport() {
     if (!pogs || pogs.length === 0) {
       document.getElementById('precountLoader').innerHTML = `
         <div style="text-align:center;color:var(--slate-400);font-size:11px;">
-          ${isLao ? 'ບໍ່ມີຂໍ້ມູນ Pan-O-Gram' : 'ไม่มีข้อมูล Pan-O-Gram'}
+          ${isLao ? 'ບໍ່ມີຂໍ້ມູນ Planogram' : 'ไม่มีข้อมูล Planogram'}
         </div>
       `;
       return;
@@ -21311,7 +21311,7 @@ async function loadPrecountReport() {
             <div style="font-size:18px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;">${totals.locations}</div>
           </div>
           <div style="background:white;padding:7px;border-radius:7px;">
-            <div style="font-size:9px;color:var(--slate-500);">Pan-O-Gram</div>
+            <div style="font-size:9px;color:var(--slate-500);">Planogram</div>
             <div style="font-size:18px;font-weight:800;color:var(--sky-600);font-family:'Space Grotesk',monospace;">${totals.positions}</div>
           </div>
           <div style="background:white;padding:7px;border-radius:7px;">
@@ -21375,7 +21375,7 @@ const BACKUP_TABLES = [
   { key: 'products',         label_lo: 'ສິນຄ້າ',         label_th: 'สินค้า',        icon: '📦', branchField: 'branch_id' },
   { key: 'zones',            label_lo: 'ໂຊນ',            label_th: 'โซน',           icon: '🎨', branchField: 'branch_id' },
   { key: 'location_master',  label_lo: 'ຕຳແໜ່ງ',         label_th: 'ตำแหน่ง',       icon: '📍', branchField: 'branch_id' },
-  { key: 'pan_o_grams',      label_lo: 'Pan-O-Gram',     label_th: 'Pan-O-Gram',    icon: '📐', branchField: 'branch_id' },
+  { key: 'pan_o_grams',      label_lo: 'Planogram',     label_th: 'Planogram',    icon: '📐', branchField: 'branch_id' },
   { key: 'stock_counts',     label_lo: 'ການນັບ',          label_th: 'การนับ',        icon: '🔢', branchField: 'branch_id' },
   { key: 'stock_sessions',   label_lo: 'Sessions',       label_th: 'Sessions',      icon: '📋', branchField: 'branch_id' },
   { key: 'users',            label_lo: 'ຜູ້ໃຊ້',          label_th: 'ผู้ใช้',         icon: '👥', branchField: null },
@@ -22614,8 +22614,8 @@ async function toggleBranchUseZones() {
       : `เปิดระบบโซน สำหรับ ${branchName}?\n\nCounter จะต้องเลือกโซนก่อนสแกน`;
   } else {
     msg = isLao 
-      ? `ປິດລະບົບໂຊນ ສຳລັບ ${branchName}?\n\n✅ Counter ສະແກນໄດ້ໄວຂຶ້ນ ບໍ່ຕ້ອງເລືອກໂຊນ\n✅ ໂຊນທີ່ມີຍັງເກັບໄວ້ (ບໍ່ໄດ້ລົບ)\n✅ Pan-O-Gram + Stock Counts ຍັງເຮັດວຽກປົກກະຕິ`
-      : `ปิดระบบโซน สำหรับ ${branchName}?\n\n✅ Counter สแกนได้เร็วขึ้น ไม่ต้องเลือกโซน\n✅ โซนที่มียังเก็บไว้ (ไม่ได้ลบ)\n✅ Pan-O-Gram + Stock Counts ยังทำงานปกติ`;
+      ? `ປິດລະບົບໂຊນ ສຳລັບ ${branchName}?\n\n✅ Counter ສະແກນໄດ້ໄວຂຶ້ນ ບໍ່ຕ້ອງເລືອກໂຊນ\n✅ ໂຊນທີ່ມີຍັງເກັບໄວ້ (ບໍ່ໄດ້ລົບ)\n✅ Planogram + Stock Counts ຍັງເຮັດວຽກປົກກະຕິ`
+      : `ปิดระบบโซน สำหรับ ${branchName}?\n\n✅ Counter สแกนได้เร็วขึ้น ไม่ต้องเลือกโซน\n✅ โซนที่มียังเก็บไว้ (ไม่ได้ลบ)\n✅ Planogram + Stock Counts ยังทำงานปกติ`;
   }
   
   if (!confirm(msg)) return;
@@ -23460,7 +23460,7 @@ function renderHistoryPage() {
       </button>
       <button id="histSubTabPog" onclick="switchHistorySubTab('pog')" 
               style="flex:1;padding:9px;border:none;border-radius:8px;background:transparent;color:var(--slate-600);font-weight:700;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all 0.2s;">
-        📐 <span>Pan-O-Gram</span>
+        📐 <span>Planogram</span>
         <span id="histSubBadgePog" style="background:var(--slate-300);color:var(--slate-700);padding:1px 7px;border-radius:8px;font-size:10px;">0</span>
       </button>
       <button id="histSubTabWork" onclick="switchHistorySubTab('work')" 
@@ -23489,11 +23489,11 @@ function renderHistoryPage() {
       </div>
     </div>
     
-    <!-- Pan-O-Gram Section -->
+    <!-- Planogram Section -->
     <div id="histSecPog" style="display:none;">
       <div class="history-card">
         <div class="section-title" style="color:var(--violet-600);">
-          📐 ${isLao ? 'Pan-O-Gram ທີ່ຂ້ອຍສ້າງ' : 'Pan-O-Gram ที่ฉันสร้าง'}
+          📐 ${isLao ? 'Planogram ທີ່ຂ້ອຍສ້າງ' : 'Planogram ที่ฉันสร้าง'}
           <span class="badge" id="histPogCount" style="background:var(--violet-100);color:var(--violet-600);">0</span>
         </div>
         <div style="padding:7px 14px;display:flex;gap:7px;align-items:center;">
@@ -23665,10 +23665,10 @@ function renderHistoryPogList(items) {
       <div style="text-align:center;padding:40px 20px;color:var(--slate-400);">
         <div style="font-size:36px;margin-bottom:8px;">📐</div>
         <div style="font-size:12px;font-weight:700;margin-bottom:3px;">
-          ${isLao ? 'ຍັງບໍ່ມີ Pan-O-Gram' : 'ยังไม่มี Pan-O-Gram'}
+          ${isLao ? 'ຍັງບໍ່ມີ Planogram' : 'ยังไม่มี Planogram'}
         </div>
         <div style="font-size:10px;">
-          ${isLao ? 'ໄປທີ່ Scan → ຍິງສິນຄ້າ → ສ້າງ Pan-O-Gram' : 'ไปที่ Scan → ยิงสินค้า → สร้าง Pan-O-Gram'}
+          ${isLao ? 'ໄປທີ່ Scan → ຍິງສິນຄ້າ → ສ້າງ Planogram' : 'ไปที่ Scan → ยิงสินค้า → สร้าง Planogram'}
         </div>
       </div>
     `;
@@ -23729,11 +23729,11 @@ async function loadHistory() {
   
   log('Loading history for user:', user.id);
   
-  // Reset Pan-O-Gram cache when loading history
+  // Reset Planogram cache when loading history
   window._historyPogLoaded = false;
   _historySubTab = 'counts';
   
-  // Update Pan-O-Gram badge in tab header
+  // Update Planogram badge in tab header
   loadHistoryPogBadge();
   
   const { data, error } = await sb.from('stock_counts')
@@ -24105,7 +24105,7 @@ function renderTiebreakerPage() {
   `;
 }
 
-let _tbMode = 'loc'; // หน้าตัดสิน: 'loc'=group ตามตำแหน่ง Pan-O-Gram · 'diff'=เรียงตาม diff มาก→น้อย
+let _tbMode = 'loc'; // หน้าตัดสิน: 'loc'=group ตามตำแหน่ง Planogram · 'diff'=เรียงตาม diff มาก→น้อย
 async function loadTiebreakerList() {
   if (!session) return;
 
@@ -24125,7 +24125,7 @@ async function loadTiebreakerList() {
   log('Tiebreaker items:', items.length);
   window._tbItems = items;
 
-  // ข้อ 3: ดึงตำแหน่งชั้น Pan-O-Gram ของสินค้าในลิสต์ (batch, chunk กัน .in เกิน) → โชว์ว่าอยู่ชั้น/ลำดับไหน
+  // ข้อ 3: ดึงตำแหน่งชั้น Planogram ของสินค้าในลิสต์ (batch, chunk กัน .in เกิน) → โชว์ว่าอยู่ชั้น/ลำดับไหน
   window._tbPogMap = {};
   try {
     const pids = [...new Set(items.map(i => i.product_id).filter(Boolean))];
@@ -24163,7 +24163,7 @@ function renderTiebreakerList() {
   const absDiff = it => Math.abs(it.cv_diff || 0);
   const absVal  = it => Math.abs(Number(it.cv_value_diff || 0));
 
-  // การ์ด 1 ใบ (โชว์ตำแหน่ง Pan-O-Gram — ข้อ 3)
+  // การ์ด 1 ใบ (โชว์ตำแหน่ง Planogram — ข้อ 3)
   const card = (item) => {
     const name = isLao ? (item.name_lo || item.name_th) : (item.name_th || item.name_lo);
     const diff = absDiff(item);
@@ -24223,7 +24223,7 @@ function renderTiebreakerList() {
     return;
   }
 
-  // โหมด loc: group ตามตำแหน่ง Pan-O-Gram → กลุ่มเรียงตาม diff สูงสุดในกลุ่ม · ในกลุ่มเรียง diff มาก→น้อย (ข้อ 5)
+  // โหมด loc: group ตามตำแหน่ง Planogram → กลุ่มเรียงตาม diff สูงสุดในกลุ่ม · ในกลุ่มเรียง diff มาก→น้อย (ข้อ 5)
   // จับกลุ่มตาม "ฐาน gondola" → ชั้น + พื้น ของ gondola เดียวกันอยู่กลุ่มเดียว (พื้น = การ์ดมีป้าย 📦พื้น)
   const groups = {};
   items.forEach(it => { const k = floorBaseCode(it.location_code || '') || '__none__'; (groups[k] = groups[k] || []).push(it); });
@@ -25074,7 +25074,7 @@ function calcVarianceLevel(pct, value) {
   return 'L1';
 }
 
-// 📍 ดึง "ตำแหน่ง (Gondola) ที่สินค้าควรอยู่" จาก Pan-O-Gram → map product_id → Set(ฐาน gondola)
+// 📍 ดึง "ตำแหน่ง (Gondola) ที่สินค้าควรอยู่" จาก Planogram → map product_id → Set(ฐาน gondola)
 //    ใช้เช็คว่านับครบทุกจุดหรือยัง (กัน Diff หลอกตอนนับหลาย gondola ยังไม่ครบ)
 async function fetchExpectedGondolas(productIds) {
   const map = {};
@@ -25177,7 +25177,7 @@ async function computeVarianceItems(periodOverride) {
       else if (c.count_role === 'manager_final') put('manager', 'managerLocs');
     });
 
-    // 📍 ตำแหน่งที่สินค้าควรอยู่ (Pan-O-Gram) → เช็คว่านับครบทุก gondola หรือยัง
+    // 📍 ตำแหน่งที่สินค้าควรอยู่ (Planogram) → เช็คว่านับครบทุก gondola หรือยัง
     const _expMap = await fetchExpectedGondolas((counts || []).map(c => c.product_id));
 
     // Calculate variance for each product
@@ -25198,7 +25198,7 @@ async function computeVarianceItems(periodOverride) {
       const locCount = locSet.size;
       const hasFloor = [...locSet].some(isFloorCode);  // 📦 มีการนับที่ "พื้น (นอกชั้น)" ของ gondola นี้หรือไม่
 
-      // 📍 นับครบทุกจุดหรือยัง? — เทียบ gondola ที่นับ (ฐาน) กับที่ Pan-O-Gram กำหนด
+      // 📍 นับครบทุกจุดหรือยัง? — เทียบ gondola ที่นับ (ฐาน) กับที่ Planogram กำหนด
       //    ยังไม่ครบ → กันสรุป Diff หลอก (POS = ยอดรวมทั้งสาขา แต่ยังนับได้บางจุด)
       const countedGons = new Set([...locSet].map(lk => floorBaseCode(String(lk || '').toUpperCase().trim())).filter(Boolean));
       const expectedSet = _expMap[p.product_id] || null;
@@ -25208,7 +25208,7 @@ async function computeVarianceItems(periodOverride) {
         missingLocs = [...expectedSet].filter(g => !countedGons.has(g));
         isComplete = missingLocs.length === 0;
       } else {
-        // ไม่มีใน Pan-O-Gram → สรุปตามที่นับ (ถือว่าครบ)
+        // ไม่มีใน Planogram → สรุปตามที่นับ (ถือว่าครบ)
         expectedLocs = countedLocs;
         isComplete = true;
       }
@@ -25258,10 +25258,10 @@ async function computeVarianceItems(periodOverride) {
         needsRecount,
         locCount,          // จำนวนตำแหน่งที่รวมยอด (>1 = นับหลาย gondola)
         hasFloor,          // 📦 มีการนับที่พื้น (นอกชั้น)
-        isComplete,        // ✅ นับครบทุก gondola ที่ Pan-O-Gram กำหนดหรือยัง (false = ยังไม่สรุป Diff)
-        expectedLocs,      // จำนวน gondola ที่ควรนับ (จาก Pan-O-Gram)
+        isComplete,        // ✅ นับครบทุก gondola ที่ Planogram กำหนดหรือยัง (false = ยังไม่สรุป Diff)
+        expectedLocs,      // จำนวน gondola ที่ควรนับ (จาก Planogram)
         countedLocs,       // จำนวน gondola ที่นับแล้ว (ฐาน)
-        missingGons: missingLocs,  // gondola ที่ Pan-O-Gram มี แต่ยังไม่ได้นับ (ใช้ปุ่ม "สรุปเลย")
+        missingGons: missingLocs,  // gondola ที่ Planogram มี แต่ยังไม่ได้นับ (ใช้ปุ่ม "สรุปเลย")
         isOrphan  // 🔥 flag สำหรับแสดงเตือน
       };
     });
@@ -25864,7 +25864,7 @@ function renderVariancePending(isLao) {
     </details>`;
 }
 
-// ✓ "สรุปเลย" — จุดที่ Pan-O-Gram มีแต่ยังไม่ได้นับ = ไม่มีของแล้ว → บันทึก 0 ให้ครบ แล้วสรุป Diff (CTL/BCS)
+// ✓ "สรุปเลย" — จุดที่ Planogram มีแต่ยังไม่ได้นับ = ไม่มีของแล้ว → บันทึก 0 ให้ครบ แล้วสรุป Diff (CTL/BCS)
 function concludePendingProduct(productId) {
   const p = (_variancePending || []).find(x => x.product_id === productId);
   if (!p) return;
@@ -26564,7 +26564,7 @@ async function loadPerformance() {
       if (day) perUser[uid].dailyTotals[day] = (perUser[uid].dailyTotals[day] || 0) + 1;
     });
 
-    // 📐 สรุปงาน Pan-O-Gram ที่พนักงานสร้างในช่วง 30 วัน (ตาม scope เดียวกับการนับ) — fetchAllQuery กัน limit 1000
+    // 📐 สรุปงาน Planogram ที่พนักงานสร้างในช่วง 30 วัน (ตาม scope เดียวกับการนับ) — fetchAllQuery กัน limit 1000
     try {
       const pogs = await fetchAllQuery(() => {
         let pq = sb.from('pan_o_grams').select('created_by, created_at').gte('created_at', since).not('created_by', 'is', null);
@@ -26699,7 +26699,7 @@ function renderMyCard(me, rank, totalUsers) {
     </div>
     <div style="background:rgba(0,0,0,0.15);border-radius:9px;padding:9px;text-align:center;font-size:12px;font-weight:700;">
       ${isLao ? 'ອັນດັບ' : 'อันดับ'}: ${rankBadge} ${isLao ? 'ຈາກ' : 'จาก'} ${totalUsers} ${isLao ? 'ຄົນ' : 'คน'}
-      <span style="opacity:0.85;margin-left:8px;">📐 Pan-O-Gram: ${me.pogCount || 0} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}</span>
+      <span style="opacity:0.85;margin-left:8px;">📐 Planogram: ${me.pogCount || 0} ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}</span>
     </div>
   `;
 }
@@ -30299,7 +30299,7 @@ async function loadFloorMap() {
   
   log('Loading floor map for branch:', branch.id);
   
-  // Parallel: floor map data + Pan-O-Gram counts + Gap counts per location — fetchAllQuery กัน limit 1000
+  // Parallel: floor map data + Planogram counts + Gap counts per location — fetchAllQuery กัน limit 1000
   const _fw = p => p.then(rows => ({ data: rows })).catch(() => ({ data: [] }));
   const [fmRes, pogRes, gapRes] = await Promise.all([
     sb.rpc('get_floor_map_data', { p_branch_id: branch.id }),
@@ -30373,9 +30373,9 @@ function renderFloorMapContent(data) {
       progress = `<div class="fm-progress">${counted}</div>`;
     }
     
-    // Pan-O-Gram badge — แสดงเมื่อมี PoG ใน location นี้
+    // Planogram badge — แสดงเมื่อมี PoG ใน location นี้
     const pogBadge = pogCount > 0 ? `
-      <div class="fm-pog-badge" title="${pogCount} Pan-O-Gram positions">
+      <div class="fm-pog-badge" title="${pogCount} Planogram positions">
         📐${pogCount}
       </div>
     ` : '';
@@ -30390,7 +30390,7 @@ function renderFloorMapContent(data) {
     return `
       <div class="fm-cell s-${status} ${hasIssues} ${pogCount > 0 ? 'has-pog' : ''} ${hasGap ? 'has-gap' : ''}" 
            onclick="onFloorMapCellClick('${item.location_code}', '${status}')"
-           title="${item.location_code} - ${T('status_'+status)}${item.counter_name ? ' • Counter: '+escapeHtml(item.counter_name) : ''}${item.verifier_name ? ' • Verifier: '+escapeHtml(item.verifier_name) : ''}${issues>0 ? ' • Issues: '+issues : ''}${pogCount>0 ? ' • 📐 Pan-O-Gram: '+pogCount : ''}${hasGap ? ' • 🛒 Gap: '+gapInfo.total : ''}">
+           title="${item.location_code} - ${T('status_'+status)}${item.counter_name ? ' • Counter: '+escapeHtml(item.counter_name) : ''}${item.verifier_name ? ' • Verifier: '+escapeHtml(item.verifier_name) : ''}${issues>0 ? ' • Issues: '+issues : ''}${pogCount>0 ? ' • 📐 Planogram: '+pogCount : ''}${hasGap ? ' • 🛒 Gap: '+gapInfo.total : ''}">
         ${pogBadge}
         ${gapBadge}
         <div class="fm-code">${item.location_code}</div>
@@ -30516,7 +30516,7 @@ function renderFloorMapContent(data) {
               ${inProgress > 0 ? `<span class="fm-group-stat-tl" title="In Progress">⏳ ${inProgress}</span>` : ''}
               ${pendingItems > 0 ? `<span class="fm-group-stat-am" title="Pending">⏸ ${pendingItems}</span>` : ''}
               ${issuesCount > 0 ? `<span class="fm-group-stat-rs" title="Issues">⚠️ ${issuesCount}</span>` : ''}
-              ${pogCount > 0 ? `<span class="fm-group-stat-vt" title="Has Pan-O-Gram">📐 ${pogCount}</span>` : ''}
+              ${pogCount > 0 ? `<span class="fm-group-stat-vt" title="Has Planogram">📐 ${pogCount}</span>` : ''}
             </div>
           </div>
           <div class="${gridClass}">${group.items.map(renderCell).join('')}</div>
@@ -31358,8 +31358,8 @@ async function openEditGondolaModal(locationCode) {
              style="text-transform:uppercase;text-align:center;letter-spacing:2px;font-weight:700;font-size:15px;">
       <div style="font-size:9px;color:var(--amber-500);margin-top:3px;line-height:1.4;">
         ⚠️ ${isLao 
-          ? 'ການປ່ຽນ code ຈະອັບເດດໝົດ: Pan-O-Gram, Stock Counts ທີ່ໃຊ້ code ນີ້' 
-          : 'การเปลี่ยน code จะอัปเดตทั้งหมด: Pan-O-Gram, Stock Counts ที่ใช้ code นี้'}
+          ? 'ການປ່ຽນ code ຈະອັບເດດໝົດ: Planogram, Stock Counts ທີ່ໃຊ້ code ນີ້' 
+          : 'การเปลี่ยน code จะอัปเดตทั้งหมด: Planogram, Stock Counts ที่ใช้ code นี้'}
       </div>
     </div>
     
@@ -31403,7 +31403,7 @@ async function openEditGondolaModal(locationCode) {
     ${(pogCount > 0 || countsCount > 0) ? `
       <div style="background:var(--amber-100);border-left:3px solid var(--amber-500);padding:8px 11px;border-radius:7px;margin-bottom:11px;font-size:11px;color:#92400e;">
         ⚠️ ${isLao ? 'ມີຂໍ້ມູນຜູກພັນ' : 'มีข้อมูลผูกพัน'}:
-        ${pogCount > 0 ? `<br>📐 Pan-O-Gram: <strong>${pogCount}</strong>` : ''}
+        ${pogCount > 0 ? `<br>📐 Planogram: <strong>${pogCount}</strong>` : ''}
         ${countsCount > 0 ? `<br>🔢 Stock Counts: <strong>${countsCount}</strong>` : ''}
       </div>
     ` : ''}
@@ -31561,7 +31561,7 @@ async function confirmDeleteGondola(locationCode) {
           ⚠️ ${isLao ? 'ມີຂໍ້ມູນຜູກພັນ' : 'มีข้อมูลผูกพัน'}:
         </div>
         <div style="font-size:11px;color:#92400e;line-height:1.6;">
-          ${pogCount > 0 ? `<div>📐 Pan-O-Gram: <strong>${pogCount}</strong> ${isLao ? 'ຕຳແໜ່ງ ຈະຖືກລົບ' : 'ตำแหน่ง จะถูกลบ'}</div>` : ''}
+          ${pogCount > 0 ? `<div>📐 Planogram: <strong>${pogCount}</strong> ${isLao ? 'ຕຳແໜ່ງ ຈະຖືກລົບ' : 'ตำแหน่ง จะถูกลบ'}</div>` : ''}
           ${countsCount > 0 ? `<div style="color:var(--rose-500);">🔢 Stock Counts: <strong>${countsCount}</strong> ${isLao ? 'ການນັບ ຈະຄົງຢູ່ ແຕ່ບໍ່ມີຕຳແໜ່ງ' : 'การนับ จะยังคงอยู่ แต่ไม่มีตำแหน่ง'}</div>` : ''}
         </div>
       </div>
@@ -31835,7 +31835,7 @@ async function showLocationDetail(locationCode) {
   // Pivot: รวม count rows ของ product เดียวกันเป็น 1 บรรทัด
   const pivoted = pivotByProduct(items, usersById);
 
-  // 📍 สินค้าที่วางหลาย Gondola (จาก Pan-O-Gram) → ซ่อน Diff ในหน้านี้ (เทียบ POS รวมทั้งสาขาไม่ได้ ให้ไปดูรายงานคลาดเคลื่อน)
+  // 📍 สินค้าที่วางหลาย Gondola (จาก Planogram) → ซ่อน Diff ในหน้านี้ (เทียบ POS รวมทั้งสาขาไม่ได้ ให้ไปดูรายงานคลาดเคลื่อน)
   try {
     const _expMap = await fetchExpectedGondolas(pivoted.map(pr => pr.product_id));
     pivoted.forEach(pr => {
@@ -33161,14 +33161,14 @@ function renderSettingsPage() {
     ` : ''}
     
     ${['admin', 'scc', 'bcs', 'ctl', 'verifier', 'counter'].includes(user.role) ? `
-    <!-- Pan-O-Gram Management -->
+    <!-- Planogram Management -->
     <div style="background:white;border:2px solid var(--violet-500);border-radius:14px;padding:16px;margin-top:14px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
         <div style="background:var(--fs-blue);color:white;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">
           📐
         </div>
         <div style="flex:1;min-width:0;">
-          <div style="font-weight:700;color:var(--violet-600);font-size:14px;">Pan-O-Gram</div>
+          <div style="font-weight:700;color:var(--violet-600);font-size:14px;">Planogram</div>
           <div style="font-size:11px;color:var(--slate-500);">
             ${lang === 'lo' ? 'ຈັດການແຜນຜັງ + ຄວາມຈຸຊັ້ນວາງ' : 'จัดการแผนผัง + ความจุชั้นวาง'}
           </div>
@@ -33179,7 +33179,7 @@ function renderSettingsPage() {
       </div>
       
       <button class="btn" style="background:var(--fs-blue);color:white;font-size:12px;padding:11px;width:100%;margin-bottom:7px;" onclick="openPanOGramManager()">
-        📋 ${lang === 'lo' ? 'ຈັດການ Pan-O-Gram' : 'จัดการ Pan-O-Gram'}
+        📋 ${lang === 'lo' ? 'ຈັດການ Planogram' : 'จัดการ Planogram'}
       </button>
       
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
@@ -33193,8 +33193,8 @@ function renderSettingsPage() {
       
       <div style="font-size:10px;color:var(--slate-500);margin-top:8px;line-height:1.5;">
         💡 ${lang === 'lo' 
-          ? 'Pan-O-Gram = ຜັງສິນຄ້າຕາມຊັ້ນວາງ • ຄວາມຈຸຊັ້ນ = ຈຳນວນທີ່ຊັ້ນສາມາດເກັບໄດ້ຕາມຜັງ' 
-          : 'Pan-O-Gram = ผังสินค้าตามชั้นวาง • ความจุชั้น = จำนวนที่ชั้นเก็บได้ตามผัง'}
+          ? 'Planogram = ຜັງສິນຄ້າຕາມຊັ້ນວາງ • ຄວາມຈຸຊັ້ນ = ຈຳນວນທີ່ຊັ້ນສາມາດເກັບໄດ້ຕາມຜັງ' 
+          : 'Planogram = ผังสินค้าตามชั้นวาง • ความจุชั้น = จำนวนที่ชั้นเก็บได้ตามผัง'}
       </div>
     </div>
     ` : ''}
@@ -33397,7 +33397,7 @@ async function loadSettingsStats() {
     .select('*', { count: 'exact', head: true })
     .eq('branch_id', branch.id);
   
-  // Count Pan-O-Grams
+  // Count Planograms
   const { data: pogs } = await sb.from('pan_o_grams')
     .select('total_qty')
     .eq('branch_id', branch.id);
@@ -39245,7 +39245,7 @@ async function ptagResolveNames(items) {
     items.forEach(function (it) { if (map[it.barcode]) it.name = map[it.barcode]; });
   } catch (e) {}   // หาไม่ได้ = คงชื่อเดิมไว้ ดีกว่าป้ายว่าง
 }
-// เติมโค้ด Pan-O-Gram เต็ม (position_code = location_code-shelf-seq-total) จาก pan_o_grams ของสาขาปัจจุบัน
+// เติมโค้ด Planogram เต็ม (position_code = location_code-shelf-seq-total) จาก pan_o_grams ของสาขาปัจจุบัน
 async function ptagResolveLocations(items) {
   try {
     if (!branch || !items || !items.length) return;
@@ -39261,7 +39261,7 @@ async function ptagResolveLocations(items) {
     rows.forEach(function (r) { (byBc[r.barcode] = byBc[r.barcode] || []).push(r); });
     items.forEach(function (it) {
       const list = byBc[it.barcode];
-      if (!list || !list.length) return;   // ไม่มีใน Pan-O-Gram → คง location_code เดิม (fallback)
+      if (!list || !list.length) return;   // ไม่มีใน Planogram → คง location_code เดิม (fallback)
       let pick = it.locCode ? list.find(function (r) { return r.location_code === it.locCode; }) : null;
       pick = pick || list[0];
       if (pick && pick.position_code) it.location = pick.position_code;
@@ -39286,7 +39286,7 @@ function ptagTagHtml(item, cfg, fill) {
   if (c.showBarcode) html += '<svg class="ptag-bc" data-code="' + escapeHtml(item.barcode || '') + '"></svg>';
   else html += '<div style="font-family:monospace;font-size:' + c.codeSize + 'px;">' + escapeHtml(item.barcode || '') + '</div>';
   html += '</div>';
-  // ขวาล่าง: Kip/Unit (เล็ก) + Location (ตำแหน่ง Pan-O-Gram, ตัวเด่น)
+  // ขวาล่าง: Kip/Unit (เล็ก) + Location (ตำแหน่ง Planogram, ตัวเด่น)
   let right = '';
   if (c.showUnitLabel && c.unitLabel) right += '<div style="font-size:' + c.unitSize + 'px;line-height:1.1;">' + escapeHtml(c.unitLabel) + '</div>';
   if (c.showLocation && item.location) right += '<div style="font-size:' + c.locSize + 'px;font-weight:800;line-height:1.15;">' + escapeHtml(item.location) + '</div>';
@@ -39407,7 +39407,7 @@ function ptagOpenSettings() {
     + '<div style="font-size:11px;font-weight:800;color:var(--slate-400);margin:10px 0 8px;">' + (isLao ? 'ຂໍ້ຄວາມ' : 'ข้อความ') + '</div>'
     + txt('unitLabel', (isLao ? 'ປ້າຍໜ່ວຍ (ຂວາລ່າງ)' : 'ป้ายหน่วย (ขวาล่าง)')) + txt('dateLabel', (isLao ? 'ປ້າຍວັນທີ (ຊ້າຍລ່າງ)' : 'ป้ายวันที่ (ซ้ายล่าง)'))
     + '<div style="font-size:11px;font-weight:800;color:var(--slate-400);margin:10px 0 8px;">' + (isLao ? 'ສະແດງ' : 'แสดง') + '</div>'
-    + chk('showName', (isLao ? 'ຊື່ສິນຄ້າ' : 'ชื่อสินค้า')) + chk('showBarcode', (isLao ? 'ບາໂຄດ' : 'บาร์โค้ด')) + chk('showPrice', (isLao ? 'ລາຄາ' : 'ราคา')) + chk('showLocation', (isLao ? 'Location (ຕຳແໜ່ງ Pan-O-Gram)' : 'Location (ตำแหน่ง Pan-O-Gram)')) + chk('showUnitLabel', 'Kip/Unit') + chk('showDate', (isLao ? 'ວັນທີ (FS.EX)' : 'วันที่ (FS.EX)')) + chk('showHeader', (isLao ? 'ຫົວກະດາດ A4' : 'หัวกระดาษ A4'))
+    + chk('showName', (isLao ? 'ຊື່ສິນຄ້າ' : 'ชื่อสินค้า')) + chk('showBarcode', (isLao ? 'ບາໂຄດ' : 'บาร์โค้ด')) + chk('showPrice', (isLao ? 'ລາຄາ' : 'ราคา')) + chk('showLocation', (isLao ? 'Location (ຕຳແໜ່ງ Planogram)' : 'Location (ตำแหน่ง Planogram)')) + chk('showUnitLabel', 'Kip/Unit') + chk('showDate', (isLao ? 'ວັນທີ (FS.EX)' : 'วันที่ (FS.EX)')) + chk('showHeader', (isLao ? 'ຫົວກະດາດ A4' : 'หัวกระดาษ A4'))
     + '</div>'
     + '<button onclick="ptagSaveSettings()" style="width:100%;margin-top:10px;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">💾 ' + (isLao ? 'ບັນທຶກ' : 'บันทึก') + '</button>'
   );
