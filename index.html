@@ -8948,7 +8948,8 @@ async function roCalc() {
       // override โดยผู้ใช้ (ถ้ากรอก) — ทับทุกรายการ
       if (leadOv != null) { lead = leadOv; rule = (isLao ? 'ກຳນົດເອງ' : 'กำหนดเอง'); }
       if (cycleOv != null) { cycle = cycleOv; rule = (isLao ? 'ກຳນົດເອງ' : 'กำหนดเอง'); }
-      const pos = Number(p.pos_qty) || 0;
+      // ปิดการขาย (is_active=false) → POS นับเป็น 0 (pos_qty เดิมค้าง = สต๊อกผี · ให้ตรงหน้าเช็คสต๊อก/Planogram · MEMORY 7)
+      const pos = (p && p.is_active === false) ? 0 : (Number(p.pos_qty) || 0);
       const minStock = c.daily * lead;
       const maxStock = minStock + c.daily * cycle;
       let need = Math.ceil(maxStock - pos);
