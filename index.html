@@ -9118,7 +9118,7 @@ async function roExport() {
     const wb = new ExcelJS.Workbook();
     const HEAD_FILL = 'FF1E3A8A', RED_FILL = 'FFFECACA', RED_INK = 'FFB91C1C';
     // A Barcode·B ชื่อ·C NameLO·D ประเภท·E กลุ่ม·F หน่วย·G POS·H Status·I AVG/วัน·J DOH·K ใน/นอก·L Lead·M Cycle·N Min·O Max·P ต่ำกว่าMin·Q ซื้อล่าสุด·R แนะนำสั่ง·S Panogram·T แพ๊คไซส์·U สั่ง(ลัง)·V สั่ง(ชิ้น)·W DOHหลังสั่ง·X ต้นทุน·Y มูลค่าสั่ง·Z บาร์โค้ดลัง·AA TOP
-    const headers = ['Barcode', 'ชื่อสินค้า', 'Name LO', 'ประเภทสินค้า', 'กลุ่มสินค้า', 'หน่วย', 'POS', 'Status', 'AVG/วัน', 'DOH (วัน)', 'ใน/นอก', 'Lead', 'Cycle', 'Min Stock', 'Max Stock', 'ต่ำกว่า Min', 'ซื้อล่าสุด', 'แนะนำสั่ง (Unit)', 'Panogram', 'แพ๊คไซส์ (ชิ้น/ลัง)', 'สั่ง (ลัง)', 'สั่ง (ชิ้น)', 'DOH หลังสั่ง (วัน)', 'ต้นทุน (₭)', 'มูลค่าการสั่ง (₭)', 'บาร์โค้ดลัง', 'TOP'];
+    const headers = ['Barcode', 'ชื่อสินค้า', 'ซัพพลายเออร์', 'ประเภทสินค้า', 'กลุ่มสินค้า', 'หน่วย', 'POS', 'Status', 'AVG/วัน', 'DOH (วัน)', 'ใน/นอก', 'Lead', 'Cycle', 'Min Stock', 'Max Stock', 'ต่ำกว่า Min', 'ซื้อล่าสุด', 'แนะนำสั่ง (Unit)', 'Panogram', 'แพ๊คไซส์ (ชิ้น/ลัง)', 'สั่ง (ลัง)', 'สั่ง (ชิ้น)', 'DOH หลังสั่ง (วัน)', 'ต้นทุน (₭)', 'มูลค่าการสั่ง (₭)', 'บาร์โค้ดลัง', 'TOP'];
     const LANG_I = 20, PCS_I = 21, DOH2_I = 22, VAL_I = 24;   // สั่ง(ลัง)=U · สั่ง(ชิ้น)=V · DOHหลังสั่ง=W · มูลค่า=Y
     const widths = [14, 26, 20, 14, 14, 8, 8, 14, 9, 9, 8, 7, 7, 10, 10, 10, 12, 14, 11, 13, 10, 11, 15, 13, 15, 14, 6];
     const byBuyer = {};
@@ -9132,6 +9132,7 @@ async function roExport() {
       hr.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       hr.alignment = { vertical: 'middle', wrapText: true };
       hr.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEAD_FILL } }; });
+      hr.getCell(LANG_I + 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF59E0B' } };   // หัว "สั่ง(ลัง)" = ส้ม (ช่องแก้ไขได้)
       byBuyer[bk].forEach(r => {
         const rn = ws.rowCount + 1;
         const dayAvg = Math.round(r.daily * 10) / 10;
@@ -9143,14 +9144,15 @@ async function roExport() {
         const dohCell = { formula: 'IF(I' + rn + '<=0,"",ROUND((G' + rn + '+V' + rn + ')/I' + rn + ',0))', result: dohAfterVal };
         const valCell = { formula: 'V' + rn + '*X' + rn, result: (r.orderFinal * (r.cost || 0)) };
         const row = ws.addRow([
-          r.barcode, r.nameTh || r.name, r.nameLo || '', r.cat || '', r.grp || '', r.unit,
+          r.barcode, r.nameLo || r.nameTh || r.name, r.supplier || '', r.cat || '', r.grp || '', r.unit,
           r.pos, psCalcStatus(r.pos, r.monthly).th, dayAvg, (r.pos <= 0 ? 0 : Math.round(r.doh * 10) / 10),
           r.inOut || '', r.lead || '', r.cycle || '', r.minStock || 0, r.maxStock || 0, r.belowMin ? '🔴' : '',
           r.lastBuy ? roFmtDate(r.lastBuy) : '', r.orderUnits, r.planoCap || 0, pcb, langQty, pcsCell,
           dohCell, r.cost || 0, valCell,
           (r.bpRec && (r.bpRec.barcode_box || r.bpRec.barcode_pack)) || '', r.top || ''
         ]);
-        row.getCell(VAL_I + 1).numFmt = '#,##0'; row.getCell(DOH2_I + 1).numFmt = '#,##0'; row.getCell(PCS_I + 1).numFmt = '#,##0'; row.getCell(LANG_I + 1).numFmt = '#,##0';
+        row.getCell(VAL_I + 1).numFmt = '#,##0'; row.getCell(DOH2_I + 1).numFmt = '#,##0'; row.getCell(PCS_I + 1).numFmt = '#,##0';
+        const lc = row.getCell(LANG_I + 1); lc.numFmt = '#,##0'; lc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } }; lc.font = { bold: true, color: { argb: 'FF92400E' } };   // สั่ง(ลัง) = เหลืองอ่อน (ช่องแก้ไขได้)
         if (typeof dohAfterVal === 'number' && dohAfterVal > 90) {   // DOH หลังสั่ง > 90 วัน = สั่งมากไป → แดง
           const c = row.getCell(DOH2_I + 1); c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: RED_FILL } }; c.font = { bold: true, color: { argb: RED_INK } };
         }
@@ -19500,12 +19502,15 @@ async function pogExportShort() {
     const HEAD_FILL = 'FF1E3A8A', RED_FILL = 'FFFECACA', RED_INK = 'FFB91C1C';
     const redCell = (row, idx) => { const c = row.getCell(idx + 1); c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: RED_FILL } }; c.font = { bold: true, color: { argb: RED_INK } }; };
     // สร้าง 1 sheet: หัว + แถวข้อมูล · mkArr(r, excelRowNo) คืน array (ช่องสูตรใส่เป็น {formula,result}) · decorate = ไฮไลต์
-    const buildSheet = (ws, headers, dataRows, widths, mkArr, decorate) => {
+    const AMBER_FILL = 'FFFEF3C7', AMBER_INK = 'FF92400E';
+    const amberCell = (row, idx) => { const c = row.getCell(idx + 1); c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: AMBER_FILL } }; c.font = { bold: true, color: { argb: AMBER_INK } }; };
+    const buildSheet = (ws, headers, dataRows, widths, mkArr, decorate, langI) => {
       widths.forEach((w, i) => ws.getColumn(i + 1).width = w);
       const hr = ws.addRow(headers);
       hr.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       hr.alignment = { vertical: 'middle', wrapText: true };
       hr.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEAD_FILL } }; });
+      if (langI != null) hr.getCell(langI + 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF59E0B' } };   // หัว "สั่ง(ลัง)" = ส้ม (ช่องแก้ไขได้)
       dataRows.forEach(r => { const rn = ws.rowCount + 1; const row = ws.addRow(mkArr(r, rn)); decorate(row, r); });
       ws.views = [{ state: 'frozen', ySplit: 1 }];
     };
@@ -19533,10 +19538,11 @@ async function pogExportShort() {
         };
         const decorate = (row, r) => {
           row.getCell(ORD_I + 1).numFmt = '#,##0'; row.getCell(DOH_I + 1).numFmt = '#,##0';
+          amberCell(row, 10);                                        // สั่ง(ลัง) = เหลือง (ช่องแก้ไขได้)
           if (!(r.avgMonthly > 0)) redCell(row, AVG_I);              // ไม่มียอดขาย → AVG=0 แดง
           if (typeof r.dohAfter === 'number' && r.dohAfter > 90) redCell(row, DOH_I);
         };
-        buildSheet(ws, headers, g.rows, widths, mkArr, decorate);
+        buildSheet(ws, headers, g.rows, widths, mkArr, decorate, 10);
       });
     } else {
       // รวมสาขา: sheet เดียว
@@ -19554,10 +19560,11 @@ async function pogExportShort() {
       };
       const decorate = (row, r) => {
         row.getCell(ORD_I + 1).numFmt = '#,##0'; row.getCell(DOH_I + 1).numFmt = '#,##0';
+        amberCell(row, 11);                                        // สั่ง(ลัง) = เหลือง (ช่องแก้ไขได้)
         if (!(r.avgMonthly > 0)) redCell(row, AVG_I);
         if (typeof r.dohAfter === 'number' && r.dohAfter > 90) redCell(row, DOH_I);
       };
-      buildSheet(ws, headers, _pogShortData.sum, widths, mkArr, decorate);
+      buildSheet(ws, headers, _pogShortData.sum, widths, mkArr, decorate, 11);
     }
     if (typeof _exceljsComma === 'function') _exceljsComma(wb);
     const buffer = await wb.xlsx.writeBuffer();
