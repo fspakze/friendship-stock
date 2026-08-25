@@ -9161,7 +9161,7 @@ async function roExport() {
         const valCell = { formula: 'V' + rn + '*X' + rn, result: (r.orderFinal * (r.cost || 0)) };
         const arr = [
           r.barcode, r.nameLo || r.nameTh || r.name, r.supplier || '', r.cat || '', r.grp || '', r.unit,
-          r.pos, psCalcStatus(r.pos, r.monthly).th, dayAvg, (r.pos <= 0 ? 0 : Math.round(r.doh * 10) / 10),
+          r.pos, (r.pos <= 0 ? 'Out of Stock' : psCalcStatus(r.pos, r.monthly).th), dayAvg, (r.pos <= 0 ? 0 : Math.round(r.doh * 10) / 10),
           r.inOut || '', r.lead || '', r.cycle || '', r.minStock || 0, r.maxStock || 0, r.belowMin ? '🔴' : '',
           r.lastBuy ? roFmtDate(r.lastBuy) : '', r.orderUnits, r.planoCap || 0, pcb, langQty, pcsCell,
           dohCell, r.cost || 0, valCell,
@@ -9177,6 +9177,9 @@ async function roExport() {
         }
         if (!(r.planoCap > 0)) {   // Planogram = 0 (ยังไม่ได้กำหนดชั้นวาง) → แดง
           const pc = row.getCell(PLANO_I + 1); pc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: RED_FILL } }; pc.font = { bold: true, color: { argb: RED_INK } };
+        }
+        if (r.pos <= 0) {   // ของหมด → Status = "Out of Stock" ไฮไลต์แดง (กรอง/เห็นชัด)
+          const sc = row.getCell(8); sc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: RED_FILL } }; sc.font = { bold: true, color: { argb: RED_INK } };
         }
       });
       ws.views = [{ state: 'frozen', ySplit: 1 }];
