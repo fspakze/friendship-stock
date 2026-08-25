@@ -8887,10 +8887,12 @@ async function roCalc() {
     const candBc = new Set(cand.map(c => c.barcode));
     const oosProdMap = {};
     try {
-      const oosProd = await fetchAllQuery(() => sb.from('products').select('barcode,name_th,name_lo,pos_qty,cost_price,unit_th,unit_lo,is_active').eq('branch_id', branch.id).lte('pos_qty', 0).order('id'));
+      // ของหมด = POS ≤ 0 หรือ POS ปิดการขาย (is_active=false) — ทั้งคู่ถือว่าขายไม่ได้ = ต้องแนะนำ
+      const oosProd = await fetchAllQuery(() => sb.from('products').select('barcode,name_th,name_lo,pos_qty,cost_price,unit_th,unit_lo,is_active').eq('branch_id', branch.id).or('pos_qty.lte.0,is_active.eq.false').order('id'));
       oosProd.forEach(p => {
         const bc = String(p.barcode); oosProdMap[bc] = p;
-        if (candBc.has(bc)) return;              // มี candidate จาก AVG อยู่แล้ว
+        if (candBc.has(bc)) return;              // มี candidate จาก AVG อยู่แล้ว (จะ merge posMap + mark forced ตอนคำนวณ)
+        if (!(Number(p.pos_qty) <= 0)) return;   // force-add เฉพาะของหมดจริง (POS≤0) · ปิดการขายแต่ POS>0 เข้าเฉพาะถ้ามี AVG (กันดึงสินค้าเลิกขายที่ไม่มียอด)
         const st = statusMap[bc];
         if (buyer && !st) return;                // กรอง buyer อยู่ แต่ไม่มี status ตรง buyer → ข้าม
         const io = (st && st.in_out) || 'ภายนอก';
@@ -8951,7 +8953,9 @@ async function roCalc() {
       const maxStock = minStock + c.daily * cycle;
       let need = Math.ceil(maxStock - pos);
       if (c.daily <= 0) need = 0;                       // ไม่มี AVG (ของหมด) → ยังไม่รู้จำนวน (เติมด้วย Planogram/แก้เอง)
-      if (need <= 0 && !c.forcedOOS) return;            // ปกติ POS ≥ Max = ไม่ต้องสั่ง · ของหมดบังคับแสดงเสมอ
+      // ของหมด = POS≤0 หรือ POS ปิดการขาย (is_active=false) → บังคับแสดงเสมอ แม้ need≤0
+      const forced = c.forcedOOS || pos <= 0 || (p && p.is_active === false);
+      if (need <= 0 && !forced) return;                 // ปกติ POS ≥ Max = ไม่ต้องสั่ง · ของหมดบังคับแสดงเสมอ
       const doh = c.daily > 0 ? pos / c.daily : -1e9;   // ของหมดไม่มี AVG → ดันขึ้นบนสุด (เร่งด่วน)
       const r = {
         barcode: c.barcode, buyer: c.buyer, top: c.top, monthly: c.monthly, daily: c.daily,
@@ -8980,6 +8984,7 @@ async function roCalc() {
           r.packLabel = n + ' ' + (lang === 'lo' ? 'ແພັກ' : 'แพ๊ค') + ' (' + upp + '/' + (lang === 'lo' ? 'ແພັກ' : 'แพ๊ค') + ')';
         }
       }
+      r.inactive = (p && p.is_active === false);   // POS ปิดการขาย = ถือว่าของหมด/ขายไม่ได้
       r.packUnit = packUnit;   // ชิ้น/ลัง (ไว้แยกคอลัมน์ + สูตรสั่งลัง×แพ๊คไซส์)
       // Planogram: ถ้าแนะนำสั่ง < ความจุ Planogram → เติมให้เต็มชั้น = Planogram − POS (ปัดขึ้นเป็นลังเหมือนเดิม)
       r.planoCap = capMap[c.barcode] || 0;
@@ -9042,7 +9047,7 @@ function roRenderSummary() {
   const rows = roVisibleRows();
   const sel = rows.filter(r => _roSel.has(r.barcode));
   const val = sel.reduce((s, r) => s + r.orderUnits * (r.cost || 0), 0);
-  const outCnt = rows.filter(r => r.pos <= 0).length;
+  const outCnt = rows.filter(r => r.pos <= 0 || r.inactive).length;
   const belowMinCnt = rows.filter(r => r.belowMin).length;
   el.innerHTML = rows.length ? `
     <div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -9161,7 +9166,7 @@ async function roExport() {
         const valCell = { formula: 'V' + rn + '*X' + rn, result: (r.orderFinal * (r.cost || 0)) };
         const arr = [
           r.barcode, r.nameLo || r.nameTh || r.name, r.supplier || '', r.cat || '', r.grp || '', r.unit,
-          r.pos, (r.pos <= 0 ? 'Out of Stock' : psCalcStatus(r.pos, r.monthly).th), dayAvg, (r.pos <= 0 ? 0 : Math.round(r.doh * 10) / 10),
+          r.pos, ((r.pos <= 0 || r.inactive) ? 'Out of Stock' : psCalcStatus(r.pos, r.monthly).th), dayAvg, (r.pos <= 0 ? 0 : Math.round(r.doh * 10) / 10),
           r.inOut || '', r.lead || '', r.cycle || '', r.minStock || 0, r.maxStock || 0, r.belowMin ? '🔴' : '',
           r.lastBuy ? roFmtDate(r.lastBuy) : '', r.orderUnits, r.planoCap || 0, pcb, langQty, pcsCell,
           dohCell, r.cost || 0, valCell,
@@ -9178,7 +9183,7 @@ async function roExport() {
         if (!(r.planoCap > 0)) {   // Planogram = 0 (ยังไม่ได้กำหนดชั้นวาง) → แดง
           const pc = row.getCell(PLANO_I + 1); pc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: RED_FILL } }; pc.font = { bold: true, color: { argb: RED_INK } };
         }
-        if (r.pos <= 0) {   // ของหมด → Status = "Out of Stock" ไฮไลต์แดง (กรอง/เห็นชัด)
+        if (r.pos <= 0 || r.inactive) {   // ของหมด/ปิดการขาย → Status = "Out of Stock" ไฮไลต์แดง (กรอง/เห็นชัด)
           const sc = row.getCell(8); sc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: RED_FILL } }; sc.font = { bold: true, color: { argb: RED_INK } };
         }
       });
