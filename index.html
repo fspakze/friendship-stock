@@ -9118,9 +9118,13 @@ async function roExport() {
     const wb = new ExcelJS.Workbook();
     const HEAD_FILL = 'FF1E3A8A', RED_FILL = 'FFFECACA', RED_INK = 'FFB91C1C';
     // A Barcode·B ชื่อ·C NameLO·D ประเภท·E กลุ่ม·F หน่วย·G POS·H Status·I AVG/วัน·J DOH·K ใน/นอก·L Lead·M Cycle·N Min·O Max·P ต่ำกว่าMin·Q ซื้อล่าสุด·R แนะนำสั่ง·S Planogram·T แพ๊คไซส์·U สั่ง(ลัง)·V สั่ง(ชิ้น)·W DOHหลังสั่ง·X ต้นทุน·Y มูลค่าสั่ง·Z บาร์โค้ดลัง·AA TOP
-    const headers = ['Barcode', 'ชื่อสินค้า', 'ซัพพลายเออร์', 'ประเภทสินค้า', 'กลุ่มสินค้า', 'หน่วย', 'POS', 'Status', 'AVG/วัน', 'DOH (วัน)', 'ใน/นอก', 'Lead', 'Cycle', 'Min Stock', 'Max Stock', 'ต่ำกว่า Min', 'ซื้อล่าสุด', 'แนะนำสั่ง (Unit)', 'Planogram', 'แพ๊คไซส์ (ชิ้น/ลัง)', 'สั่ง (ลัง)', 'สั่ง (ชิ้น)', 'DOH หลังสั่ง (วัน)', 'ต้นทุน (₭)', 'มูลค่าการสั่ง (₭)', 'บาร์โค้ดลัง', 'TOP'];
+    const headersFull = ['Barcode', 'ชื่อสินค้า', 'ซัพพลายเออร์', 'ประเภทสินค้า', 'กลุ่มสินค้า', 'หน่วย', 'POS', 'Status', 'AVG/วัน', 'DOH (วัน)', 'ใน/นอก', 'Lead', 'Cycle', 'Min Stock', 'Max Stock', 'ต่ำกว่า Min', 'ซื้อล่าสุด', 'แนะนำสั่ง (Unit)', 'Planogram', 'แพ๊คไซส์ (ชิ้น/ลัง)', 'สั่ง (ลัง)', 'สั่ง (ชิ้น)', 'DOH หลังสั่ง (วัน)', 'ต้นทุน (₭)', 'มูลค่าการสั่ง (₭)', 'บาร์โค้ดลัง', 'TOP'];
     const PLANO_I = 18, LANG_I = 20, PCS_I = 21, DOH2_I = 22, VAL_I = 24;   // Planogram=S · สั่ง(ลัง)=U · สั่ง(ชิ้น)=V · DOHหลังสั่ง=W · มูลค่า=Y
-    const widths = [14, 26, 20, 14, 14, 8, 8, 14, 9, 9, 8, 7, 7, 10, 10, 10, 12, 14, 11, 13, 10, 11, 15, 13, 15, 14, 6];
+    // ต้นทุน + มูลค่าการสั่ง = ข้อมูลอ่อนไหว → เฉพาะ BCS ขึ้นไป (bcs/admin/scc) · ตำแหน่งอื่นตัด 2 คอลัมน์นี้ทิ้ง
+    const canCost = ['bcs', 'admin', 'scc'].includes((user && user.role) || '');
+    const widthsFull = [14, 26, 20, 14, 14, 8, 8, 14, 9, 9, 8, 7, 7, 10, 10, 10, 12, 14, 11, 13, 10, 11, 15, 13, 15, 14, 6];
+    const headers = canCost ? headersFull : headersFull.slice(0, 23).concat(headersFull.slice(25));   // ตัด ต้นทุน(23)+มูลค่า(24)
+    const widths = canCost ? widthsFull : widthsFull.slice(0, 23).concat(widthsFull.slice(25));
     const byBuyer = {};
     rows.forEach(r => { const k = r.buyer || (isLao ? 'ບໍ່ລະບຸ' : 'ไม่ระบุ'); (byBuyer[k] = byBuyer[k] || []).push(r); });
     const usedNames = {};
@@ -9145,15 +9149,18 @@ async function roExport() {
         const pcsCell = { formula: 'U' + rn + '*T' + rn, result: r.orderFinal };
         const dohCell = { formula: 'IF(I' + rn + '<=0,"",ROUND((G' + rn + '+V' + rn + ')/I' + rn + ',0))', result: dohAfterVal };
         const valCell = { formula: 'V' + rn + '*X' + rn, result: (r.orderFinal * (r.cost || 0)) };
-        const row = ws.addRow([
+        const arr = [
           r.barcode, r.nameLo || r.nameTh || r.name, r.supplier || '', r.cat || '', r.grp || '', r.unit,
           r.pos, psCalcStatus(r.pos, r.monthly).th, dayAvg, (r.pos <= 0 ? 0 : Math.round(r.doh * 10) / 10),
           r.inOut || '', r.lead || '', r.cycle || '', r.minStock || 0, r.maxStock || 0, r.belowMin ? '🔴' : '',
           r.lastBuy ? roFmtDate(r.lastBuy) : '', r.orderUnits, r.planoCap || 0, pcb, langQty, pcsCell,
           dohCell, r.cost || 0, valCell,
           (r.bpRec && (r.bpRec.barcode_box || r.bpRec.barcode_pack)) || '', r.top || ''
-        ]);
-        row.getCell(VAL_I + 1).numFmt = '#,##0'; row.getCell(DOH2_I + 1).numFmt = '#,##0'; row.getCell(PCS_I + 1).numFmt = '#,##0';
+        ];
+        if (!canCost) arr.splice(23, 2);   // ตัด ต้นทุน + มูลค่าการสั่ง (เฉพาะ BCS ขึ้นไปเห็น)
+        const row = ws.addRow(arr);
+        if (canCost) row.getCell(VAL_I + 1).numFmt = '#,##0';
+        row.getCell(DOH2_I + 1).numFmt = '#,##0'; row.getCell(PCS_I + 1).numFmt = '#,##0';
         const lc = row.getCell(LANG_I + 1); lc.numFmt = '#,##0'; lc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } }; lc.font = { bold: true, color: { argb: 'FF92400E' } };   // สั่ง(ลัง) = เหลืองอ่อน (ช่องแก้ไขได้)
         if (typeof dohAfterVal === 'number' && dohAfterVal > 90) {   // DOH หลังสั่ง > 90 วัน = สั่งมากไป → แดง
           const c = row.getCell(DOH2_I + 1); c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: RED_FILL } }; c.font = { bold: true, color: { argb: RED_INK } };
