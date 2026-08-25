@@ -5233,7 +5233,7 @@ const MENU_CONFIG = {
       { titleTh: 'ติดตามงาน SC', titleLo: 'ຕິດຕາມງານ SC', items: ['scdailylog'] },
       { titleTh: 'เอกสาร', titleLo: 'ເອກະສານ', items: ['docsign'] },
       { titleTh: 'HORECA', titleLo: 'HORECA', items: ['horeca', 'membership'] },
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['mgrdash', 'reorder', 'cyclecount', 'dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['mgrdash', 'reorder', 'reorderhub', 'cyclecount', 'dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
       { titleTh: 'อัปเดตข้อมูล', titleLo: 'ອັບເດດຂໍ້ມູນ', items: ['updatehub'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -5252,7 +5252,7 @@ const MENU_CONFIG = {
       { titleTh: 'ประวัติ', titleLo: 'ປະຫວັດ', items: ['history'] },
       { titleTh: 'HORECA', titleLo: 'HORECA', items: ['horeca', 'membership'] },
       { titleTh: 'วิเคราะห์', titleLo: 'ວິເຄາະ', items: ['mgrdash', 'kpi', 'health'] },
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['reorder', 'cyclecount', 'issuereport', 'invmovement'] },
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['reorder', 'reorderhub', 'cyclecount', 'issuereport', 'invmovement'] },
       { titleTh: 'อัปเดตข้อมูล', titleLo: 'ອັບເດດຂໍ້ມູນ', items: ['updatehub'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'onlineusers', 'accesslog', 'branchmanage', 'settings', 'menumanage', 'rolemenu', 'activitylog'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -5267,7 +5267,7 @@ const MENU_CONFIG = {
       { titleTh: 'Daily Brief', titleLo: 'Daily Brief', items: ['dailybrief', 'brieflog'] },
       { titleTh: 'ติดตามงาน SC', titleLo: 'ຕິດຕາມງານ SC', items: ['scdailylog'] },
       { titleTh: 'HORECA', titleLo: 'HORECA', items: ['horeca', 'membership'] },
-      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['mgrdash', 'reorder', 'cyclecount', 'dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
+      { titleTh: 'รายงาน', titleLo: 'ລາຍງານ', items: ['mgrdash', 'reorder', 'reorderhub', 'cyclecount', 'dashboard', 'kpi', 'performance', 'health', 'variance', 'issuereport', 'invmovement'] },
       { titleTh: 'อัปเดตข้อมูล', titleLo: 'ອັບເດດຂໍ້ມູນ', items: ['updatehub'] },
       { titleTh: 'จัดการระบบ', titleLo: 'ຈັດການລະບົບ', items: ['users', 'onlineusers', 'accesslog', 'settings'] },
       { titleTh: 'บัญชี', titleLo: 'ບັນຊີ', items: ['_lang', '_logout'] }
@@ -5313,6 +5313,7 @@ const PAGE_META = {
   onlineusers: { iconSvg: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/>', labelTh: 'ใครออนไลน์', labelLo: 'ໃຜອອນລາຍ', page: 'onlineusers' },
   accesslog: { iconSvg: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>', labelTh: 'ประวัติเข้าใช้งาน', labelLo: 'ປະຫວັດເຂົ້າໃຊ້ງານ', page: 'accesslog' },
   reorder: { iconSvg: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/><path d="M12 8v4M10 10h4"/>', labelTh: 'แนะนำสินค้าไม่เพียงพอจำหน่าย', labelLo: 'ແນະນຳສິນຄ້າບໍ່ພຽງພໍຂາຍ', page: 'reorder' },
+  reorderhub: { iconSvg: '<path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/><path d="M9 9h.01M15 9h.01"/>', labelTh: 'สั่งรวมศูนย์', labelLo: 'ສັ່ງລວມສູນ', page: 'reorderhub' },
   shrinkage: { iconSvg: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>', labelTh: 'ของเสีย/สูญหาย', labelLo: 'ຂອງເສຍ/ສູນຫາຍ', page: 'shrinkage' },
   mgrdash: { iconSvg: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12v5M12 8v9M16 14v3"/>', labelTh: 'ภาพรวมสาขา', labelLo: 'ພາບລວມສາຂາ', page: 'mgrdash' },
   cyclecount: { iconSvg: '<path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>', labelTh: 'นับวนรอบ', labelLo: 'ນັບວົນຮອບ', page: 'cyclecount' },
@@ -5721,6 +5722,9 @@ function goPage(page) {
   } else if (page === 'reorder') {
     c.innerHTML = renderReorderPage();
     setTimeout(() => roInit(), 30);
+  } else if (page === 'reorderhub') {
+    c.innerHTML = renderReorderHubPage();
+    setTimeout(() => rcInit(), 30);
   } else if (page === 'shrinkage') {
     c.innerHTML = renderShrinkagePage();
     setTimeout(() => loadShrinkage(), 30);
@@ -8844,6 +8848,154 @@ async function roInit() {
   }
 }
 
+// ── คำนวณรายการ "แนะนำสั่ง" ของสาขาที่ระบุ → คืน array แถว (ไม่แตะ DOM/ตัวแปร global) ──
+// ใช้ร่วมกันทั้งหน้าเดิม (roCalc) + หน้าสั่งรวมศูนย์ (rc*) → เลขตรงกันเสมอ (MEMORY 21: metric เดียว = ฟังก์ชันเดียว)
+// brRec = branch record {id,code,name_th,name_lo} · opts = {buyer,inOutF,topOnly,leadOv,cycleOv} · onProgress(msg) = optional
+async function roComputeRows(brRec, opts, onProgress) {
+  const isLao = lang === 'lo';
+  const prog = onProgress || function () { };
+  const brId = brRec.id;
+  const buyer = (opts && opts.buyer) || '';
+  const inOutF = (opts && opts.inOutF) || '';
+  const topOnly = !!(opts && opts.topOnly);
+  const leadOv = (opts && opts.leadOv != null) ? opts.leadOv : null;
+  const cycleOv = (opts && opts.cycleOv != null) ? opts.cycleOv : null;
+
+  prog(isLao ? '⏳ ໂຫຼດ Status ສິນຄ້າ...' : '⏳ โหลด Status สินค้า...');
+  const statusRows = await fetchAllQuery(() => {
+    let q = sb.from('product_status').select('barcode,name,buyer,branch_avg,top_2026,in_out,last_buy');
+    if (buyer) q = q.ilike('buyer', buyer); // ไม่สนพิมพ์เล็ก-ใหญ่ → รวม lae+Lae
+    return q.order('barcode'); // ต้อง order คงที่ — pagination ข้ามหน้าไม่งั้นแถวซ้ำ/หาย
+  });
+
+  // กรอง: มี AVG สาขานี้ > 0 (ขายอยู่จริงถึงจะแนะนำสั่งได้)
+  const cand = [];
+  (statusRows || []).forEach(r => {
+    if (topOnly && !String(r.top_2026 || '').toUpperCase().includes('TOP')) return;
+    const bkey = psBranchKeyFor(r.branch_avg, brRec);
+    const m = (r.branch_avg && bkey != null) ? Number(r.branch_avg[bkey]) : 0;
+    if (!m || m <= 0) return;
+    const inOut = r.in_out || 'ภายนอก'; // null/ว่าง → ถือเป็นภายนอก
+    if (inOutF === 'in' && inOut !== 'ภายใน') return;
+    if (inOutF === 'ex' && inOut === 'ภายใน') return;
+    cand.push({ barcode: String(r.barcode), name: r.name, buyer: r.buyer || '', monthly: m, daily: m / 30, top: r.top_2026 || '', inOut: inOut, lastBuy: r.last_buy || null });
+  });
+  // ของหมด (POS ≤ 0) — บังคับแนะนำทุกตัว แม้ปิดการขาย (is_active=false) หรือไม่มี AVG (Ball 2026-08-24)
+  const statusMap = {};
+  (statusRows || []).forEach(r => { statusMap[String(r.barcode)] = r; });
+  const candBc = new Set(cand.map(c => c.barcode));
+  const oosProdMap = {};
+  try {
+    const oosProd = await fetchAllQuery(() => sb.from('products').select('barcode,name_th,name_lo,pos_qty,cost_price,unit_th,unit_lo,is_active').eq('branch_id', brId).or('pos_qty.lte.0,is_active.eq.false').order('id'));
+    oosProd.forEach(p => {
+      const bc = String(p.barcode); oosProdMap[bc] = p;
+      if (candBc.has(bc)) return;              // มี candidate จาก AVG อยู่แล้ว
+      if (!(Number(p.pos_qty) <= 0)) return;   // force-add เฉพาะของหมดจริง (POS≤0)
+      const st = statusMap[bc];
+      if (buyer && !st) return;                // กรอง buyer อยู่ แต่ไม่มี status ตรง buyer → ข้าม
+      const io = (st && st.in_out) || 'ภายนอก';
+      if (inOutF === 'in' && io !== 'ภายใน') return;
+      if (inOutF === 'ex' && io === 'ภายใน') return;
+      if (topOnly && !(st && String(st.top_2026 || '').toUpperCase().includes('TOP'))) return;
+      const bkey = st ? psBranchKeyFor(st.branch_avg, brRec) : null;
+      const m = (st && st.branch_avg && bkey != null) ? (Number(st.branch_avg[bkey]) || 0) : 0;
+      cand.push({ barcode: bc, name: (st && st.name) || p.name_th || bc, buyer: (st && st.buyer) || '', monthly: m, daily: m / 30, top: (st && st.top_2026) || '', inOut: io, lastBuy: (st && st.last_buy) || null, forcedOOS: true });
+      candBc.add(bc);
+    });
+  } catch (e) { }
+  if (!cand.length) return [];
+  const bcs = cand.map(c => c.barcode);
+
+  // ดึง POS + master (ประเภท/กลุ่ม/supplier) + packsize (chunk ละ 200)
+  prog((isLao ? '⏳ ໂຫຼດ POS ' : '⏳ โหลด POS ') + cand.length.toLocaleString() + ' SKU...');
+  const posMap = {}, mpMap = {}, bpMap = {};
+  for (let i = 0; i < bcs.length; i += 200) {
+    const chunk = bcs.slice(i, i + 200);
+    const [pr, mp, bp] = await Promise.all([
+      sb.from('products').select('barcode,name_th,name_lo,pos_qty,cost_price,unit_th,unit_lo').eq('branch_id', brId).eq('is_active', true).in('barcode', chunk),
+      sb.from('master_products').select('barcode,category,product_group,supplier').in('barcode', chunk),
+      sb.from('barcode_packsize').select('barcode_unit,barcode_pack,barcode_box,qty_unit,qty_pack,pcs_per_box,price_box,price_pack').in('barcode_unit', chunk)
+    ]);
+    (pr.data || []).forEach(p => { posMap[String(p.barcode)] = p; });
+    (mp.data || []).forEach(m => { mpMap[String(m.barcode)] = m; });
+    (bp.data || []).forEach(b => { bpMap[String(b.barcode_unit)] = b; });
+  }
+  // ของหมดที่ปิดการขาย (is_active=false) จะไม่ถูกดึงในลูปบน (กรอง is_active) → เติมจาก oosProdMap
+  Object.keys(oosProdMap).forEach(bc => { if (!posMap[bc]) posMap[bc] = oosProdMap[bc]; });
+  // ต้นทุนล่าสุดจาก purchase_history (ปิด anon → RPC) — สาขา FSMINI ไม่มี products.cost_price (=0) ต้องใช้ตัวนี้
+  const costMap = {};
+  for (let i = 0; i < bcs.length; i += 300) {
+    const chunk = bcs.slice(i, i + 300);
+    try { const cm = await _latestCosts(chunk); Object.keys(cm || {}).forEach(k => { const v = Number(cm[k]); if (v > 0) costMap[String(k)] = v; }); } catch (e) { }
+  }
+  // ความจุ Planogram ต่อ barcode (สาขานี้) — รวม total_qty ทุก gondola
+  const capMap = {};
+  try {
+    const pg = await fetchAllQuery(() => sb.from('pan_o_grams').select('barcode,total_qty').eq('branch_id', brId).order('id'));
+    pg.forEach(p => { if (p.barcode) { const k = String(p.barcode); capMap[k] = (capMap[k] || 0) + (Number(p.total_qty) || 0); } });
+  } catch (e) { }
+
+  // คำนวณ Min/Max ต่อ SKU (Lead/Cycle อัตโนมัติตามกฎ) — สั่งเมื่อ POS < Max
+  const low = [];
+  cand.forEach(c => {
+    const p = posMap[c.barcode];
+    if (!p) return; // สาขานี้ไม่มีสินค้านี้ — ข้าม
+    const mp = mpMap[c.barcode] || {};
+    const cat = mp.category || '', grp = mp.product_group || '', supplier = mp.supplier || '';
+    let [lead, cycle, rule] = roLeadCycle(cat, supplier, c.inOut);
+    if (leadOv != null) { lead = leadOv; rule = (isLao ? 'ກຳນົດເອງ' : 'กำหนดเอง'); }
+    if (cycleOv != null) { cycle = cycleOv; rule = (isLao ? 'ກຳນົດເອງ' : 'กำหนดเอง'); }
+    // ปิดการขาย (is_active=false) → POS นับเป็น 0 (สต๊อกผี · MEMORY 7)
+    const pos = (p && p.is_active === false) ? 0 : (Number(p.pos_qty) || 0);
+    const minStock = c.daily * lead;
+    const maxStock = minStock + c.daily * cycle;
+    let need = Math.ceil(maxStock - pos);
+    if (c.daily <= 0) need = 0;
+    const forced = c.forcedOOS || pos <= 0 || (p && p.is_active === false);
+    if (need <= 0 && !forced) return;
+    const doh = c.daily > 0 ? pos / c.daily : -1e9;
+    const r = {
+      barcode: c.barcode, buyer: c.buyer, top: c.top, monthly: c.monthly, daily: c.daily,
+      cat: cat, grp: grp, supplier: supplier, inOut: c.inOut, lead: lead, cycle: cycle, rule: rule, lastBuy: c.lastBuy,
+      name: isLao ? (p.name_lo || p.name_th || c.name || c.barcode) : (p.name_th || p.name_lo || c.name || c.barcode),
+      nameLo: p.name_lo || '', nameTh: p.name_th || '',
+      unit: isLao ? (p.unit_lo || 'Unit') : (p.unit_th || 'Unit'),
+      pos: pos, doh: doh, need: need, cost: (costMap[c.barcode] != null ? costMap[c.barcode] : (Number(p.cost_price) || 0)),
+      minStock: Math.round(minStock), maxStock: Math.round(maxStock),
+      belowMin: pos < minStock,
+      orderUnits: need, packLabel: '', bpRec: null
+    };
+    // ปัดขึ้นเป็น ลัง/แพ๊ค
+    const bp = bpMap[c.barcode];
+    let packUnit = 1;
+    if (bp) {
+      r.bpRec = bp;
+      const upp = Number(bp.qty_unit) || 0;
+      let upb = Number(bp.pcs_per_box) || 0;
+      if (!upb && upp && (Number(bp.qty_pack) || 0)) upb = upp * Number(bp.qty_pack);
+      if ((bp.barcode_box || bp.price_box) && upb > 1) {
+        const n = Math.ceil(need / upb); r.orderUnits = n * upb; packUnit = upb;
+        r.packLabel = n + ' ' + (lang === 'lo' ? 'ລັງ' : 'ลัง') + ' (' + upb + '/' + (lang === 'lo' ? 'ລັງ' : 'ลัง') + ')';
+      } else if ((bp.barcode_pack || bp.price_pack) && upp > 1) {
+        const n = Math.ceil(need / upp); r.orderUnits = n * upp; packUnit = upp;
+        r.packLabel = n + ' ' + (lang === 'lo' ? 'ແພັກ' : 'แพ๊ค') + ' (' + upp + '/' + (lang === 'lo' ? 'ແພັກ' : 'แพ๊ค') + ')';
+      }
+    }
+    r.inactive = (p && p.is_active === false);
+    r.packUnit = packUnit;   // ชิ้น/ลัง
+    r.planoCap = capMap[c.barcode] || 0;
+    if (r.planoCap > 0 && r.orderUnits < r.planoCap) {
+      const fill = Math.max(0, r.planoCap - pos);
+      r.orderFinal = packUnit > 1 ? Math.ceil(fill / packUnit) * packUnit : fill;
+    } else {
+      r.orderFinal = r.orderUnits;
+    }
+    low.push(r);
+  });
+  low.sort((a, b) => a.doh - b.doh);
+  return low;
+}
+
 async function roCalc() {
   const isLao = lang === 'lo';
   if (_roBusy) return;
@@ -8862,142 +9014,9 @@ async function roCalc() {
     const leadOv = _lv !== '' && !isNaN(parseInt(_lv, 10)) ? Math.max(0, parseInt(_lv, 10)) : null;
     const cycleOv = _cv !== '' && !isNaN(parseInt(_cv, 10)) ? Math.max(1, parseInt(_cv, 10)) : null;
 
-    setMsg(isLao ? '⏳ ໂຫຼດ Status ສິນຄ້າ...' : '⏳ โหลด Status สินค้า...');
-    const statusRows = await fetchAllQuery(() => {
-      let q = sb.from('product_status').select('barcode,name,buyer,branch_avg,top_2026,in_out,last_buy');
-      if (buyer) q = q.ilike('buyer', buyer); // ไม่สนพิมพ์เล็ก-ใหญ่ → รวม lae+Lae
-      return q.order('barcode'); // ต้อง order คงที่ — pagination ข้ามหน้าไม่งั้นแถวซ้ำ/หาย
-    });
-
-    // กรอง: มี AVG สาขานี้ > 0 (ขายอยู่จริงถึงจะแนะนำสั่งได้)
-    const cand = [];
-    (statusRows || []).forEach(r => {
-      if (topOnly && !String(r.top_2026 || '').toUpperCase().includes('TOP')) return;
-      const bkey = psBranchKey(r.branch_avg);
-      const m = (r.branch_avg && bkey != null) ? Number(r.branch_avg[bkey]) : 0;
-      if (!m || m <= 0) return;
-      const inOut = r.in_out || 'ภายนอก'; // null/ว่าง → ถือเป็นภายนอก
-      if (inOutF === 'in' && inOut !== 'ภายใน') return;
-      if (inOutF === 'ex' && inOut === 'ภายใน') return;
-      cand.push({ barcode: String(r.barcode), name: r.name, buyer: r.buyer || '', monthly: m, daily: m / 30, top: r.top_2026 || '', inOut: inOut, lastBuy: r.last_buy || null });
-    });
-    // ของหมด (POS ≤ 0) — บังคับแนะนำทุกตัว แม้ปิดการขาย (is_active=false) หรือไม่มี AVG (Ball 2026-08-24)
-    const statusMap = {};
-    (statusRows || []).forEach(r => { statusMap[String(r.barcode)] = r; });
-    const candBc = new Set(cand.map(c => c.barcode));
-    const oosProdMap = {};
-    try {
-      // ของหมด = POS ≤ 0 หรือ POS ปิดการขาย (is_active=false) — ทั้งคู่ถือว่าขายไม่ได้ = ต้องแนะนำ
-      const oosProd = await fetchAllQuery(() => sb.from('products').select('barcode,name_th,name_lo,pos_qty,cost_price,unit_th,unit_lo,is_active').eq('branch_id', branch.id).or('pos_qty.lte.0,is_active.eq.false').order('id'));
-      oosProd.forEach(p => {
-        const bc = String(p.barcode); oosProdMap[bc] = p;
-        if (candBc.has(bc)) return;              // มี candidate จาก AVG อยู่แล้ว (จะ merge posMap + mark forced ตอนคำนวณ)
-        if (!(Number(p.pos_qty) <= 0)) return;   // force-add เฉพาะของหมดจริง (POS≤0) · ปิดการขายแต่ POS>0 เข้าเฉพาะถ้ามี AVG (กันดึงสินค้าเลิกขายที่ไม่มียอด)
-        const st = statusMap[bc];
-        if (buyer && !st) return;                // กรอง buyer อยู่ แต่ไม่มี status ตรง buyer → ข้าม
-        const io = (st && st.in_out) || 'ภายนอก';
-        if (inOutF === 'in' && io !== 'ภายใน') return;
-        if (inOutF === 'ex' && io === 'ภายใน') return;
-        if (topOnly && !(st && String(st.top_2026 || '').toUpperCase().includes('TOP'))) return;
-        const bkey = st ? psBranchKey(st.branch_avg) : null;
-        const m = (st && st.branch_avg && bkey != null) ? (Number(st.branch_avg[bkey]) || 0) : 0;
-        cand.push({ barcode: bc, name: (st && st.name) || p.name_th || bc, buyer: (st && st.buyer) || '', monthly: m, daily: m / 30, top: (st && st.top_2026) || '', inOut: io, lastBuy: (st && st.last_buy) || null, forcedOOS: true });
-        candBc.add(bc);
-      });
-    } catch (e) {}
-    if (!cand.length) { setMsg(isLao ? 'ບໍ່ມີສິນຄ້າທີ່ຕ້ອງສັ່ງ' : 'ไม่มีสินค้าที่ต้องสั่ง'); _roRows = []; roRenderSummary(); return; }
-    const bcs = cand.map(c => c.barcode);
-
-    // ดึง POS + master (ประเภท/กลุ่ม/supplier) + packsize (chunk ละ 200)
-    setMsg((isLao ? '⏳ ໂຫຼດ POS ' : '⏳ โหลด POS ') + cand.length.toLocaleString() + ' SKU...');
-    const posMap = {}, mpMap = {}, bpMap = {};
-    for (let i = 0; i < bcs.length; i += 200) {
-      const chunk = bcs.slice(i, i + 200);
-      const [pr, mp, bp] = await Promise.all([
-        sb.from('products').select('barcode,name_th,name_lo,pos_qty,cost_price,unit_th,unit_lo').eq('branch_id', branch.id).eq('is_active', true).in('barcode', chunk),
-        sb.from('master_products').select('barcode,category,product_group,supplier').in('barcode', chunk),
-        sb.from('barcode_packsize').select('barcode_unit,barcode_pack,barcode_box,qty_unit,qty_pack,pcs_per_box,price_box,price_pack').in('barcode_unit', chunk)
-      ]);
-      (pr.data || []).forEach(p => { posMap[String(p.barcode)] = p; });
-      (mp.data || []).forEach(m => { mpMap[String(m.barcode)] = m; });
-      (bp.data || []).forEach(b => { bpMap[String(b.barcode_unit)] = b; });
-    }
-    // ของหมดที่ปิดการขาย (is_active=false) จะไม่ถูกดึงในลูปบน (กรอง is_active) → เติมจาก oosProdMap
-    Object.keys(oosProdMap).forEach(bc => { if (!posMap[bc]) posMap[bc] = oosProdMap[bc]; });
-    // ต้นทุนล่าสุดจาก purchase_history (ปิด anon → RPC) — สาขา FSMINI ไม่มี products.cost_price (=0) ต้องใช้ตัวนี้
-    const costMap = {};
-    for (let i = 0; i < bcs.length; i += 300) {
-      const chunk = bcs.slice(i, i + 300);
-      try { const cm = await _latestCosts(chunk); Object.keys(cm || {}).forEach(k => { const v = Number(cm[k]); if (v > 0) costMap[String(k)] = v; }); } catch (e) {}
-    }
-    // ความจุ Planogram ต่อ barcode (สาขานี้) — รวม total_qty ทุก gondola
-    const capMap = {};
-    try {
-      const pg = await fetchAllQuery(() => sb.from('pan_o_grams').select('barcode,total_qty').eq('branch_id', branch.id).order('id'));
-      pg.forEach(p => { if (p.barcode) { const k = String(p.barcode); capMap[k] = (capMap[k] || 0) + (Number(p.total_qty) || 0); } });
-    } catch (e) {}
-
-    // คำนวณ Min/Max ต่อ SKU (Lead/Cycle อัตโนมัติตามกฎ) — สั่งเมื่อ POS < Max
-    const low = [];
-    cand.forEach(c => {
-      const p = posMap[c.barcode];
-      if (!p) return; // สาขานี้ไม่มีสินค้านี้ — ข้าม
-      const mp = mpMap[c.barcode] || {};
-      const cat = mp.category || '', grp = mp.product_group || '', supplier = mp.supplier || '';
-      let [lead, cycle, rule] = roLeadCycle(cat, supplier, c.inOut);
-      // override โดยผู้ใช้ (ถ้ากรอก) — ทับทุกรายการ
-      if (leadOv != null) { lead = leadOv; rule = (isLao ? 'ກຳນົດເອງ' : 'กำหนดเอง'); }
-      if (cycleOv != null) { cycle = cycleOv; rule = (isLao ? 'ກຳນົດເອງ' : 'กำหนดเอง'); }
-      // ปิดการขาย (is_active=false) → POS นับเป็น 0 (pos_qty เดิมค้าง = สต๊อกผี · ให้ตรงหน้าเช็คสต๊อก/Planogram · MEMORY 7)
-      const pos = (p && p.is_active === false) ? 0 : (Number(p.pos_qty) || 0);
-      const minStock = c.daily * lead;
-      const maxStock = minStock + c.daily * cycle;
-      let need = Math.ceil(maxStock - pos);
-      if (c.daily <= 0) need = 0;                       // ไม่มี AVG (ของหมด) → ยังไม่รู้จำนวน (เติมด้วย Planogram/แก้เอง)
-      // ของหมด = POS≤0 หรือ POS ปิดการขาย (is_active=false) → บังคับแสดงเสมอ แม้ need≤0
-      const forced = c.forcedOOS || pos <= 0 || (p && p.is_active === false);
-      if (need <= 0 && !forced) return;                 // ปกติ POS ≥ Max = ไม่ต้องสั่ง · ของหมดบังคับแสดงเสมอ
-      const doh = c.daily > 0 ? pos / c.daily : -1e9;   // ของหมดไม่มี AVG → ดันขึ้นบนสุด (เร่งด่วน)
-      const r = {
-        barcode: c.barcode, buyer: c.buyer, top: c.top, monthly: c.monthly, daily: c.daily,
-        cat: cat, grp: grp, supplier: supplier, inOut: c.inOut, lead: lead, cycle: cycle, rule: rule, lastBuy: c.lastBuy,
-        name: isLao ? (p.name_lo || p.name_th || c.name || c.barcode) : (p.name_th || p.name_lo || c.name || c.barcode),
-        nameLo: p.name_lo || '', nameTh: p.name_th || '',
-        unit: isLao ? (p.unit_lo || 'Unit') : (p.unit_th || 'Unit'),
-        pos: pos, doh: doh, need: need, cost: (costMap[c.barcode] != null ? costMap[c.barcode] : (Number(p.cost_price) || 0)),
-        minStock: Math.round(minStock), maxStock: Math.round(maxStock),
-        belowMin: pos < minStock,
-        orderUnits: need, packLabel: '', bpRec: null
-      };
-      // ปัดขึ้นเป็น ลัง/แพ๊ค
-      const bp = bpMap[c.barcode];
-      let packUnit = 1;   // จำนวนต่อลัง/แพ๊ค (ไว้ปัดเศษ Planogram ให้เต็มลังเหมือนกัน)
-      if (bp) {
-        r.bpRec = bp;
-        const upp = Number(bp.qty_unit) || 0;
-        let upb = Number(bp.pcs_per_box) || 0;
-        if (!upb && upp && (Number(bp.qty_pack) || 0)) upb = upp * Number(bp.qty_pack);
-        if ((bp.barcode_box || bp.price_box) && upb > 1) {
-          const n = Math.ceil(need / upb); r.orderUnits = n * upb; packUnit = upb;
-          r.packLabel = n + ' ' + (lang === 'lo' ? 'ລັງ' : 'ลัง') + ' (' + upb + '/' + (lang === 'lo' ? 'ລັງ' : 'ลัง') + ')';
-        } else if ((bp.barcode_pack || bp.price_pack) && upp > 1) {
-          const n = Math.ceil(need / upp); r.orderUnits = n * upp; packUnit = upp;
-          r.packLabel = n + ' ' + (lang === 'lo' ? 'ແພັກ' : 'แพ๊ค') + ' (' + upp + '/' + (lang === 'lo' ? 'ແພັກ' : 'แพ๊ค') + ')';
-        }
-      }
-      r.inactive = (p && p.is_active === false);   // POS ปิดการขาย = ถือว่าของหมด/ขายไม่ได้
-      r.packUnit = packUnit;   // ชิ้น/ลัง (ไว้แยกคอลัมน์ + สูตรสั่งลัง×แพ๊คไซส์)
-      // Planogram: ถ้าแนะนำสั่ง < ความจุ Planogram → เติมให้เต็มชั้น = Planogram − POS (ปัดขึ้นเป็นลังเหมือนเดิม)
-      r.planoCap = capMap[c.barcode] || 0;
-      if (r.planoCap > 0 && r.orderUnits < r.planoCap) {
-        const fill = Math.max(0, r.planoCap - pos);
-        r.orderFinal = packUnit > 1 ? Math.ceil(fill / packUnit) * packUnit : fill;
-      } else {
-        r.orderFinal = r.orderUnits;
-      }
-      low.push(r);
-    });
-    low.sort((a, b) => a.doh - b.doh);
+    // คำนวณผ่านฟังก์ชันร่วม (roComputeRows) — สาขาปัจจุบัน (branch) · เลขตรงกับหน้าสั่งรวมศูนย์เสมอ
+    const low = await roComputeRows(branch, { buyer, inOutF, topOnly, leadOv, cycleOv }, setMsg);
+    if (!low.length) { setMsg(isLao ? 'ບໍ່ມີສິນຄ້າທີ່ຕ້ອງສັ່ງ' : 'ไม่มีสินค้าที่ต้องสั่ง'); _roRows = []; roRenderSummary(); return; }
 
     _roRows = low;
     _roSel = new Set(low.map(r => r.barcode)); // default เลือกทั้งหมด
@@ -9201,6 +9220,299 @@ async function roExport() {
     showToast(`✅ ${rows.length} SKU`, 'success');
   } catch (e) {
     console.error('[FS] roExport error:', e);
+    showToast('Error: ' + ((e && e.message) || e), 'error');
+  }
+}
+
+// ==================== REORDER HUB — สั่งรวมศูนย์ทุกสาขา (rc*) ====================
+// รวมยอดสั่งสินค้าขายช้าหลายสาขา → สั่งเป็นลังเข้า ສາງ Trading → ใบกระจายกลับสาขา (แบบเบา: ไม่แตะสต๊อก)
+// เกณฑ์: สั่ง 1 ลัง (packUnit) แล้ว DOH > 90 = "ขายช้า" → รวมศูนย์ · ไม่งั้น = สั่งตรงเข้าสาขา (Ball 2026-08-25)
+let _rcData = null, _rcBusy = false;
+const RC_DOH_LIMIT = 90;
+function rcCanUse() { return ['bcs', 'admin', 'scc'].includes((user && user.role) || ''); }
+
+function renderReorderHubPage() {
+  const isLao = lang === 'lo';
+  if (!rcCanUse()) return `<div style="text-align:center;padding:40px;color:var(--rose-500);">${isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์เข้าถึง'}</div>`;
+  return `
+    <div style="margin-bottom:11px;">
+      <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">🏬 ${isLao ? 'ສັ່ງລວມສູນ (ທຸກສາຂາ)' : 'สั่งรวมศูนย์ (ทุกสาขา)'}</h2>
+      <p style="font-size:11px;color:var(--slate-500);margin:0;">${isLao ? 'ລວມຍອດສິນຄ້າຂາຍຊ້າຫຼາຍສາຂາ → ສັ່ງເປັນລັງເຂົ້າ ສາງ Trading → ແບ່ງກັບສາຂາ · ສັ່ງ 1 ລັງແລ້ວ DOH > 90 = ລວມສູນ' : 'รวมยอดสินค้าขายช้าหลายสาขา → สั่งเป็นลังเข้า สาง Trading → แบ่งกลับสาขา · สั่ง 1 ลังแล้ว DOH > 90 = รวมศูนย์'}</p>
+    </div>
+    <div class="fs-card" style="padding:12px;margin-bottom:10px;">
+      <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:flex-end;">
+        <div style="flex:2;min-width:150px;">
+          <label style="font-size:10px;font-weight:700;color:var(--slate-500);">${isLao ? 'ຜູ້ຈັດຊື້' : 'ผู้จัดซื้อ (buyer)'}</label>
+          <select id="rcBuyer" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;background:white;">
+            <option value="">${isLao ? 'ທຸກຜູ້ຈັດຊື້' : 'ทุกผู้จัดซื้อ'}</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:110px;">
+          <label style="font-size:10px;font-weight:700;color:var(--slate-500);">${isLao ? 'ພາຍໃນ/ນອກ' : 'ภายใน/นอก'}</label>
+          <select id="rcInOut" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;background:white;">
+            <option value="">${isLao ? 'ທັງໝົດ' : 'ทั้งหมด'}</option>
+            <option value="in">${isLao ? 'ພາຍໃນ' : 'ภายใน'}</option>
+            <option value="ex">${isLao ? 'ພາຍນອກ' : 'ภายนอก'}</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:7px;margin-top:9px;align-items:center;">
+        <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--slate-600);font-weight:600;"><input type="checkbox" id="rcTopOnly" style="accent-color:var(--fs-blue);">TOP</label>
+        <button onclick="rcCalc()" id="rcCalcBtn" style="flex:1;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;">🔄 ${isLao ? 'ຄຳນວນທຸກສາຂາ' : 'คำนวณทุกสาขา'}</button>
+        <button onclick="rcExport()" style="background:var(--emerald-500);color:white;border:none;border-radius:9px;padding:11px 14px;font-size:13px;font-weight:700;cursor:pointer;">📊 Excel</button>
+      </div>
+      <div style="font-size:9.5px;color:var(--slate-400);margin-top:7px;">⏳ ${isLao ? 'ຄຳນວນທຸກສາຂາ ອາດໃຊ້ເວລາ 10-30 ວິນາທີ' : 'คำนวณทุกสาขา อาจใช้เวลา 10-30 วินาที'}</div>
+    </div>
+    <div id="rcSummary" style="margin-bottom:9px;"></div>
+    <div id="rcList" style="padding-bottom:90px;">
+      <div style="text-align:center;padding:30px;color:var(--slate-400);font-size:12px;">${isLao ? 'ກົດ "ຄຳນວນທຸກສາຂາ"' : 'กด "คำนวณทุกสาขา"'}</div>
+    </div>
+  `;
+}
+
+async function rcInit() {
+  const isLao = lang === 'lo';
+  const sel = document.getElementById('rcBuyer');
+  if (!sel) return;
+  // ใช้รายชื่อ buyer ร่วมกับหน้าเดิม (window._roBuyers) ถ้ามี — ไม่งั้นโหลดเอง
+  if (!window._roBuyers) { try { await roInit(); } catch (e) { } }
+  const buyers = window._roBuyers || [];
+  sel.innerHTML = '<option value="">' + (isLao ? 'ທຸກຜູ້ຈັດຊື້' : 'ทุกผู้จัดซื้อ') + '</option>'
+    + buyers.map(b => '<option value="' + escapeHtml(b) + '">' + escapeHtml(b) + '</option>').join('');
+}
+
+// วนคำนวณทุกสาขา → แยก 2 กอง (สั่งตรง / รวมศูนย์) + รอสะสม
+async function rcBuildAll(opts, onProgress) {
+  const isLao = lang === 'lo';
+  // โหลดรายชื่อสาขา (ต้องมี code + branch_type)
+  let rcBranches = (window._allBranchesCache && window._allBranchesCache[0] && window._allBranchesCache[0].code) ? window._allBranchesCache : null;
+  if (!rcBranches) {
+    const { data } = await sb.from('branches').select('id, code, name_th, name_lo, branch_type, is_active').order('id');
+    rcBranches = data || []; window._allBranchesCache = rcBranches;
+  }
+  const active = rcBranches.filter(b => b.is_active !== false);
+  // หา ສາງ Trading (คลังกลาง) — code TRADING-WH ก่อน · fallback ประเภทเป็นคลัง/ສາງ · (EXP-TRADING = Mini Mart ไม่ใช่คลัง)
+  const trading = active.find(b => /TRADING-WH/i.test(String(b.code || '')))
+    || active.find(b => /(คลัง|ຄັງ|ສາງ|warehouse)/i.test(String(b.branch_type || '')));
+  const sellBranches = active.filter(b => !trading || b.id !== trading.id);   // Trading = ปลายทาง ไม่ใช่แหล่งขาย
+
+  const directLines = [];
+  const consMap = {};   // barcode → {barcode,name,supplier,cat,pcb,cost,unit,byBranch:[],totalUnits}
+  let branchesCounted = 0;
+  for (const b of sellBranches) {
+    if (onProgress) onProgress((isLao ? (b.name_lo || b.name_th || b.code) : (b.name_th || b.name_lo || b.code)) || String(b.code || b.id));
+    let rows = [];
+    try { rows = await roComputeRows(b, opts, null); } catch (e) { rows = []; }
+    branchesCounted++;
+    const brName = (isLao ? (b.name_lo || b.name_th || b.code) : (b.name_th || b.name_lo || b.code)) || String(b.code || b.id);
+    rows.forEach(r => {
+      const pcb = r.packUnit || 1;
+      // DOH หลังสั่งขั้นต่ำ 1 ลัง = (POS + pcb) / ยอดขาย/วัน · ไม่มี AVG (daily≤0) = ช้าแน่ (Infinity)
+      const dohAfterMin = r.daily > 0 ? (r.pos + pcb) / r.daily : Infinity;
+      const slow = pcb > 1 && (r.daily <= 0 || dohAfterMin > RC_DOH_LIMIT);
+      if (!slow) {
+        // สั่งตรงเข้าสาขา (ขายไว หรือ packUnit=1 ไม่มีปัญหาลังขั้นต่ำ)
+        if ((r.orderFinal || 0) <= 0) return;   // ไม่รู้จำนวน (ของหมดไม่มี AVG/Planogram) → แก้มือหน้าเดิม
+        directLines.push({
+          branchId: b.id, branchName: brName, barcode: r.barcode,
+          name: r.nameLo || r.nameTh || r.name, supplier: r.supplier || '',
+          pcb: pcb, cartons: Math.round((r.orderFinal || 0) / pcb), pcs: r.orderFinal || 0,
+          unit: r.unit, cost: r.cost || 0, inOut: r.inOut || ''
+        });
+      } else {
+        // รวมศูนย์: pool "จำนวนที่ต้องการจริง (ชิ้น)" — need>0 ไม่งั้น Planogram−POS
+        const poolQty = r.need > 0 ? r.need : Math.max(0, (r.planoCap || 0) - r.pos);
+        if (poolQty <= 0) return;   // ไม่รู้จำนวน → ข้าม (แก้มือหน้าเดิม)
+        const k = r.barcode;
+        if (!consMap[k]) consMap[k] = { barcode: r.barcode, name: r.nameLo || r.nameTh || r.name, supplier: r.supplier || '', cat: r.cat || '', pcb: pcb, cost: r.cost || 0, unit: r.unit, byBranch: [], totalUnits: 0 };
+        consMap[k].byBranch.push({ branchId: b.id, branchName: brName, needUnits: poolQty });
+        consMap[k].totalUnits += poolQty;
+        if (!consMap[k].cost && r.cost) consMap[k].cost = r.cost;
+      }
+    });
+  }
+
+  const consReady = [], consPending = [];
+  Object.values(consMap).forEach(it => {
+    if (it.totalUnits >= it.pcb) {
+      // ดีมานด์รวม ≥ 1 ลัง → สั่งเข้า Trading (ปัดขึ้นครอบทุกสาขา · ส่วนเกินเก็บที่ Trading ที่เดียว)
+      it.cartons = Math.ceil(it.totalUnits / it.pcb);
+      it.orderedUnits = it.cartons * it.pcb;
+      it.leftover = it.orderedUnits - it.totalUnits;
+      consReady.push(it);
+    } else {
+      // ดีมานด์รวม < 1 ลัง → รอสะสม/จัดซื้อเลือกเอง (Ball เลือก 2026-08-25)
+      it.shortToCarton = it.pcb - it.totalUnits;
+      consPending.push(it);
+    }
+  });
+  consReady.sort((a, b) => b.orderedUnits - a.orderedUnits);
+  consPending.sort((a, b) => a.shortToCarton - b.shortToCarton);
+  directLines.sort((a, b) => (a.supplier || '').localeCompare(b.supplier || '') || (a.branchName || '').localeCompare(b.branchName || ''));
+
+  return { trading, branchesCounted, directLines, consReady, consPending };
+}
+
+async function rcCalc() {
+  const isLao = lang === 'lo';
+  if (_rcBusy) return; _rcBusy = true;
+  const btn = document.getElementById('rcCalcBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loader"></span>'; }
+  const listEl = document.getElementById('rcList');
+  const setMsg = m => { if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:25px;color:var(--slate-400);font-size:12px;">' + m + '</div>'; };
+  try {
+    const buyer = (document.getElementById('rcBuyer') || {}).value || '';
+    const inOutF = (document.getElementById('rcInOut') || {}).value || '';
+    const topOnly = !!(document.getElementById('rcTopOnly') || {}).checked;
+    const data = await rcBuildAll({ buyer, inOutF, topOnly }, (bn) => setMsg((isLao ? '⏳ ຄຳນວນ ' : '⏳ คำนวณ ') + escapeHtml(bn) + ' ...'));
+    _rcData = data;
+    rcRenderSummary();
+    rcRenderList();
+  } catch (e) {
+    console.error('[FS] rcCalc error:', e);
+    setMsg('❌ ' + escapeHtml((e && e.message) || 'error'));
+  } finally {
+    _rcBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = '🔄 ' + (isLao ? 'ຄຳນວນທຸກສາຂາ' : 'คำนวณทุกสาขา'); }
+  }
+}
+
+function rcRenderSummary() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('rcSummary'); if (!el) return;
+  const d = _rcData; if (!d) { el.innerHTML = ''; return; }
+  const fmt = new Intl.NumberFormat('th-TH');
+  const totCartons = d.consReady.reduce((s, it) => s + it.cartons, 0);
+  const trName = d.trading ? (isLao ? (d.trading.name_lo || d.trading.code) : (d.trading.name_th || d.trading.code)) : '';
+  el.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;">
+    <span style="background:#7c3aed;color:white;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">📦 ${isLao ? 'ລວມສູນ' : 'รวมศูนย์'} ${d.consReady.length} · ${totCartons} ${isLao ? 'ລັງ' : 'ลัง'} → Trading</span>
+    <span style="background:var(--emerald-50);color:var(--emerald-700);border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">🚚 ${isLao ? 'ສັ່ງກົງ' : 'สั่งตรง'} ${fmt.format(d.directLines.length)}</span>
+    ${d.consPending.length ? `<span style="background:#fffbeb;color:#b45309;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">⏳ ${isLao ? 'ລໍສະສົມ' : 'รอสะสม'} ${d.consPending.length}</span>` : ''}
+    <span style="background:var(--slate-100);color:var(--slate-600);border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;">🏪 ${d.branchesCounted} ${isLao ? 'ສາຂາ' : 'สาขา'}${d.trading ? ' · Trading: ' + escapeHtml(trName) : ' · ⚠️ ' + (isLao ? 'ບໍ່ພົບສາງ Trading' : 'ไม่พบสาง Trading')}</span>
+  </div>`;
+}
+
+function rcRenderList() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('rcList'); if (!el) return;
+  const d = _rcData; if (!d) return;
+  const fmt = new Intl.NumberFormat('th-TH');
+  if (!d.consReady.length && !d.consPending.length && !d.directLines.length) {
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--slate-400);"><div style="font-size:36px;">✅</div>' + (isLao ? 'ບໍ່ມີສິນຄ້າຕ້ອງສັ່ງ' : 'ไม่มีสินค้าต้องสั่ง') + '</div>';
+    return;
+  }
+  const secHead = (icon, txt, n, color, bg) => '<div style="display:flex;align-items:center;gap:7px;background:' + bg + ';border-radius:9px;padding:8px 12px;margin:9px 0 6px;"><span style="font-size:12px;font-weight:800;color:' + color + ';flex:1;">' + icon + ' ' + txt + '</span><span style="background:' + color + ';color:white;border-radius:9px;padding:1px 9px;font-size:10px;font-weight:800;">' + n + '</span></div>';
+  let html = '';
+  // กองรวมศูนย์ (พร้อมสั่ง)
+  if (d.consReady.length) {
+    html += secHead('📦', isLao ? 'ສັ່ງລວມເຂົ້າ Trading' : 'สั่งรวมเข้า Trading', d.consReady.length, '#7c3aed', '#f5f3ff');
+    html += d.consReady.map(it => {
+      const brk = it.byBranch.map(bb => escapeHtml(bb.branchName) + ' <b>' + fmt.format(bb.needUnits) + '</b>').join(' · ');
+      return '<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid #7c3aed;border-radius:10px;padding:9px 11px;margin-bottom:6px;display:flex;align-items:center;gap:9px;">'
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:12.5px;font-weight:700;color:var(--slate-900);">' + escapeHtml(it.name) + '</div>'
+        + '<div style="font-size:9.5px;color:var(--slate-500);font-family:monospace;">' + escapeHtml(it.barcode) + (it.supplier ? ' · 🛒 ' + escapeHtml(it.supplier) : '') + '</div>'
+        + '<div style="font-size:10px;color:var(--slate-600);margin-top:2px;">' + (isLao ? 'ລວມ' : 'ดีมานด์รวม') + ' <b>' + fmt.format(it.totalUnits) + '</b> ' + escapeHtml(it.unit) + ' · ' + (isLao ? 'ຕໍ່ລັງ' : 'ต่อลัง') + ' ' + it.pcb + (it.leftover > 0 ? ' · ' + (isLao ? 'ເຫຼືອທີ່ Trading' : 'เหลือที่ Trading') + ' ' + fmt.format(it.leftover) : '') + '</div>'
+        + '<div style="font-size:9px;color:var(--violet-600);margin-top:2px;">🏪 ' + brk + '</div>'
+        + '</div>'
+        + '<div style="text-align:right;flex-shrink:0;"><div style="font-size:17px;font-weight:800;color:#7c3aed;font-family:\'Space Grotesk\',monospace;line-height:1;">' + it.cartons + '</div><div style="font-size:9px;color:var(--slate-500);">' + (isLao ? 'ລັງ' : 'ลัง') + '</div></div>'
+        + '</div>';
+    }).join('');
+  }
+  // รอสะสม
+  if (d.consPending.length) {
+    html += secHead('⏳', isLao ? 'ລໍສະສົມ (ຈັດຊື້ເລືອກເອງ)' : 'รอสะสม (จัดซื้อเลือกเอง)', d.consPending.length, '#b45309', '#fffbeb');
+    html += d.consPending.map(it => {
+      const brk = it.byBranch.map(bb => escapeHtml(bb.branchName) + ' ' + fmt.format(bb.needUnits)).join(' · ');
+      return '<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid #f59e0b;border-radius:10px;padding:9px 11px;margin-bottom:6px;">'
+        + '<div style="font-size:12.5px;font-weight:700;color:var(--slate-900);">' + escapeHtml(it.name) + '</div>'
+        + '<div style="font-size:9.5px;color:var(--slate-500);font-family:monospace;">' + escapeHtml(it.barcode) + (it.supplier ? ' · 🛒 ' + escapeHtml(it.supplier) : '') + '</div>'
+        + '<div style="font-size:10px;color:var(--slate-600);margin-top:2px;">' + (isLao ? 'ລວມ' : 'ดีมานด์รวม') + ' <b>' + fmt.format(it.totalUnits) + '</b> / ' + (isLao ? 'ຕໍ່ລັງ' : 'ต่อลัง') + ' ' + it.pcb + ' · ' + (isLao ? 'ຂາດອີກ' : 'ขาดอีก') + ' <b>' + fmt.format(it.shortToCarton) + '</b> ' + (isLao ? 'ໃຫ້ຄົບ 1 ລັງ' : 'ถึงครบ 1 ลัง') + '</div>'
+        + '<div style="font-size:9px;color:var(--violet-600);margin-top:2px;">🏪 ' + brk + '</div>'
+        + '</div>';
+    }).join('');
+  }
+  // สั่งตรง (สรุปเป็นโน้ต — รายละเอียดอยู่ใน Excel)
+  if (d.directLines.length) {
+    html += secHead('🚚', isLao ? 'ສັ່ງກົງເຂົ້າສາຂາ' : 'สั่งตรงเข้าสาขา', d.directLines.length, '#059669', '#ecfdf5');
+    html += '<div style="background:white;border:1px solid var(--slate-200);border-radius:10px;padding:11px;font-size:11px;color:var(--slate-600);">'
+      + (isLao ? 'ສິນຄ້າຂາຍໄວ ' : 'สินค้าขายไว ') + '<b>' + fmt.format(d.directLines.length) + '</b> ' + (isLao ? 'ລາຍການ ສັ່ງກົງເຂົ້າສາຂາ (ຊັບສົ່ງເຂົ້າສາຂາໂດຍກົງ) — ' : 'รายการ สั่งตรงเข้าสาขา (ซัพฯส่งเข้าสาขาโดยตรง) — ') + (isLao ? 'ລາຍລະອຽດຢູ່ໃນ Excel' : 'รายละเอียดอยู่ใน Excel') + '</div>';
+  }
+  el.innerHTML = html;
+}
+
+async function rcExport() {
+  const isLao = lang === 'lo';
+  const d = _rcData;
+  if (!d) { showToast(isLao ? 'ກົດຄຳນວນກ່ອນ' : 'กดคำนวณก่อน', 'warning'); return; }
+  if (!d.consReady.length && !d.consPending.length && !d.directLines.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
+  if (typeof ExcelJS === 'undefined') { showToast('ExcelJS not loaded', 'error'); return; }
+  try {
+    const canCost = ['bcs', 'admin', 'scc'].includes((user && user.role) || '');
+    const wb = new ExcelJS.Workbook();
+    const HEAD_FILL = 'FF1E3A8A';
+    const styleHead = (ws) => { const hr = ws.getRow(1); hr.font = { bold: true, color: { argb: 'FFFFFFFF' } }; hr.alignment = { vertical: 'middle', wrapText: true }; hr.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEAD_FILL } }; }); };
+    const mkSheet = (name, headers, widths, rows) => {
+      const ws = wb.addWorksheet(name);
+      widths.forEach((w, i) => ws.getColumn(i + 1).width = w);
+      ws.addRow(headers);
+      rows.forEach(a => ws.addRow(a));
+      styleHead(ws);
+      ws.views = [{ state: 'frozen', ySplit: 1 }];
+      return ws;
+    };
+    // 1) สั่งเข้า Trading (รวมศูนย์)
+    {
+      const H = ['Barcode', 'ชื่อสินค้า', 'ซัพพลายเออร์', 'ต่อลัง', 'สั่ง (ลัง)', 'สั่ง (ชิ้น)', 'ดีมานด์รวม (ชิ้น)', 'เหลือที่ Trading (ชิ้น)'];
+      const W = [14, 28, 20, 8, 9, 11, 14, 16];
+      if (canCost) { H.push('ต้นทุน (₭)', 'มูลค่า (₭)'); W.push(13, 15); }
+      const rows = d.consReady.map(it => {
+        const a = [it.barcode, it.name, it.supplier || '', it.pcb, it.cartons, it.orderedUnits, it.totalUnits, it.leftover];
+        if (canCost) a.push(it.cost || 0, (it.orderedUnits * (it.cost || 0)));
+        return a;
+      });
+      const ws = mkSheet(isLao ? 'ສັ່ງເຂົ້າ Trading' : 'สั่งเข้า Trading', H, W, rows);
+      if (canCost) { ws.getColumn(9).numFmt = '#,##0'; ws.getColumn(10).numFmt = '#,##0'; }
+    }
+    // 2) ใบกระจาย Trading (แบ่งของกลับสาขา)
+    {
+      const H = ['Barcode', 'ชื่อสินค้า', 'สาขา', 'จำนวนที่แบ่ง (ชิ้น)', 'ต่อลัง'];
+      const W = [14, 28, 22, 16, 8];
+      const rows = [];
+      d.consReady.forEach(it => it.byBranch.forEach(bb => rows.push([it.barcode, it.name, bb.branchName, bb.needUnits, it.pcb])));
+      mkSheet(isLao ? 'ໃບແບ່ງ Trading' : 'ใบกระจาย Trading', H, W, rows);
+    }
+    // 3) สั่งตรงเข้าสาขา
+    {
+      const H = ['สาขา', 'Barcode', 'ชื่อสินค้า', 'ซัพพลายเออร์', 'ใน/นอก', 'ต่อลัง', 'สั่ง (ลัง)', 'สั่ง (ชิ้น)'];
+      const W = [22, 14, 28, 20, 9, 8, 9, 11];
+      if (canCost) { H.push('ต้นทุน (₭)', 'มูลค่า (₭)'); W.push(13, 15); }
+      const rows = d.directLines.map(x => {
+        const a = [x.branchName, x.barcode, x.name, x.supplier || '', x.inOut || '', x.pcb, x.cartons, x.pcs];
+        if (canCost) a.push(x.cost || 0, (x.pcs * (x.cost || 0)));
+        return a;
+      });
+      const ws = mkSheet(isLao ? 'ສັ່ງກົງເຂົ້າສາຂາ' : 'สั่งตรงเข้าสาขา', H, W, rows);
+      if (canCost) { ws.getColumn(9).numFmt = '#,##0'; ws.getColumn(10).numFmt = '#,##0'; }
+    }
+    // 4) รอสะสม (จัดซื้อเลือกเอง)
+    if (d.consPending.length) {
+      const H = ['Barcode', 'ชื่อสินค้า', 'ซัพพลายเออร์', 'ต่อลัง', 'ดีมานด์รวม (ชิ้น)', 'ขาดอีก (ชิ้น) ครบ 1 ลัง', 'สาขาที่ต้องการ'];
+      const W = [14, 28, 20, 8, 14, 18, 40];
+      const rows = d.consPending.map(it => [it.barcode, it.name, it.supplier || '', it.pcb, it.totalUnits, it.shortToCarton, it.byBranch.map(bb => bb.branchName + ' ' + bb.needUnits).join(' · ')]);
+      mkSheet(isLao ? 'ລໍສະສົມ' : 'รอสะสม', H, W, rows);
+    }
+    if (typeof _exceljsComma === 'function') _exceljsComma(wb);
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
+    a.download = `reorder-central-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    if (typeof logActivity === 'function') logActivity('reorder_central_export', (d.consReady.length + d.directLines.length) + ' lines');
+    showToast('✅ ' + (isLao ? 'ດາວໂຫຼດແລ້ວ' : 'ดาวน์โหลดแล้ว'), 'success');
+  } catch (e) {
+    console.error('[FS] rcExport error:', e);
     showToast('Error: ' + ((e && e.message) || e), 'error');
   }
 }
@@ -39833,6 +40145,7 @@ window.mpOpenUploadModal = mpOpenUploadModal;
 window.bpOpenUploadModal = bpOpenUploadModal; window.bpHandleFileSelected = bpHandleFileSelected; window.bpExecuteUpload = bpExecuteUpload; window.bpLookup = bpLookup;
 // Reorder Suggestion
 window.renderReorderPage = renderReorderPage; window.roInit = roInit; window.roCalc = roCalc; window.roToggle = roToggle; window.roToggleAll = roToggleAll; window.roExport = roExport; window.roSetFilter = roSetFilter;
+window.renderReorderHubPage = renderReorderHubPage; window.rcInit = rcInit; window.rcCalc = rcCalc; window.rcExport = rcExport;
 // Shrinkage
 window.renderShrinkagePage = renderShrinkagePage; window.loadShrinkage = loadShrinkage; window.skLookup = skLookup; window.skScan = skScan; window.skSetReason = skSetReason; window.skSetMonth = skSetMonth; window.skOnPhoto = skOnPhoto; window.skSave = skSave; window.skDelete = skDelete; window.skExport = skExport;
 // Manager Dashboard
