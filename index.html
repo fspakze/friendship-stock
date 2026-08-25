@@ -9124,7 +9124,7 @@ async function roExport() {
     const byBuyer = {};
     rows.forEach(r => { const k = r.buyer || (isLao ? 'ບໍ່ລະບຸ' : 'ไม่ระบุ'); (byBuyer[k] = byBuyer[k] || []).push(r); });
     const usedNames = {};
-    const safeSheet = (nm) => { let s = String(nm || 'buyer').replace(/[\\/?*\[\]:]/g, '').slice(0, 28) || 'buyer'; let base = s, n = 2; while (usedNames[s]) { s = base.slice(0, 26) + '_' + n; n++; } usedNames[s] = 1; return s; };
+    const safeSheet = (nm) => { let s = String(nm || 'buyer').replace(/[\\/?*\[\]:]/g, '').trim().slice(0, 28) || 'buyer'; let base = s, n = 2; while (usedNames[s.toLowerCase()]) { s = base.slice(0, 26) + '_' + n; n++; } usedNames[s.toLowerCase()] = 1; return s; };   // dedup case-insensitive (ExcelJS มองชื่อ sheet ไม่สนตัวเล็ก-ใหญ่)
     Object.keys(byBuyer).sort().forEach(bk => {
       const ws = wb.addWorksheet(safeSheet(bk));
       widths.forEach((w, i) => ws.getColumn(i + 1).width = w);
@@ -19510,7 +19510,7 @@ async function pogExportShort() {
       ws.views = [{ state: 'frozen', ySplit: 1 }];
     };
     const usedNames = {};
-    const safeSheet = (nm) => { let s = String(nm || 'สาขา').replace(/[\\/?*\[\]:]/g, '').slice(0, 28) || 'สาขา'; let base = s, n = 2; while (usedNames[s]) { s = (base.slice(0, 26) + '_' + n); n++; } usedNames[s] = 1; return s; };
+    const safeSheet = (nm) => { let s = String(nm || 'สาขา').replace(/[\\/?*\[\]:]/g, '').trim().slice(0, 28) || 'สาขา'; let base = s, n = 2; while (usedNames[s.toLowerCase()]) { s = (base.slice(0, 26) + '_' + n); n++; } usedNames[s.toLowerCase()] = 1; return s; };   // dedup case-insensitive (ExcelJS มองชื่อ sheet ไม่สนตัวเล็ก-ใหญ่)
 
     if (_pogShortMode === 'byBranch') {
       // แยกสาขา: สาขา = คอลัมน์ A · แบ่ง 1 sheet ต่อ 1 สาขา
