@@ -1739,6 +1739,22 @@ async function fetchAllQuery(buildQuery) {
   return all;
 }
 
+// ยิง select แบบ retry — กัน request fail ชั่วคราว (rate limit/เน็ตสะดุด) แล้วกลืนเงียบจนข้อมูลไม่ครบ (ตกหล่น)
+// คืน data (array) ถ้าสำเร็จ · retry N ครั้ง แล้วยัง fail = throw (ให้ผู้เรียกจับ แจ้ง error — ดีกว่าโชว์ข้อมูลไม่ครบเงียบๆ)
+async function _sbSel(buildQuery, tries) {
+  tries = tries || 4;
+  let lastErr = null;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const r = await buildQuery();
+      if (!r.error) return r.data || [];
+      lastErr = r.error;
+    } catch (e) { lastErr = e; }
+    await new Promise(res => setTimeout(res, 250 * (i + 1)));   // backoff 250/500/750ms
+  }
+  throw lastErr || new Error('query failed after retries');
+}
+
 // Global error handlers — ไม่ให้ error เงียบหายจนผู้ใช้งง / debug ยาก
 window.addEventListener('error', function(e) {
   if (FS_DEBUG) console.error('[FS] Uncaught error:', e.error || e.message);
@@ -8929,14 +8945,15 @@ async function roComputeRows(brRec, opts, onProgress) {
   const posMap = {}, mpMap = {}, bpMap = {};
   for (let i = 0; i < bcs.length; i += 200) {
     const chunk = bcs.slice(i, i + 200);
-    const [pr, mp, bp] = await Promise.all([
-      sb.from('products').select('barcode,name_th,name_lo,pos_qty,cost_price,unit_th,unit_lo').eq('branch_id', brId).eq('is_active', true).in('barcode', chunk),
-      sb.from('master_products').select('barcode,category,product_group,supplier').in('barcode', chunk),
-      sb.from('barcode_packsize').select('barcode_unit,barcode_pack,barcode_box,qty_unit,qty_pack,pcs_per_box,price_box,price_pack').in('barcode_unit', chunk)
+    // retry ทุก query — กัน request fail ชั่วคราวแล้วข้อมูลหายเงียบ (ทำให้จำนวน SKU ไม่เท่ากันแต่ละรอบ · Ball 2026-08-26)
+    const [prD, mpD, bpD] = await Promise.all([
+      _sbSel(() => sb.from('products').select('barcode,name_th,name_lo,pos_qty,cost_price,unit_th,unit_lo').eq('branch_id', brId).eq('is_active', true).in('barcode', chunk)),
+      _sbSel(() => sb.from('master_products').select('barcode,category,product_group,supplier').in('barcode', chunk)),
+      _sbSel(() => sb.from('barcode_packsize').select('barcode_unit,barcode_pack,barcode_box,qty_unit,qty_pack,pcs_per_box,price_box,price_pack').in('barcode_unit', chunk))
     ]);
-    (pr.data || []).forEach(p => { posMap[String(p.barcode)] = p; });
-    (mp.data || []).forEach(m => { mpMap[String(m.barcode)] = m; });
-    (bp.data || []).forEach(b => { bpMap[String(b.barcode_unit)] = b; });
+    prD.forEach(p => { posMap[String(p.barcode)] = p; });
+    mpD.forEach(m => { mpMap[String(m.barcode)] = m; });
+    bpD.forEach(b => { bpMap[String(b.barcode_unit)] = b; });
   }
   // ของหมดที่ปิดการขาย (is_active=false) จะไม่ถูกดึงในลูปบน (กรอง is_active) → เติมจาก oosProdMap
   Object.keys(oosProdMap).forEach(bc => { if (!posMap[bc]) posMap[bc] = oosProdMap[bc]; });
