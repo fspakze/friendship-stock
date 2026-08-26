@@ -8730,6 +8730,8 @@ let _roSel = new Set();      // barcode ที่เลือก export
 let _roBusy = false;
 let _roFilterCat = '';       // กรองประเภทสินค้า ('' = ทั้งหมด)
 let _roFilterGrp = '';       // กรองกลุ่มสินค้า
+let _roFilterSup = new Set();// กรองซัพพลายเออร์ (ว่าง = ทุกซัพฯ · เลือกได้หลายราย) — สำหรับ export เฉพาะซัพฯ ที่เลือก
+let _roSupList = [];         // รายชื่อซัพฯ ทั้งหมด (จากผลคำนวณ · sorted) ไว้ทำ modal เลือก
 // format วันที่ (YYYY-MM-DD หรือ ISO) → dd/mm/yyyy
 function roFmtDate(v) {
   if (!v) return '—';
@@ -8742,6 +8744,7 @@ function roVisibleRows() {
   let rows = _roRows || [];
   if (_roFilterCat) rows = rows.filter(r => (r.cat || '') === _roFilterCat);
   if (_roFilterGrp) rows = rows.filter(r => (r.grp || '') === _roFilterGrp);
+  if (_roFilterSup && _roFilterSup.size) rows = rows.filter(r => _roFilterSup.has(r.supplier || ''));
   return rows;
 }
 // ── Lead/Cycle รายสินค้า (มิเรอร์จาก Forecast_PO/Lead_Cycle_วิธีคำนวณ.md) ──
@@ -8806,9 +8809,10 @@ function renderReorderPage() {
         <button onclick="roExport()" style="background:var(--emerald-500);color:white;border:none;border-radius:9px;padding:11px 14px;font-size:13px;font-weight:700;cursor:pointer;">📊 Excel</button>
       </div>
     </div>
-    <div id="roFilters" style="display:none;gap:6px;margin-bottom:8px;">
+    <div id="roFilters" style="display:none;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
       <select id="roFilterCat" onchange="roSetFilter('cat', this.value)" style="flex:1;min-width:0;padding:8px;border:1px solid var(--slate-300);border-radius:8px;font-size:12px;background:white;"></select>
       <select id="roFilterGrp" onchange="roSetFilter('grp', this.value)" style="flex:1;min-width:0;padding:8px;border:1px solid var(--slate-300);border-radius:8px;font-size:12px;background:white;"></select>
+      <button id="roFilterSupBtn" onclick="roOpenSupFilter()" style="flex:1;min-width:110px;padding:8px;border:1px solid var(--slate-300);border-radius:8px;font-size:12px;background:white;color:var(--slate-700);font-weight:700;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">🏢 ${isLao ? 'ຊັບພລາຍເອີ' : 'ซัพฯ'}</button>
     </div>
     <div id="roSummary" style="margin-bottom:9px;"></div>
     <div id="roList" style="padding-bottom:90px;">
@@ -9005,7 +9009,7 @@ async function roCalc() {
 
     _roRows = low;
     _roSel = new Set(low.map(r => r.barcode)); // default เลือกทั้งหมด
-    _roFilterCat = ''; _roFilterGrp = '';
+    _roFilterCat = ''; _roFilterGrp = ''; _roFilterSup = new Set();
     roRenderFilters();
     roRenderSummary();
     roRenderList();
@@ -9035,11 +9039,83 @@ function roRenderFilters() {
     + cats.map(c => '<option value="' + escapeHtml(c) + '"' + (_roFilterCat === c ? ' selected' : '') + '>' + escapeHtml(c) + ' (' + rows.filter(r => r.cat === c).length + ')</option>').join('');
   if (grpSel) grpSel.innerHTML = '<option value="">🏷️ ' + (isLao ? 'ທຸກກຸ່ມ' : 'ทุกกลุ่ม') + '</option>'
     + grps.map(g => '<option value="' + escapeHtml(g) + '"' + (_roFilterGrp === g ? ' selected' : '') + '>' + escapeHtml(g) + ' (' + inCat.filter(r => r.grp === g).length + ')</option>').join('');
+  // ปุ่มซัพฯ: โชว์จำนวนที่เลือก (ว่าง = ทุกซัพฯ)
+  const supBtn = document.getElementById('roFilterSupBtn');
+  if (supBtn) {
+    const n = _roFilterSup.size;
+    supBtn.innerHTML = '🏢 ' + (isLao ? 'ຊັບພລາຍເອີ' : 'ซัพฯ') + (n ? ' (' + n + ')' : '');
+    supBtn.style.borderColor = n ? 'var(--fs-blue)' : 'var(--slate-300)';
+    supBtn.style.color = n ? 'var(--fs-blue)' : 'var(--slate-700)';
+  }
 }
 
 function roSetFilter(which, val) {
   if (which === 'cat') { _roFilterCat = val; _roFilterGrp = ''; } // เปลี่ยนประเภท → ล้างกลุ่ม
   else _roFilterGrp = val;
+  roRenderFilters();
+  roRenderSummary();
+  roRenderList();
+}
+
+// ── ตัวกรองซัพพลายเออร์ (เลือกได้หลายราย) — modal ค้นหา+checkbox → กรองจอ+export เฉพาะที่เลือก ──
+function roOpenSupFilter() {
+  const isLao = lang === 'lo';
+  const rows = _roRows || [];
+  const map = {};
+  rows.forEach(r => { const s = r.supplier || ''; map[s] = (map[s] || 0) + 1; });   // key = ค่า supplier ดิบ ('' = ไม่ระบุ) ให้ตรงกับ roVisibleRows
+  window._roSupCount = map;
+  _roSupList = Object.keys(map).sort((a, b) => (a || '￿').localeCompare(b || '￿'));   // '' ('ไม่ระบุ') ไปท้ายสุด
+  roRenderSupModal('');
+}
+function roRenderSupModal(q) {
+  const isLao = lang === 'lo';
+  const list = _roSupList || [];
+  const cnt = window._roSupCount || {};
+  const noneLabel = isLao ? 'ບໍ່ລະບຸຊັບພລາຍເອີ' : 'ไม่ระบุซัพพลายเออร์';
+  const ql = (q || '').toLowerCase();
+  const shown = ql ? list.filter(s => (s || noneLabel).toLowerCase().includes(ql)) : list;
+  const selN = _roFilterSup.size;
+  const items = shown.map(s => {
+    const on = _roFilterSup.has(s);
+    const enc = encodeURIComponent(s).replace(/'/g, '%27');
+    return '<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--slate-100);cursor:pointer;">'
+      + '<input type="checkbox" ' + (on ? 'checked' : '') + ' onclick="roToggleSup(\'' + enc + '\')" style="width:17px;height:17px;accent-color:var(--fs-blue);flex-shrink:0;">'
+      + '<span style="flex:1;font-size:12px;color:var(--slate-800);line-height:1.35;">' + escapeHtml(s || noneLabel) + '</span>'
+      + '<span style="font-size:10px;color:var(--slate-400);font-weight:700;flex-shrink:0;">' + (cnt[s] || 0) + '</span>'
+      + '</label>';
+  }).join('');
+  const html = '<div style="display:flex;flex-direction:column;max-height:78vh;">'
+    + '<div style="font-size:15px;font-weight:800;margin-bottom:8px;">🏢 ' + (isLao ? 'ເລືອກຊັບພລາຍເອີ' : 'เลือกซัพพลายเออร์') + (selN ? ' <span style="color:var(--fs-blue);">(' + selN + ')</span>' : '') + '</div>'
+    + '<input type="text" id="roSupSearch" oninput="roRenderSupModal(this.value)" value="' + escapeHtml(q || '') + '" placeholder="' + (isLao ? 'ຄົ້ນຫາຊັບພລາຍເອີ...' : 'ค้นหาซัพฯ...') + '" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:8px;">'
+    + '<div style="display:flex;gap:6px;margin-bottom:8px;">'
+    + '<button onclick="roSupAll(true)" style="flex:1;background:var(--slate-100);border:none;border-radius:7px;padding:7px;font-size:11px;font-weight:700;cursor:pointer;">☑ ' + (isLao ? 'ເລືອກທັງໝົດ' : 'เลือกทั้งหมด') + '</button>'
+    + '<button onclick="roSupAll(false)" style="flex:1;background:var(--slate-100);border:none;border-radius:7px;padding:7px;font-size:11px;font-weight:700;cursor:pointer;">✕ ' + (isLao ? 'ລ້າງ' : 'ล้าง') + '</button>'
+    + '</div>'
+    + '<div style="flex:1;overflow-y:auto;border:1px solid var(--slate-200);border-radius:9px;min-height:120px;">' + (items || '<div style="padding:20px;text-align:center;color:var(--slate-400);font-size:12px;">—</div>') + '</div>'
+    + '<button onclick="roApplySup()" style="margin-top:10px;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">' + (isLao ? 'ນຳໃຊ້ຕົວກອງ' : 'ใช้ตัวกรอง') + '</button>'
+    + '</div>';
+  const overlay = document.getElementById('modalOverlay');
+  const mc = document.getElementById('modalContent');
+  if (mc && overlay && overlay.classList.contains('show')) {
+    mc.innerHTML = html;   // อัปเดตในที่ (กันกระพริบ) — คืน focus+caret ให้ช่องค้นหา
+    const inp = document.getElementById('roSupSearch'); if (inp) { inp.focus(); try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) { } }
+  } else {
+    showModal(html);
+  }
+}
+function roToggleSup(enc) {
+  let s = ''; try { s = decodeURIComponent(enc); } catch (e) { s = enc; }
+  if (_roFilterSup.has(s)) _roFilterSup.delete(s); else _roFilterSup.add(s);
+  const q = ((document.getElementById('roSupSearch') || {}).value) || '';
+  roRenderSupModal(q);
+}
+function roSupAll(sel) {
+  if (sel) (_roSupList || []).forEach(s => _roFilterSup.add(s)); else _roFilterSup.clear();
+  const q = ((document.getElementById('roSupSearch') || {}).value) || '';
+  roRenderSupModal(q);
+}
+function roApplySup() {
+  if (typeof closeModal === 'function') closeModal();
   roRenderFilters();
   roRenderSummary();
   roRenderList();
@@ -40150,6 +40226,7 @@ window.bpOpenUploadModal = bpOpenUploadModal; window.bpHandleFileSelected = bpHa
 // Reorder Suggestion
 window.renderReorderPage = renderReorderPage; window.roInit = roInit; window.roCalc = roCalc; window.roToggle = roToggle; window.roToggleAll = roToggleAll; window.roExport = roExport; window.roSetFilter = roSetFilter;
 window.renderReorderHubPage = renderReorderHubPage; window.rcInit = rcInit; window.rcCalc = rcCalc; window.rcExport = rcExport;
+window.roOpenSupFilter = roOpenSupFilter; window.roRenderSupModal = roRenderSupModal; window.roToggleSup = roToggleSup; window.roSupAll = roSupAll; window.roApplySup = roApplySup;
 // Shrinkage
 window.renderShrinkagePage = renderShrinkagePage; window.loadShrinkage = loadShrinkage; window.skLookup = skLookup; window.skScan = skScan; window.skSetReason = skSetReason; window.skSetMonth = skSetMonth; window.skOnPhoto = skOnPhoto; window.skSave = skSave; window.skDelete = skDelete; window.skExport = skExport;
 // Manager Dashboard
