@@ -8732,6 +8732,7 @@ let _roFilterCat = '';       // กรองประเภทสินค้า
 let _roFilterGrp = '';       // กรองกลุ่มสินค้า
 let _roFilterSup = new Set();// กรองซัพพลายเออร์ (ว่าง = ทุกซัพฯ · เลือกได้หลายราย) — สำหรับ export เฉพาะซัพฯ ที่เลือก
 let _roSupList = [];         // รายชื่อซัพฯ ทั้งหมด (จากผลคำนวณ · sorted) ไว้ทำ modal เลือก
+let _roOOSOnly = false;      // true = โชว์เฉพาะของหมด (pos≤0 หรือปิดการขาย) — ไล่สั่งของหมดให้ครบ ไม่ตกหล่น
 // ── ซัพฯ ที่เลือกไว้เป็น default ตอนคำนวณ (Ball ส่งรายชื่อ 2026-08-26) ──
 // แมตช์ด้วย "คำอังกฤษ" (ASCII สะอาดทุกเวอร์ชัน) — ชื่อลาวในฐานข้อมูลเพี้ยน/มีหลายเวอร์ชัน แมตช์เป๊ะไม่ได้
 // token เลือกให้เลี่ยงตัวปลอม: DKSH LAOS≠THAILAND · SOKXAY TRADING≠PHARMA · NOUNTHONG TRADING≠CHAMPASAK · HEUNG XAY≠HUNG HUENG SUB · LONG-D≠KHAMPASEUTH(โค้ด 1110 ซ้ำ)
@@ -8751,6 +8752,7 @@ function roVisibleRows() {
   if (_roFilterCat) rows = rows.filter(r => (r.cat || '') === _roFilterCat);
   if (_roFilterGrp) rows = rows.filter(r => (r.grp || '') === _roFilterGrp);
   if (_roFilterSup && _roFilterSup.size) rows = rows.filter(r => _roFilterSup.has(r.supplier || ''));
+  if (_roOOSOnly) rows = rows.filter(r => r.pos <= 0 || r.inactive);   // เฉพาะของหมด
   return rows;
 }
 // ── Lead/Cycle รายสินค้า (มิเรอร์จาก Forecast_PO/Lead_Cycle_วิธีคำนวณ.md) ──
@@ -9016,6 +9018,7 @@ async function roCalc() {
     _roRows = low;
     _roSel = new Set(low.map(r => r.barcode)); // default เลือกทั้งหมด
     _roFilterCat = ''; _roFilterGrp = '';
+    _roOOSOnly = false;
     // default: ติ๊กเลือกซัพฯ ที่ Ball กำหนดไว้ (ตัวที่มีในผลคำนวณรอบนี้) — ถ้าไม่มีตรงเลย = ว่าง (โชว์ทุกซัพฯ)
     _roFilterSup = new Set(low.filter(r => roIsDefaultSup(r.supplier)).map(r => r.supplier || ''));
     roRenderFilters();
@@ -9061,6 +9064,13 @@ function roSetFilter(which, val) {
   if (which === 'cat') { _roFilterCat = val; _roFilterGrp = ''; } // เปลี่ยนประเภท → ล้างกลุ่ม
   else _roFilterGrp = val;
   roRenderFilters();
+  roRenderSummary();
+  roRenderList();
+}
+
+// สลับโหมด "เฉพาะของหมด" — ไล่สั่งของหมดให้ครบ ไม่ตกหล่น
+function roToggleOOS() {
+  _roOOSOnly = !_roOOSOnly;
   roRenderSummary();
   roRenderList();
 }
@@ -9146,7 +9156,7 @@ function roRenderSummary() {
   el.innerHTML = rows.length ? `
     <div style="display:flex;gap:6px;flex-wrap:wrap;">
       <span style="background:var(--fs-blue);color:white;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">${rows.length} SKU</span>
-      ${outCnt ? `<span style="background:#eeeeff;color:#4240b5;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">Out of Stock ${outCnt}</span>` : ''}
+      ${outCnt ? `<button onclick="roToggleOOS()" title="${isLao ? 'ກົດເພື່ອສະແດງສະເພາະຂອງໝົດ' : 'กดเพื่อโชว์เฉพาะของหมด'}" style="background:${_roOOSOnly ? '#4240b5' : '#eeeeff'};color:${_roOOSOnly ? 'white' : '#4240b5'};border:none;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;cursor:pointer;">🔴 Out of Stock ${outCnt}${_roOOSOnly ? ' ✕' : ''}</button>` : ''}
       ${belowMinCnt ? `<span style="background:#fff1f2;color:#e11d48;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">🔴 ${isLao ? 'ຕ່ຳກວ່າ Min' : 'ต่ำกว่า Min'} ${belowMinCnt}</span>` : ''}
       <span style="background:var(--emerald-50);color:var(--emerald-700);border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">✓ ${sel.length} ${isLao ? 'ເລືອກ' : 'เลือก'}</span>
       <span style="background:var(--slate-100);color:var(--slate-600);border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;">₭ ${new Intl.NumberFormat('th-TH').format(Math.round(val))}</span>
@@ -40239,7 +40249,7 @@ window.bpOpenUploadModal = bpOpenUploadModal; window.bpHandleFileSelected = bpHa
 // Reorder Suggestion
 window.renderReorderPage = renderReorderPage; window.roInit = roInit; window.roCalc = roCalc; window.roToggle = roToggle; window.roToggleAll = roToggleAll; window.roExport = roExport; window.roSetFilter = roSetFilter;
 window.renderReorderHubPage = renderReorderHubPage; window.rcInit = rcInit; window.rcCalc = rcCalc; window.rcExport = rcExport;
-window.roOpenSupFilter = roOpenSupFilter; window.roRenderSupModal = roRenderSupModal; window.roToggleSup = roToggleSup; window.roSupAll = roSupAll; window.roApplySup = roApplySup;
+window.roOpenSupFilter = roOpenSupFilter; window.roRenderSupModal = roRenderSupModal; window.roToggleSup = roToggleSup; window.roSupAll = roSupAll; window.roApplySup = roApplySup; window.roToggleOOS = roToggleOOS;
 // Shrinkage
 window.renderShrinkagePage = renderShrinkagePage; window.loadShrinkage = loadShrinkage; window.skLookup = skLookup; window.skScan = skScan; window.skSetReason = skSetReason; window.skSetMonth = skSetMonth; window.skOnPhoto = skOnPhoto; window.skSave = skSave; window.skDelete = skDelete; window.skExport = skExport;
 // Manager Dashboard
