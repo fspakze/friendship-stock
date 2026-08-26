@@ -9072,7 +9072,12 @@ function roOpenSupFilter() {
   const map = {};
   rows.forEach(r => { const s = r.supplier || ''; map[s] = (map[s] || 0) + 1; });   // key = ค่า supplier ดิบ ('' = ไม่ระบุ) ให้ตรงกับ roVisibleRows
   window._roSupCount = map;
-  _roSupList = Object.keys(map).sort((a, b) => (a || '￿').localeCompare(b || '￿'));   // '' ('ไม่ระบุ') ไปท้ายสุด
+  // เรียง: ที่เลือกไว้ขึ้นก่อน แล้วตามด้วยตัวอักษร ('' = ไม่ระบุ ท้ายสุด) — เรียงตอนเปิด (ไม่เด้งระหว่างติ๊ก)
+  _roSupList = Object.keys(map).sort((a, b) => {
+    const sa = _roFilterSup.has(a) ? 0 : 1, sb2 = _roFilterSup.has(b) ? 0 : 1;
+    if (sa !== sb2) return sa - sb2;
+    return (a || '￿').localeCompare(b || '￿');
+  });
   roRenderSupModal('');
 }
 function roRenderSupModal(q) {
