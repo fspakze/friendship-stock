@@ -8976,6 +8976,14 @@ async function roComputeRows(brRec, opts, onProgress) {
       } else if ((bp.barcode_pack || bp.price_pack) && upp > 1) {
         const n = Math.ceil(need / upp); r.orderUnits = n * upp; packUnit = upp;
         r.packLabel = n + ' ' + (lang === 'lo' ? 'ແພັກ' : 'แพ๊ค') + ' (' + upp + '/' + (lang === 'lo' ? 'ແພັກ' : 'แพ๊ค') + ')';
+      } else if (upb > 1) {
+        // ไม่มีบาร์โค้ด/ราคาระดับลัง-แพ๊ค แต่ qty_unit×qty_pack บอกจำนวนต่อลังชัด → ใช้เป็นลัง (SmartHeart 1*1*24 = 24/ลัง · Ball 2026-08-26)
+        const n = Math.ceil(need / upb); r.orderUnits = n * upb; packUnit = upb;
+        r.packLabel = n + ' ' + (lang === 'lo' ? 'ລັງ' : 'ลัง') + ' (' + upb + '/' + (lang === 'lo' ? 'ລັງ' : 'ลัง') + ')';
+      } else if (upp > 1) {
+        // เหลือ qty_unit > 1 อย่างเดียว → ใช้เป็นจำนวนต่อลัง
+        const n = Math.ceil(need / upp); r.orderUnits = n * upp; packUnit = upp;
+        r.packLabel = n + ' ' + (lang === 'lo' ? 'ລັງ' : 'ลัง') + ' (' + upp + '/' + (lang === 'lo' ? 'ລັງ' : 'ลัง') + ')';
       }
     }
     r.inactive = (p && p.is_active === false);
