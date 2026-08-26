@@ -8732,6 +8732,12 @@ let _roFilterCat = '';       // กรองประเภทสินค้า
 let _roFilterGrp = '';       // กรองกลุ่มสินค้า
 let _roFilterSup = new Set();// กรองซัพพลายเออร์ (ว่าง = ทุกซัพฯ · เลือกได้หลายราย) — สำหรับ export เฉพาะซัพฯ ที่เลือก
 let _roSupList = [];         // รายชื่อซัพฯ ทั้งหมด (จากผลคำนวณ · sorted) ไว้ทำ modal เลือก
+// ── ซัพฯ ที่เลือกไว้เป็น default ตอนคำนวณ (Ball ส่งรายชื่อ 2026-08-26) ──
+// แมตช์ด้วย "คำอังกฤษ" (ASCII สะอาดทุกเวอร์ชัน) — ชื่อลาวในฐานข้อมูลเพี้ยน/มีหลายเวอร์ชัน แมตช์เป๊ะไม่ได้
+// token เลือกให้เลี่ยงตัวปลอม: DKSH LAOS≠THAILAND · SOKXAY TRADING≠PHARMA · NOUNTHONG TRADING≠CHAMPASAK · HEUNG XAY≠HUNG HUENG SUB · LONG-D≠KHAMPASEUTH(โค้ด 1110 ซ้ำ)
+// ➕ เพิ่มซัพฯ ภายหลัง: ใส่คำอังกฤษที่แยกออกจากซัพฯ อื่นได้ (ตัวใหญ่) ต่อในลิสต์นี้
+const RO_DEFAULT_SUP_TOKENS = ['HEUNG XAY', 'CHANTHANIDA', 'SILINTHONE', 'BALAMY', 'SAIGON', 'SAVANVALY', 'DKSH LAOS', 'JB TRADING', 'DUMEK', 'COCA COLA', 'KHOUANCHAY', 'C.I TRADING', 'CP LAOS', 'PHETSALAT', 'BEER LAO', 'KHAMMANH', 'SOKXAY TRADING', 'SKY VISION', 'BEAUNEW', 'NOUNTHONG TRADING', 'LONG-D', 'THONGMANI', 'S.T GROUP'];
+function roIsDefaultSup(sup) { const s = String(sup || '').toUpperCase(); return RO_DEFAULT_SUP_TOKENS.some(t => s.includes(t)); }
 // format วันที่ (YYYY-MM-DD หรือ ISO) → dd/mm/yyyy
 function roFmtDate(v) {
   if (!v) return '—';
@@ -9009,7 +9015,9 @@ async function roCalc() {
 
     _roRows = low;
     _roSel = new Set(low.map(r => r.barcode)); // default เลือกทั้งหมด
-    _roFilterCat = ''; _roFilterGrp = ''; _roFilterSup = new Set();
+    _roFilterCat = ''; _roFilterGrp = '';
+    // default: ติ๊กเลือกซัพฯ ที่ Ball กำหนดไว้ (ตัวที่มีในผลคำนวณรอบนี้) — ถ้าไม่มีตรงเลย = ว่าง (โชว์ทุกซัพฯ)
+    _roFilterSup = new Set(low.filter(r => roIsDefaultSup(r.supplier)).map(r => r.supplier || ''));
     roRenderFilters();
     roRenderSummary();
     roRenderList();
