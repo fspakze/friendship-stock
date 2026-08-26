@@ -8753,6 +8753,7 @@ function roVisibleRows() {
   if (_roFilterGrp) rows = rows.filter(r => (r.grp || '') === _roFilterGrp);
   if (_roFilterSup && _roFilterSup.size) rows = rows.filter(r => _roFilterSup.has(r.supplier || ''));
   if (_roOOSOnly) rows = rows.filter(r => r.pos <= 0 || r.inactive);   // เฉพาะของหมด
+  else rows = rows.filter(r => !r.noAvgHere);   // มุมมองปกติ: ซ่อน "หมด+ไม่มีขายที่สาขานี้" (โชว์เฉพาะโหมดของหมด)
   return rows;
 }
 // ── Lead/Cycle รายสินค้า (มิเรอร์จาก Forecast_PO/Lead_Cycle_วิธีคำนวณ.md) ──
@@ -8900,6 +8901,26 @@ async function roComputeRows(brRec, opts, onProgress) {
     const oosProd = await fetchAllQuery(() => sb.from('products').select('barcode,name_th,name_lo,pos_qty,cost_price,unit_th,unit_lo,is_active').eq('branch_id', brId).or('pos_qty.lte.0,is_active.eq.false').order('id'));
     oosProd.forEach(p => { oosProdMap[String(p.barcode)] = p; });
   } catch (e) { }
+  // สินค้าหมดที่ "ไม่มีขายที่สาขานี้ (AVG=0) แต่ยังขายที่สาขาอื่น" = viable → เพิ่มเข้ามา (โชว์เฉพาะโหมด "เฉพาะของหมด") (Ball 2026-08-26)
+  //   ตัดเฉพาะสินค้าตายจริง (ไม่มีขายทุกสาขา) กัน flood · mark noAvgHere=true → roVisibleRows ซ่อนในมุมมองปกติ
+  const statusMap = {};
+  (statusRows || []).forEach(r => { statusMap[String(r.barcode)] = r; });
+  const candBc = new Set(cand.map(c => c.barcode));
+  Object.keys(oosProdMap).forEach(bc => {
+    if (candBc.has(bc)) return;                                  // เป็น candidate AVG>0 อยู่แล้ว
+    const p = oosProdMap[bc];
+    if (!(Number(p.pos_qty) <= 0 || p.is_active === false)) return;   // ต้องเป็นของหมดจริง
+    const st = statusMap[bc];
+    if (!st) return;                                            // ไม่มีข้อมูลขาย → ข้าม
+    const anySale = st.branch_avg && Object.values(st.branch_avg).some(v => Number(v) > 0);
+    if (!anySale) return;                                       // ไม่มีขายทุกสาขา = สินค้าตาย → ตัด
+    const io = st.in_out || 'ภายนอก';
+    if (inOutF === 'in' && io !== 'ภายใน') return;
+    if (inOutF === 'ex' && io === 'ภายใน') return;
+    if (topOnly && !String(st.top_2026 || '').toUpperCase().includes('TOP')) return;
+    cand.push({ barcode: bc, name: st.name, buyer: st.buyer || '', monthly: 0, daily: 0, top: st.top_2026 || '', inOut: io, lastBuy: st.last_buy || null, noAvgHere: true });
+    candBc.add(bc);
+  });
   if (!cand.length) return [];
   const bcs = cand.map(c => c.barcode);
 
@@ -8950,9 +8971,10 @@ async function roComputeRows(brRec, opts, onProgress) {
     if (c.daily <= 0) need = 0;
     const forced = c.forcedOOS || pos <= 0 || (p && p.is_active === false);
     if (need <= 0 && !forced) return;
-    const doh = c.daily > 0 ? pos / c.daily : -1e9;
+    // noAvgHere (ไม่มีขายที่สาขานี้ แต่ขายสาขาอื่น) → daily=0 · ดัน doh ลงล่างสุด (1e9) ไม่ให้บังของเร่งด่วน
+    const doh = c.daily > 0 ? pos / c.daily : (c.noAvgHere ? 1e9 : -1e9);
     const r = {
-      barcode: c.barcode, buyer: c.buyer, top: c.top, monthly: c.monthly, daily: c.daily,
+      barcode: c.barcode, buyer: c.buyer, top: c.top, monthly: c.monthly, daily: c.daily, noAvgHere: !!c.noAvgHere,
       cat: cat, grp: grp, supplier: supplier, inOut: c.inOut, lead: lead, cycle: cycle, rule: rule, lastBuy: c.lastBuy,
       name: isLao ? (p.name_lo || p.name_th || c.name || c.barcode) : (p.name_th || p.name_lo || c.name || c.barcode),
       nameLo: p.name_lo || '', nameTh: p.name_th || '',
@@ -9197,7 +9219,7 @@ function roRenderList() {
       <div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ${st.color};border-radius:10px;padding:9px 11px;margin-bottom:6px;display:flex;align-items:center;gap:9px;">
         <input type="checkbox" ${on ? 'checked' : ''} onclick="roToggle('${r.barcode}')" style="width:17px;height:17px;accent-color:var(--fs-blue);flex-shrink:0;cursor:pointer;">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:12.5px;font-weight:700;color:var(--slate-900);line-height:1.35;">${escapeHtml(r.name)}${r.top ? ' <span style="font-size:9px;color:#b45309;background:#fffbeb;border-radius:5px;padding:1px 5px;font-weight:800;">⭐ TOP</span>' : ''}${r.belowMin ? ' <span style="font-size:9px;color:#e11d48;background:#fff1f2;border-radius:5px;padding:1px 5px;font-weight:800;">🔴 ' + (isLao ? 'ຕ່ຳກວ່າ Min' : 'ต่ำกว่า Min') + '</span>' : ''}</div>
+          <div style="font-size:12.5px;font-weight:700;color:var(--slate-900);line-height:1.35;">${escapeHtml(r.name)}${r.top ? ' <span style="font-size:9px;color:#b45309;background:#fffbeb;border-radius:5px;padding:1px 5px;font-weight:800;">⭐ TOP</span>' : ''}${r.belowMin ? ' <span style="font-size:9px;color:#e11d48;background:#fff1f2;border-radius:5px;padding:1px 5px;font-weight:800;">🔴 ' + (isLao ? 'ຕ່ຳກວ່າ Min' : 'ต่ำกว่า Min') + '</span>' : ''}${r.noAvgHere ? ' <span style="font-size:9px;color:#7c3aed;background:#f5f3ff;border-radius:5px;padding:1px 5px;font-weight:800;">🆕 ' + (isLao ? 'ຍັງບໍ່ມີຂາຍທີ່ສາຂານີ້' : 'ยังไม่มีขายที่สาขานี้') + '</span>' : ''}</div>
           <div style="margin-top:3px;"><span style="display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;color:${st.ink};background:${st.bg};border-radius:20px;padding:2px 8px;"><span style="width:6px;height:6px;border-radius:50%;background:${st.color};"></span>${st.th}</span></div>
           <div style="font-size:9.5px;color:var(--slate-500);font-family:monospace;">${r.barcode}${r.buyer ? ' · 🛒 ' + escapeHtml(r.buyer) : ''}</div>
           ${r.grp ? `<div style="font-size:9px;color:var(--violet-600);">🏷️ ${escapeHtml(r.grp)}</div>` : ''}
@@ -9398,6 +9420,7 @@ async function rcBuildAll(opts, onProgress) {
     branchesCounted++;
     const brName = (isLao ? (b.name_lo || b.name_th || b.code) : (b.name_th || b.name_lo || b.code)) || String(b.code || b.id);
     rows.forEach(r => {
+      if (r.noAvgHere) return;   // "หมด+ไม่มีขายที่สาขานี้" — ไม่มี AVG ให้ pool → ข้ามจากรวมศูนย์ (ไปจัดการที่หน้าแนะนำสั่งรายสาขา)
       const pcb = r.packUnit || 1;
       // DOH หลังสั่งขั้นต่ำ 1 ลัง = (POS + pcb) / ยอดขาย/วัน · ไม่มี AVG (daily≤0) = ช้าแน่ (Infinity)
       const dohAfterMin = r.daily > 0 ? (r.pos + pcb) / r.daily : Infinity;
