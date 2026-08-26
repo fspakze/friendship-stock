@@ -8744,6 +8744,7 @@ function bpQtyBreakdown(stock, bp, isLao) {
 let _roRows = null;          // ผลคำนวณ [{barcode,name,buyer,pos,daily,doh,need,orderUnits,packLabel,cost,bpRec,cat,grp}]
 let _roSel = new Set();      // barcode ที่เลือก export
 let _roBusy = false;
+let _roLoadIncomplete = false;   // true = มี request โหลดล้มเหลว (แม้ retry แล้ว) → ข้อมูลอาจไม่ครบ → แจ้งเตือน ห้ามใช้สั่ง
 let _roFilterCat = '';       // กรองประเภทสินค้า ('' = ทั้งหมด)
 let _roFilterGrp = '';       // กรองกลุ่มสินค้า
 let _roFilterSup = new Set();// กรองซัพพลายเออร์ (ว่าง = ทุกซัพฯ · เลือกได้หลายราย) — สำหรับ export เฉพาะซัพฯ ที่เลือก
@@ -8945,15 +8946,16 @@ async function roComputeRows(brRec, opts, onProgress) {
   const posMap = {}, mpMap = {}, bpMap = {};
   for (let i = 0; i < bcs.length; i += 200) {
     const chunk = bcs.slice(i, i + 200);
-    // retry ทุก query — กัน request fail ชั่วคราวแล้วข้อมูลหายเงียบ (ทำให้จำนวน SKU ไม่เท่ากันแต่ละรอบ · Ball 2026-08-26)
-    const [prD, mpD, bpD] = await Promise.all([
+    // retry ทุก query · ถ้า chunk ไหน fail แม้ retry แล้ว → allSettled เก็บที่โหลดได้ + ตั้ง flag ไม่ครบ (ไม่ทิ้งเงียบ · Ball 2026-08-26)
+    const _rs = await Promise.allSettled([
       _sbSel(() => sb.from('products').select('barcode,name_th,name_lo,pos_qty,cost_price,unit_th,unit_lo').eq('branch_id', brId).eq('is_active', true).in('barcode', chunk)),
       _sbSel(() => sb.from('master_products').select('barcode,category,product_group,supplier').in('barcode', chunk)),
       _sbSel(() => sb.from('barcode_packsize').select('barcode_unit,barcode_pack,barcode_box,qty_unit,qty_pack,pcs_per_box,price_box,price_pack').in('barcode_unit', chunk))
     ]);
-    prD.forEach(p => { posMap[String(p.barcode)] = p; });
-    mpD.forEach(m => { mpMap[String(m.barcode)] = m; });
-    bpD.forEach(b => { bpMap[String(b.barcode_unit)] = b; });
+    if (_rs.some(x => x.status === 'rejected')) _roLoadIncomplete = true;
+    (_rs[0].status === 'fulfilled' ? _rs[0].value : []).forEach(p => { posMap[String(p.barcode)] = p; });
+    (_rs[1].status === 'fulfilled' ? _rs[1].value : []).forEach(m => { mpMap[String(m.barcode)] = m; });
+    (_rs[2].status === 'fulfilled' ? _rs[2].value : []).forEach(b => { bpMap[String(b.barcode_unit)] = b; });
   }
   // ของหมดที่ปิดการขาย (is_active=false) จะไม่ถูกดึงในลูปบน (กรอง is_active) → เติมจาก oosProdMap
   Object.keys(oosProdMap).forEach(bc => { if (!posMap[bc]) posMap[bc] = oosProdMap[bc]; });
@@ -8968,7 +8970,7 @@ async function roComputeRows(brRec, opts, onProgress) {
   try {
     const pg = await fetchAllQuery(() => sb.from('pan_o_grams').select('barcode,total_qty').eq('branch_id', brId).order('id'));
     pg.forEach(p => { if (p.barcode) { const k = String(p.barcode); capMap[k] = (capMap[k] || 0) + (Number(p.total_qty) || 0); } });
-  } catch (e) { }
+  } catch (e) { _roLoadIncomplete = true; }   // Planogram fail → จำนวนสั่งเติมชั้นอาจไม่ตรง → แจ้งไม่ครบ
 
   // คำนวณ Min/Max ต่อ SKU (Lead/Cycle อัตโนมัติตามกฎ) — สั่งเมื่อ POS < Max
   const low = [];
@@ -9049,6 +9051,7 @@ async function roCalc() {
   const listEl = document.getElementById('roList');
   const setMsg = m => { if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:25px;color:var(--slate-400);font-size:12px;">' + m + '</div>'; };
   try {
+    _roLoadIncomplete = false;   // reset ก่อนโหลด — roComputeRows จะตั้ง true ถ้ามี request fail
     const buyer = (document.getElementById('roBuyer') || {}).value || '';
     const inOutF = (document.getElementById('roInOut') || {}).value || ''; // '' | 'in' | 'ex'
     const topOnly = !!(document.getElementById('roTopOnly') || {}).checked;
@@ -9200,9 +9203,14 @@ function roRenderSummary() {
   const val = sel.reduce((s, r) => s + r.orderUnits * (r.cost || 0), 0);
   const outCnt = rows.filter(r => r.pos <= 0 || r.inactive).length;
   const belowMinCnt = rows.filter(r => r.belowMin).length;
-  el.innerHTML = rows.length ? `
+  // ⚠️ แจ้งเตือนข้อมูลไม่ครบ (request fail แม้ retry) — ห้ามใช้สั่ง · หรือ ✅ ยืนยันข้อมูลครบ (Ball 2026-08-26)
+  const warn = _roLoadIncomplete
+    ? '<div style="background:#fef2f2;border:2px solid #ef4444;border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:9px;"><span style="font-size:20px;">⚠️</span><div style="flex:1;font-size:12px;color:#b91c1c;font-weight:800;line-height:1.4;">' + (isLao ? 'ຂໍ້ມູນໂຫຼດບໍ່ຄົບ! ຫ້າມໃຊ້ລາຍການນີ້ສັ່ງ — ກົດຄຳນວນໃໝ່' : 'ข้อมูลโหลดไม่ครบ! ห้ามใช้รายการนี้สั่ง — กดคำนวณใหม่') + '</div><button onclick="roCalc()" style="background:#ef4444;color:white;border:none;border-radius:8px;padding:8px 13px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;">🔄 ' + (isLao ? 'ຄຳນວນໃໝ່' : 'คำนวณใหม่') + '</button></div>'
+    : '';
+  el.innerHTML = rows.length ? warn + `
     <div style="display:flex;gap:6px;flex-wrap:wrap;">
       <span style="background:var(--fs-blue);color:white;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">${rows.length} SKU</span>
+      ${_roLoadIncomplete ? '' : `<span style="background:#dcfce7;color:#15803d;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">✅ ${isLao ? 'ຂໍ້ມູນຄົບ' : 'ข้อมูลครบ'}</span>`}
       ${outCnt ? `<button onclick="roToggleOOS()" title="${isLao ? 'ກົດເພື່ອສະແດງສະເພາະຂອງໝົດ' : 'กดเพื่อโชว์เฉพาะของหมด'}" style="background:${_roOOSOnly ? '#4240b5' : '#eeeeff'};color:${_roOOSOnly ? 'white' : '#4240b5'};border:none;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;cursor:pointer;">🔴 Out of Stock ${outCnt}${_roOOSOnly ? ' ✕' : ''}</button>` : ''}
       ${belowMinCnt ? `<span style="background:#fff1f2;color:#e11d48;border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">🔴 ${isLao ? 'ຕ່ຳກວ່າ Min' : 'ต่ำกว่า Min'} ${belowMinCnt}</span>` : ''}
       <span style="background:var(--emerald-50);color:var(--emerald-700);border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">✓ ${sel.length} ${isLao ? 'ເລືອກ' : 'เลือก'}</span>
@@ -9269,6 +9277,7 @@ async function roExport() {
   const isLao = lang === 'lo';
   const rows = roVisibleRows().filter(r => _roSel.has(r.barcode));
   if (!rows.length) { showToast(isLao ? 'ບໍ່ມີລາຍການທີ່ເລືອກ' : 'ไม่มีรายการที่เลือก — กดคำนวณก่อน', 'warning'); return; }
+  if (_roLoadIncomplete && !confirm(isLao ? '⚠️ ຂໍ້ມູນໂຫຼດບໍ່ຄົບ! Export ຕອນນີ້ອາດຕົກຫຼົ່ນ — ຄວນກົດຄຳນວນໃໝ່ກ່ອນ. ຢືນຢັນ Export ຢູ່ບໍ?' : '⚠️ ข้อมูลโหลดไม่ครบ! Export ตอนนี้อาจตกหล่น — ควรกดคำนวณใหม่ก่อน. ยืนยัน Export หรือไม่?')) return;
   if (typeof ExcelJS === 'undefined') { showToast('ExcelJS not loaded', 'error'); return; }
   try {
     const wb = new ExcelJS.Workbook();
