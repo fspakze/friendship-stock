@@ -1729,8 +1729,17 @@ async function fetchAllQuery(buildQuery) {
   const PAGE = 1000;
   let offset = 0, all = [];
   while (true) {
-    const { data, error } = await buildQuery().range(offset, offset + PAGE - 1);
-    if (error) throw error;
+    // retry ทุก page — กัน request fail ชั่วคราว (rate limit/เน็ตสะดุด) แล้ว throw กลางคัน จนข้อมูลไม่ครบ (Ball 2026-08-31)
+    let data = null, error = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const r = await buildQuery().range(offset, offset + PAGE - 1);
+        data = r.data; error = r.error;
+        if (!error) break;
+      } catch (e) { error = e; }
+      if (attempt < 3) await new Promise(res => setTimeout(res, 300 * (attempt + 1)));   // backoff 300/600/900ms
+    }
+    if (error) throw error;   // ยัง fail หลัง retry 4 ครั้ง → throw ให้ผู้เรียกจับ (ห้ามคืนข้อมูลไม่ครบเงียบ)
     if (!data || data.length === 0) break;
     all = all.concat(data);
     if (data.length < PAGE) break;
@@ -8917,7 +8926,7 @@ async function roComputeRows(brRec, opts, onProgress) {
   try {
     const oosProd = await fetchAllQuery(() => sb.from('products').select('barcode,name_th,name_lo,pos_qty,cost_price,unit_th,unit_lo,is_active').eq('branch_id', brId).or('pos_qty.lte.0,is_active.eq.false').order('id'));
     oosProd.forEach(p => { oosProdMap[String(p.barcode)] = p; });
-  } catch (e) { }
+  } catch (e) { _roLoadIncomplete = true; }   // ⚠️ query สินค้าหมด fail แม้ retry แล้ว → OOS จะหาย ต้องแจ้งแดง ห้ามกลืนเงียบ (Ball 2026-08-31)
   // สินค้าหมดที่ "ไม่มีขายที่สาขานี้ (AVG=0) แต่ยังขายที่สาขาอื่น" = viable → เพิ่มเข้ามา (โชว์เฉพาะโหมด "เฉพาะของหมด") (Ball 2026-08-26)
   //   ตัดเฉพาะสินค้าตายจริง (ไม่มีขายทุกสาขา) กัน flood · mark noAvgHere=true → roVisibleRows ซ่อนในมุมมองปกติ
   const statusMap = {};
