@@ -8759,6 +8759,11 @@ let _roFilterGrp = '';       // กรองกลุ่มสินค้า
 let _roFilterSup = new Set();// กรองซัพพลายเออร์ (ว่าง = ทุกซัพฯ · เลือกได้หลายราย) — สำหรับ export เฉพาะซัพฯ ที่เลือก
 let _roSupList = [];         // รายชื่อซัพฯ ทั้งหมด (จากผลคำนวณ · sorted) ไว้ทำ modal เลือก
 let _roOOSOnly = false;      // true = โชว์เฉพาะของหมด (pos≤0 หรือปิดการขาย) — ไล่สั่งของหมดให้ครบ ไม่ตกหล่น
+// ── รอบสั่งซื้อ (Reorder Round) — ให้สาขาส่งยอดในแอป (ระบบ export Excel เดิมยังใช้ได้ปกติ) ──
+let _roRound = null;         // รอบที่เปิดอยู่ (จาก reorder_rounds status=open) · null = ไม่มีรอบ/ยังไม่ได้รัน SQL
+let _roSubmitted = null;     // การส่งของสาขานี้ในรอบนี้ (reorder_submissions) · null = ยังไม่ส่ง
+let _roQty = {};             // barcode → จำนวนสั่งที่ผู้ใช้แก้ (ชิ้น) · ไม่มี key = ใช้ค่าที่ระบบแนะนำ (orderFinal)
+const RO_DOH_OVER = 90;      // DOH หลังสั่ง > ค่านี้ = overstock (โชว์แดง · ให้สาขาพิจารณาตั้ง 0 → รวมเข้า Trading)
 // ── ซัพฯ ที่เลือกไว้เป็น default ตอนคำนวณ (Ball ส่งรายชื่อ 2026-08-26) ──
 // แมตช์ด้วย "คำอังกฤษ" (ASCII สะอาดทุกเวอร์ชัน) — ชื่อลาวในฐานข้อมูลเพี้ยน/มีหลายเวอร์ชัน แมตช์เป๊ะไม่ได้
 // token เลือกให้เลี่ยงตัวปลอม: DKSH LAOS≠THAILAND · SOKXAY TRADING≠PHARMA · NOUNTHONG TRADING≠CHAMPASAK · HEUNG XAY≠HUNG HUENG SUB · LONG-D≠KHAMPASEUTH(โค้ด 1110 ซ้ำ)
@@ -8849,6 +8854,7 @@ function renderReorderPage() {
       <select id="roFilterGrp" onchange="roSetFilter('grp', this.value)" style="flex:1;min-width:0;padding:8px;border:1px solid var(--slate-300);border-radius:8px;font-size:12px;background:white;"></select>
       <button id="roFilterSupBtn" onclick="roOpenSupFilter()" style="flex:1;min-width:110px;padding:8px;border:1px solid var(--slate-300);border-radius:8px;font-size:12px;background:white;color:var(--slate-700);font-weight:700;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">🏢 ${isLao ? 'ຊັບພລາຍເອີ' : 'ซัพฯ'}</button>
     </div>
+    <div id="roRoundBanner" style="margin-bottom:9px;"></div>
     <div id="roSummary" style="margin-bottom:9px;"></div>
     <div id="roList" style="padding-bottom:90px;">
       <div style="text-align:center;padding:30px;color:var(--slate-400);font-size:12px;">${isLao ? 'ເລືອກຜູ້ຈັດຊື້ ແລ້ວກົດຄຳນວນ' : 'เลือกผู้จัดซื้อ แล้วกดคำนวณ'}</div>
@@ -8885,6 +8891,73 @@ async function roInit() {
   } catch (e) {
     sel.innerHTML = '<option value="">Error: ' + escapeHtml((e && e.message) || 'load fail') + '</option>';
   }
+  roLoadRound();   // โหลดสถานะรอบสั่งซื้อ (ถ้ายังไม่ได้รัน SQL = เงียบ ไม่กระทบ export เดิม)
+}
+
+// ── รอบสั่งซื้อ: โหลดรอบที่เปิด + สถานะการส่งของสาขานี้ ──
+async function roLoadRound() {
+  _roRound = null; _roSubmitted = null;
+  try {
+    const { data, error } = await sb.from('reorder_rounds').select('*').eq('status', 'open').order('id', { ascending: false }).limit(1).maybeSingle();
+    if (error) throw error;
+    _roRound = data || null;
+    if (_roRound && branch) {
+      const { data: sub } = await sb.from('reorder_submissions').select('*').eq('round_id', _roRound.id).eq('branch_id', branch.id).maybeSingle();
+      _roSubmitted = sub || null;
+    }
+  } catch (e) { _roRound = null; }   // ตารางยังไม่มี (ยังไม่รัน SQL) หรือเน็ตหลุด → ไม่มีรอบ (ใช้ export เดิมได้)
+  roRenderRoundBanner();
+  if (document.getElementById('roSummary')) roRenderSummary();   // อัปเดตปุ่มส่งยอดในแถบสรุป
+}
+
+// แถบสถานะรอบสั่งซื้อ (บนหน้าแนะนำสั่ง)
+function roRenderRoundBanner() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('roRoundBanner'); if (!el) return;
+  if (!_roRound) {   // ไม่มีรอบเปิด → บอกให้ใช้ export เดิมได้
+    el.innerHTML = `<div style="background:var(--slate-100);border-radius:10px;padding:8px 12px;font-size:11px;color:var(--slate-500);">📄 ${isLao ? 'ຍັງບໍ່ມີຮອບສັ່ງຊື້ເປີດ — ໃຊ້ Export Excel ໄດ້ຕາມປົກກະຕິ' : 'ยังไม่มีรอบสั่งซื้อเปิด — ใช้ Export Excel ได้ตามปกติ'}</div>`;
+    return;
+  }
+  const rno = escapeHtml(_roRound.round_no || '');
+  const opener = escapeHtml(_roRound.opened_by_name || '');
+  const openAt = _roRound.opened_at ? roFmtDate(_roRound.opened_at) : '';
+  const done = !!_roSubmitted;
+  const stTxt = done
+    ? '✅ ' + (isLao ? 'ສາຂານີ້: ສົ່ງແລ້ວ ' : 'สาขานี้: ส่งแล้ว ') + (_roSubmitted.submitted_at ? roFmtDate(_roSubmitted.submitted_at) : '') + (_roSubmitted.total_units ? ' · ' + new Intl.NumberFormat('th-TH').format(_roSubmitted.total_units) + (isLao ? ' ຊິ້ນ' : ' ชิ้น') : '')
+    : '⏳ ' + (isLao ? 'ສາຂານີ້: ຍັງບໍ່ໄດ້ສົ່ງຍອດ' : 'สาขานี้: ยังไม่ส่งยอด');
+  const bg = done ? '#dcfce7' : '#fef3c7', bd = done ? '#16a34a' : '#d97706', ink = done ? '#15803d' : '#b45309';
+  el.innerHTML = `<div style="background:${bg};border:1px solid ${bd};border-radius:12px;padding:10px 12px;display:flex;gap:9px;align-items:flex-start;">
+    <span style="font-size:16px;">🟢</span>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:12.5px;font-weight:800;color:var(--slate-900);">${isLao ? 'ຮອບສັ່ງຊື້' : 'รอบสั่งซื้อ'} ${rno} ${isLao ? 'ເປີດຢູ່' : 'เปิดอยู่'}</div>
+      <div style="font-size:11px;color:var(--slate-600);">${isLao ? 'ເປີດ' : 'เปิด'} ${escapeHtml(openAt)}${opener ? ' · ' + opener : ''}</div>
+      <div style="font-size:11.5px;font-weight:800;color:${ink};margin-top:3px;">${stTxt}</div>
+    </div>
+  </div>`;
+}
+
+// จำนวนสั่งที่ใช้จริง (ผู้ใช้แก้ = _roQty · ไม่แก้ = ค่าที่ระบบแนะนำ orderFinal)
+function roEffQty(r) {
+  const v = _roQty[r.barcode];
+  if (v != null && !isNaN(v)) return Math.max(0, v);
+  return Math.max(0, Math.round(r.orderFinal || 0));
+}
+// DOH หลังสั่ง (วัน) = (POS + จำนวนสั่ง) / ยอดขายต่อวัน · daily≤0 = ไม่มีขาย → null
+function roDohAfter(r, q) {
+  if (!(r.daily > 0)) return null;
+  return Math.round((r.pos + (q != null ? q : roEffQty(r))) / r.daily);
+}
+function roSetQty(bc, val) {
+  const n = parseInt(String(val).replace(/[^\d]/g, ''), 10);
+  _roQty[bc] = isNaN(n) ? 0 : Math.max(0, n);
+  roRenderList(); roRenderSummary();
+}
+function roStepQty(bc, dir) {
+  const r = (_roRows || []).find(x => x.barcode === bc); if (!r) return;
+  const step = r.packUnit > 1 ? r.packUnit : 1;   // ก้าวทีละ 1 ลัง (ถ้ามีแพ๊คไซส์) ไม่งั้นทีละ 1 ชิ้น
+  const cur = roEffQty(r);
+  _roQty[bc] = Math.max(0, cur + dir * step);
+  roRenderList(); roRenderSummary();
 }
 
 // ── คำนวณรายการ "แนะนำสั่ง" ของสาขาที่ระบุ → คืน array แถว (ไม่แตะ DOM/ตัวแปร global) ──
@@ -9076,6 +9149,7 @@ async function roCalc() {
 
     _roRows = low;
     _roSel = new Set(low.map(r => r.barcode)); // default เลือกทั้งหมด
+    _roQty = {};   // ล้างจำนวนที่แก้ไว้ (คำนวณใหม่ = เริ่มจากค่าที่ระบบแนะนำ)
     _roFilterCat = ''; _roFilterGrp = '';
     _roOOSOnly = false;
     // default: ติ๊กเลือกซัพฯ ที่ Ball กำหนดไว้ (ตัวที่มีในผลคำนวณรอบนี้) — ถ้าไม่มีตรงเลย = ว่าง (โชว์ทุกซัพฯ)
@@ -9209,7 +9283,7 @@ function roRenderSummary() {
   if (!el) return;
   const rows = roVisibleRows();
   const sel = rows.filter(r => _roSel.has(r.barcode));
-  const val = sel.reduce((s, r) => s + r.orderUnits * (r.cost || 0), 0);
+  const val = sel.reduce((s, r) => s + roEffQty(r) * (r.cost || 0), 0);
   const outCnt = rows.filter(r => r.pos <= 0 || r.inactive).length;
   const belowMinCnt = rows.filter(r => r.belowMin).length;
   // ⚠️ แจ้งเตือนข้อมูลไม่ครบ (request fail แม้ retry) — ห้ามใช้สั่ง · หรือ ✅ ยืนยันข้อมูลครบ (Ball 2026-08-26)
@@ -9225,7 +9299,7 @@ function roRenderSummary() {
       <span style="background:var(--emerald-50);color:var(--emerald-700);border-radius:8px;padding:5px 11px;font-size:11px;font-weight:800;">✓ ${sel.length} ${isLao ? 'ເລືອກ' : 'เลือก'}</span>
       <span style="background:var(--slate-100);color:var(--slate-600);border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;">₭ ${new Intl.NumberFormat('th-TH').format(Math.round(val))}</span>
       <button onclick="roToggleAll()" style="background:white;border:1px solid var(--fs-blue);color:var(--fs-blue);border-radius:8px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;">☑ ${isLao ? 'ເລືອກ/ຍົກເລີກທັງໝົດ' : 'เลือก/ยกเลิกทั้งหมด'}</button>
-    </div>` : '';
+    </div>` + roSubmitBtnHtml() : '';
 }
 
 function roRenderList() {
@@ -9249,6 +9323,15 @@ function roRenderList() {
     const st = psCalcStatus(r.pos, r.monthly);
     const dohTxt = r.pos <= 0 ? (isLao ? 'ໝົດ' : 'หมด') : (Math.round(r.doh * 10) / 10) + ' ' + (isLao ? 'ມື້' : 'วัน');
     const on = _roSel.has(r.barcode);
+    const roSys = Math.round(r.orderFinal || 0);        // จำนวนที่ระบบแนะนำ
+    const roEff = roEffQty(r);                          // จำนวนที่จะสั่งจริง (แก้ได้)
+    const roPcb = r.packUnit || 1;
+    const roCartons = roPcb > 1 ? (roEff / roPcb) : 0;
+    const roCartonTxt = roPcb > 1 ? ((Number.isInteger(roCartons) ? roCartons : roCartons.toFixed(1)) + ' ' + (isLao ? 'ລັງ' : 'ลัง')) : '';
+    const roDa = roDohAfter(r, roEff);
+    const roDaChip = (roDa == null)
+      ? `<div style="font-size:9px;color:var(--slate-400);font-weight:700;">DOH ${isLao ? 'ຫຼັງສັ່ງ' : 'หลังสั่ง'} —</div>`
+      : `<div style="font-size:9.5px;font-weight:800;border-radius:6px;padding:2px 7px;background:${roDa > RO_DOH_OVER ? '#fff1f2' : '#dcfce7'};color:${roDa > RO_DOH_OVER ? '#e11d48' : '#15803d'};">DOH ${isLao ? 'ຫຼັງສັ່ງ' : 'หลังสั่ง'} ${roDa} ${isLao ? 'ມື້' : 'วัน'} ${roDa > RO_DOH_OVER ? '⚠️' : '✅'}</div>`;
     return `
       <div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ${st.color};border-radius:10px;padding:9px 11px;margin-bottom:6px;display:flex;align-items:center;gap:9px;">
         <input type="checkbox" ${on ? 'checked' : ''} onclick="roToggle('${r.barcode}')" style="width:17px;height:17px;accent-color:var(--fs-blue);flex-shrink:0;cursor:pointer;">
@@ -9260,10 +9343,15 @@ function roRenderList() {
           <div style="font-size:10px;color:var(--slate-600);margin-top:2px;">POS <b style="color:${st.ink}">${fmt.format(r.pos)}</b> · AVG ${fmt.format(Math.round(r.daily * 10) / 10)}/${isLao ? 'ມື້' : 'วัน'} · DOH <b style="color:${st.ink}">${dohTxt}</b> · Min <b>${fmt.format(r.minStock || 0)}</b> · Max <b>${fmt.format(r.maxStock || 0)}</b></div>
           <div style="font-size:9px;color:var(--slate-400);margin-top:1px;">⚙️ Lead ${r.lead} · Cycle ${r.cycle} · ${r.inOut === 'ภายใน' ? (isLao ? 'ພາຍໃນ' : 'ภายใน') : (isLao ? 'ພາຍນອກ' : 'ภายนอก')}${r.rule ? ' · ' + escapeHtml(r.rule) : ''}${r.lastBuy ? ' · 📥 ' + (isLao ? 'ຊື້ຫຼ້າສຸດ ' : 'ซื้อล่าสุด ') + roFmtDate(r.lastBuy) : ''}</div>
         </div>
-        <div style="text-align:right;flex-shrink:0;">
-          <div style="font-size:17px;font-weight:800;color:var(--fs-blue);font-family:'Space Grotesk',monospace;line-height:1;">${fmt.format(r.orderUnits)}</div>
-          <div style="font-size:9px;color:var(--slate-500);">${r.unit}</div>
-          ${r.packLabel ? `<div style="font-size:10px;color:var(--violet-600);font-weight:700;margin-top:2px;">📦 ${r.packLabel}</div>` : ''}
+        <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:3px;min-width:98px;">
+          <div style="font-size:8.5px;color:var(--slate-400);">${isLao ? 'ແນະນຳ' : 'แนะนำ'} <b style="color:var(--fs-blue);font-family:'Space Grotesk',monospace;">${fmt.format(roSys)}</b></div>
+          <div style="display:inline-flex;align-items:center;border:1.5px solid var(--fs-blue);border-radius:9px;overflow:hidden;">
+            <button onclick="roStepQty('${r.barcode}',-1)" style="border:0;background:#eff6ff;color:var(--fs-blue);font-size:16px;font-weight:800;width:24px;height:28px;cursor:pointer;line-height:1;padding:0;">−</button>
+            <input type="number" value="${roEff}" onchange="roSetQty('${r.barcode}',this.value)" onclick="event.stopPropagation()" style="width:46px;border:0;text-align:center;font-family:'Space Grotesk',monospace;font-weight:700;font-size:14px;color:var(--slate-900);padding:2px 0;background:white;">
+            <button onclick="roStepQty('${r.barcode}',1)" style="border:0;background:#eff6ff;color:var(--fs-blue);font-size:16px;font-weight:800;width:24px;height:28px;cursor:pointer;line-height:1;padding:0;">+</button>
+          </div>
+          <div style="font-size:9px;color:var(--slate-500);">${escapeHtml(r.unit)}${roPcb > 1 ? ` · ≈ ${roCartonTxt} <span style="color:var(--violet-600)">(${roPcb}/${isLao ? 'ລັງ' : 'ลัง'})</span>` : ''}</div>
+          ${roDaChip}
         </div>
       </div>`;
     }).join('');
@@ -9327,12 +9415,13 @@ async function roExport() {
         const rn = ws.rowCount + 1;
         const dayAvg = Math.round(r.daily * 10) / 10;
         const pcb = r.packUnit || 1;                             // แพ๊คไซส์ (ชิ้น/ลัง)
-        const langQty = Math.round((r.orderFinal || 0) / pcb);  // สั่ง(ลัง) = ชิ้น/แพ๊คไซส์ (orderFinal เป็นพหุคูณของ pcb เสมอ)
-        const dohAfterVal = (r.daily > 0) ? Math.round((r.pos + r.orderFinal) / r.daily) : '';
+        const roEff = roEffQty(r);                              // จำนวนสั่งจริง (ถ้าแก้ในแอป = ใช้ค่าที่แก้ · ไม่แก้ = orderFinal)
+        const langQty = pcb > 1 ? Math.round(roEff / pcb * 100) / 100 : roEff;  // สั่ง(ลัง) = ชิ้น/แพ๊คไซส์
+        const dohAfterVal = (r.daily > 0) ? Math.round((r.pos + roEff) / r.daily) : '';
         // แก้ "สั่ง(ลัง)"[U] → สั่ง(ชิ้น)[V]=U×T → DOHหลังสั่ง[W]+มูลค่า[Y] ปรับตามอัตโนมัติ
-        const pcsCell = { formula: 'U' + rn + '*T' + rn, result: r.orderFinal };
+        const pcsCell = { formula: 'U' + rn + '*T' + rn, result: roEff };
         const dohCell = { formula: 'IF(I' + rn + '<=0,"",ROUND((G' + rn + '+V' + rn + ')/I' + rn + ',0))', result: dohAfterVal };
-        const valCell = { formula: 'V' + rn + '*X' + rn, result: (r.orderFinal * (r.cost || 0)) };
+        const valCell = { formula: 'V' + rn + '*X' + rn, result: (roEff * (r.cost || 0)) };
         const arr = [
           r.barcode, r.nameLo || r.nameTh || r.name, r.supplier || '', r.cat || '', r.grp || '', r.unit,
           r.pos, ((r.pos <= 0 || r.inactive) ? 'Out of Stock' : psCalcStatus(r.pos, r.monthly).th), dayAvg, (r.pos <= 0 ? 0 : Math.round(r.doh * 10) / 10),
@@ -9373,11 +9462,73 @@ async function roExport() {
   }
 }
 
+// ── ปุ่มส่งยอดสั่งเข้ารอบ (อยู่ในแถบสรุป ด้านบน · เหมือนปุ่ม Export) — โชว์เฉพาะเมื่อมีรอบเปิด + คำนวณแล้ว ──
+function roSubmitBtnHtml() {
+  const isLao = lang === 'lo';
+  const rows = (_roRows || []);
+  if (!_roRound || !rows.length) return '';
+  const sel = roVisibleRows().filter(r => _roSel.has(r.barcode));
+  const nOrder = sel.filter(r => roEffQty(r) > 0).length;
+  const done = !!_roSubmitted;
+  const label = (done ? '✏️ ' + (isLao ? 'ແກ້ໄຂ/ສົ່ງໃໝ່ເຂົ້າ' : 'แก้ไข/ส่งใหม่เข้า') : '📤 ' + (isLao ? 'ສົ່ງຍອດສັ່ງເຂົ້າ' : 'ส่งยอดสั่งเข้า')) + ' ' + escapeHtml(_roRound.round_no || '') + ' · ' + nOrder + (isLao ? ' ລາຍການ' : ' รายการ');
+  return `<button onclick="roSubmit()" style="width:100%;margin-top:8px;background:${done ? '#059669' : '#16a34a'};color:white;border:none;border-radius:11px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(22,163,74,.32);">${label}</button>`;
+}
+
+// ส่งยอดสั่งของสาขาเข้ารอบ (re-submit = แทนที่ของเดิม) — เก็บ system_qty ด้วย → ผจก.รวม รวมเข้า Trading ได้
+async function roSubmit() {
+  const isLao = lang === 'lo';
+  if (!_roRound) { showToast(isLao ? 'ບໍ່ມີຮອບເປີດ' : 'ไม่มีรอบสั่งซื้อเปิด', 'warning'); return; }
+  if (_roLoadIncomplete && !confirm(isLao ? '⚠️ ຂໍ້ມູນໂຫຼດບໍ່ຄົບ! ສົ່ງຕອນນີ້ອາດຕົກຫຼົ່ນ. ຢືນຢັນສົ່ງບໍ?' : '⚠️ ข้อมูลโหลดไม่ครบ! ส่งตอนนี้อาจตกหล่น. ยืนยันส่งหรือไม่?')) return;
+  const sel = roVisibleRows().filter(r => _roSel.has(r.barcode));
+  if (!sel.length) { showToast(isLao ? 'ບໍ່ມີລາຍການທີ່ເລືອກ' : 'ไม่มีรายการที่เลือก', 'warning'); return; }
+  const nOrder = sel.filter(r => roEffQty(r) > 0).length;
+  if (!confirm((isLao ? 'ສົ່ງຍອດສັ່ງເຂົ້າຮອບ ' : 'ส่งยอดสั่งเข้ารอบ ') + _roRound.round_no + '?\n' + (isLao ? 'ສັ່ງ ' : 'สั่ง ') + nOrder + (isLao ? ' ລາຍການ (ແກ້ແລ້ວສົ່ງໃໝ່ໄດ້)' : ' รายการ (แก้แล้วส่งใหม่ได้)'))) return;
+  try {
+    const brId = branch.id;
+    const brName = isLao ? (branch.name_lo || branch.code) : (branch.name_th || branch.code);
+    const items = sel.map(r => {
+      const q = roEffQty(r);
+      const pcb = r.packUnit || 1;
+      const sys = Math.max(0, Math.round(r.orderFinal || 0));
+      const dohMin = r.daily > 0 ? (r.pos + pcb) / r.daily : Infinity;
+      const slow = pcb > 1 && (r.daily <= 0 || dohMin > RO_DOH_OVER);   // ของขายช้า สั่ง 1 ลังก็ overstock
+      return {
+        round_id: _roRound.id, branch_id: brId, barcode: r.barcode,
+        name: r.nameTh || r.nameLo || r.name || '', supplier: r.supplier || '', unit_label: r.unit || '',
+        order_qty: q, system_qty: sys, pos_snapshot: Math.round(r.pos || 0), pack_unit: pcb,
+        to_trading: (q === 0 && sys > 0 && slow)   // ตั้ง 0 บนของขายช้า → ให้ ผจก.รวม รวมเข้า Trading
+      };
+    });
+    const { error: delErr } = await sb.from('reorder_items').delete().eq('round_id', _roRound.id).eq('branch_id', brId);
+    if (delErr) throw delErr;
+    for (let i = 0; i < items.length; i += 300) {
+      const { error: insErr } = await sb.from('reorder_items').insert(items.slice(i, i + 300));
+      if (insErr) throw insErr;
+    }
+    const totalUnits = items.reduce((s, x) => s + x.order_qty, 0);
+    const { error: subErr } = await sb.from('reorder_submissions').upsert({
+      round_id: _roRound.id, branch_id: brId, branch_name: brName, status: 'submitted',
+      item_count: nOrder, total_units: totalUnits,
+      submitted_by: (user && user.id) || null, submitted_by_name: (user && (user.full_name || user.username)) || '', submitted_at: new Date().toISOString()
+    }, { onConflict: 'round_id,branch_id' });
+    if (subErr) throw subErr;
+    if (typeof logActivity === 'function') logActivity('reorder_submit', _roRound.round_no + ' · ' + nOrder + ' SKU');
+    showToast(isLao ? '✅ ສົ່ງຍອດສຳເລັດ' : '✅ ส่งยอดสำเร็จ', 'success');
+    await roLoadRound();
+  } catch (e) {
+    console.error('[FS] roSubmit error:', e);
+    showToast('Error: ' + ((e && e.message) || e), 'error');
+  }
+}
+
 // ==================== REORDER HUB — สั่งรวมศูนย์ทุกสาขา (rc*) ====================
 // รวมยอดสั่งสินค้าขายช้าหลายสาขา → สั่งเป็นลังเข้า ສາງ Trading → ใบกระจายกลับสาขา (แบบเบา: ไม่แตะสต๊อก)
 // เกณฑ์: สั่ง 1 ลัง (packUnit) แล้ว DOH > 90 = "ขายช้า" → รวมศูนย์ · ไม่งั้น = สั่งตรงเข้าสาขา (Ball 2026-08-25)
 let _rcData = null, _rcBusy = false;
 const RC_DOH_LIMIT = 90;
+// ── รอบสั่งซื้อ (ฝั่ง ผจก.รวม) — เปิด/ปิดรอบ + กระดานสาขาที่ส่งยอด ──
+let _rcRound = null;    // รอบที่เปิดอยู่ (reorder_rounds status=open)
+let _rcSubs = [];       // การส่งของทุกสาขาในรอบนี้ (reorder_submissions)
 function rcCanUse() { return ['bcs', 'admin', 'scc'].includes((user && user.role) || ''); }
 
 function renderReorderHubPage() {
@@ -9388,6 +9539,7 @@ function renderReorderHubPage() {
       <h2 style="font-size:17px;color:var(--slate-900);margin:0 0 5px;">🏬 ${isLao ? 'ສັ່ງລວມສູນ (ທຸກສາຂາ)' : 'สั่งรวมศูนย์ (ทุกสาขา)'}</h2>
       <p style="font-size:11px;color:var(--slate-500);margin:0;">${isLao ? 'ລວມຍອດສິນຄ້າຂາຍຊ້າຫຼາຍສາຂາ → ສັ່ງເປັນລັງເຂົ້າ ສາງ Trading → ແບ່ງກັບສາຂາ · ສັ່ງ 1 ລັງແລ້ວ DOH > 90 = ລວມສູນ' : 'รวมยอดสินค้าขายช้าหลายสาขา → สั่งเป็นลังเข้า สาง Trading → แบ่งกลับสาขา · สั่ง 1 ลังแล้ว DOH > 90 = รวมศูนย์'}</p>
     </div>
+    <div id="rcRoundPanel" style="margin-bottom:10px;"></div>
     <div class="fs-card" style="padding:12px;margin-bottom:10px;">
       <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:flex-end;">
         <div style="flex:2;min-width:150px;">
@@ -9428,6 +9580,115 @@ async function rcInit() {
   const buyers = window._roBuyers || [];
   sel.innerHTML = '<option value="">' + (isLao ? 'ທຸກຜູ້ຈັດຊື້' : 'ทุกผู้จัดซื้อ') + '</option>'
     + buyers.map(b => '<option value="' + escapeHtml(b) + '">' + escapeHtml(b) + '</option>').join('');
+  rcLoadRound();   // โหลดสถานะรอบสั่งซื้อ + กระดานสาขาที่ส่งยอด
+}
+
+// ── รอบสั่งซื้อ (ผจก.รวม): โหลดรอบเปิด + การส่งของทุกสาขา ──
+async function rcLoadRound() {
+  _rcRound = null; _rcSubs = [];
+  try {
+    const { data, error } = await sb.from('reorder_rounds').select('*').eq('status', 'open').order('id', { ascending: false }).limit(1).maybeSingle();
+    if (error) throw error;
+    _rcRound = data || null;
+    if (_rcRound) {
+      const { data: subs } = await sb.from('reorder_submissions').select('*').eq('round_id', _rcRound.id).order('submitted_at', { ascending: false });
+      _rcSubs = subs || [];
+    }
+  } catch (e) { _rcRound = null; }   // ยังไม่รัน SQL → ไม่มีรอบ
+  rcRenderRoundPanel();
+}
+
+// รายชื่อสาขาขาย (ไม่รวม Trading/คลัง/TEST) — ใช้กับกระดาน "ส่งแล้ว/ยัง"
+async function rcSellBranches() {
+  let brs = (window._allBranchesCache && window._allBranchesCache[0] && window._allBranchesCache[0].code) ? window._allBranchesCache : null;
+  if (!brs) {
+    const { data } = await sb.from('branches').select('id, code, name_th, name_lo, branch_type, is_active').order('id');
+    brs = data || []; window._allBranchesCache = brs;
+  }
+  const active = brs.filter(b => b.is_active !== false && !/TEST/i.test(String(b.code || '')));
+  return active.filter(b => String(b.branch_type || '') !== 'warehouse');
+}
+
+function rcRenderRoundPanel() {
+  const isLao = lang === 'lo';
+  const el = document.getElementById('rcRoundPanel'); if (!el) return;
+  if (!_rcRound) {
+    el.innerHTML = `<div class="fs-card" style="padding:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:0;font-size:12px;color:var(--slate-600);">📋 ${isLao ? 'ຍັງບໍ່ມີຮອບສັ່ງຊື້ເປີດ' : 'ยังไม่มีรอบสั่งซื้อเปิด'} — ${isLao ? 'ເປີດຮອບເພື່ອໃຫ້ສາຂາສົ່ງຍອດ' : 'เปิดรอบเพื่อให้สาขาส่งยอด'}</div>
+      <button onclick="rcOpenRound()" style="background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:10px 16px;font-size:13px;font-weight:800;cursor:pointer;">➕ ${isLao ? 'ເປີດຮອບໃໝ່' : 'เปิดรอบใหม่'}</button>
+    </div>`;
+    return;
+  }
+  const rno = escapeHtml(_rcRound.round_no || '');
+  const openAt = _rcRound.opened_at ? roFmtDate(_rcRound.opened_at) : '';
+  const opener = escapeHtml(_rcRound.opened_by_name || '');
+  const subN = _rcSubs.length;
+  const fmt = new Intl.NumberFormat('th-TH');
+  const chips = _rcSubs.map(s => `<span style="background:#dcfce7;color:#15803d;border:1px solid #16a34a;border-radius:8px;padding:4px 9px;font-size:10.5px;font-weight:700;white-space:nowrap;">✅ ${escapeHtml(s.branch_name || ('#' + s.branch_id))} <span style="color:#4b5563;font-weight:600;">${s.submitted_at ? roFmtDate(s.submitted_at) : ''}${s.total_units ? ' · ' + fmt.format(s.total_units) : ''}</span></span>`).join('');
+  el.innerHTML = `<div class="fs-card" style="padding:12px;">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#dcfce7;border:1px solid #16a34a;border-radius:11px;padding:10px 12px;">
+      <div style="font-family:'Space Grotesk',monospace;font-weight:700;font-size:18px;color:#15803d;">${rno}</div>
+      <div style="flex:1;min-width:80px;">
+        <div style="font-weight:800;font-size:12.5px;color:#15803d;">🟢 ${isLao ? 'ເປີດຢູ່' : 'เปิดอยู่'}</div>
+        <div style="font-size:10.5px;color:var(--slate-600);">${isLao ? 'ເປີດ' : 'เปิด'} ${escapeHtml(openAt)}${opener ? ' · ' + opener : ''}</div>
+      </div>
+      <button onclick="rcCloseRound()" style="background:#fff1f2;color:#e11d48;border:1px solid #e11d48;border-radius:9px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">🔒 ${isLao ? 'ປິດຮອບ' : 'ปิดรอบ'}</button>
+    </div>
+    <div style="margin-top:10px;">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:7px;"><span style="font-size:12px;font-weight:800;color:var(--slate-700);">📥 ${isLao ? 'ສາຂາທີ່ສົ່ງຍອດແລ້ວ' : 'สาขาที่ส่งยอดแล้ว'}</span><span style="background:#16a34a;color:white;border-radius:8px;padding:2px 9px;font-size:11px;font-weight:800;">${subN} ${isLao ? 'ສາຂາ' : 'สาขา'}</span><button onclick="rcLoadRound()" style="margin-left:auto;background:var(--slate-100);border:none;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;">🔄</button></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">${chips || '<span style="font-size:11px;color:var(--slate-400);">' + (isLao ? 'ຍັງບໍ່ມີສາຂາສົ່ງ' : 'ยังไม่มีสาขาส่งยอด') + '</span>'}</div>
+    </div>
+  </div>`;
+}
+
+async function rcOpenRound() {
+  const isLao = lang === 'lo';
+  if (_rcRound) { showToast(isLao ? 'ມີຮອບເປີດຢູ່ແລ້ວ ປິດກ່ອນ' : 'มีรอบเปิดอยู่แล้ว ปิดก่อน', 'warning'); return; }
+  if (!confirm(isLao ? 'ເປີດຮອບສັ່ງຊື້ໃໝ່?' : 'เปิดรอบสั่งซื้อใหม่?')) return;
+  try {
+    // เลขรันนิ่ง RO-xxxx (max+1+retry กัน duplicate)
+    let seq = 1;
+    try {
+      const { data: last } = await sb.from('reorder_rounds').select('round_no').like('round_no', 'RO-%').order('round_no', { ascending: false }).limit(1).maybeSingle();
+      if (last && last.round_no) { const n = parseInt(String(last.round_no).replace(/\D/g, ''), 10); if (!isNaN(n)) seq = n + 1; }
+    } catch (e) { }
+    let ok = false, error = null, round = null;
+    for (let attempt = 0; attempt < 15 && !ok; attempt++) {
+      const no = 'RO-' + String(seq).padStart(4, '0');
+      const res = await sb.from('reorder_rounds').insert({
+        round_no: no, status: 'open',
+        opened_by: (user && user.id) || null, opened_by_name: (user && (user.full_name || user.username)) || ''
+      }).select().single();
+      if (!res.error) { ok = true; round = res.data; break; }
+      error = res.error;
+      if (res.error.code === '23505' || /duplicate key/i.test(res.error.message || '')) { seq++; continue; }
+      break;
+    }
+    if (!ok) { showToast('Error: ' + (error ? error.message : 'insert failed'), 'error'); return; }
+    if (typeof logActivity === 'function') logActivity('reorder_round_open', round.round_no);
+    showToast(isLao ? '✅ ເປີດຮອບ ' + round.round_no : '✅ เปิดรอบ ' + round.round_no, 'success');
+    await rcLoadRound();
+  } catch (e) {
+    showToast('Error: ' + ((e && e.message) || e), 'error');
+  }
+}
+
+async function rcCloseRound() {
+  const isLao = lang === 'lo';
+  if (!_rcRound) return;
+  if (!confirm((isLao ? 'ປິດຮອບ ' : 'ปิดรอบ ') + _rcRound.round_no + '?\n' + (isLao ? 'ສາຂາຈະສົ່ງຍອດເພີ່ມບໍ່ໄດ້ (ລັອກຍອດ)' : 'สาขาจะส่งยอดเพิ่มไม่ได้ (ล็อกยอด)'))) return;
+  try {
+    const { error } = await sb.from('reorder_rounds').update({
+      status: 'closed', closed_by: (user && user.id) || null,
+      closed_by_name: (user && (user.full_name || user.username)) || '', closed_at: new Date().toISOString()
+    }).eq('id', _rcRound.id);
+    if (error) throw error;
+    if (typeof logActivity === 'function') logActivity('reorder_round_close', _rcRound.round_no);
+    showToast(isLao ? '🔒 ປິດຮອບແລ້ວ' : '🔒 ปิดรอบแล้ว', 'success');
+    await rcLoadRound();
+  } catch (e) {
+    showToast('Error: ' + ((e && e.message) || e), 'error');
+  }
 }
 
 // วนคำนวณทุกสาขา → แยก 2 กอง (สั่งตรง / รวมศูนย์) + รอสะสม
