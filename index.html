@@ -8754,7 +8754,7 @@ let _roOOSOnly = false;      // true = โชว์เฉพาะของห�
 // แมตช์ด้วย "คำอังกฤษ" (ASCII สะอาดทุกเวอร์ชัน) — ชื่อลาวในฐานข้อมูลเพี้ยน/มีหลายเวอร์ชัน แมตช์เป๊ะไม่ได้
 // token เลือกให้เลี่ยงตัวปลอม: DKSH LAOS≠THAILAND · SOKXAY TRADING≠PHARMA · NOUNTHONG TRADING≠CHAMPASAK · HEUNG XAY≠HUNG HUENG SUB · LONG-D≠KHAMPASEUTH(โค้ด 1110 ซ้ำ)
 // ➕ เพิ่มซัพฯ ภายหลัง: ใส่คำอังกฤษที่แยกออกจากซัพฯ อื่นได้ (ตัวใหญ่) ต่อในลิสต์นี้
-const RO_DEFAULT_SUP_TOKENS = ['HEUNG XAY', 'CHANTHANIDA', 'SILINTHONE', 'BALAMY', 'SAIGON', 'SAVANVALY', 'DKSH LAOS', 'JB TRADING', 'DUMEK', 'COCA COLA', 'KHOUANCHAY', 'C.I TRADING', 'CP LAOS', 'PHETSALAT', 'BEER LAO', 'KHAMMANH', 'SOKXAY TRADING', 'SKY VISION', 'BEAUNEW', 'NOUNTHONG TRADING', 'LONG-D', 'THONGMANI', 'S.T GROUP'];
+const RO_DEFAULT_SUP_TOKENS = ['HEUNG XAY', 'CHANTHANIDA', 'SILINTHONE', 'BALAMY', 'SAIGON', 'SAVANVALY', 'DKSH LAOS', 'JB TRADING', 'DUMEK', 'COCA COLA', 'KHOUANCHAY', 'C.I TRADING', 'CP LAOS', 'PHETSALAT', 'BEER LAO', 'KHAMMANH', 'SOKXAY TRADING', 'SKY VISION', 'BEAUNEW', 'NOUNTHONG TRADING', 'LONG-D', 'THONGMANI', 'S.T GROUP', '1574'];   // 1574 = ບໍລິສັດ ລຳທານ ການກະເສດ (ชื่อลาวเพี้ยน match ไม่ได้ → ใช้ code · unique) Ball 2026-08-26
 function roIsDefaultSup(sup) { const s = String(sup || '').toUpperCase(); return RO_DEFAULT_SUP_TOKENS.some(t => s.includes(t)); }
 // format วันที่ (YYYY-MM-DD หรือ ISO) → dd/mm/yyyy
 function roFmtDate(v) {
