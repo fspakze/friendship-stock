@@ -9529,6 +9529,9 @@ const RC_DOH_LIMIT = 90;
 // ── รอบสั่งซื้อ (ฝั่ง ผจก.รวม) — เปิด/ปิดรอบ + กระดานสาขาที่ส่งยอด ──
 let _rcRound = null;    // รอบที่เปิดอยู่ (reorder_rounds status=open)
 let _rcSubs = [];       // การส่งของทุกสาขาในรอบนี้ (reorder_submissions)
+// ── ตัวกรองหน้าสั่งรวมศูนย์ (แบบเดียวกับหน้าแนะนำสั่ง) — กรอง ประเภท/กลุ่ม/ซัพฯ หลังคำนวณ ──
+let _rcFilterCat = '', _rcFilterGrp = '';
+let _rcFilterSup = new Set(), _rcSupList = [];
 function rcCanUse() { return ['bcs', 'admin', 'scc'].includes((user && user.role) || ''); }
 
 function renderReorderHubPage() {
@@ -9563,6 +9566,11 @@ function renderReorderHubPage() {
         <button onclick="rcExport()" style="background:var(--emerald-500);color:white;border:none;border-radius:9px;padding:11px 14px;font-size:13px;font-weight:700;cursor:pointer;">📊 Excel</button>
       </div>
       <div style="font-size:9.5px;color:var(--slate-400);margin-top:7px;">⏳ ${isLao ? 'ຄຳນວນທຸກສາຂາ ອາດໃຊ້ເວລາ 10-30 ວິນາທີ' : 'คำนวณทุกสาขา อาจใช้เวลา 10-30 วินาที'}</div>
+    </div>
+    <div id="rcFilters" style="display:none;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+      <select id="rcFilterCat" onchange="rcSetFilter('cat', this.value)" style="flex:1;min-width:0;padding:8px;border:1px solid var(--slate-300);border-radius:8px;font-size:12px;background:white;"></select>
+      <select id="rcFilterGrp" onchange="rcSetFilter('grp', this.value)" style="flex:1;min-width:0;padding:8px;border:1px solid var(--slate-300);border-radius:8px;font-size:12px;background:white;"></select>
+      <button id="rcFilterSupBtn" onclick="rcOpenSupFilter()" style="flex:1;min-width:110px;padding:8px;border:1px solid var(--slate-300);border-radius:8px;font-size:12px;background:white;color:var(--slate-700);font-weight:700;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">🏢 ${isLao ? 'ຊັບພລາຍເອີ' : 'ซัพฯ'}</button>
     </div>
     <div id="rcSummary" style="margin-bottom:9px;"></div>
     <div id="rcList" style="padding-bottom:90px;">
@@ -9727,6 +9735,7 @@ async function rcBuildAll(opts, onProgress) {
         directLines.push({
           branchId: b.id, branchName: brName, barcode: r.barcode,
           name: r.nameLo || r.nameTh || r.name, supplier: r.supplier || '',
+          cat: r.cat || '', grp: r.grp || '',
           pcb: pcb, cartons: Math.round((r.orderFinal || 0) / pcb), pcs: r.orderFinal || 0,
           unit: r.unit, cost: r.cost || 0, inOut: r.inOut || ''
         });
@@ -9735,7 +9744,7 @@ async function rcBuildAll(opts, onProgress) {
         const poolQty = r.need > 0 ? r.need : Math.max(0, (r.planoCap || 0) - r.pos);
         if (poolQty <= 0) return;   // ไม่รู้จำนวน → ข้าม (แก้มือหน้าเดิม)
         const k = r.barcode;
-        if (!consMap[k]) consMap[k] = { barcode: r.barcode, name: r.nameLo || r.nameTh || r.name, supplier: r.supplier || '', cat: r.cat || '', pcb: pcb, cost: r.cost || 0, unit: r.unit, byBranch: [], totalUnits: 0 };
+        if (!consMap[k]) consMap[k] = { barcode: r.barcode, name: r.nameLo || r.nameTh || r.name, supplier: r.supplier || '', cat: r.cat || '', grp: r.grp || '', pcb: pcb, cost: r.cost || 0, unit: r.unit, byBranch: [], totalUnits: 0 };
         consMap[k].byBranch.push({ branchId: b.id, branchName: brName, needUnits: poolQty });
         consMap[k].totalUnits += poolQty;
         if (!consMap[k].cost && r.cost) consMap[k].cost = r.cost;
@@ -9777,6 +9786,11 @@ async function rcCalc() {
     const topOnly = !!(document.getElementById('rcTopOnly') || {}).checked;
     const data = await rcBuildAll({ buyer, inOutF, topOnly }, (bn) => setMsg((isLao ? '⏳ ຄຳນວນ ' : '⏳ คำนวณ ') + escapeHtml(bn) + ' ...'));
     _rcData = data;
+    // default ตัวกรอง: เลือกซัพฯ ที่ Ball กำหนด (แบบเดียวกับหน้าแนะนำสั่ง) · ล้างประเภท/กลุ่ม
+    _rcFilterCat = ''; _rcFilterGrp = '';
+    const allSup = [...new Set(rcAllLines().map(o => o.supplier || ''))];
+    _rcFilterSup = new Set(allSup.filter(s => roIsDefaultSup(s)));
+    rcRenderFilters();
     rcRenderSummary();
     rcRenderList();
   } catch (e) {
@@ -9788,10 +9802,109 @@ async function rcCalc() {
   }
 }
 
+// ── ตัวกรองหน้าสั่งรวมศูนย์ (ประเภท/กลุ่ม/ซัพฯ) — แบบเดียวกับหน้าแนะนำสั่ง ──
+function rcAllLines() { const d = _rcData; if (!d) return []; return [].concat(d.directLines || [], d.consReady || [], d.consPending || []); }
+function rcVisibleData() {
+  const d = _rcData; if (!d) return null;
+  const f = o => {
+    if (_rcFilterCat && (o.cat || '') !== _rcFilterCat) return false;
+    if (_rcFilterGrp && (o.grp || '') !== _rcFilterGrp) return false;
+    if (_rcFilterSup.size && !_rcFilterSup.has(o.supplier || '')) return false;
+    return true;
+  };
+  return Object.assign({}, d, {
+    directLines: (d.directLines || []).filter(f),
+    consReady: (d.consReady || []).filter(f),
+    consPending: (d.consPending || []).filter(f)
+  });
+}
+function rcRenderFilters() {
+  const isLao = lang === 'lo';
+  const wrap = document.getElementById('rcFilters'); if (!wrap) return;
+  const rows = rcAllLines();
+  if (!rows.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'flex';
+  const cats = [...new Set(rows.map(r => r.cat).filter(Boolean))].sort();
+  const inCat = _rcFilterCat ? rows.filter(r => r.cat === _rcFilterCat) : rows;
+  const grps = [...new Set(inCat.map(r => r.grp).filter(Boolean))].sort();
+  const catSel = document.getElementById('rcFilterCat');
+  const grpSel = document.getElementById('rcFilterGrp');
+  if (catSel) catSel.innerHTML = '<option value="">📦 ' + (isLao ? 'ທຸກປະເພດ' : 'ทุกประเภท') + '</option>'
+    + cats.map(c => '<option value="' + escapeHtml(c) + '"' + (_rcFilterCat === c ? ' selected' : '') + '>' + escapeHtml(c) + '</option>').join('');
+  if (grpSel) grpSel.innerHTML = '<option value="">🏷️ ' + (isLao ? 'ທຸກກຸ່ມ' : 'ทุกกลุ่ม') + '</option>'
+    + grps.map(g => '<option value="' + escapeHtml(g) + '"' + (_rcFilterGrp === g ? ' selected' : '') + '>' + escapeHtml(g) + '</option>').join('');
+  const supBtn = document.getElementById('rcFilterSupBtn');
+  if (supBtn) { const n = _rcFilterSup.size; supBtn.innerHTML = '🏢 ' + (isLao ? 'ຊັບພລາຍເອີ' : 'ซัพฯ') + (n ? ' (' + n + ')' : ''); supBtn.style.borderColor = n ? 'var(--fs-blue)' : 'var(--slate-300)'; supBtn.style.color = n ? 'var(--fs-blue)' : 'var(--slate-700)'; }
+}
+function rcSetFilter(which, val) {
+  if (which === 'cat') { _rcFilterCat = val; _rcFilterGrp = ''; } else _rcFilterGrp = val;
+  rcRenderFilters(); rcRenderSummary(); rcRenderList();
+}
+function rcOpenSupFilter() {
+  const rows = rcAllLines();
+  const map = {}; rows.forEach(r => { const s = r.supplier || ''; map[s] = (map[s] || 0) + 1; });
+  window._rcSupCount = map;
+  _rcSupList = Object.keys(map).sort((a, b) => {
+    const sa = _rcFilterSup.has(a) ? 0 : 1, sb2 = _rcFilterSup.has(b) ? 0 : 1;
+    if (sa !== sb2) return sa - sb2;
+    return (a || '￿').localeCompare(b || '￿');
+  });
+  rcRenderSupModal('');
+}
+function rcRenderSupModal(q) {
+  const isLao = lang === 'lo';
+  const list = _rcSupList || [];
+  const cnt = window._rcSupCount || {};
+  const noneLabel = isLao ? 'ບໍ່ລະບຸຊັບພລາຍເອີ' : 'ไม่ระบุซัพพลายเออร์';
+  const ql = (q || '').toLowerCase();
+  const shown = ql ? list.filter(s => (s || noneLabel).toLowerCase().includes(ql)) : list;
+  const selN = _rcFilterSup.size;
+  const items = shown.map(s => {
+    const on = _rcFilterSup.has(s);
+    const enc = encodeURIComponent(s).replace(/'/g, '%27');
+    return '<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--slate-100);cursor:pointer;">'
+      + '<input type="checkbox" ' + (on ? 'checked' : '') + ' onclick="rcToggleSup(\'' + enc + '\')" style="width:17px;height:17px;accent-color:var(--fs-blue);flex-shrink:0;">'
+      + '<span style="flex:1;font-size:12px;color:var(--slate-800);line-height:1.35;">' + escapeHtml(s || noneLabel) + '</span>'
+      + '<span style="font-size:10px;color:var(--slate-400);font-weight:700;flex-shrink:0;">' + (cnt[s] || 0) + '</span>'
+      + '</label>';
+  }).join('');
+  const html = '<div style="display:flex;flex-direction:column;max-height:78vh;">'
+    + '<div style="font-size:15px;font-weight:800;margin-bottom:8px;">🏢 ' + (isLao ? 'ເລືອກຊັບພລາຍເອີ' : 'เลือกซัพพลายเออร์') + (selN ? ' <span style="color:var(--fs-blue);">(' + selN + ')</span>' : '') + '</div>'
+    + '<input type="text" id="rcSupSearch" oninput="rcRenderSupModal(this.value)" value="' + escapeHtml(q || '') + '" placeholder="' + (isLao ? 'ຄົ້ນຫາຊັບພລາຍເອີ...' : 'ค้นหาซัพฯ...') + '" style="width:100%;padding:9px;border:1px solid var(--slate-300);border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:8px;">'
+    + '<div style="display:flex;gap:6px;margin-bottom:8px;">'
+    + '<button onclick="rcSupAll(true)" style="flex:1;background:var(--slate-100);border:none;border-radius:7px;padding:7px;font-size:11px;font-weight:700;cursor:pointer;">☑ ' + (isLao ? 'ເລືອກທັງໝົດ' : 'เลือกทั้งหมด') + '</button>'
+    + '<button onclick="rcSupAll(false)" style="flex:1;background:var(--slate-100);border:none;border-radius:7px;padding:7px;font-size:11px;font-weight:700;cursor:pointer;">✕ ' + (isLao ? 'ລ້າງ' : 'ล้าง') + '</button>'
+    + '</div>'
+    + '<div style="flex:1;overflow-y:auto;border:1px solid var(--slate-200);border-radius:9px;min-height:120px;">' + (items || '<div style="padding:20px;text-align:center;color:var(--slate-400);font-size:12px;">—</div>') + '</div>'
+    + '<button onclick="rcApplySup()" style="margin-top:10px;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">' + (isLao ? 'ນຳໃຊ້ຕົວກອງ' : 'ใช้ตัวกรอง') + '</button>'
+    + '</div>';
+  const overlay = document.getElementById('modalOverlay');
+  const mc = document.getElementById('modalContent');
+  if (mc && overlay && overlay.classList.contains('show')) {
+    mc.innerHTML = html;
+    const inp = document.getElementById('rcSupSearch'); if (inp) { inp.focus(); try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) { } }
+  } else { showModal(html); }
+}
+function rcToggleSup(enc) {
+  let s = ''; try { s = decodeURIComponent(enc); } catch (e) { s = enc; }
+  if (_rcFilterSup.has(s)) _rcFilterSup.delete(s); else _rcFilterSup.add(s);
+  const q = ((document.getElementById('rcSupSearch') || {}).value) || '';
+  rcRenderSupModal(q);
+}
+function rcSupAll(sel) {
+  if (sel) (_rcSupList || []).forEach(s => _rcFilterSup.add(s)); else _rcFilterSup.clear();
+  const q = ((document.getElementById('rcSupSearch') || {}).value) || '';
+  rcRenderSupModal(q);
+}
+function rcApplySup() {
+  if (typeof closeModal === 'function') closeModal();
+  rcRenderFilters(); rcRenderSummary(); rcRenderList();
+}
+
 function rcRenderSummary() {
   const isLao = lang === 'lo';
   const el = document.getElementById('rcSummary'); if (!el) return;
-  const d = _rcData; if (!d) { el.innerHTML = ''; return; }
+  const d = rcVisibleData(); if (!d) { el.innerHTML = ''; return; }
   const fmt = new Intl.NumberFormat('th-TH');
   const totCartons = d.consReady.reduce((s, it) => s + it.cartons, 0);
   const trName = d.trading ? (isLao ? (d.trading.name_lo || d.trading.code) : (d.trading.name_th || d.trading.code)) : '';
@@ -9806,7 +9919,7 @@ function rcRenderSummary() {
 function rcRenderList() {
   const isLao = lang === 'lo';
   const el = document.getElementById('rcList'); if (!el) return;
-  const d = _rcData; if (!d) return;
+  const d = rcVisibleData(); if (!d) return;
   const fmt = new Intl.NumberFormat('th-TH');
   if (!d.consReady.length && !d.consPending.length && !d.directLines.length) {
     el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--slate-400);"><div style="font-size:36px;">✅</div>' + (isLao ? 'ບໍ່ມີສິນຄ້າຕ້ອງສັ່ງ' : 'ไม่มีสินค้าต้องสั่ง') + '</div>';
@@ -9854,7 +9967,7 @@ function rcRenderList() {
 
 async function rcExport() {
   const isLao = lang === 'lo';
-  const d = _rcData;
+  const d = rcVisibleData();
   if (!d) { showToast(isLao ? 'ກົດຄຳນວນກ່ອນ' : 'กดคำนวณก่อน', 'warning'); return; }
   if (!d.consReady.length && !d.consPending.length && !d.directLines.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
   if (typeof ExcelJS === 'undefined') { showToast('ExcelJS not loaded', 'error'); return; }
