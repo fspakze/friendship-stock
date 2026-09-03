@@ -8777,6 +8777,15 @@ function roFmtDate(v) {
   if (isNaN(d.getTime())) return String(v);
   return String(d.getUTCDate()).padStart(2, '0') + '/' + String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + d.getUTCFullYear();
 }
+// แกะขนาดลังจากท้ายชื่อสินค้า "(A*B*C)" → A×B×C ต่อลัง (ตัวหน้ามักเป็น 1 = A×B×C = qty_unit×qty_pack ในตาราง · ยืนยันตรงกัน)
+// ใช้เป็น fallback เฉพาะตอน barcode_packsize ไม่ได้กรอกจำนวน (packUnit=1) — Ball 2026-09-03
+function roPackFromName(name) {
+  if (!name) return 0;
+  const m = String(name).match(/\((\d+)\s*\*\s*(\d+)\s*\*\s*(\d+)\)/);
+  if (!m) return 0;
+  const carton = (parseInt(m[1], 10) || 0) * (parseInt(m[2], 10) || 0) * (parseInt(m[3], 10) || 0);
+  return (carton > 1 && carton <= 100000) ? carton : 0;   // กันค่าเพี้ยน/ล้น
+}
 // แถวที่มองเห็นตามตัวกรอง ประเภท/กลุ่ม
 function roVisibleRows() {
   let rows = _roRows || [];
@@ -9107,6 +9116,17 @@ async function roComputeRows(brRec, opts, onProgress) {
         // เหลือ qty_unit > 1 อย่างเดียว → ใช้เป็นจำนวนต่อลัง
         const n = Math.ceil(need / upp); r.orderUnits = n * upp; packUnit = upp;
         r.packLabel = n + ' ' + (lang === 'lo' ? 'ລັງ' : 'ลัง') + ' (' + upp + '/' + (lang === 'lo' ? 'ລັງ' : 'ลัง') + ')';
+      }
+    }
+    // Fallback: ตารางไม่ได้กรอกขนาดลัง (packUnit=1 / ไม่มีแถว) → แกะจากชื่อสินค้า "(1*B*C)" (Ball 2026-09-03)
+    if (packUnit <= 1) {
+      const nmCarton = roPackFromName(p.name_th) || roPackFromName(p.name_lo);
+      if (nmCarton > 1) {
+        packUnit = nmCarton;
+        const n = Math.ceil(need / packUnit);
+        r.orderUnits = n * packUnit;
+        r.packLabel = n + ' ' + (lang === 'lo' ? 'ລັງ' : 'ลัง') + ' (' + packUnit + '/' + (lang === 'lo' ? 'ລັງ' : 'ลัง') + ')';
+        r.bpFromName = true;   // มาจากชื่อ ไม่ใช่ตาราง (ไว้เผื่อ debug)
       }
     }
     r.inactive = (p && p.is_active === false);
