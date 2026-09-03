@@ -8781,7 +8781,7 @@ function roFmtDate(v) {
 // ใช้เป็น fallback เฉพาะตอน barcode_packsize ไม่ได้กรอกจำนวน (packUnit=1) — Ball 2026-09-03
 function roPackFromName(name) {
   if (!name) return 0;
-  const m = String(name).match(/\((\d+)\s*\*\s*(\d+)\s*\*\s*(\d+)\)/);
+  const m = String(name).match(/\(\s*(\d+)\s*\*\s*(\d+)\s*\*\s*(\d+)\s*\)/);
   if (!m) return 0;
   const carton = (parseInt(m[1], 10) || 0) * (parseInt(m[2], 10) || 0) * (parseInt(m[3], 10) || 0);
   return (carton > 1 && carton <= 100000) ? carton : 0;   // กันค่าเพี้ยน/ล้น
