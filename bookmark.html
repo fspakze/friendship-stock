@@ -346,7 +346,7 @@ h1 {
   
   <!-- Info banner -->
   <div class="info-banner" id="infoBanner">
-    💡 <strong>3 servers</strong> — ໃຊ້ໄດ້ທຸກອັນ, ຂໍ້ມູນດຽວກັນ
+    💡 <strong>4 servers</strong> — ໃຊ້ໄດ້ທຸກອັນ, ຂໍ້ມູນດຽວກັນ
   </div>
   
   <!-- Status bar -->
@@ -389,9 +389,9 @@ h1 {
 const SERVERS = [
   {
     rank: '🥇',
-    nameLo: 'Vercel (ຫຼັກ)',
-    nameTh: 'Vercel (หลัก)',
-    url: 'https://friendship-stock.vercel.app',
+    nameLo: 'Cloudflare (ຫຼັກ)',
+    nameTh: 'Cloudflare (หลัก)',
+    url: 'https://friendship-stock.fs-pakze.workers.dev',
     cdn: 'Cloudflare',
   },
   {
@@ -399,12 +399,19 @@ const SERVERS = [
     nameLo: 'Netlify (ສຳຮອງ 1)',
     nameTh: 'Netlify (สำรอง 1)',
     url: 'https://friendship-stock.netlify.app',
-    cdn: 'AWS + Fastly',
+    cdn: 'AWS',
   },
   {
     rank: '🥉',
-    nameLo: 'GitHub Pages (ສຳຮອງ 2)',
-    nameTh: 'GitHub Pages (สำรอง 2)',
+    nameLo: 'Vercel (ສຳຮອງ 2)',
+    nameTh: 'Vercel (สำรอง 2)',
+    url: 'https://friendship-stock.vercel.app',
+    cdn: 'Vercel',
+  },
+  {
+    rank: '4️⃣',
+    nameLo: 'GitHub Pages (ສຳຮອງ 3)',
+    nameTh: 'GitHub Pages (สำรอง 3)',
     url: 'https://fspakze.github.io/friendship-stock/',
     cdn: 'Fastly',
   },
@@ -417,7 +424,7 @@ const I18N = {
   lo: {
     title: 'Friendship Stock',
     subtitle: 'ປາກເຊ • ລາວ • v4.0',
-    info: '💡 <strong>3 servers</strong> — ໃຊ້ໄດ້ທຸກອັນ, ຂໍ້ມູນດຽວກັນ',
+    info: '💡 <strong>4 servers</strong> — ໃຊ້ໄດ້ທຸກອັນ, ຂໍ້ມູນດຽວກັນ',
     last_check: 'ກວດສະຖານະຄັ້ງສຸດທ້າຍ:',
     checking: 'ກຳລັງກວດສະຖານະ...',
     recheck: 'ກວດໃໝ່',
@@ -434,7 +441,7 @@ const I18N = {
   th: {
     title: 'Friendship Stock',
     subtitle: 'ปากเซ • ลาว • v4.0',
-    info: '💡 <strong>3 servers</strong> — ใช้ได้ทุกอัน, ข้อมูลเดียวกัน',
+    info: '💡 <strong>4 servers</strong> — ใช้ได้ทุกอัน, ข้อมูลเดียวกัน',
     last_check: 'ตรวจสถานะครั้งล่าสุด:',
     checking: 'กำลังตรวจสถานะ...',
     recheck: 'ตรวจใหม่',
