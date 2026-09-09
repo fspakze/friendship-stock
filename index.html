@@ -7362,7 +7362,7 @@ async function phHandleFile(ev) {
       total: findCol('รวมซื้อ รวมภาษีแล้ว'),
     };
     if (COL.barcode < 0) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ພົບຄໍລຳ Barcode' : 'ไม่พบคอลัมน์ Barcode') + '</div>'); return; }
-    const data = [];
+    let data = [];
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i];
       const barcode = phCleanStr(r[COL.barcode]);
@@ -7381,6 +7381,22 @@ async function phHandleFile(ev) {
       });
     }
     if (!data.length) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล') + '</div>'); return; }
+    // dedup ภายในไฟล์: แถวที่ (buy_id,barcode,doc_no) ครบ 3 ค่า (ไม่ null) ซ้ำกัน = ชน conflict key เดียวกัน
+    // → upsert แถวเดิม 2 ครั้งในคำสั่งเดียวไม่ได้ (21000) · เก็บแถวหลังสุด (ตรงกับ do-update last-wins เดิม)
+    // เกิดบ่อยขึ้นเมื่อมีซื้อทั้งสางเทรดดิ้ง+สาขาในเอกสารเดียว (branch ไม่ได้เก็บใน purchase_history) — Ball 2026-09-09
+    let dupRemoved = 0;
+    {
+      const seen = new Map(), out = [];
+      for (const d of data) {
+        if (d.buy_id != null && d.doc_no != null) {
+          const k = d.buy_id + '' + d.barcode + '' + d.doc_no;
+          if (seen.has(k)) { out[seen.get(k)] = d; dupRemoved++; continue; }   // ทับด้วยแถวหลังสุด
+          seen.set(k, out.length);
+        }
+        out.push(d);
+      }
+      data = out;
+    }
     // upsert ผ่าน RPC ยืนยันตัว (SECURITY DEFINER ข้าม RLS) — ขอ hash ครั้งเดียวก่อน loop กันถามซ้ำทุก batch
     const _ah = await _getActorHash();
     if (!_ah) { set('<div style="color:var(--rose-500);">' + (isLao ? 'ຍົກເລີກ — ຕ້ອງຢືນຢັນລະຫັດຜ່ານກ່ອນອັບໂຫຼດ' : 'ยกเลิก — ต้องยืนยันรหัสผ่านก่อนอัปโหลด') + '</div>'); return; }
@@ -7401,6 +7417,7 @@ async function phHandleFile(ev) {
       + (isLao ? 'ສຳເລັດ' : 'สำเร็จ') + ' ' + done.toLocaleString() + ' ' + (isLao ? 'ລາຍການ' : 'รายการ')
       + (failed ? ' · ' + (isLao ? 'ລົ້ມເຫຼວ' : 'ล้มเหลว') + ' ' + failed : '')
       + '<br><span style="font-weight:400;color:var(--slate-500);">' + (isLao ? 'ປີ' : 'ปี') + ': ' + years.join(', ') + '</span>'
+      + (dupRemoved ? '<br><span style="font-weight:400;color:var(--amber-600);">' + (isLao ? '🔁 ລວມແຖວຊ້ຳ ' : '🔁 รวมแถวซ้ำ ') + dupRemoved.toLocaleString() + (isLao ? ' ແຖວ' : ' แถว') + '</span>' : '')
       + errLine + '</div>');
     ev.target.value = '';
     if (typeof markDataUpdated === 'function' && done > 0) markDataUpdated('last_update_purchase');
