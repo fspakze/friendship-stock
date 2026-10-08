@@ -40093,7 +40093,44 @@ let _ptagCfgProfile = null;   // โปรไฟล์ที่ _ptagCfg ปั�
 let _ptagProfile = (function () { try { return localStorage.getItem('ptag_profile') || 'super'; } catch (e) { return 'super'; } })();
 let _ptagItems = [];
 let _ptagMode = 'single';
+let _ptagLevel = 'unit';   // unit | pack | box — ระดับบาร์โค้ด/ราคาที่พิมพ์ (Ball 2026-10-08)
 function ptagDefaultFor(profile) { return profile === 'mini' ? PTAG_DEFAULT_MINI : PTAG_DEFAULT; }
+// ดึงบาร์โค้ด/ราคา แพ๊ค/ลัง จาก barcode_packsize มาติดไว้ในแต่ละ item (ไว้สลับพิมพ์ระดับ)
+async function ptagResolvePackBox(items) {
+  try {
+    if (!items || !items.length) return;
+    const bcs = Array.from(new Set(items.map(function (i) { return i.barcode; }).filter(Boolean)));
+    if (!bcs.length) return;
+    const map = {};
+    for (let i = 0; i < bcs.length; i += 200) {   // chunk กัน .in() ยาวเกิน
+      const part = bcs.slice(i, i + 200);
+      const { data } = await sb.from('barcode_packsize').select('barcode_unit,barcode_pack,barcode_box,qty_unit,qty_pack,price_pack,price_box').in('barcode_unit', part);
+      (data || []).forEach(function (b) { map[String(b.barcode_unit)] = b; });
+    }
+    items.forEach(function (it) {
+      const b = map[String(it.barcode)]; if (!b) return;
+      const upp = Number(b.qty_unit) || 0;                                                     // ชิ้น/แพ๊ค
+      const perBox = (upp && (Number(b.qty_pack) || 0)) ? upp * (Number(b.qty_pack) || 0) : upp; // ชิ้น/ลัง
+      const uPrice = Number(it.price) || 0;
+      // ราคา: ใช้ราคาแพ๊ค/ลังจริงถ้ามี · ไม่มี = ประมาณจากราคาหน่วย×จำนวน (Ball เห็นตัวอย่างก่อนพิมพ์ + ปิดราคาได้ในตั้งค่า)
+      if (b.barcode_pack) { it.packBc = String(b.barcode_pack); it.packUnits = upp || 0; it.packPrice = (Number(b.price_pack) || 0) || (upp ? uPrice * upp : uPrice); }
+      if (b.barcode_box) { it.boxBc = String(b.barcode_box); it.boxUnits = perBox || 0; it.boxPrice = (Number(b.price_box) || 0) || (perBox ? uPrice * perBox : uPrice); }
+    });
+  } catch (e) {}   // หาไม่ได้ = มีแค่ Unit ให้พิมพ์ (ไม่พัง)
+}
+// เลือกบาร์โค้ด/ราคา/ป้ายหน่วย ตามระดับที่เลือก (unit/pack/box) · ไม่มีบาร์โค้ดระดับนั้น = คืน unit
+function ptagLevelFields(item, cfg) {
+  const isLao = lang === 'lo';
+  if (_ptagLevel === 'pack' && item.packBc) return { bc: item.packBc, price: item.packPrice, unitLabel: isLao ? 'Kip/ແພັກ' : 'Kip/แพ๊ค' };
+  if (_ptagLevel === 'box' && item.boxBc) return { bc: item.boxBc, price: item.boxPrice, unitLabel: isLao ? 'Kip/ລັງ' : 'Kip/ลัง' };
+  return { bc: item.barcode, price: item.price, unitLabel: (cfg && cfg.unitLabel) || 'Kip/Unit' };
+}
+// รายการที่พิมพ์ได้จริงในระดับที่เลือก (ตัดตัวที่ไม่มีบาร์โค้ดแพ๊ค/ลังออก)
+function ptagActiveItems() {
+  if (_ptagLevel === 'pack') return _ptagItems.filter(function (it) { return it.packBc; });
+  if (_ptagLevel === 'box') return _ptagItems.filter(function (it) { return it.boxBc; });
+  return _ptagItems;
+}
 async function ptagLoadCfg(force) {
   if (_ptagCfg && _ptagCfgProfile === _ptagProfile && !force) return _ptagCfg;
   const key = PTAG_PROFILES[_ptagProfile] || PTAG_KEY;
@@ -40182,7 +40219,8 @@ async function ptagResolveLocations(items) {
 }
 function ptagTagHtml(item, cfg, fill) {
   const c = cfg || PTAG_DEFAULT;
-  const price = new Intl.NumberFormat('th-TH').format(Number(item.price) || 0);
+  const lf = ptagLevelFields(item, c);
+  const price = new Intl.NumberFormat('th-TH').format(Number(lf.price) || 0);
   const wCss = fill ? 'width:100%;' : 'width:' + c.w + 'mm;';
   let html = '<div class="ptag" style="' + wCss + 'height:' + c.h + 'mm;box-sizing:border-box;border:0.35mm solid #000;margin:-0.175mm;padding:1.3mm 2mm;display:flex;flex-direction:column;background:white;color:#000;overflow:hidden;">';
   // 1) ชื่อ (บน-ซ้าย, ไม่เกิน 2 บรรทัด)
@@ -40194,12 +40232,12 @@ function ptagTagHtml(item, cfg, fill) {
   html += '<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:2mm;">';
   html += '<div style="min-width:0;overflow:hidden;">';
   if (c.showDate && c.dateLabel) html += '<div style="font-size:6px;line-height:1;margin-bottom:0.4mm;">' + escapeHtml(c.dateLabel) + ' : ' + ptagToday() + '</div>';
-  if (c.showBarcode) html += '<svg class="ptag-bc" data-code="' + escapeHtml(item.barcode || '') + '"></svg>';
-  else html += '<div style="font-family:monospace;font-size:' + c.codeSize + 'px;">' + escapeHtml(item.barcode || '') + '</div>';
+  if (c.showBarcode) html += '<svg class="ptag-bc" data-code="' + escapeHtml(lf.bc || '') + '"></svg>';
+  else html += '<div style="font-family:monospace;font-size:' + c.codeSize + 'px;">' + escapeHtml(lf.bc || '') + '</div>';
   html += '</div>';
   // ขวาล่าง: Kip/Unit (เล็ก) + Location (ตำแหน่ง Planogram, ตัวเด่น)
   let right = '';
-  if (c.showUnitLabel && c.unitLabel) right += '<div style="font-size:' + c.unitSize + 'px;line-height:1.1;">' + escapeHtml(c.unitLabel) + '</div>';
+  if (c.showUnitLabel && lf.unitLabel) right += '<div style="font-size:' + c.unitSize + 'px;line-height:1.1;">' + escapeHtml(lf.unitLabel) + '</div>';
   if (c.showLocation && item.location) right += '<div style="font-size:' + c.locSize + 'px;font-weight:800;line-height:1.15;">' + escapeHtml(item.location) + '</div>';
   if (right) html += '<div style="text-align:right;white-space:nowrap;flex-shrink:0;">' + right + '</div>';
   html += '</div></div>';
@@ -40208,12 +40246,16 @@ function ptagTagHtml(item, cfg, fill) {
 function ptagBuildHtml(cfg, mode) {
   const c = cfg || PTAG_DEFAULT;
   const isLao = lang === 'lo';
+  const list = ptagActiveItems();
+  if (!list.length) {
+    return '<div style="text-align:center;padding:24px;color:var(--slate-400);font-size:12px;font-weight:700;">' + (isLao ? 'ບໍ່ມີບາໂຄດ' + (_ptagLevel === 'box' ? 'ລັງ' : 'ແພັກ') + 'ໃນລາຍການນີ້' : 'ไม่มีบาร์โค้ด' + (_ptagLevel === 'box' ? 'ลัง' : 'แพ๊ค') + 'ในรายการนี้') + '</div>';
+  }
   if (mode === 'single') {
-    return '<div class="ptag-single">' + _ptagItems.map(function (it) { return ptagTagHtml(it, c, false); }).join('') + '</div>';
+    return '<div class="ptag-single">' + list.map(function (it) { return ptagTagHtml(it, c, false); }).join('') + '</div>';
   }
   const header = c.showHeader ? '<div class="ptag-head" style="text-align:center;font-weight:800;font-size:12px;margin-bottom:2mm;">Friendship · ' + (isLao ? 'ລາຄາປົກກະຕິ' : 'ราคาปกติ') + ' · Update ' + ptagToday() + '</div>' : '';
   // แผ่น A4: ฉลากขนาดคงที่ (w mm) เรียงต่อกัน flex-wrap — จำนวนต่อแถวคำนวณเองตามความกว้างฉลาก (66mm → 3 คอลัมน์)
-  return header + '<div class="ptag-sheet" style="display:flex;flex-wrap:wrap;align-content:flex-start;">' + _ptagItems.map(function (it) { return ptagTagHtml(it, c, false); }).join('') + '</div>';
+  return header + '<div class="ptag-sheet" style="display:flex;flex-wrap:wrap;align-content:flex-start;">' + list.map(function (it) { return ptagTagHtml(it, c, false); }).join('') + '</div>';
 }
 function ptagRenderBarcodes(root, cfg, ok) {
   const c = cfg || PTAG_DEFAULT;
@@ -40231,11 +40273,16 @@ function ptagOpenPrint(items) {
     const isLao = lang === 'lo';
     const modeBtn = (m, th, lo) => '<button onclick="ptagSetMode(\'' + m + '\')" id="ptagMode_' + m + '" style="flex:1;padding:9px;border:none;border-radius:9px;font-size:12.5px;font-weight:800;cursor:pointer;background:' + (_ptagMode === m ? 'var(--fs-blue)' : 'var(--slate-100)') + ';color:' + (_ptagMode === m ? 'white' : 'var(--slate-600)') + ';">' + (isLao ? lo : th) + '</button>';
     const profBtn = (p, label) => '<button onclick="ptagSetProfile(\'' + p + '\')" id="ptagProfile_' + p + '" style="flex:1;padding:8px;border:none;border-radius:9px;font-size:12px;font-weight:800;cursor:pointer;background:' + (_ptagProfile === p ? 'var(--fs-blue)' : 'var(--slate-100)') + ';color:' + (_ptagProfile === p ? 'white' : 'var(--slate-600)') + ';">' + label + '</button>';
+    const packN = _ptagItems.filter(function (it) { return it.packBc; }).length;
+    const boxN = _ptagItems.filter(function (it) { return it.boxBc; }).length;
+    const lvlBtn = (l, label, n) => '<button onclick="ptagSetLevel(\'' + l + '\')" id="ptagLvl_' + l + '"' + (n === 0 ? ' disabled' : '') + ' style="flex:1;padding:8px;border:none;border-radius:9px;font-size:12px;font-weight:800;cursor:' + (n === 0 ? 'not-allowed' : 'pointer') + ';background:' + (_ptagLevel === l ? 'var(--fs-blue)' : 'var(--slate-100)') + ';color:' + (n === 0 ? 'var(--slate-300)' : (_ptagLevel === l ? 'white' : 'var(--slate-600)')) + ';">' + label + ' (' + n + ')</button>';
     showModal(
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px;"><h3 style="font-size:15px;margin:0;">🖨️ ' + (isLao ? 'ພິມປ້າຍລາຄາ' : 'พิมพ์ป้ายราคา') + ' (' + items.length + ')</h3><button onclick="closeModal()" style="background:var(--slate-100);border:none;width:30px;height:30px;border-radius:8px;font-size:15px;cursor:pointer;">✕</button></div>'
       + '<div style="font-size:11px;font-weight:800;color:var(--slate-400);margin-bottom:5px;">' + (isLao ? 'ຂະໜາດປ້າຍ' : 'ขนาดป้าย') + '</div>'
       + '<div style="display:flex;gap:6px;margin-bottom:10px;">' + profBtn('super', '🏬 Super') + profBtn('mini', '🏪 Minimart') + '</div>'
       + '<div style="display:flex;gap:6px;margin-bottom:10px;">' + modeBtn('single', 'ทีละป้าย', 'ທີລະປ້າຍ') + modeBtn('sheet', 'แผ่น A4', 'ແຜ່ນ A4') + '</div>'
+      + '<div style="font-size:11px;font-weight:800;color:var(--slate-400);margin-bottom:5px;">' + (isLao ? 'ລະດັບບາໂຄດ/ລາຄາ' : 'ระดับบาร์โค้ด/ราคา') + '</div>'
+      + '<div style="display:flex;gap:6px;margin-bottom:10px;">' + lvlBtn('unit', 'Unit', _ptagItems.length) + lvlBtn('pack', (isLao ? 'ແພັກ' : 'แพ๊ค'), packN) + lvlBtn('box', (isLao ? 'ລັງ' : 'ลัง'), boxN) + '</div>'
       + '<div style="display:flex;gap:6px;margin-bottom:11px;">'
       + '<button onclick="ptagDoPrint()" style="flex:1;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;">🖨️ ' + (isLao ? 'ພິມ' : 'พิมพ์') + '</button>'
       + (prcCanManage() ? '<button onclick="ptagOpenSettings()" style="background:var(--slate-100);border:1px solid var(--slate-200);border-radius:9px;padding:11px 13px;font-size:13px;font-weight:800;cursor:pointer;">⚙️ ' + (isLao ? 'ຕັ້ງຄ່າ' : 'ตั้งค่า') + '</button>' : '')
@@ -40249,6 +40296,13 @@ function ptagOpenPrint(items) {
 function ptagSetMode(m) {
   _ptagMode = m;
   ['single', 'sheet'].forEach(function (x) { const b = document.getElementById('ptagMode_' + x); if (b) { const on = x === m; b.style.background = on ? 'var(--fs-blue)' : 'var(--slate-100)'; b.style.color = on ? 'white' : 'var(--slate-600)'; } });
+  ptagRenderPreview();
+}
+function ptagSetLevel(l) {
+  const btn = document.getElementById('ptagLvl_' + l);
+  if (btn && btn.disabled) return;   // ไม่มีบาร์โค้ดระดับนั้น
+  _ptagLevel = l;
+  ['unit', 'pack', 'box'].forEach(function (x) { const b = document.getElementById('ptagLvl_' + x); if (b && !b.disabled) { const on = x === l; b.style.background = on ? 'var(--fs-blue)' : 'var(--slate-100)'; b.style.color = on ? 'white' : 'var(--slate-600)'; } });
   ptagRenderPreview();
 }
 function ptagRenderPreview() {
@@ -40270,12 +40324,14 @@ function ptagEnsurePrintArea() {
 }
 function ptagDoPrint() {
   const cfg = _ptagCfg || PTAG_DEFAULT;
+  const list = ptagActiveItems();
+  if (!list.length) { showToast(lang === 'lo' ? 'ບໍ່ມີບາໂຄດ' + (_ptagLevel === 'box' ? 'ລັງ' : 'ແພັກ') + 'ໃຫ້ພິມ' : 'ไม่มีบาร์โค้ด' + (_ptagLevel === 'box' ? 'ลัง' : 'แพ๊ค') + 'ให้พิมพ์', 'warning'); return; }
   const area = ptagEnsurePrintArea();
   let ps = document.getElementById('ptagPageCss');
   if (!ps) { ps = document.createElement('style'); ps.id = 'ptagPageCss'; document.head.appendChild(ps); }
   if (_ptagMode === 'single') {
     ps.textContent = '@media print{@page{size:' + cfg.w + 'mm ' + cfg.h + 'mm;margin:0;}#ptagPrintArea .ptag{page-break-after:always;margin:0!important;}}';
-    area.innerHTML = _ptagItems.map(function (it) { return ptagTagHtml(it, cfg, false); }).join('');
+    area.innerHTML = list.map(function (it) { return ptagTagHtml(it, cfg, false); }).join('');
   } else {
     ps.textContent = '@media print{@page{size:A4;margin:' + (cfg.pageTop || 8) + 'mm 0mm 0mm ' + (cfg.pageLeft || 5) + 'mm;}}';
     area.innerHTML = ptagBuildHtml(cfg, 'sheet');
@@ -40339,6 +40395,8 @@ async function ptagPrintOne(prcId) {
   const items = [ptagItemFromPrc(r)];
   await ptagResolveNames(items);
   await ptagResolveLocations(items);
+  await ptagResolvePackBox(items);
+  _ptagLevel = 'unit';
   ptagOpenPrint(items);
 }
 async function ptagPrintSelected() {
@@ -40347,6 +40405,8 @@ async function ptagPrintSelected() {
   const items = rows.map(ptagItemFromPrc);
   await ptagResolveNames(items);
   await ptagResolveLocations(items);
+  await ptagResolvePackBox(items);
+  _ptagLevel = 'unit';
   ptagOpenPrint(items);
 }
 // พิมพ์ป้ายทั้งกลุ่ม (ตาม Gondola / ผู้สแกน) — token ชี้ไป [prc id...] ที่หัวกลุ่มจับไว้ตอน render (Ball 2026-07-29)
@@ -40357,10 +40417,12 @@ async function prcPrintGroupToken(tok) {
   const items = rows.map(ptagItemFromPrc);
   await ptagResolveNames(items);
   await ptagResolveLocations(items);
+  await ptagResolvePackBox(items);
+  _ptagLevel = 'unit';
   ptagOpenPrint(items);
 }
 window.prcPrintGroupToken = prcPrintGroupToken; window.prcSetGroupBy = prcSetGroupBy;
-window.ptagPrintOne = ptagPrintOne; window.ptagPrintSelected = ptagPrintSelected; window.ptagSetMode = ptagSetMode;
+window.ptagPrintOne = ptagPrintOne; window.ptagPrintSelected = ptagPrintSelected; window.ptagSetMode = ptagSetMode; window.ptagSetLevel = ptagSetLevel;
 window.ptagDoPrint = ptagDoPrint; window.ptagOpenSettings = ptagOpenSettings; window.ptagSaveSettings = ptagSaveSettings; window.ptagBackToPrint = ptagBackToPrint;
 window.ptagSetProfile = ptagSetProfile;
 
