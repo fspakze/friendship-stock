@@ -22387,7 +22387,17 @@ async function loadBackupManager() {
         <span style="font-size:9px;font-weight:500;opacity:0.9;">Excel</span>
       </button>
     </div>
-    
+
+    <!-- 🏪 สำรองทุกสาขาในไฟล์เดียว (Ball 2026-11-05) -->
+    <div style="border:1.5px solid var(--fs-blue);border-radius:11px;padding:9px;margin-bottom:11px;">
+      <div style="font-size:11px;font-weight:800;color:var(--fs-blue);margin-bottom:3px;">🏪 ${isLao ? 'ສຳຮອງທຸກສາຂາ (ໄຟລ໌ດຽວ)' : 'สำรองทุกสาขา (ไฟล์เดียว)'}</div>
+      <div style="font-size:9.5px;color:var(--slate-500);margin-bottom:7px;line-height:1.5;">${isLao ? 'ໄຟລ໌ໃຫຍ່ ~40-60 MB · ໃຊ້ 1-2 ນາທີ · ແນະນຳກົດຈາກຄອມພິວເຕີ' : 'ไฟล์ใหญ่ ~40-60 MB · ใช้ 1-2 นาที · แนะนำกดจากคอมพิวเตอร์'}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
+        <button class="btn btn-primary" onclick="exportFullBackupJSON(true)" style="background:var(--fs-green-ink);font-size:12px;padding:9px;">💾 ${isLao ? 'ທຸກສາຂາ' : 'ทุกสาขา'} · JSON</button>
+        <button class="btn btn-primary" onclick="exportFullBackupExcel(true)" style="background:var(--fs-blue);font-size:12px;padding:9px;">📊 ${isLao ? 'ທຸກສາຂາ' : 'ทุกสาขา'} · Excel</button>
+      </div>
+    </div>
+
     <!-- Restore + History buttons -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:11px;">
       <button class="btn" onclick="openRestoreModal()" ${user.role !== 'admin' ? 'disabled' : ''}
@@ -22544,29 +22554,48 @@ function addBackupHistoryEntry(entry) {
   }
 }
 
+// บันทึกเวลาสำรองล่าสุด (ใช้กับป้าย "สำรองล่าสุด" + การแจ้งเตือนรายสาขา)
+// branchRows = แถว branches จากไฟล์สำรองทุกสาขา → ตีว่าสำรองแล้วทุกสาขา · null = เฉพาะสาขาปัจจุบัน
+function backupMarkDone(branchRows) {
+  const now = String(Date.now());
+  try {
+    if (Array.isArray(branchRows) && branchRows.length) {
+      branchRows.forEach(b => { if (b && b.id != null) localStorage.setItem(`fs_last_backup_${b.id}`, now); });
+      localStorage.setItem('fs_last_backup_all', now);
+    }
+    if (branch && branch.id != null) localStorage.setItem(`fs_last_backup_${branch.id}`, now);
+  } catch (e) {}
+}
+
 // ==================== EXPORT FULL JSON ====================
-async function exportFullBackupJSON() {
+// allBranches=true → สำรองทุกสาขาในไฟล์เดียว (ไม่กรอง branch_id) · Ball 2026-11-05
+async function exportFullBackupJSON(allBranches) {
   const isLao = lang === 'lo';
-  showToast(isLao ? '⏳ ກຳລັງສ້າງ Full Backup...' : '⏳ กำลังสร้าง Full Backup...', 'success');
-  
+  const all = allBranches === true;
+  showToast(all
+    ? (isLao ? '⏳ ກຳລັງສຳຮອງທຸກສາຂາ... (ອາດໃຊ້ 1-2 ນາທີ)' : '⏳ กำลังสำรองทุกสาขา... (อาจใช้ 1-2 นาที)')
+    : (isLao ? '⏳ ກຳລັງສ້າງ Full Backup...' : '⏳ กำลังสร้าง Full Backup...'), 'success');
+
   try {
     const backup = {
       _meta: {
         app: 'Friendship Stock',
         version: '4.1',
-        branch_id: branch.id,
-        branch_code: branch.code,
-        branch_name: branch.name_th || branch.name_lo,
+        scope: all ? 'all' : 'branch',
+        branch_id: all ? null : branch.id,
+        branch_code: all ? 'ALL' : branch.code,
+        branch_name: all ? (isLao ? 'ທຸກສາຂາ' : 'ทุกสาขา') : (branch.name_th || branch.name_lo),
         created_at: new Date().toISOString(),
         created_by: user.username,
         type: 'full',
         tables: []
       }
     };
-    
+
     let totalRecords = 0;
-    
+
     for (const t of BACKUP_TABLES) {
+      if (all) showToast((isLao ? '⏳ ກຳລັງດຶງ ' : '⏳ กำลังดึง ') + t.key + '...', 'info');
       // ⭐ users: ดึงผ่าน RPC (ครบทุกคอลัมน์ยกเว้น password_hash) เพื่อให้ backup ทำงานหลังล็อกตาราง
       let data = null, error = null;
       if (t.key === 'users') {
@@ -22576,7 +22605,7 @@ async function exportFullBackupJSON() {
         try {
           data = await fetchAllQuery(() => {
             let q = sb.from(t.key).select('*');
-            if (t.branchField) q = q.eq(t.branchField, branch.id);
+            if (t.branchField && !all) q = q.eq(t.branchField, branch.id);
             return q.order('id');
           });
         } catch (e) { error = e; }
@@ -22603,19 +22632,19 @@ async function exportFullBackupJSON() {
     
     backup._meta.total_records = totalRecords;
     
-    // Download
-    const json = JSON.stringify(backup, null, 2);
+    // Download (ทุกสาขา = ไม่เว้นวรรค ลดขนาดไฟล์ ~30%)
+    const json = all ? JSON.stringify(backup) : JSON.stringify(backup, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
-    const fileName = `backup-${branch.code}-${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
-    
+    const fileName = `backup-${all ? 'ALL' : branch.code}-${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
+
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = fileName;
     link.click();
-    URL.revokeObjectURL(link.href);
-    
-    // Save backup timestamp (epoch ms)
-    localStorage.setItem(`fs_last_backup_${branch.id}`, String(Date.now()));
+    setTimeout(() => URL.revokeObjectURL(link.href), 60000);   // ไฟล์ใหญ่ — รอให้เบราว์เซอร์เริ่มดาวน์โหลดก่อนค่อยคืนหน่วยความจำ
+
+    // Save backup timestamp (epoch ms) — ทุกสาขา = นับว่าสำรองแล้วทุกสาขา (เลิกเตือนรายสาขา)
+    backupMarkDone(all ? backup.branches : null);
     
     // Add to history
     addBackupHistoryEntry({
@@ -22623,7 +22652,8 @@ async function exportFullBackupJSON() {
       filename: fileName,
       total_records: totalRecords,
       size_kb: Math.round(json.length / 1024),
-      tables: Object.keys(backup).filter(k => k !== '_meta').length
+      tables: Object.keys(backup).filter(k => k !== '_meta').length,
+      ...(all ? { branch_id: null, branch_code: 'ALL' } : {})
     });
     
     // Refresh manager
@@ -22636,19 +22666,23 @@ async function exportFullBackupJSON() {
 }
 
 // ==================== EXPORT FULL EXCEL ====================
-async function exportFullBackupExcel() {
+async function exportFullBackupExcel(allBranches) {
   const isLao = lang === 'lo';
-  showToast(isLao ? '⏳ ກຳລັງສ້າງ Excel...' : '⏳ กำลังสร้าง Excel...', 'success');
-  
+  const all = allBranches === true;
+  showToast(all
+    ? (isLao ? '⏳ ກຳລັງສ້າງ Excel ທຸກສາຂາ... (ອາດໃຊ້ 1-2 ນາທີ)' : '⏳ กำลังสร้าง Excel ทุกสาขา... (อาจใช้ 1-2 นาที)')
+    : (isLao ? '⏳ ກຳລັງສ້າງ Excel...' : '⏳ กำลังสร้าง Excel...'), 'success');
+
   try {
     const wb = XLSX.utils.book_new();
     let totalRecords = 0;
-    
+    let branchRows = null;
+
     // Meta sheet
     const metaSheet = [
       ['Friendship Stock — Full Backup'],
       [],
-      ['Branch', branch.code + ' - ' + (branch.name_th || branch.name_lo)],
+      ['Branch', all ? 'ALL' : (branch.code + ' - ' + (branch.name_th || branch.name_lo))],
       ['Created', new Date().toLocaleString()],
       ['Created by', user.username],
       [],
@@ -22662,10 +22696,11 @@ async function exportFullBackupExcel() {
         ({ data, error } = await sb.rpc('list_users_safe'));
       } else {
         // fetchAllQuery กัน limit 1000 — backup ต้องครบทุกแถว
+        if (all) showToast((isLao ? '⏳ ກຳລັງດຶງ ' : '⏳ กำลังดึง ') + t.key + '...', 'info');
         try {
           data = await fetchAllQuery(() => {
             let q = sb.from(t.key).select('*');
-            if (t.branchField) q = q.eq(t.branchField, branch.id);
+            if (t.branchField && !all) q = q.eq(t.branchField, branch.id);
             return q.order('id');
           });
         } catch (e) { error = e; }
@@ -22674,6 +22709,7 @@ async function exportFullBackupExcel() {
         metaSheet.push([t.key, 0, error?.message || 'no data']);
         continue;
       }
+      if (t.key === 'branches') branchRows = data;
       
       // Sanitize: remove password_hash
       const sanitized = t.key === 'users' 
@@ -22686,7 +22722,7 @@ async function exportFullBackupExcel() {
       }
       
       totalRecords += sanitized.length;
-      metaSheet.push([t.key, sanitized.length, t.branchField ? branch.code : 'all']);
+      metaSheet.push([t.key, sanitized.length, (t.branchField && !all) ? branch.code : 'all']);
     }
     
     metaSheet.push([]);
@@ -22696,18 +22732,19 @@ async function exportFullBackupExcel() {
     wsMeta['!cols'] = [{wch:25},{wch:12},{wch:18}];
     XLSX.utils.book_append_sheet(wb, wsMeta, '_meta', true);
     
-    const fileName = `backup-${branch.code}-${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.xlsx`;
+    const fileName = `backup-${all ? 'ALL' : branch.code}-${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.xlsx`;
     XLSX.writeFile(wb, fileName);
-    
-    localStorage.setItem(`fs_last_backup_${branch.id}`, String(Date.now()));
-    
+
+    backupMarkDone(all ? branchRows : null);
+
     // Add to history
     addBackupHistoryEntry({
       type: 'excel',
       filename: fileName,
       total_records: totalRecords,
       size_kb: 0,  // ไม่รู้ขนาดตอนนี้
-      tables: BACKUP_TABLES.length
+      tables: BACKUP_TABLES.length,
+      ...(all ? { branch_id: null, branch_code: 'ALL' } : {})
     });
     
     showToast(`✅ ${isLao ? 'ສຳຮອງ Excel ສຳເລັດ' : 'สำรอง Excel สำเร็จ'}: ${totalRecords.toLocaleString()} records`, 'success');
@@ -22863,11 +22900,14 @@ async function onRestoreFileSelected(event) {
     // Store for confirmation
     window._restoreData = data;
     
+    // ไฟล์ทุกสาขา → กู้คืนได้ทีละสาขา (เฉพาะสาขาที่เลือกอยู่ · executeRestore กรองให้) → นับเฉพาะแถวของสาขานี้
+    const isAllFile = data._meta.scope === 'all' || data._meta.branch_code === 'ALL';
     // Count records per table
     const tableCounts = {};
     let totalRecords = 0;
     BACKUP_TABLES.forEach(t => {
-      const records = data[t.key];
+      let records = data[t.key];
+      if (Array.isArray(records) && isAllFile && t.branchField) records = records.filter(r => !r[t.branchField] || r[t.branchField] === branch.id);
       if (Array.isArray(records)) {
         tableCounts[t.key] = records.length;
         totalRecords += records.length;
@@ -22875,13 +22915,19 @@ async function onRestoreFileSelected(event) {
         tableCounts[t.key] = 0;
       }
     });
-    
+
     const meta = data._meta;
     const backupDate = meta.created_at ? new Date(meta.created_at).toLocaleString(isLao ? 'lo-LA' : 'th-TH') : '?';
     
     // Check branch match
     const branchMatch = !meta.branch_id || meta.branch_id === branch.id;
-    const branchWarning = !branchMatch ? `
+    const branchWarning = isAllFile ? `
+      <div style="background:var(--fs-blue-tint);border-left:3px solid var(--fs-blue);padding:7px 9px;border-radius:6px;margin-bottom:9px;font-size:10px;color:var(--slate-700);">
+        🏪 ${isLao
+          ? `ໄຟລ໌ສຳຮອງທຸກສາຂາ — ຈະກູ້ຄືນ <strong>ສະເພາະສາຂາ ${branch.code}</strong> (ສາຂາທີ່ເລືອກຢູ່) · ຕ້ອງການສາຂາອື່ນ ໃຫ້ສະຫຼັບສາຂາກ່ອນ`
+          : `ไฟล์สำรองทุกสาขา — จะกู้คืน <strong>เฉพาะสาขา ${branch.code}</strong> (สาขาที่เลือกอยู่) · ต้องการสาขาอื่น ให้สลับสาขาก่อน`}
+      </div>
+    ` : !branchMatch ? `
       <div style="background:var(--amber-100);border-left:3px solid var(--amber-500);padding:7px 9px;border-radius:6px;margin-bottom:9px;font-size:10px;color:#92400e;">
         ⚠️ ${isLao 
           ? `ໄຟລ໌ນີ້ມາຈາກສາຂາ <strong>${meta.branch_code || '?'}</strong> ແຕ່ປະຈຸບັນທ່ານຢູ່ສາຂາ <strong>${branch.code}</strong>` 
