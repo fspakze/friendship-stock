@@ -12239,7 +12239,10 @@ function renderHorecaPage() {
         <button onclick="hcExportGuard('pdf')" style="background:var(--fs-red);color:white;border:none;border-radius:8px;padding:9px 4px;font-size:11.5px;font-weight:700;cursor:pointer;">🖨️ PDF</button>
         <button onclick="hcShareText()" style="background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:8px;padding:9px 4px;font-size:11.5px;font-weight:700;cursor:pointer;">📤 ${isLao ? 'ແບ່ງປັນ' : 'แชร์'}</button>
       </div>
-      <button onclick="hcApplyMemberAsPromo()" style="width:100%;margin-top:6px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;border:none;border-radius:8px;padding:10px;font-size:12px;font-weight:800;cursor:pointer;">⚡ ${isLao ? 'ໃຊ້ລາຄາຂາຍ 2 ເປັນໂປຣ ທຸກຊຸດ (ຫຼຸດຈິງ)' : 'ใช้ราคาขาย 2 เป็นโปร ทุกชุด (ลดจริง)'}</button>` : `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;">
+        <button onclick="hcApplyMemberAsPromo('all')" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;border:none;border-radius:8px;padding:9px 6px;font-size:11.5px;font-weight:800;cursor:pointer;line-height:1.3;">⚡ ${isLao ? 'ຊິງລາຄາຂາຍ 2 — ທັງໝົດ' : 'ซิงก์ราคาขาย 2 — ทั้งหมด'}<div style="font-size:9.5px;font-weight:600;opacity:.9;">${isLao ? 'ຕັ້ງໂປຣ + ລ້າງໂປຣທີ່ບໍ່ຫຼຸດແລ້ວ ທຸກຕົວ' : 'ตั้งโปร + ล้างโปรที่ไม่ลดแล้ว ทุกตัว'}</div></button>
+        <button onclick="hcApplyMemberAsPromo('p2only')" style="background:white;color:#7c3aed;border:1.5px solid #a855f7;border-radius:8px;padding:9px 6px;font-size:11.5px;font-weight:800;cursor:pointer;line-height:1.3;">🧹 ${isLao ? 'ລ້າງສະເພາະໂປຣຈາກລາຄາຂາຍ 2' : 'ล้างเฉพาะโปรที่มาจากราคาขาย 2'}<div style="font-size:9.5px;font-weight:600;opacity:.85;">${isLao ? 'ບໍ່ແຕະໂປຣທີ່ຕັ້ງເອງ' : 'ไม่แตะโปรที่ตั้งเอง'}</div></button>
+      </div>` : `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
         <button onclick="hcExportGuard('excel')" style="background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:9px 4px;font-size:11.5px;font-weight:700;cursor:pointer;">📊 Excel</button>
         <button onclick="hcExportGuard('pdf')" style="background:var(--fs-red);color:white;border:none;border-radius:8px;padding:9px 4px;font-size:11.5px;font-weight:700;cursor:pointer;">🖨️ PDF</button>
         <button onclick="hcShareText()" style="background:var(--fs-fill2);color:var(--fs-blue);border:1px solid var(--slate-300);border-radius:8px;padding:9px 4px;font-size:11.5px;font-weight:700;cursor:pointer;">📤 ${isLao ? 'ແບ່ງປັນ' : 'แชร์'}</button>
@@ -13270,63 +13273,114 @@ async function hcFillPromoFromMember(barcode) {
 }
 // ⚡ Bulk: ใช้ "ราคาขาย 2" (barcode_packsize.price_*_2) เป็นราคาโปร — เฉพาะตัวที่ราคาขาย 2 < ปกติ (ลดจริง) + ช่องโปรฯ ยังว่าง (Ball 2026-07-27)
 // เขียน promo live ทันที · แก้ไขทีหลังได้ · ไม่ทับโปรฯ ที่ตั้งไว้แล้ว
-async function hcApplyMemberAsPromo() {
+// ซิงก์ "ราคาขาย 2" → ราคาโปร ทุกชุด (Ball 2026-11-08) — เดิมตั้งโปรได้อย่างเดียว ไม่เคยล้าง → โปรเก่าค้างทั้งที่ราคาขาย 2 กลับเท่าปกติแล้ว
+// mode 'all'    = ตั้งโปรเมื่อขาย 2 < ปกติ + ล้างโปรเมื่อขาย 2 ไม่ต่ำกว่าปกติ (ทุกตัว ไม่สนที่มา)
+// mode 'p2only' = แตะเฉพาะโปรที่มาจากราคาขาย 2 (promo_src='p2') · ไม่แตะโปรตั้งเอง ('manual') หรือไม่ทราบที่มา (null = ข้อมูลเก่า)
+// ที่มาของโปรเก็บใน horeca_catalog.promo_src (SQL\horeca_promo_src.sql) · ยังไม่รัน SQL = โหมด all ทำงาน (ไม่บันทึกที่มา) · โหมด p2only แจ้งให้รัน SQL
+let _hcP2Plan = null;
+async function hcApplyMemberAsPromo(mode) {
   if (!hcRequireEdit()) return;
+  mode = mode === 'p2only' ? 'p2only' : 'all';
   const isLao = lang === 'lo';
-  if (!confirm(isLao
-    ? 'ໃຊ້ "ລາຄາຂາຍ 2" ເປັນລາຄາໂປຣ — ທຸກຊຸດ ທຸກຕົວທີ່ຂາຍ 2 < ຂາຍ 1 (ຫຼຸດຈິງ)?\nກົດຄັ້ງດຽວ ອັບເດດໝົດ · ໂປຣ live ທັນທີ (ແກ້ໄຂພາຍຫຼັງໄດ້)'
-    : 'ใช้ "ราคาขาย 2" เป็นราคาโปร — ทุกชุด ทุกตัวที่ขาย 2 < ขาย 1 (ลดจริง)?\nกดครั้งเดียว อัพเดททั้งหมด · โปร live ทันที (แก้ไขภายหลังได้)')) return;
-  // modal แสดงความคืบหน้า — ค้างจนกดปิด (Ball 2026-07-27: toast หายเร็ว ไม่รู้เสร็จยัง)
-  showModal('<h3 style="font-size:15px;margin:0 0 10px;">⚡ ' + (isLao ? 'ໃຊ້ລາຄາຂາຍ 2 ເປັນໂປຣ (ທຸກຊຸດ)' : 'ใช้ราคาขาย 2 เป็นโปร (ทุกชุด)') + '</h3>'
+  showModal('<h3 style="font-size:15px;margin:0 0 10px;">' + (mode === 'all' ? '⚡ ' + (isLao ? 'ຊິງລາຄາຂາຍ 2 — ທັງໝົດ' : 'ซิงก์ราคาขาย 2 — ทั้งหมด') : '🧹 ' + (isLao ? 'ລ້າງສະເພາະໂປຣຈາກລາຄາຂາຍ 2' : 'ล้างเฉพาะโปรที่มาจากราคาขาย 2')) + '</h3>'
     + '<div id="hcBulkStatus" style="min-height:64px;font-size:13px;"></div><div id="hcBulkClose" style="margin-top:12px;"></div>');
   const setStat = h => { const el = document.getElementById('hcBulkStatus'); if (el) el.innerHTML = h; };
   const loadr = m => '<div class="loader" style="margin:6px auto 8px;"></div><div style="text-align:center;color:var(--slate-500);">' + m + '</div>';
-  const closeBtn = () => { const el = document.getElementById('hcBulkClose'); if (el) el.innerHTML = '<button onclick="closeModal()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;">' + (isLao ? 'ປິດ' : 'ปิด') + '</button>'; };
+  const closeOnly = () => { const el = document.getElementById('hcBulkClose'); if (el) el.innerHTML = '<button onclick="closeModal()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;">' + (isLao ? 'ປິດ' : 'ปิด') + '</button>'; };
   setStat(loadr(isLao ? 'ກຳລັງໂຫລດສິນຄ້າທຸກຊຸດ...' : 'กำลังโหลดสินค้าทุกชุด...'));
-  let cat = [];
+  const base = 'id,barcode,catalog_set,normal_price,promo_price,pack_normal,pack_promo,box_normal,box_promo';
+  let cat = [], hasSrc = true;
   try {
-    cat = await fetchAllQuery(() => sb.from('horeca_catalog').select('id,barcode,normal_price,promo_price,pack_normal,pack_promo,box_normal,box_promo').order('id'));
-  } catch (e) { setStat('<div style="color:var(--rose-500);">❌ ' + escapeHtml(e.message || String(e)) + '</div>'); closeBtn(); return; }
+    try { cat = await fetchAllQuery(() => sb.from('horeca_catalog').select(base + ',promo_src').order('id')); }
+    catch (e) { hasSrc = false; cat = await fetchAllQuery(() => sb.from('horeca_catalog').select(base).order('id')); }   // ยังไม่รัน SQL promo_src
+  } catch (e) { setStat('<div style="color:var(--rose-500);">❌ ' + escapeHtml(e.message || String(e)) + '</div>'); closeOnly(); return; }
+  if (mode === 'p2only' && !hasSrc) {
+    setStat('<div style="background:#fffbeb;border-radius:8px;padding:12px;color:#b45309;font-weight:700;">⚠️ ' + (isLao ? 'ຕ້ອງຣັນ SQL horeca_promo_src.sql ກ່ອນ — ລະບົບຈຶ່ງຮູ້ວ່າໂປຣໃດມາຈາກລາຄາຂາຍ 2' : 'ต้องรัน SQL horeca_promo_src.sql ก่อน — ระบบถึงจะรู้ว่าโปรไหนมาจากราคาขาย 2') + '</div>');
+    closeOnly(); return;
+  }
   cat = (cat || []).filter(r => r && r.barcode);
   setStat(loadr((isLao ? 'ກຳລັງດຶງລາຄາຂາຍ 2... (' : 'กำลังดึงราคาขาย 2... (') + cat.length + (isLao ? ' ລາຍການ)' : ' รายการ)')));
   const bcs = [...new Set(cat.map(r => String(r.barcode)))];
   const bpMap = {};
   try {
     for (let i = 0; i < bcs.length; i += 300) {
-      const { data } = await sb.from('barcode_packsize').select('barcode_unit,price_unit_2,price_pack_2,price_box_2').in('barcode_unit', bcs.slice(i, i + 300));
+      const { data, error } = await sb.from('barcode_packsize').select('barcode_unit,price_unit_2,price_pack_2,price_box_2').in('barcode_unit', bcs.slice(i, i + 300));
+      if (error) throw error;
       (data || []).forEach(d => { bpMap[String(d.barcode_unit)] = d; });
     }
-  } catch (e) { setStat('<div style="color:var(--rose-500);">❌ ' + escapeHtml(e.message || String(e)) + '</div>'); closeBtn(); return; }
-  let noData = 0, noDisc = 0;
+  } catch (e) { setStat('<div style="color:var(--rose-500);">❌ ' + escapeHtml(e.message || String(e)) + '</div>'); closeOnly(); return; }
+
+  const has = v => v !== null && v !== undefined && Number(v) > 0;
+  let noData = 0, nSet = 0, nClear = 0, nSkipManual = 0, nSkipUnknown = 0;
   const updates = [];
   cat.forEach(r => {
     const bp = bpMap[String(r.barcode)];
     if (!bp) { noData++; return; }
-    const p2 = Number(bp.price_unit_2) || 0, pk2 = Number(bp.price_pack_2) || 0, bx2 = Number(bp.price_box_2) || 0;
-    let promo = r.promo_price, pack = r.pack_promo, box = r.box_promo, ch = false;
-    if (p2 > 0 && Number(r.normal_price) > p2 && Number(r.promo_price) !== p2) { promo = p2; ch = true; }
-    if (pk2 > 0 && r.pack_normal != null && Number(r.pack_normal) > pk2 && Number(r.pack_promo) !== pk2) { pack = pk2; ch = true; }
-    if (bx2 > 0 && r.box_normal != null && Number(r.box_normal) > bx2 && Number(r.box_promo) !== bx2) { box = bx2; ch = true; }
-    if (ch) updates.push({ id: r.id, promo_price: promo, pack_promo: pack, box_promo: box });
-    else noDisc++;
+    const src = hasSrc ? (r.promo_src || null) : null;
+    // p2only: ไม่แตะโปรตั้งเอง/ไม่ทราบที่มา (ถ้าแถวนั้นมีโปรอยู่แล้ว)
+    const rowHasPromo = has(r.promo_price) || has(r.pack_promo) || has(r.box_promo);
+    if (mode === 'p2only' && rowHasPromo && src !== 'p2') { if (src === 'manual') nSkipManual++; else nSkipUnknown++; return; }
+    const out = { promo_price: r.promo_price, pack_promo: r.pack_promo, box_promo: r.box_promo };
+    let ch = false, setAny = false;
+    const lv = (pf, nf, p2) => {
+      p2 = Number(p2) || 0; const normal = Number(r[nf]); const cur = r[pf];
+      if (!(p2 > 0) || r[nf] === null || r[nf] === undefined) { if (has(cur) && src === 'p2') setAny = true; return; }   // ไม่มีราคาขาย 2 ระดับนี้ → คงเดิม
+      if (normal > p2) {                       // ขาย 2 ลดจริง → ตั้งโปร = ขาย 2
+        setAny = true;
+        if (Number(cur) !== p2) { out[pf] = p2; ch = true; nSet++; }
+      } else if (has(cur)) {                   // ขาย 2 ไม่ลดแล้ว แต่ยังมีโปรค้าง → ล้าง
+        out[pf] = null; ch = true; nClear++;
+      }
+    };
+    lv('promo_price', 'normal_price', bp.price_unit_2);
+    lv('pack_promo', 'pack_normal', bp.price_pack_2);
+    lv('box_promo', 'box_normal', bp.price_box_2);
+    if (!ch) return;
+    const u = { id: r.id, barcode: r.barcode, set: r.catalog_set, promo_price: out.promo_price, pack_promo: out.pack_promo, box_promo: out.box_promo };
+    if (hasSrc) u.promo_src = (has(out.promo_price) || has(out.pack_promo) || has(out.box_promo)) ? (setAny ? 'p2' : src) : null;
+    updates.push(u);
   });
+  _hcP2Plan = { updates, hasSrc, mode };
   if (!updates.length) {
-    setStat('<div style="background:#f0f9ff;border-radius:8px;padding:11px;color:var(--slate-600);">ℹ️ ' + (isLao ? 'ບໍ່ມີລາຍການໃໝ່ທີ່ຕ້ອງອັບເດດ' : 'ไม่มีรายการใหม่ที่ต้องอัพเดท') + '<div style="font-size:11px;margin-top:6px;">' + (isLao ? 'ສະແກນ ' : 'สแกน ') + cat.length + ' · ' + (isLao ? 'ບໍ່ມີລາຄາຂາຍ 2 ' : 'ไม่มีราคาขาย 2 ') + noData + ' · ' + (isLao ? 'ຂາຍ 2 ບໍ່ຕ່ຳກວ່າ/ຕັ້ງແລ້ວ ' : 'ขาย 2 ไม่ต่ำกว่า/ตั้งแล้ว ') + noDisc + '</div></div>');
-    closeBtn(); return;
+    setStat('<div style="background:#f0f9ff;border-radius:8px;padding:11px;color:var(--slate-600);">ℹ️ ' + (isLao ? 'ບໍ່ມີລາຍການທີ່ຕ້ອງອັບເດດ' : 'ไม่มีรายการที่ต้องอัพเดท') + '<div style="font-size:11px;margin-top:6px;">' + (isLao ? 'ສະແກນ ' : 'สแกน ') + cat.length + ' · ' + (isLao ? 'ບໍ່ມີລາຄາຂາຍ 2 ' : 'ไม่มีราคาขาย 2 ') + noData
+      + (mode === 'p2only' ? ' · ' + (isLao ? 'ຂ້າມໂປຣຕັ້ງເອງ ' : 'ข้ามโปรตั้งเอง ') + nSkipManual + ' · ' + (isLao ? 'ຂ້າມບໍ່ຮູ້ທີ່ມາ ' : 'ข้ามไม่ทราบที่มา ') + nSkipUnknown : '') + '</div></div>');
+    closeOnly(); return;
   }
+  // ตัวอย่างก่อนยืนยัน — งานนี้เปลี่ยนราคาที่ลูกค้าเห็นจำนวนมาก
+  const fmt = n => (n === null || n === undefined) ? '—' : Number(n).toLocaleString('th-TH');
+  const sample = updates.slice(0, 6).map(u => '<div style="font-size:11px;padding:3px 0;border-bottom:1px solid var(--slate-100);"><b>' + escapeHtml(u.barcode) + '</b> <span style="color:var(--slate-400);">' + escapeHtml(u.set || '') + '</span> → ' + (isLao ? 'ໂປຣ' : 'โปร') + ' ' + fmt(u.promo_price) + ' / ' + fmt(u.pack_promo) + ' / ' + fmt(u.box_promo) + '</div>').join('');
+  setStat('<div style="background:var(--slate-50);border-radius:9px;padding:11px;">'
+    + '<div style="font-weight:800;margin-bottom:6px;">' + (isLao ? 'ຈະອັບເດດ ' : 'จะอัพเดท ') + updates.length + (isLao ? ' ແຖວ' : ' แถว') + '</div>'
+    + '<div style="font-size:12px;line-height:1.7;">✅ ' + (isLao ? 'ຕັ້ງ/ປັບໂປຣຕາມລາຄາຂາຍ 2: ' : 'ตั้ง/ปรับโปรตามราคาขาย 2: ') + '<b>' + nSet + '</b><br>🧹 ' + (isLao ? 'ລ້າງໂປຣທີ່ບໍ່ຫຼຸດແລ້ວ: ' : 'ล้างโปรที่ไม่ลดแล้ว: ') + '<b style="color:var(--rose-600);">' + nClear + '</b>'
+    + (mode === 'p2only' ? '<br>⏭️ ' + (isLao ? 'ຂ້າມໂປຣຕັ້ງເອງ ' : 'ข้ามโปรตั้งเอง ') + nSkipManual + ' · ' + (isLao ? 'ຂ້າມບໍ່ຮູ້ທີ່ມາ (ຂໍ້ມູນເກົ່າ) ' : 'ข้ามไม่ทราบที่มา (ข้อมูลเก่า) ') + nSkipUnknown : '')
+    + '<br><span style="color:var(--slate-400);">(' + (isLao ? 'ນັບເປັນຊ່ອງ ໜ່ວຍ/ແພັກ/ລັງ' : 'นับเป็นช่อง หน่วย/แพ๊ค/ลัง') + ')</span></div>'
+    + '<div style="font-size:10.5px;color:var(--slate-500);margin:8px 0 3px;">' + (isLao ? 'ຕົວຢ່າງ (ໂປຣ ໜ່ວຍ/ແພັກ/ລັງ ຫຼັງອັບເດດ):' : 'ตัวอย่าง (โปร หน่วย/แพ๊ค/ลัง หลังอัพเดท):') + '</div>' + sample + '</div>');
+  const el = document.getElementById('hcBulkClose');
+  if (el) el.innerHTML = '<div style="display:flex;gap:8px;"><button onclick="closeModal()" style="flex:1;background:var(--slate-100);border:none;border-radius:9px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">' + (isLao ? 'ຍົກເລີກ' : 'ยกเลิก') + '</button>'
+    + '<button onclick="hcCommitMemberPromo()" style="flex:2;background:#7c3aed;color:white;border:none;border-radius:9px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;">✓ ' + (isLao ? 'ຢືນຢັນ ອັບເດດ ' : 'ยืนยัน อัพเดท ') + updates.length + '</button></div>';
+}
+async function hcCommitMemberPromo() {
+  const isLao = lang === 'lo';
+  const plan = _hcP2Plan; if (!plan || !plan.updates.length) { closeModal(); return; }
+  const setStat = h => { const el = document.getElementById('hcBulkStatus'); if (el) el.innerHTML = h; };
+  const cl = document.getElementById('hcBulkClose'); if (cl) cl.innerHTML = '';
   const nowIso = new Date().toISOString();
-  let ok = 0, fail = 0;
-  for (let i = 0; i < updates.length; i++) {
-    const u = updates[i];
-    const { error } = await sb.from('horeca_catalog').update({ promo_price: u.promo_price, pack_promo: u.pack_promo, box_promo: u.box_promo, updated_at: nowIso }).eq('id', u.id);
-    if (error) fail++; else { ok++; const r = _hcRows.find(x => x.id === u.id); if (r) { r.promo_price = u.promo_price; r.pack_promo = u.pack_promo; r.box_promo = u.box_promo; } }
-    if (i % 5 === 0 || i === updates.length - 1) setStat(loadr((isLao ? 'ກຳລັງອັບເດດ ' : 'กำลังอัพเดท ') + (i + 1) + '/' + updates.length + '...'));
+  let ok = 0, fail = 0, firstErr = '';
+  for (let i = 0; i < plan.updates.length; i++) {
+    const u = plan.updates[i];
+    const upd = { promo_price: u.promo_price, pack_promo: u.pack_promo, box_promo: u.box_promo, updated_at: nowIso };
+    if (plan.hasSrc) upd.promo_src = u.promo_src;
+    const { error } = await sb.from('horeca_catalog').update(upd).eq('id', u.id);
+    if (error) { fail++; if (!firstErr) firstErr = error.message; }
+    else { ok++; const r = _hcRows.find(x => x.id === u.id); if (r) { r.promo_price = u.promo_price; r.pack_promo = u.pack_promo; r.box_promo = u.box_promo; if (plan.hasSrc) r.promo_src = u.promo_src; } }
+    if (i % 10 === 0 || i === plan.updates.length - 1) setStat('<div class="loader" style="margin:6px auto 8px;"></div><div style="text-align:center;color:var(--slate-500);">' + (isLao ? 'ກຳລັງອັບເດດ ' : 'กำลังอัพเดท ') + (i + 1) + '/' + plan.updates.length + '...</div>');
   }
-  if (ok) { try { hcRenderChips(); } catch (e) {} hcRenderList(); try { if (typeof logActivity === 'function') logActivity('horeca_price', 'ใช้ราคาขาย 2 เป็นโปร ทุกชุด ' + ok + ' รายการ (bulk)'); } catch (e) {} }
+  _hcP2Plan = null;
+  if (ok) { try { hcRenderChips(); } catch (e) {} hcRenderList(); try { if (typeof logActivity === 'function') logActivity('horeca_price', 'ซิงก์ราคาขาย 2 (' + plan.mode + ') ' + ok + ' แถว'); } catch (e) {} }
   setStat('<div style="background:' + (fail ? '#fffbeb' : 'var(--emerald-50)') + ';border-radius:8px;padding:12px;color:' + (fail ? '#b45309' : 'var(--emerald-700)') + ';font-weight:800;">'
-    + (fail ? '⚠️ ' : '✓ ') + (isLao ? 'ເສັດແລ້ວ! ອັບເດດໂປຣ ' : 'เสร็จแล้ว! อัพเดทโปร ') + ok + (isLao ? ' ລາຍການ' : ' รายการ') + (fail ? (' · ' + (isLao ? 'ພລາດ ' : 'พลาด ') + fail) : '')
-    + '<div style="font-size:11px;font-weight:600;margin-top:6px;color:var(--slate-500);">' + (isLao ? 'ສະແກນ ' : 'สแกน ') + cat.length + ' · ' + (isLao ? 'ບໍ່ມີລາຄາຂາຍ 2 ' : 'ไม่มีราคาขาย 2 ') + noData + ' · ' + (isLao ? 'ບໍ່ຫຼຸດ/ຕັ້ງແລ້ວ ' : 'ไม่ลด/ตั้งแล้ว ') + noDisc + '</div></div>');
-  closeBtn();
+    + (fail ? '⚠️ ' : '✓ ') + (isLao ? 'ເສັດແລ້ວ! ອັບເດດ ' : 'เสร็จแล้ว! อัพเดท ') + ok + (isLao ? ' ແຖວ' : ' แถว') + (fail ? ' · ' + (isLao ? 'ພລາດ ' : 'พลาด ') + fail + '<div style="font-size:11px;font-weight:600;margin-top:4px;">' + escapeHtml(firstErr) + '</div>' : '') + '</div>');
+  const el = document.getElementById('hcBulkClose');
+  if (el) el.innerHTML = '<button onclick="closeModal()" style="width:100%;background:var(--fs-blue);color:white;border:none;border-radius:9px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;">' + (isLao ? 'ປິດ' : 'ปิด') + '</button>';
 }
 async function hcSaveEdit(id) {
   if (!hcRequireEdit()) return;
@@ -13351,8 +13405,15 @@ async function hcSaveEdit(id) {
       if (!upErr) { const { data } = sb.storage.from('ticket-photos').getPublicUrl(path); if (data && data.publicUrl) upd.image_url = data.publicUrl; }
     } catch (e) {}
   }
-  const { error } = await sb.from('horeca_catalog').update(upd).eq('id', id);
+  // ที่มาของโปร: แก้ช่องโปรเองในฟอร์ม → 'manual' (ปุ่ม "ล้างเฉพาะโปรจากราคาขาย 2" จะไม่แตะ) · ไม่มีโปรเหลือ → null
+  const _pChanged = ['promo_price', 'pack_promo', 'box_promo'].some(k => (r[k] == null ? '' : String(Number(r[k]))) !== (upd[k] == null ? '' : String(Number(upd[k]))));
+  if (_pChanged) upd.promo_src = (upd.promo_price > 0 || upd.pack_promo > 0 || upd.box_promo > 0) ? 'manual' : null;
+  let { error } = await sb.from('horeca_catalog').update(upd).eq('id', id);
+  if (error && 'promo_src' in upd && /promo_src/i.test(error.message || '')) {   // ยังไม่รัน SQL horeca_promo_src → บันทึกโดยไม่เก็บที่มา
+    delete upd.promo_src; ({ error } = await sb.from('horeca_catalog').update(upd).eq('id', id));
+  }
   if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  if ('promo_src' in upd) r.promo_src = upd.promo_src;
   // C4: log ประวัติการแก้ราคา (เฉพาะช่องราคาที่เปลี่ยน)
   try {
     const chg = [];
