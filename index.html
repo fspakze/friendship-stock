@@ -11931,6 +11931,7 @@ let _hcPromoOnly = false;    // กรองเฉพาะสินค้าท
 let _hcShowGroups = false;   // แสดงแถบย่อยกลุ่มสินค้า (product_group) ในแต่ละประเภท
 let _hcReorder = false;      // โหมดจัดเรียงเอง (แสดงปุ่ม ↑↓ ต่อการ์ด)
 let _hcStock = {};           // { barcode: pos_qty } สต๊อคสาขานี้ (โชว์บนการ์ด เฉพาะในแอป)
+let _hcStockOff = new Set(); // barcode ที่ "ปิดการขาย" (is_active=false) ในสาขา SUPER → ป้ายเทา (Ball 2026-11-08)
 let _hcCustomers = [];       // cache ลูกค้า HORECA
 let _hqCart = [];            // ตะกร้าใบเสนอราคาที่กำลังสร้าง
 let _hcGifts = [];           // โปรโมชั่นสินค้าแถมของชุดนี้ (horeca_gift_promos)
@@ -12336,15 +12337,16 @@ async function hcLoadStock() {
     const setKey = _hcSet;
     // ⭐ สต๊อกหลักบนการ์ด = สาขา Super (สาขาหลัก) ไม่ใช่สาขาที่ล็อกอินอยู่ — HORECA ขายจากสาขาหลัก
     const supId = await hcSuperBranchId();
-    const map = {};
+    const map = {}, off = new Set();
     for (let i = 0; i < bcs.length; i += 200) {
       const chunk = bcs.slice(i, i + 200);
-      // กรอง is_active=true เหมือนหน้าตรวจสต๊อก — กันสินค้าปิดใช้งานที่ยังมี pos_qty ค้างโชว์เลขผิด
-      const { data } = await sb.from('products').select('barcode,pos_qty').eq('branch_id', supId).eq('is_active', true).in('barcode', chunk);
-      (data || []).forEach(p => { map[String(p.barcode)] = Number(p.pos_qty) || 0; });
+      // เปิดขาย → โชว์ตัวเลข · ปิดการขาย (is_active=false) → ไม่โชว์เลข (pos_qty ค้าง = สต๊อกผี · MEMORY 7) แต่โชว์ป้ายเทา "ปิดขาย"
+      const { data } = await sb.from('products').select('barcode,pos_qty,is_active').eq('branch_id', supId).in('barcode', chunk);
+      (data || []).forEach(p => { const k = String(p.barcode); if (p.is_active) map[k] = Number(p.pos_qty) || 0; else off.add(k); });
     }
     if (setKey !== _hcSet) return; // สลับชุดระหว่างโหลด — ทิ้งผลเก่า
-    _hcStock = map;
+    Object.keys(map).forEach(k => off.delete(k));   // กันซ้ำ (มีทั้งแถวเปิด+ปิด → ถือว่าเปิด)
+    _hcStock = map; _hcStockOff = off;
     hcRenderList();
   } catch (e) {}
 }
@@ -12956,7 +12958,10 @@ function hcRenderList() {
       : '';
     const stk = _hcStock[String(r0.barcode || '')];
     // ป้ายสต๊อก = สาขา Super | กดได้ → ดูสต๊อกทุกสาขา (stopPropagation กันไปเปิดหน้าแก้ไข)
-    const stkPill = (stk != null) ? '<div onclick="event.stopPropagation();hcShowBranchStock(\'' + bcSafe + '\')" title="' + (isLao ? 'ເບິ່ງສະຕ໋ອກທຸກສາຂາ' : 'ดูสต๊อกทุกสาขา') + '" style="position:absolute;bottom:5px;left:5px;background:rgba(255,255,255,.93);border-radius:7px;padding:2px 7px;font-size:10px;font-weight:800;box-shadow:0 1px 3px rgba(0,0,0,.15);cursor:pointer;color:' + (stk <= 0 ? 'var(--fs-red)' : stk < 10 ? 'var(--fs-orange)' : 'var(--slate-600)') + ';">📦 ' + Number(stk).toLocaleString() + ' ›</div>' : '';
+    const stkPill = (stk != null) ? '<div onclick="event.stopPropagation();hcShowBranchStock(\'' + bcSafe + '\')" title="' + (isLao ? 'ເບິ່ງສະຕ໋ອກທຸກສາຂາ' : 'ดูสต๊อกทุกสาขา') + '" style="position:absolute;bottom:5px;left:5px;background:rgba(255,255,255,.93);border-radius:7px;padding:2px 7px;font-size:10px;font-weight:800;box-shadow:0 1px 3px rgba(0,0,0,.15);cursor:pointer;color:' + (stk <= 0 ? 'var(--fs-red)' : stk < 10 ? 'var(--fs-orange)' : 'var(--slate-600)') + ';">📦 ' + Number(stk).toLocaleString() + ' ›</div>'
+      : _hcStockOff.has(String(r0.barcode || ''))
+        ? '<div onclick="event.stopPropagation();hcShowBranchStock(\'' + bcSafe + '\')" title="' + (isLao ? 'ປິດການຂາຍໃນສາຂາ SUPER · ກົດເບິ່ງສະຕ໋ອກສາຂາອື່ນ' : 'ปิดการขายในสาขา SUPER · กดดูสต๊อกสาขาอื่น') + '" style="position:absolute;bottom:5px;left:5px;background:#e5e7eb;border:1px solid #cbd5e1;border-radius:7px;padding:2px 7px;font-size:10px;font-weight:800;box-shadow:0 1px 3px rgba(0,0,0,.12);cursor:pointer;color:#64748b;">⛔ ' + (isLao ? 'ປິດຂາຍ' : 'ปิดขาย') + ' ›</div>'
+        : '';
     const reBtns = (canEdit && _hcReorder) ? '<div style="position:absolute;bottom:5px;right:5px;z-index:3;display:flex;gap:3px;">'
       + '<button onclick="hcMoveItem(' + r.id + ',\'up\',event)" style="width:26px;height:26px;border-radius:7px;border:none;background:rgba(255,255,255,.95);box-shadow:0 1px 3px rgba(0,0,0,.2);font-size:13px;cursor:pointer;padding:0;">⬆️</button>'
       + '<button onclick="hcMoveItem(' + r.id + ',\'down\',event)" style="width:26px;height:26px;border-radius:7px;border:none;background:rgba(255,255,255,.95);box-shadow:0 1px 3px rgba(0,0,0,.2);font-size:13px;cursor:pointer;padding:0;">⬇️</button></div>' : '';
