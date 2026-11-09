@@ -3146,6 +3146,16 @@ async function login() {
     _actorAuthHash = hash;   // เก็บ hash ไว้ยืนยันตัวตอนจัดการ user (admin) — memory เท่านั้น เคลียร์ตอน logout
     // Staff เลิกใช้แล้ว → map เป็น counter (Ball 2026-07-08) กัน user เก่าใน DB เมนูว่าง
     if (user && user.role === 'staff') user.role = 'counter';
+    // 🔒 ปิดการใช้งานพนักงาน → เข้าได้เฉพาะ admin
+    await appAccessFetch();
+    if (appAccessBlocked(user)) {
+      user = null; _actorAuthHash = null;
+      errEl.textContent = appAccessMsg();
+      errEl.classList.add('show');
+      btn.disabled = false;
+      btn.innerHTML = `<span>${T('login')}</span>`;
+      return;
+    }
     log('User found:', user.username, 'role:', user.role, 'user.branch_id:', user.branch_id);
     
     // Step 2: Validate branch access
@@ -3240,6 +3250,24 @@ async function login() {
 
 let _countMenuEnabled = true; // เปิด/ปิดเมนูนับสต๊อก (scan+tiebreaker) ของ counter/verifier — คำนวณต่อสาขาปัจจุบัน
 let _countMenuRaw = 'on';      // ค่าดิบจาก app_settings: 'on' (ทุกสาขา) · 'off' (ปิดหมด) · 'branch:5,7' (เปิดเฉพาะ branch id ที่ระบุ)
+let _appAccessMode = 'open';  // 🔒 สวิตช์เปิด/ปิดการใช้งานพนักงาน (app_settings.app_access_mode): 'open' | 'admin_only' = เข้าได้เฉพาะ role admin
+function appAccessBlocked(u) { return _appAccessMode === 'admin_only' && !!u && u.role !== 'admin'; }
+function appAccessMsg() { return lang === 'lo' ? '🔒 ລະບົບປິດການໃຊ້ງານຊົ່ວຄາວ — ເຂົ້າໄດ້ສະເພາະ Admin' : '🔒 ระบบปิดการใช้งานชั่วคราว — เข้าได้เฉพาะ Admin'; }
+// อ่านค่าสดจาก DB (ออนไลน์เท่านั้น · เน็ตหลุด/error = คงค่าเดิม ไม่เตะคนออกเพราะเน็ต)
+async function appAccessFetch() {
+  if (!fsIsOnline()) return;
+  try {
+    const { data, error } = await sb.from('app_settings').select('value').eq('key', 'app_access_mode').maybeSingle();
+    if (!error) _appAccessMode = (data && data.value === 'admin_only') ? 'admin_only' : 'open';
+  } catch (e) {}
+}
+// เตะออก → กลับหน้า login พร้อมข้อความ
+async function appAccessKick() {
+  try { await logout(); } catch (e) {}
+  const ls = document.getElementById('loginScreen'); if (ls) ls.style.display = 'flex';
+  const errEl = document.getElementById('loginError');
+  if (errEl) { errEl.textContent = appAccessMsg(); errEl.classList.add('show'); }
+}
 let _menuOff = {};            // จัดการเมนู (admin): {pageKey: true|'all'|[roles]} = ปิดเมนูนั้น
 let _menuUserOverride = {};   // สิทธิ์เฉพาะบุคคล (admin): {userId: {pageKey: true(เปิดเพิ่ม)/false(ปิดเฉพาะคน)}} — ทับสิทธิ์ตามตำแหน่ง
 function myMenuOverride() { return (user && _menuUserOverride[user.id]) || {}; }
@@ -3324,6 +3352,7 @@ function _applyAppSettings(rows) {
   const map = {};
   (rows || []).forEach(r => { map[r.key] = r.value; });
   _countMenuRaw = map.count_menu_enabled || 'on';
+  _appAccessMode = map.app_access_mode === 'admin_only' ? 'admin_only' : 'open';
   _recomputeCountMenu(); // คำนวณ _countMenuEnabled ตามสาขาปัจจุบัน (รองรับโหมด branch:...)
   _menuOff = {};
   if (map.menu_off) { try { _menuOff = JSON.parse(map.menu_off) || {}; } catch (e) { _menuOff = {}; } }
@@ -3339,7 +3368,7 @@ async function loadAppSettings() {
     return;
   }
   try {
-    const { data, error } = await sb.from('app_settings').select('key, value').in('key', ['count_menu_enabled', 'menu_off', 'menu_user_override']);
+    const { data, error } = await sb.from('app_settings').select('key, value').in('key', ['count_menu_enabled', 'menu_off', 'menu_user_override', 'app_access_mode']);
     if (error) throw error;
     _applyAppSettings(data);
   } catch (e) {
@@ -3361,6 +3390,24 @@ function _recomputeCountMenu() {
   _countMenuEnabled = true; // 'on' หรือค่าเก่า = เปิดทุกสาขา
 }
 window._getCountMenuEnabled = () => _countMenuEnabled;
+
+// 🔒 เปิด/ปิดการใช้งานพนักงาน (admin เท่านั้น) — ปิด = เข้าได้เฉพาะ role admin · คนที่ใช้อยู่ถูกเตะออกภายใน ~40 วิ
+async function appAccessSet(mode) {
+  const isLao = lang === 'lo';
+  if (!user || user.role !== 'admin') { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
+  const off = mode === 'admin_only';
+  const msg = off
+    ? (isLao ? 'ປິດການໃຊ້ງານພະນັກງານ?\n\n• ເຂົ້າໄດ້ສະເພາະໄອດີ Admin\n• ຄົນທີ່ໃຊ້ຢູ່ຈະຖືກອອກຈາກລະບົບພາຍໃນ ~1 ນາທີ' : 'ปิดการใช้งานพนักงาน?\n\n• เข้าได้เฉพาะไอดี Admin\n• คนที่ใช้อยู่จะถูกออกจากระบบภายใน ~1 นาที')
+    : (isLao ? 'ເປີດການໃຊ້ງານພະນັກງານຄືນ?\n\nທຸກໄອດີເຂົ້າໄດ້ຕາມປົກກະຕິ' : 'เปิดการใช้งานพนักงานคืน?\n\nทุกไอดีเข้าได้ตามปกติ');
+  if (!confirm(msg)) return;
+  const { error } = await sb.from('app_settings').upsert({ key: 'app_access_mode', value: off ? 'admin_only' : 'open', updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: 'key' });
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  _appAccessMode = off ? 'admin_only' : 'open';
+  logActivity('toggle_app_access', _appAccessMode);
+  showToast(off ? (isLao ? '🔒 ປິດການໃຊ້ງານພະນັກງານແລ້ວ' : '🔒 ปิดการใช้งานพนักงานแล้ว') : (isLao ? '✅ ເປີດການໃຊ້ງານພະນັກງານແລ້ວ' : '✅ เปิดการใช้งานพนักงานแล้ว'), 'success');
+  goPage('settings');
+}
+window.appAccessSet = appAccessSet;
 
 // เปิด/ปิดเมนูนับสต๊อก (admin/scc/it) → เก็บ Supabase → มีผลทุกเครื่อง · รองรับเลือกเฉพาะสาขา
 // core: เขียนค่า count_menu_enabled ('on'/'off'/'branch:...') → recompute → re-render
@@ -3450,6 +3497,7 @@ async function afterLogin() {
   // โหลด zones+locations เสมอ (เพื่อให้ Floor Map + Workflow Control ใช้)
   await loadZonesAndLocations();
   await loadAppSettings();
+  if (appAccessBlocked(user)) { await appAccessKick(); return; } // 🔒 ปิดการใช้งานพนักงาน (รวมล็อกอินออฟไลน์)
   if (typeof updateDocBadge === 'function') setTimeout(updateDocBadge, 800);
   
   const branchUseZones = branch?.use_zones !== false;
@@ -34063,6 +34111,22 @@ function renderSettingsPage() {
       <div class="stat-card"><div class="num" id="settingsTotalSessions">-</div><div class="lbl">${T('sessions_to_delete')}</div></div>
     </div>
     
+    ${user.role === 'admin' ? (() => { const off = _appAccessMode === 'admin_only'; return `
+    <!-- 🔒 เปิด/ปิดการใช้งานพนักงาน (admin เท่านั้น) -->
+    <div style="background:${off ? 'var(--rose-50, #fff1f2)' : 'white'};border:2px solid ${off ? 'var(--rose-500)' : 'var(--emerald-300)'};border-radius:14px;padding:16px;margin-top:14px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-size:24px;">${off ? '🔒' : '✅'}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:800;color:var(--slate-800);">${lang === 'lo' ? 'ການໃຊ້ງານຂອງພະນັກງານ' : 'การใช้งานของพนักงาน'}</div>
+          <div style="font-size:11px;font-weight:700;margin-top:3px;color:${off ? 'var(--rose-500)' : 'var(--emerald-600)'};">${off ? (lang === 'lo' ? 'ປິດຢູ່ — ເຂົ້າໄດ້ສະເພາະໄອດີ Admin' : 'ปิดอยู่ — เข้าได้เฉพาะไอดี Admin') : (lang === 'lo' ? 'ເປີດຢູ່ — ທຸກໄອດີເຂົ້າໄດ້ປົກກະຕິ' : 'เปิดอยู่ — ทุกไอดีเข้าได้ปกติ')}</div>
+        </div>
+        <button onclick="appAccessSet('${off ? 'open' : 'admin_only'}')" style="background:${off ? 'var(--emerald-500)' : 'var(--rose-500)'};color:white;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;">
+          ${off ? (lang === 'lo' ? 'ເປີດ' : 'เปิด') : (lang === 'lo' ? 'ປິດ' : 'ปิด')}
+        </button>
+      </div>
+      <div style="font-size:10px;color:var(--slate-500);margin-top:9px;line-height:1.5;">💡 ${lang === 'lo' ? 'ປິດ = ພະນັກງານທຸກຕຳແໜ່ງ (ລວມ SCC/BCS/IT) ລັອກອິນບໍ່ໄດ້ · ຄົນທີ່ໃຊ້ຢູ່ຖືກອອກພາຍໃນ ~1 ນາທີ' : 'ปิด = พนักงานทุกตำแหน่ง (รวม SCC/BCS/IT) ล็อกอินไม่ได้ · คนที่ใช้อยู่ถูกออกภายใน ~1 นาที'}</div>
+    </div>`; })() : ''}
+
     ${['admin', 'scc', 'bcs', 'it'].includes(user.role) ? `
     ${['admin', 'scc', 'it'].includes(user.role) ? `
     <!-- เมนูนับสต๊อก — เลือกเปิดต่อสาขาได้ -->
@@ -41151,6 +41215,8 @@ let _onlineTimer = null;
 
 async function presenceBeat() {
   if (!user || !user.id) return;
+  // 🔒 ระหว่างใช้งาน: admin ปิดการใช้งานพนักงาน → เตะออกภายใน ~40 วิ
+  if (user.role !== 'admin') { await appAccessFetch(); if (appAccessBlocked(user)) { await appAccessKick(); return; } }
   const nowIso = new Date().toISOString();
   try {
     await sb.from('user_presence').upsert({
@@ -41713,6 +41779,7 @@ if (typeof isPWAMode === 'function') {
       // โหลด zones+locations เสมอ
       await loadZonesAndLocations();
       await loadAppSettings();
+      if (appAccessBlocked(user)) { await appAccessKick(); return; } // 🔒 ปิดการใช้งานพนักงาน
 
       // 📅 refresh หน้า = resume session รอบเดิม (ถ้าวันเดียวกัน) ไม่นับเป็นรอบใหม่
       if (typeof accessSessionResume === 'function') accessSessionResume();
