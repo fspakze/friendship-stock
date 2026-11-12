@@ -26430,6 +26430,7 @@ async function computeVarianceItems(periodOverride) {
         expectedLocs,      // จำนวน gondola ที่ควรนับ (จาก Planogram)
         countedLocs,       // จำนวน gondola ที่นับแล้ว (ฐาน)
         missingGons: missingLocs,  // gondola ที่ Planogram มี แต่ยังไม่ได้นับ (ใช้ปุ่ม "สรุปเลย")
+        countedGons: [...countedGons].sort(),  // gondola ที่นับจริง (ฐาน) — โชว์ในกล่อง "รอนับ"
         isOrphan  // 🔥 flag สำหรับแสดงเตือน
       };
     });
@@ -27011,9 +27012,14 @@ function renderVariancePending(isLao) {
             <div style="font-size:9px;color:var(--slate-500);font-family:monospace;margin-top:1px;">${p.product?.barcode || ''}${p.gondola_code ? ` · 📍 ${p.gondola_code}` : ''}</div>
           </div>
           <div style="text-align:right;flex-shrink:0;">
-            <div style="font-size:11px;font-weight:800;color:var(--amber-600);white-space:nowrap;">⏳ ${isLao ? 'ນັບແລ້ວ' : 'นับแล้ว'} ${p.countedLocs}/${p.expectedLocs} ${isLao ? 'ຈຸດ' : 'จุด'}</div>
+            <div style="font-size:11px;font-weight:800;color:var(--amber-600);white-space:nowrap;">⏳ ${isLao ? 'ນັບແລ້ວ' : 'นับแล้ว'} ${Math.max(0, p.expectedLocs - (p.missingGons || []).length)}/${p.expectedLocs} ${isLao ? 'ຈຸດ' : 'จุด'}</div>
             <div style="font-size:9px;color:var(--slate-500);">${isLao ? 'ນັບໄດ້' : 'นับได้'} ${p.final_qty} · POS ${p.pos_qty}</div>
           </div>
+        </div>
+        <!-- 📍 จุดไหนนับแล้ว / จุดไหนยังไม่นับ (ตาม Pan-O-Gram) -->
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;font-size:10px;font-weight:700;">
+          ${(p.countedGons || []).map(g => `<span style="background:var(--emerald-100);color:var(--emerald-700);border-radius:5px;padding:2px 6px;font-family:monospace;">✓ ${escapeHtml(g)}</span>`).join('')}
+          ${(p.missingGons || []).map(g => `<span style="background:var(--rose-100);color:var(--rose-700);border-radius:5px;padding:2px 6px;font-family:monospace;">⏳ ${escapeHtml(g)} ${isLao ? 'ຍັງບໍ່ນັບ' : 'ยังไม่นับ'}</span>`).join('')}
         </div>
         ${canConclude ? `<button onclick="event.stopPropagation();concludePendingProduct(${p.product_id})" style="width:100%;margin-top:6px;background:var(--emerald-100);color:var(--emerald-700);border:1px solid var(--emerald-500);border-radius:7px;padding:6px;font-size:11px;font-weight:800;cursor:pointer;">✓ ${isLao ? 'ສະຫຼຸບເລີຍ (ຈຸດທີ່ຂາດບໍ່ມີຂອງແລ້ວ)' : 'สรุปเลย (จุดที่ขาดไม่มีของแล้ว)'}</button>` : ''}
       </div>`;
