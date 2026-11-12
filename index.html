@@ -18585,6 +18585,7 @@ function toggleLiteScan() {
 // 📦 สลับโหมดนับ: ชั้นวาง (false) / พื้น-นอกชั้น (true)
 function setFloorMode(on) {
   _floorMode = !!on;
+  if (curProduct && document.getElementById('ccPrevBox')) ccCheckPrev(curProduct); // ชั้น/พื้น = คนละตำแหน่ง → เช็คใหม่
   const isLao = lang === 'lo';
   const shelfBtn = document.getElementById('floorModeShelfBtn');
   const floorBtn = document.getElementById('floorModeFloorBtn');
@@ -19376,12 +19377,14 @@ function renderProduct(p) {
       
       <!-- Planogram section (จะโหลดข้อมูล async) -->
       <div id="pogSection" style="margin-top:9px;"></div>
+      <!-- 🔁 นับไว้แล้วในตำแหน่งนี้? (cc*) -->
+      <div id="ccPrevBox"></div>
       
       <div class="count-section ${modeClass}">
         <div class="count-label">${labelText}</div>
         <div class="count-controls">
           <button class="count-btn" onclick="adjustCount(-1)">−</button>
-          <input class="count-input mono" id="countInput" type="number" inputmode="numeric" enterkeyhint="done" value="${startValue}" min="0"
+          <input class="count-input mono" id="countInput" type="number" inputmode="numeric" enterkeyhint="done" value="${startValue}" min="0" oninput="ccUpdatePreview()"
                  onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();document.getElementById('saveBtn')?.click();}">
           <button class="count-btn" onclick="adjustCount(1)">+</button>
         </div>
@@ -19408,6 +19411,8 @@ function renderProduct(p) {
     const inp = document.getElementById('countInput');
     if (inp) { inp.focus(); inp.select(); }
   }, 100);
+
+  ccCheckPrev(p);   // 🔁 เคยนับตัวนี้ในตำแหน่งนี้แล้วหรือยัง (async · ไม่หน่วงการแสดงการ์ด)
 
   // ⭐ ราคา Unit ในการ์ดใช้ Master (ราคาปัจจุบัน) — อัปเดตช่องหลังโหลด (เฉพาะ admin ที่เห็นราคา ไม่หน่วงสแกน) (Ball 2026-07-08)
   if (isAdmin && p.barcode) {
@@ -24258,11 +24263,84 @@ async function bulkAssignToZone(zoneId, useFilter) {
   }
 }
 
+// ==================== 🔁 นับซ้ำ vs อีกชั้น (cc*) — Ball 2026-11-12 ====================
+// ยอดนับเก็บ "ล่าสุดต่อ (role, ตำแหน่ง)" — ตำแหน่ง = Gondola (ชั้นวาง) หรือ Gondola-FL (พื้น) แยกกัน
+// สแกนตัวที่นับไว้แล้วในตำแหน่งเดิม → ต้องเลือก: ➕ บวกเพิ่ม (อยู่อีกชั้น) = บันทึกยอดรวม · 🔁 นับใหม่แทน = ทับ
+let _ccPrev = null;   // {qty, at, loc, pid} ยอดล่าสุดของ role นี้ ตำแหน่งนี้ รอบนี้
+let _ccMode = null;   // null | 'add' | 'replace'
+function _ccMyRole() {
+  const r = user && user.role;
+  if (['verifier', 'audit'].includes(r)) return 'verifier';
+  if (r === 'ctl') return 'ctl_tiebreaker';
+  if (['admin', 'scc', 'bcs'].includes(r)) return 'manager_final';
+  return 'counter';
+}
+function _ccLocCode() { return loc ? (_floorMode ? (loc.location_code + FLOOR_SUFFIX) : loc.location_code) : null; }
+async function ccCheckPrev(p) {
+  _ccPrev = null; _ccMode = null;
+  const box = document.getElementById('ccPrevBox');
+  if (box) box.innerHTML = '';
+  if (!p || !p.id || !session || !session.id || !fsIsOnline()) return;
+  const lc = _ccLocCode();
+  const role = _ccMyRole();
+  const roles = role === 'counter' ? ['counter', 'staff'] : (role === 'verifier' ? ['verifier', 'audit'] : [role]);
+  let row = null;
+  try {
+    let q = sb.from('stock_counts').select('counted_qty, counted_at').eq('session_id', session.id).eq('product_id', p.id).in('count_role', roles);
+    q = lc ? q.eq('location_code', lc) : q.is('location_code', null);
+    const { data, error } = await q.order('counted_at', { ascending: false }).limit(1);
+    if (error) return;
+    row = (data || [])[0] || null;
+  } catch (e) { return; }
+  // ระหว่างรอ ผู้ใช้อาจสแกนตัวอื่น/สลับชั้น-พื้น ไปแล้ว → ทิ้งผล
+  if (!row || !curProduct || curProduct.id !== p.id || _ccLocCode() !== lc) return;
+  _ccPrev = { qty: Number(row.counted_qty) || 0, at: row.counted_at, loc: lc, pid: p.id };
+  ccRenderPrev();
+}
+function ccRenderPrev() {
+  const box = document.getElementById('ccPrevBox');
+  if (!box || !_ccPrev) return;
+  const isLao = lang === 'lo';
+  const where = _floorMode ? (isLao ? '📦 ພື້ນ' : '📦 พื้น') : (isLao ? '🗄️ ຊັ້ນວາງ' : '🗄️ ชั้นวาง');
+  const t = _ccPrev.at ? new Date(_ccPrev.at).toLocaleTimeString(isLao ? 'lo-LA' : 'th-TH', { hour: '2-digit', minute: '2-digit' }) : '';
+  const btn = (mode, label, color) => {
+    const on = _ccMode === mode;
+    return '<button onclick="ccSetMode(\'' + mode + '\')" style="flex:1;padding:10px 6px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;'
+      + 'border:2px solid ' + color + ';background:' + (on ? color : 'white') + ';color:' + (on ? 'white' : color) + ';">' + label + '</button>';
+  };
+  box.innerHTML = '<div style="background:var(--amber-50);border:2px solid var(--amber-400, #fbbf24);border-radius:11px;padding:10px 11px;margin-top:9px;">'
+    + '<div style="font-size:12px;font-weight:800;color:#92400e;">⚠️ ' + (isLao ? 'ນັບໄວ້ແລ້ວ' : 'นับไว้แล้ว') + ' <span style="font-size:15px;">' + _ccPrev.qty.toLocaleString() + '</span> '
+    + (isLao ? 'ໃນ ' : 'ใน ') + where + ' ' + escapeHtml(loc ? loc.location_code : '') + (t ? ' · ' + t : '') + '</div>'
+    + '<div style="font-size:10px;color:#92400e;margin-top:2px;">' + (isLao ? 'ເລືອກກ່ອນບັນທຶກ: ສິນຄ້າຢູ່ອີກຊັ້ນ ຫຼື ນັບຊ້ຳ?' : 'เลือกก่อนบันทึก: สินค้าอยู่อีกชั้น หรือนับซ้ำ?') + '</div>'
+    + '<div style="display:flex;gap:6px;margin-top:8px;">'
+    + btn('add', isLao ? '➕ ບວກເພີ່ມ (ອີກຊັ້ນ)' : '➕ บวกเพิ่ม (อีกชั้น)', 'var(--emerald-600, #059669)')
+    + btn('replace', isLao ? '🔁 ນັບໃໝ່ແທນ' : '🔁 นับใหม่แทน', 'var(--sky-600, #0284c7)')
+    + '</div><div id="ccPreview" style="font-size:12px;font-weight:800;margin-top:7px;"></div></div>';
+  ccUpdatePreview();
+}
+function ccSetMode(mode) {
+  _ccMode = (mode === 'add' || mode === 'replace') ? mode : null;
+  ccRenderPrev();
+  const inp = document.getElementById('countInput');
+  if (inp) { inp.focus(); inp.select(); }
+}
+function ccUpdatePreview() {
+  const el = document.getElementById('ccPreview');
+  if (!el || !_ccPrev) return;
+  const isLao = lang === 'lo';
+  const v = parseInt((document.getElementById('countInput') || {}).value, 10) || 0;
+  if (_ccMode === 'add') { el.style.color = 'var(--emerald-700, #047857)'; el.textContent = (isLao ? 'ຈະບັນທຶກລວມ: ' : 'จะบันทึกรวม: ') + _ccPrev.qty + ' + ' + v + ' = ' + (_ccPrev.qty + v); }
+  else if (_ccMode === 'replace') { el.style.color = 'var(--sky-700, #0369a1)'; el.textContent = (isLao ? 'ຈະບັນທຶກແທນ: ' : 'จะบันทึกแทน: ') + v + (isLao ? ' (ຍອດເກົ່າ ' : ' (ยอดเดิม ') + _ccPrev.qty + (isLao ? ' ຖືກແທນ)' : ' ถูกแทน)'); }
+  else el.textContent = '';
+}
+window.ccSetMode = ccSetMode; window.ccUpdatePreview = ccUpdatePreview;
+
 function adjustCount(delta) {
   const inp = document.getElementById('countInput');
   if (!inp) return;
   let v = parseInt(inp.value) || 0;
   inp.value = Math.max(0, v + delta);
+  ccUpdatePreview();
 }
 
 // UX 3C: Set count value directly (for Quick action buttons)
@@ -24270,6 +24348,7 @@ function setCountValue(value) {
   const inp = document.getElementById('countInput');
   if (!inp) return;
   inp.value = Math.max(0, parseInt(value) || 0);
+  ccUpdatePreview();
   inp.focus();
   inp.select();
 }
@@ -24306,6 +24385,13 @@ async function saveCount() {
     return;
   }
   
+  // 🔁 เคยนับตัวนี้ในตำแหน่งนี้แล้ว → ต้องเลือก บวกเพิ่ม/นับใหม่แทน ก่อน (กันยอดอีกชั้นถูกทับ)
+  if (_ccPrev && curProduct && _ccPrev.pid === curProduct.id && _ccPrev.loc === _ccLocCode() && !_ccMode) {
+    showToast(lang === 'lo' ? '⚠️ ເລືອກກ່ອນ: ➕ ບວກເພີ່ມ (ອີກຊັ້ນ) ຫຼື 🔁 ນັບໃໝ່ແທນ' : '⚠️ เลือกก่อน: ➕ บวกเพิ่ม (อีกชั้น) หรือ 🔁 นับใหม่แทน', 'warning');
+    const bx = document.getElementById('ccPrevBox'); if (bx && bx.scrollIntoView) bx.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    return;
+  }
+
   // ⭐ B1+B2: ประกาศ + ปิดปุ่มทันทีก่อน await ใด ๆ (กัน ReferenceError และกันกดซ้ำระหว่างรอเน็ต)
   const saveBtn = document.getElementById('saveBtn');
   if (saveBtn && saveBtn.disabled) return; // กันกดรัว
@@ -24410,8 +24496,11 @@ async function saveCount() {
   }
 
   // ⭐ B6: ใช้ค่าที่ validate แล้วจากด้านบน (ช่องว่างถูกบล็อกไปแล้ว)
-  const count = parseInt(countRaw, 10);
-  const note = document.getElementById('noteInput').value.trim();
+  const _entered = parseInt(countRaw, 10);
+  const _ccAdd = !!(_ccPrev && curProduct && _ccPrev.pid === curProduct.id && _ccPrev.loc === _ccLocCode() && _ccMode === 'add');
+  const count = _ccAdd ? (_ccPrev.qty + _entered) : _entered;   // ➕ อีกชั้น = บันทึกยอดรวม (ระบบเก็บล่าสุดต่อตำแหน่ง)
+  let note = document.getElementById('noteInput').value.trim();
+  if (_ccAdd) note = (note ? note + ' · ' : '') + 'Σ ' + _ccPrev.qty + '+' + _entered;
   
   // Determine count_role
   let countRole = 'counter';
