@@ -27027,7 +27027,7 @@ function renderVariancePending(isLao) {
       </div>`;
   }).join('');
   return `
-    <details style="margin-bottom:11px;" open>
+    <details style="margin-bottom:11px;">
       <summary style="cursor:pointer;background:var(--fs-orange-tint);border:2px solid var(--amber-500);border-radius:11px;padding:10px 13px;font-size:13px;font-weight:800;color:#92400e;list-style:none;display:flex;align-items:center;gap:6px;">
         ⏳ ${isLao ? 'ລໍຖ້ານັບໃຫ້ຄົບທຸກຈຸດ' : 'รอนับให้ครบทุกจุด'}
         <span style="background:var(--amber-500);color:white;border-radius:10px;padding:1px 8px;font-size:11px;">${pend.length}</span>
@@ -27118,7 +27118,13 @@ function renderVarianceList() {
   
   // Sort: highest diff first (absolute)
   items.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
-  
+
+  // 🧭 ตัวกรองตามขั้นตอนการนับ (นับก่อนกรอง เพื่อโชว์จำนวนบนชิป)
+  const _stCount = {};
+  items.forEach(p => { const g = _varStageGroup(varStage(p).key); _stCount[g] = (_stCount[g] || 0) + 1; });
+  const _stTotal = items.length;
+  if (_varStageFilter !== 'all') items = items.filter(p => _varStageGroup(varStage(p).key) === _varStageFilter);
+
   const listEl = document.getElementById('varianceList');
 
   // ⏳ สินค้าที่นับหลาย gondola ยังไม่ครบทุกจุด → โชว้แยกไว้บนสุด (ยังไม่สรุป Diff · ไม่เข้า L1-L4)
@@ -27139,7 +27145,7 @@ function renderVarianceList() {
   }
 
   // Group by gondola?
-  let html = pendingHtml;
+  let html = pendingHtml + _varStageChipsHtml(_stCount, _stTotal, isLao);
   
   if (_varianceFilter.groupBy === 'gondola') {
     // Group
@@ -27151,26 +27157,18 @@ function renderVarianceList() {
     });
     
     const sortedGroups = Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
-    
+    const _autoOpen = !!_varianceFilter.search || sortedGroups.length === 1;   // ค้นหา/มีกลุ่มเดียว = กางให้เลย
+    html += '<div style="display:flex;gap:6px;justify-content:flex-end;margin:4px 0 2px;">'
+      + '<button onclick="varGonAll(true)" style="background:white;border:1px solid var(--slate-300);border-radius:7px;padding:4px 9px;font-size:10px;font-weight:700;color:var(--slate-600);cursor:pointer;">▾ ' + (isLao ? 'ເປີດທັງໝົດ' : 'เปิดทั้งหมด') + '</button>'
+      + '<button onclick="varGonAll(false)" style="background:white;border:1px solid var(--slate-300);border-radius:7px;padding:4px 9px;font-size:10px;font-weight:700;color:var(--slate-600);cursor:pointer;">▸ ' + (isLao ? 'ປິດທັງໝົດ' : 'ปิดทั้งหมด') + '</button></div>';
+    window._varGonKeys = sortedGroups.map(g => g[0]);
+
     sortedGroups.forEach(([gondola, gItems]) => {
       const groupDiff = gItems.reduce((s, p) => s + p.diff, 0);
       const groupValue = gItems.reduce((s, p) => s + p.value, 0);
-      
-      html += `
-        <div style="background:linear-gradient(135deg,var(--sky-100),white);border:1px solid var(--sky-300);border-radius:8px;padding:7px 11px;margin-bottom:5px;margin-top:11px;display:flex;align-items:center;gap:7px;">
-          <span style="font-weight:800;color:var(--sky-600);font-family:'Space Grotesk',monospace;font-size:13px;">📍 ${gondola}</span>
-          <span style="font-size:10px;color:var(--slate-500);margin-left:auto;">
-            ${gItems.length} ${isLao ? 'ສິນຄ້າ' : 'สินค้า'} • 
-            <strong style="color:${groupValue < 0 ? 'var(--rose-500)' : 'var(--emerald-500)'};">
-              ₭ ${fmt.format(Math.abs(groupValue))}
-            </strong>
-          </span>
-        </div>
-      `;
-      
-      gItems.forEach(p => {
-        html += renderVarianceItem(p, fmt, isLao);
-      });
+      const _open = _autoOpen || _varOpenGons.has(gondola);
+      html += _varGonHeaderHtml(gondola, gItems, _open, isLao);
+      if (_open) gItems.forEach(p => { html += renderVarianceItem(p, fmt, isLao); });
     });
   } else {
     // No grouping
@@ -27181,6 +27179,56 @@ function renderVarianceList() {
   
   listEl.innerHTML = html;
 }
+
+// 🗂️ รายการคลาดเคลื่อน: กรองตามขั้นตอน + กลุ่ม Gondola แบบพับ (Ball 2026-11-12 — เดิมยาวต้องเลื่อนนาน)
+let _varStageFilter = 'all';          // all | wait | ctl | bcs | real | done
+const _varOpenGons = new Set();       // Gondola ที่กางอยู่
+function _varStageGroup(k) {
+  if (k === 'wait_v' || k === 'wait_c' || k === 'none') return 'wait';
+  if (k === 'need_ctl') return 'ctl';
+  if (k === 'need_bcs') return 'bcs';
+  if (k === 'cv_real') return 'real';
+  return 'done';   // cv_match · tb_done · bcs_done
+}
+function _varStageChipsHtml(cnt, total, isLao) {
+  const defs = [
+    ['all', isLao ? 'ທັງໝົດ' : 'ทั้งหมด', 'var(--slate-700)'],
+    ['wait', isLao ? '⏳ ລໍຖ້ານັບ' : '⏳ รอนับ', 'var(--sky-600)'],
+    ['ctl', isLao ? '⚖️ ລໍຖ້າ CTL' : '⚖️ รอ CTL', 'var(--amber-600)'],
+    ['bcs', isLao ? '🚨 BCS ລົງກວດ' : '🚨 BCS ลงตรวจ', 'var(--rose-500)'],
+    ['real', isLao ? 'Diff ຈິງ' : 'Diff จริง', 'var(--violet-600)'],
+    ['done', isLao ? '✅ ຈົບແລ້ວ' : '✅ จบแล้ว', 'var(--emerald-600)']
+  ];
+  return '<div style="display:flex;gap:5px;overflow-x:auto;padding-bottom:3px;margin:2px 0 6px;">' + defs.map(([k, lbl, c]) => {
+    const n = k === 'all' ? total : (cnt[k] || 0);
+    const on = _varStageFilter === k;
+    return '<button onclick="varSetStage(\'' + k + '\')" style="flex-shrink:0;background:' + (on ? c : 'white') + ';color:' + (on ? 'white' : c) + ';border:1px solid ' + c + ';border-radius:16px;padding:5px 11px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;' + (!n && !on ? 'opacity:.45;' : '') + '">' + lbl + ' ' + n + '</button>';
+  }).join('') + '</div>';
+}
+function _varGonHeaderHtml(gondola, gItems, open, isLao) {
+  let shortN = 0, overN = 0, value = 0; const st = {};
+  gItems.forEach(p => { if (p.diff < 0) shortN++; else if (p.diff > 0) overN++; value += p.value; const g = _varStageGroup(varStage(p).key); st[g] = (st[g] || 0) + 1; });
+  const pill = (txt, bg, fg) => '<span style="background:' + bg + ';color:' + fg + ';border-radius:9px;padding:1px 7px;font-size:10px;font-weight:800;white-space:nowrap;">' + txt + '</span>';
+  const pills = [
+    shortN ? pill((isLao ? 'ຂາດ ' : 'ขาด ') + shortN, 'var(--rose-100)', 'var(--rose-700)') : '',
+    overN ? pill((isLao ? 'ເກີນ ' : 'เกิน ') + overN, 'var(--sky-100)', 'var(--sky-700)') : '',
+    st.wait ? pill('⏳ ' + st.wait, 'var(--slate-100)', 'var(--slate-600)') : '',
+    st.ctl ? pill('⚖️ ' + st.ctl, 'var(--amber-100)', 'var(--amber-700)') : '',
+    st.bcs ? pill('🚨 ' + st.bcs, 'var(--rose-500)', 'white') : ''
+  ].join('');
+  const key = encodeURIComponent(gondola).replace(/'/g, '%27');
+  return '<div onclick="varToggleGon(\'' + key + '\')" style="cursor:pointer;background:' + (open ? 'var(--sky-100)' : 'white') + ';border:1px solid var(--sky-300);border-radius:9px;padding:8px 11px;margin-top:6px;margin-bottom:5px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;">'
+    + '<span style="font-size:12px;color:var(--sky-600);width:12px;">' + (open ? '▾' : '▸') + '</span>'
+    + '<span style="font-weight:800;color:var(--sky-600);font-family:\'Space Grotesk\',monospace;font-size:13px;">📍 ' + escapeHtml(gondola) + '</span>'
+    + '<span style="font-size:10px;color:var(--slate-500);">' + gItems.length + (isLao ? ' ສິນຄ້າ' : ' สินค้า') + '</span>'
+    + pills
+    + '<span style="margin-left:auto;font-size:10px;font-weight:800;color:' + (value < 0 ? 'var(--rose-500)' : 'var(--emerald-600)') + ';">₭ ' + Math.abs(value).toLocaleString() + '</span>'
+    + '</div>';
+}
+function varSetStage(k) { _varStageFilter = k; renderVarianceList(); }
+function varToggleGon(key) { const g = decodeURIComponent(key); if (_varOpenGons.has(g)) _varOpenGons.delete(g); else _varOpenGons.add(g); renderVarianceList(); }
+function varGonAll(open) { _varOpenGons.clear(); if (open) (window._varGonKeys || []).forEach(g => _varOpenGons.add(g)); renderVarianceList(); }
+window.varSetStage = varSetStage; window.varToggleGon = varToggleGon; window.varGonAll = varGonAll;
 
 // 🧭 ขั้นตอนการนับของสินค้า (Counter → Verifier → CTL ตัดสิน → BCS) + ขั้นถัดไป — Ball 2026-11-12
 //    ยอดต่อ role = ผลรวมล่าสุดทุกจุด (เหมือน computeVarianceItems) · null = role นั้นยังไม่นับ
@@ -27575,7 +27623,7 @@ function _vlocRows(items, expMap) {
       const best = (p.managerLocs || {})[lk] || (p.ctlLocs || {})[lk] || (p.verifierLocs || {})[lk] || (p.counterLocs || {})[lk];
       const q = r => (r ? (Number(r.counted_qty) || 0) : null);
       const inPog = exp.has(base);
-      loc.push({ gon: base, floor, bc, nTh, nLo,
+      loc.push({ pid: p.product_id, gon: base, floor, bc, nTh, nLo,
         qty: best ? (Number(best.counted_qty) || 0) : 0,
         counter: q((p.counterLocs || {})[lk]), verifier: q((p.verifierLocs || {})[lk]),
         judge: q((p.managerLocs || {})[lk] || (p.ctlLocs || {})[lk]),
@@ -27588,7 +27636,7 @@ function _vlocRows(items, expMap) {
     });
     const nBases = countedBases.size;
     loc.forEach(r => { if (r.bc === bc && !r.nLocs) r.nLocs = nBases; });
-    exp.forEach(b => { if (!countedBases.has(b)) missing.push({ gon: b, bc, nTh, nLo, counted: [...countedBases].join(', ') }); });
+    exp.forEach(b => { if (!countedBases.has(b)) missing.push({ pid: p.product_id, gon: b, bc, nTh, nLo, counted: [...countedBases].join(', ') }); });
   });
   loc.sort((a, b) => a.gon.localeCompare(b.gon) || (a.floor - b.floor) || a.nTh.localeCompare(b.nTh));
   missing.sort((a, b) => a.gon.localeCompare(b.gon) || a.nTh.localeCompare(b.nTh));
@@ -27602,14 +27650,29 @@ async function exportVarianceLocations() {
     const expMap = await fetchExpectedGondolas(_varianceData.map(p => p.product_id));
     const { loc, missing, gon } = _vlocRows(_varianceData, expMap);
     const L = (lo, th) => (isLao ? lo : th);
+    // 📍 ตำแหน่ง Pan-O-Gram เดิม (Gondola + ชั้น + ลำดับ) ต่อสินค้า — ให้เทียบกับที่นับจริง (Ball 2026-11-12)
+    const pogTxtMap = {}, pogShelf = {};
+    { const ids = [...new Set(_varianceData.map(p => p.product_id).filter(Boolean))];
+      for (let i = 0; i < ids.length; i += 200) {
+        const part = ids.slice(i, i + 200);
+        const rows = await fetchAllQuery(() => sb.from('pan_o_grams').select('id, product_id, location_code, shelf, seq_in_shelf').eq('branch_id', branch.id).in('product_id', part).order('id'));
+        (rows || []).forEach(r => {
+          const code = String(r.location_code || '').toUpperCase().trim(); if (!code) return;
+          const t = code + (r.shelf != null ? L(' ຊັ້ນ ', ' ชั้น ') + r.shelf : '') + (r.seq_in_shelf != null ? L(' ລຳດັບ ', ' ลำดับ ') + r.seq_in_shelf : '');
+          (pogTxtMap[r.product_id] = pogTxtMap[r.product_id] || []).push(t);
+          const k = r.product_id + '|' + floorBaseCode(code); if (r.shelf != null) (pogShelf[k] = pogShelf[k] || []).push(r.shelf);
+        });
+      }
+    }
+    const pogOf = pid => (pogTxtMap[pid] || []).sort().join(', ');
     const pogTxt = { match: L('✓ ກົງ Pan-O-Gram', '✓ ตรง Pan-O-Gram'), new: L('➕ ໃໝ່ (ບໍ່ມີໃນ Pan-O-Gram)', '➕ ใหม่ (ไม่มีใน Pan-O-Gram)'), none: L('— ສິນຄ້ານີ້ບໍ່ມີ Pan-O-Gram', '— สินค้านี้ไม่มี Pan-O-Gram') };
     const wb = XLSX.utils.book_new();
-    const h1 = ['Gondola', L('ຕຳແໜ່ງ', 'ตำแหน่ง'), 'Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ຊື່ (ລາວ)', 'ชื่อ (ลาว)'), L('ຈຳນວນທີ່ນັບ (ຈຸດນີ້)', 'จำนวนที่นับ (จุดนี้)'), 'Counter', 'Verifier', L('ນັບຊ້ຳ/ຜູ້ຈັດການ', 'นับซ้ำ/ผู้จัดการ'), 'Pan-O-Gram', L('ສິນຄ້ານີ້ນັບພົບ (Gondola)', 'สินค้านี้นับพบ (Gondola)'), L('ນັບລ່າສຸດ', 'นับล่าสุด')];
+    const h1 = ['Gondola', L('ຕຳແໜ່ງ', 'ตำแหน่ง'), 'Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ຊື່ (ລາວ)', 'ชื่อ (ลาว)'), L('ຈຳນວນທີ່ນັບ (ຈຸດນີ້)', 'จำนวนที่นับ (จุดนี้)'), 'Counter', 'Verifier', L('ນັບຊ້ຳ/ຜູ້ຈັດການ', 'นับซ้ำ/ผู้จัดการ'), 'Pan-O-Gram', L('ຕຳແໜ່ງ Pan-O-Gram ເດີມ', 'ตำแหน่ง Pan-O-Gram เดิม'), L('ສິນຄ້ານີ້ນັບພົບ (Gondola)', 'สินค้านี้นับพบ (Gondola)'), L('ນັບລ່າສຸດ', 'นับล่าสุด')];
     const a1 = [h1].concat(loc.map(r => [r.gon, r.floor ? L('📦 ພື້ນ', '📦 พื้น') : L('🗄️ ຊັ້ນວາງ', '🗄️ ชั้นวาง'), r.bc, r.nTh, r.nLo, r.qty,
-      r.counter ?? '', r.verifier ?? '', r.judge ?? '', pogTxt[r.pog], r.nLocs, r.at ? new Date(r.at).toLocaleString() : '']));
+      r.counter ?? '', r.verifier ?? '', r.judge ?? '', pogTxt[r.pog], pogOf(r.pid), r.nLocs, r.at ? new Date(r.at).toLocaleString() : '']));
     const ws1 = XLSX.utils.aoa_to_sheet(a1);
-    ws1['!cols'] = [{ wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 40 }, { wch: 30 }, { wch: 10 }, { wch: 9 }, { wch: 9 }, { wch: 10 }, { wch: 28 }, { wch: 10 }, { wch: 18 }];
-    ws1['!autofilter'] = { ref: 'A1:L' + a1.length };
+    ws1['!cols'] = [{ wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 40 }, { wch: 30 }, { wch: 10 }, { wch: 9 }, { wch: 9 }, { wch: 10 }, { wch: 28 }, { wch: 34 }, { wch: 10 }, { wch: 18 }];
+    ws1['!autofilter'] = { ref: 'A1:M' + a1.length };
     XLSX.utils.book_append_sheet(wb, ws1, L('ຕຳແໜ່ງທີ່ນັບ', 'ตำแหน่งที่นับ'));
 
     const h2 = ['Gondola', L('ສິນຄ້າ SKU ຊັ້ນວາງ', 'SKU ชั้นวาง'), L('SKU ພື້ນ', 'SKU พื้น'), L('ຈຳນວນລວມ (ຊິ້ນ)', 'จำนวนรวม (ชิ้น)'), L('SKU ໃໝ່ (ບໍ່ມີໃນ Pan-O-Gram)', 'SKU ใหม่ (ไม่มีใน Pan-O-Gram)'), L('ໃນ Pan-O-Gram ແຕ່ນັບບໍ່ພົບ', 'ใน Pan-O-Gram แต่นับไม่พบ')];
@@ -27620,10 +27683,10 @@ async function exportVarianceLocations() {
     ws2['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 26 }, { wch: 24 }];
     XLSX.utils.book_append_sheet(wb, ws2, L('ສະຫຼຸບຕໍ່ Gondola', 'สรุปต่อ Gondola'));
 
-    const h3 = ['Gondola (Pan-O-Gram)', 'Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ຊື່ (ລາວ)', 'ชื่อ (ลาว)'), L('ນັບພົບຢູ່ Gondola', 'นับพบที่ Gondola')];
-    const a3 = [h3].concat(missing.map(m => [m.gon, m.bc, m.nTh, m.nLo, m.counted || L('— ບໍ່ພົບເລີຍ', '— ไม่พบเลย')]));
+    const h3 = ['Gondola (Pan-O-Gram)', L('ຊັ້ນ (Pan-O-Gram)', 'ชั้น (Pan-O-Gram)'), 'Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ຊື່ (ລາວ)', 'ชื่อ (ลาว)'), L('ນັບພົບຢູ່ Gondola', 'นับพบที่ Gondola')];
+    const a3 = [h3].concat(missing.map(m => [m.gon, [...new Set(pogShelf[m.pid + '|' + m.gon] || [])].sort((x, y) => x - y).join(', '), m.bc, m.nTh, m.nLo, m.counted || L('— ບໍ່ພົບເລີຍ', '— ไม่พบเลย')]));
     const ws3 = XLSX.utils.aoa_to_sheet(a3);
-    ws3['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 40 }, { wch: 30 }, { wch: 22 }];
+    ws3['!cols'] = [{ wch: 20 }, { wch: 14 }, { wch: 15 }, { wch: 40 }, { wch: 30 }, { wch: 22 }];
     XLSX.utils.book_append_sheet(wb, ws3, L('POG ນັບບໍ່ພົບ', 'POG นับไม่พบ'));
 
     const nNew = loc.filter(r => r.pog === 'new').length, nNone = loc.filter(r => r.pog === 'none').length;
@@ -27665,6 +27728,11 @@ let _csumView = null;    // null | 'summary' | 'uncounted'
 let _csumUncTab = 'A';   // 'A' | 'B'
 let _csumBAll = false;   // กลุ่ม B: false = เฉพาะที่ยังขายอยู่ (AVG > 0)
 let _csumBusy = false;
+let _csumIncl = 'none';  // สรุปผล: รวมสินค้าไม่ได้นับเป็นของขาด — 'none' | 'A' | 'AB' (นับครบทั้งร้านแล้ว)
+let _csumUncCat = null;  // หน้าไม่ได้นับ: null = ตารางสรุปตามประเภท · string = รายการของประเภทนั้น
+// สินค้าไม่ได้นับ → แถวแบบ "นับได้ 0" (ขาดเท่ากับ POS) ใช้รวมในสรุป
+function _csumUncAsDone(r) { return { pos: r.pos, fin: 0, diff: -r.pos, posV: r.posV, finV: 0, diffV: -r.posV, noCost: r.noCost, cat: r.cat, grp: r.grp }; }
+function _csumInclRows(d, mode) { return mode === 'A' ? d.uncA.map(_csumUncAsDone) : (mode === 'AB' ? d.uncA.concat(d.uncB).map(_csumUncAsDone) : []); }
 
 function _csumL(lo, th) { return lang === 'lo' ? lo : th; }
 function _csumN(v) { return Number(v || 0).toLocaleString('en-US', { maximumFractionDigits: 0 }); }
@@ -27860,14 +27928,22 @@ function csumRenderView() {
 
 function _csumSumHtml(d, isLao) {
   const L = _csumL, N = _csumN;
-  const a = _csumAgg(d.done);
+  const rowsAll = d.done.concat(_csumInclRows(d, _csumIncl));
+  const a = _csumAgg(rowsAll);
   const uA = d.uncA.reduce((s, r) => s + r.posV, 0), uB = d.uncB.reduce((s, r) => s + r.posV, 0);
+  const inclBtn = (k, lbl) => '<button onclick="csumSetIncl(\'' + k + '\')" style="background:' + (_csumIncl === k ? 'var(--fs-blue, #0E357F)' : 'white') + ';color:' + (_csumIncl === k ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:16px;padding:5px 11px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">' + lbl + '</button>';
+  const incl = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:9px;">'
+    + '<span style="font-size:11px;font-weight:800;color:var(--slate-600);">' + L('ສິນຄ້າບໍ່ໄດ້ນັບ ນັບເປັນຂອງຂາດ:', 'สินค้าไม่ได้นับ นับเป็นของขาด:') + '</span>'
+    + inclBtn('none', L('ບໍ່ລວມ', 'ไม่รวม'))
+    + inclBtn('A', '+ A (' + d.uncA.length + ')')
+    + inclBtn('AB', '+ A+B (' + (d.uncA.length + d.uncB.length) + ') ' + L('ນັບຄົບທັງຮ້ານແລ້ວ', 'นับครบทั้งร้านแล้ว'))
+    + '</div>';
   const card = (title, big, sub, color) => '<div style="background:white;border:1px solid var(--slate-200);border-radius:11px;padding:10px 12px;">'
     + '<div style="font-size:10px;font-weight:800;color:var(--slate-500);">' + title + '</div>'
     + '<div style="font-size:18px;font-weight:800;color:' + (color || 'var(--slate-900)') + ';font-family:\'Space Grotesk\',monospace;margin-top:2px;">' + big + '</div>'
     + '<div style="font-size:10px;color:var(--slate-500);margin-top:2px;">' + sub + '</div></div>';
   const kpis = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:7px;margin-bottom:11px;">'
-    + card(L('ຍອດ POS (ສິນຄ້າທີ່ນັບ)', 'ยอด POS (สินค้าที่นับ)'), '₭' + N(a.posV), N(a.pos) + L(' ຊິ້ນ · ', ' ชิ้น · ') + N(a.sku) + ' SKU')
+    + card(_csumIncl === 'none' ? L('ຍອດ POS (ສິນຄ້າທີ່ນັບ)', 'ยอด POS (สินค้าที่นับ)') : L('ຍອດ POS (ນັບ + ບໍ່ໄດ້ນັບ)', 'ยอด POS (นับ + ไม่ได้นับ)'), '₭' + N(a.posV), N(a.pos) + L(' ຊິ້ນ · ', ' ชิ้น · ') + N(a.sku) + ' SKU')
     + card(L('ນັບໄດ້', 'นับได้'), '₭' + N(a.finV), N(a.fin) + L(' ຊິ້ນ', ' ชิ้น'))
     + card(L('ເກີນ', 'เกิน'), '+₭' + N(a.overV), '+' + N(a.over) + L(' ຊິ້ນ · ', ' ชิ้น · ') + a.overSku + ' SKU', 'var(--sky-600)')
     + card(L('ຂາດ', 'ขาด'), '−₭' + N(Math.abs(a.shortV)), N(a.short) + L(' ຊິ້ນ · ', ' ชิ้น · ') + a.shortSku + ' SKU', 'var(--rose-500)')
@@ -27880,7 +27956,7 @@ function _csumSumHtml(d, isLao) {
     + '<br>⏳ ' + L('ລໍຖ້ານັບໃຫ້ຄົບທຸກຈຸດ', 'รอนับให้ครบทุกจุด') + ': <b>' + d.pend.length + ' SKU</b> ' + L('(ຍັງບໍ່ລວມໃນສະຫຼຸບ)', '(ยังไม่รวมในสรุป)')
     + (a.noCost ? '<br>⚠️ ' + L('ບໍ່ມີຕົ້ນທຶນ', 'ไม่มีต้นทุน') + ' ' + a.noCost + ' SKU ' + L('(ມູນຄ່າ = 0)', '(มูลค่า = 0)') : '')
     + '</div>';
-  const rows = _csumGroup(d.done, r => r.cat);
+  const rows = _csumGroup(rowsAll, r => r.cat);
   const th = s => '<th style="padding:6px 7px;text-align:right;font-size:10px;color:var(--slate-500);white-space:nowrap;border-bottom:1px solid var(--slate-200);">' + s + '</th>';
   const td = (s, c) => '<td style="padding:6px 7px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;white-space:nowrap;color:' + (c || 'var(--slate-700)') + ';">' + s + '</td>';
   const table = '<div style="background:white;border:1px solid var(--slate-200);border-radius:11px;padding:8px;">'
@@ -27892,13 +27968,15 @@ function _csumSumHtml(d, isLao) {
       + td(g.sku) + td(N(g.posV)) + td(N(g.finV)) + td(N(g.overV), 'var(--sky-600)') + td(N(g.shortV), 'var(--rose-500)')
       + td(N(g.diffV), g.diffV < 0 ? 'var(--rose-500)' : 'var(--sky-600)') + td(g.diffPct.toFixed(1)) + '</tr>').join('')
     + '</table></div></div>';
-  return kpis + warn + table;
+  return incl + kpis + warn + table;
 }
+function csumSetIncl(k) { _csumIncl = (k === 'A' || k === 'AB') ? k : 'none'; renderVarianceList(); }
+window.csumSetIncl = csumSetIncl;
 
 function _csumUncHtml(d, isLao) {
   const L = _csumL, N = _csumN;
   const B = _csumBAll ? d.uncB : d.uncB.filter(r => r.avgM > 0);
-  const list = _csumUncTab === 'A' ? d.uncA : B;
+  let list = _csumUncTab === 'A' ? d.uncA : B;
   const can = csumCanConfirm() && !!session;
   const tab = (k, label, n, v, color) => '<button onclick="csumUncTab(\'' + k + '\')" style="flex:1;min-width:140px;text-align:left;background:' + (_csumUncTab === k ? color : 'white') + ';color:' + (_csumUncTab === k ? 'white' : 'var(--slate-700)') + ';border:1px solid ' + color + ';border-radius:10px;padding:8px 11px;cursor:pointer;">'
     + '<div style="font-size:12px;font-weight:800;">' + label + '</div><div style="font-size:10px;opacity:.9;">' + n + ' SKU · ₭' + N(v) + '</div></button>';
@@ -27916,9 +27994,16 @@ function _csumUncHtml(d, isLao) {
       + '<input type="checkbox" ' + (_csumBAll ? 'checked' : '') + ' onchange="csumToggleBAll(this.checked)"> '
       + L('ສະແດງທັງໝົດ (ລວມສິນຄ້າທີ່ບໍ່ມີຍອດຂາຍ)', 'แสดงทั้งหมด (รวมสินค้าที่ไม่มียอดขาย)') + ' · ' + L('ທັງໝົດ', 'ทั้งหมด') + ' ' + d.uncB.length + ' SKU</label>';
   }
+  // 📂 ยังไม่เลือกประเภท → ตารางสรุปตามประเภทก่อน (Ball 2026-11-12)
+  if (_csumUncCat === null) return html + _csumUncCatTable(d.uncA, B, isLao);
+  list = list.filter(r => r.cat === _csumUncCat);
+  html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
+    + '<button onclick="csumUncCat(null)" style="background:white;border:1px solid var(--slate-300);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:800;color:var(--slate-700);cursor:pointer;">← ' + L('ທຸກປະເພດ', 'ทุกประเภท') + '</button>'
+    + '<span style="font-size:13px;font-weight:800;color:var(--slate-900);">' + escapeHtml(_csumUncCat) + '</span>'
+    + '<span style="font-size:11px;color:var(--slate-500);">' + list.length + ' SKU · ₭' + N(list.reduce((s, r) => s + r.posV, 0)) + '</span></div>';
   if (_csumUncTab === 'A' && can && list.length) {
     html += '<button onclick="csumConfirmZero(\'A\')" style="width:100%;background:var(--rose-50);color:var(--rose-700);border:1px solid var(--rose-300);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;margin-bottom:8px;">🚫 '
-      + L('ຢືນຢັນບໍ່ພົບ = 0 ທັງກຸ່ມ A', 'ยืนยันไม่พบ = 0 ทั้งกลุ่ม A') + ' (' + list.length + ' SKU)</button>';
+      + L('ຢືນຢັນບໍ່ພົບ = 0 ທັງກຸ່ມ A ປະເພດນີ້', 'ยืนยันไม่พบ = 0 ทั้งกลุ่ม A ประเภทนี้') + ' (' + list.length + ' SKU)</button>';
   }
   if (!list.length) return html + '<div style="text-align:center;padding:30px;color:var(--slate-400);font-size:12px;">✅ ' + L('ບໍ່ມີລາຍການ', 'ไม่มีรายการ') + '</div>';
   const shown = list.slice(0, 200);
@@ -27934,6 +28019,31 @@ function _csumUncHtml(d, isLao) {
   return html;
 }
 function csumUncTab(k) { _csumUncTab = k === 'B' ? 'B' : 'A'; renderVarianceList(); }
+function csumUncCat(key) { _csumUncCat = (key === null || key === undefined) ? null : decodeURIComponent(key); renderVarianceList(); }
+window.csumUncCat = csumUncCat;
+// 📂 ตารางสรุปสินค้าไม่ได้นับ ตามประเภท (A / B) — กดแถวเพื่อดูรายการ
+function _csumUncCatTable(A, B, isLao) {
+  const L = _csumL, N = _csumN;
+  const g = {};
+  const add = (r, k) => { const x = g[r.cat] = g[r.cat] || { aN: 0, aV: 0, bN: 0, bV: 0, q: 0 }; x[k + 'N']++; x[k + 'V'] += r.posV; x.q += r.pos; };
+  A.forEach(r => add(r, 'a')); B.forEach(r => add(r, 'b'));
+  const keys = Object.keys(g).sort((x, y) => (g[y].aV + g[y].bV) - (g[x].aV + g[x].bV));
+  if (!keys.length) return '<div style="text-align:center;padding:30px;color:var(--slate-400);font-size:12px;">✅ ' + L('ບໍ່ມີລາຍການ', 'ไม่มีรายการ') + '</div>';
+  const th = (t, al) => '<th style="padding:7px;text-align:' + (al || 'right') + ';font-size:10px;color:var(--slate-500);white-space:nowrap;border-bottom:1px solid var(--slate-200);">' + t + '</th>';
+  const td = (t, c, b) => '<td style="padding:7px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;white-space:nowrap;color:' + (c || 'var(--slate-700)') + ';' + (b ? 'font-weight:800;' : '') + '">' + t + '</td>';
+  let tA = 0, tB = 0, nA = 0, nB = 0;
+  const rows = keys.map(k => { const x = g[k]; tA += x.aV; tB += x.bV; nA += x.aN; nB += x.bN;
+    return '<tr onclick="csumUncCat(\'' + encodeURIComponent(k).replace(/'/g, '%27') + '\')" style="cursor:pointer;border-bottom:1px solid var(--slate-100);">'
+      + '<td style="padding:7px;font-size:11px;font-weight:700;color:var(--slate-800);">' + escapeHtml(k) + ' <span style="color:var(--sky-600);">›</span></td>'
+      + td(x.aN || '-', 'var(--rose-600)') + td(x.aV ? N(x.aV) : '-', 'var(--rose-600)') + td(x.bN || '-', 'var(--amber-700)') + td(x.bV ? N(x.bV) : '-', 'var(--amber-700)') + td(N(x.aV + x.bV), 'var(--slate-900)', true) + '</tr>'; }).join('');
+  return '<div style="background:white;border:1px solid var(--slate-200);border-radius:11px;padding:8px;">'
+    + '<div style="font-size:12px;font-weight:800;color:var(--slate-800);padding:4px 4px 8px;">' + L('ສະຫຼຸບຕາມປະເພດ — ກົດແຖວເພື່ອເບິ່ງລາຍການ', 'สรุปตามประเภท — กดแถวเพื่อดูรายการ') + '</div>'
+    + '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">'
+    + '<tr>' + th(L('ປະເພດ', 'ประเภท'), 'left') + th('A SKU') + th('A ₭') + th('B SKU') + th('B ₭') + th(L('ລວມ ₭', 'รวม ₭')) + '</tr>'
+    + rows
+    + '<tr style="background:var(--slate-50);"><td style="padding:7px;font-size:11px;font-weight:800;">' + L('ລວມ', 'รวม') + '</td>' + td(nA, 'var(--rose-600)', true) + td(N(tA), 'var(--rose-600)', true) + td(nB, 'var(--amber-700)', true) + td(N(tB), 'var(--amber-700)', true) + td(N(tA + tB), 'var(--slate-900)', true) + '</tr>'
+    + '</table></div></div>';
+}
 function csumToggleBAll(v) { _csumBAll = !!v; renderVarianceList(); }
 
 // 🚫 ยืนยันไม่พบ = บันทึก 0 (manager_final) → สินค้าเข้าสรุป Diff/L4 พร้อมมูลค่าที่หาย
@@ -27941,7 +28051,7 @@ async function csumConfirmZero(mode, pid) {
   const d = _csum; if (!d) return;
   if (!csumCanConfirm() || !session) { showToast(_csumL('ບໍ່ມີສິດ / ບໍ່ມີ session', 'ไม่มีสิทธิ์ / ไม่มี session'), 'error'); return; }
   const all = d.uncA.concat(d.uncB);
-  const targets = mode === 'A' ? d.uncA.slice() : all.filter(r => r.pid === pid);
+  const targets = mode === 'A' ? d.uncA.filter(r => _csumUncCat === null || r.cat === _csumUncCat) : all.filter(r => r.pid === pid);
   if (!targets.length) return;
   const val = targets.reduce((s, r) => s + r.posV, 0);
   const msg = _csumL('ຢືນຢັນບໍ່ພົບສິນຄ້າ ', 'ยืนยันไม่พบสินค้า ') + targets.length + ' SKU (₭' + _csumN(val) + ')?\n\n'
@@ -27990,6 +28100,8 @@ async function csumExport() {
       [L('ມີສະຕ໋ອກແຕ່ບໍ່ໄດ້ນັບ — A ຢູ່ Gondola ທີ່ນັບແລ້ວ', 'มีสต๊อกแต่ไม่ได้นับ — A อยู่ใน Gondola ที่นับแล้ว'), d.uncA.length, d.uncA.reduce((s, r) => s + r.pos, 0), Math.round(sumA)],
       [L('ມີສະຕ໋ອກແຕ່ບໍ່ໄດ້ນັບ — B ນອກຮອບນັບ', 'มีสต๊อกแต่ไม่ได้นับ — B นอกรอบนับ'), d.uncB.length, d.uncB.reduce((s, r) => s + r.pos, 0), Math.round(sumB)],
       [L('ລໍຖ້ານັບໃຫ້ຄົບທຸກຈຸດ (ບໍ່ລວມໃນສະຫຼຸບ)', 'รอนับให้ครบทุกจุด (ไม่รวมในสรุป)'), d.pend.length], [],
+      [L('ຖ້ານັບຄົບທັງຮ້ານ (ບໍ່ໄດ້ນັບ = ຂາດ)', 'ถ้านับครบทั้งร้าน (ไม่ได้นับ = ขาด)'), L('SKU', 'SKU'), L('Diff ຊິ້ນ', 'Diff ชิ้น'), 'Diff ₭'],
+      ...[['+ A', 'A'], ['+ A+B', 'AB']].map(([lbl, k]) => { const g = _csumAgg(d.done.concat(_csumInclRows(d, k))); return [L('Diff ສຸດທິ ', 'Diff สุทธิ ') + lbl, g.sku, g.diff, Math.round(g.diffV)]; }), [],
       [L('⚠️ ມູນຄ່າ = ຕົ້ນທຶນຊື້ລ່າສຸດ (ບໍ່ມີ = ຕົ້ນທຶນໃນ POS) · ບໍ່ມີຕົ້ນທຶນ ', '⚠️ มูลค่า = ต้นทุนซื้อล่าสุด (ไม่มี = ต้นทุนใน POS) · ไม่มีต้นทุน ') + a.noCost + ' SKU'],
       [L('⚠️ ຊື້ລ່າສຸດ = ລວມທຸກສາຂາ (ຂໍ້ມູນຊື້ບໍ່ແຍກສາຂາ) · ລະບົບຍັງບໍ່ມີຂໍ້ມູນໂອນສິນຄ້າ', '⚠️ ซื้อล่าสุด = รวมทุกสาขา (ข้อมูลซื้อไม่แยกสาขา) · ระบบยังไม่มีข้อมูลโอนสินค้า')]
     ];
@@ -27999,6 +28111,7 @@ async function csumExport() {
     const gh = [L('SKU', 'SKU'), L('POS ຊິ້ນ', 'POS ชิ้น'), L('POS ₭', 'POS ₭'), L('ນັບໄດ້ ຊິ້ນ', 'นับได้ ชิ้น'), L('ນັບໄດ້ ₭', 'นับได้ ₭'), L('ເກີນ SKU', 'เกิน SKU'), L('ເກີນ ຊິ້ນ', 'เกิน ชิ้น'), L('ເກີນ ₭', 'เกิน ₭'), L('ຂາດ SKU', 'ขาด SKU'), L('ຂາດ ຊິ້ນ', 'ขาด ชิ้น'), L('ຂາດ ₭', 'ขาด ₭'), 'Diff ' + L('ຊິ້ນ', 'ชิ้น'), 'Diff ₭', 'Diff %'];
     const gv = g => [g.sku, g.pos, Math.round(g.posV), g.fin, Math.round(g.finV), g.overSku, g.over, Math.round(g.overV), g.shortSku, g.short, Math.round(g.shortV), g.diff, Math.round(g.diffV), Number(g.diffPct.toFixed(2))];
     add(L('ຕາມປະເພດ', 'ตามประเภท'), [[L('ປະເພດ', 'ประเภท')].concat(gh)].concat(_csumGroup(d.done, r => r.cat).map(g => [g.key].concat(gv(g)))), [30].concat(gh.map(() => 11)));
+    add(L('ຕາມປະເພດ (ລວມບໍ່ໄດ້ນັບ)', 'ตามประเภท (รวมไม่ได้นับ)'), [[L('ປະເພດ', 'ประเภท')].concat(gh)].concat(_csumGroup(d.done.concat(_csumInclRows(d, 'AB')), r => r.cat).map(g => [g.key].concat(gv(g)))), [30].concat(gh.map(() => 11)));
     add(L('ຕາມກຸ່ມສິນຄ້າ', 'ตามกลุ่มสินค้า'), [[L('ປະເພດ', 'ประเภท'), L('ກຸ່ມສິນຄ້າ', 'กลุ่มสินค้า')].concat(gh)].concat(
       _csumGroup(d.done, r => r.cat + '\u0001' + r.grp).map(g => g.key.split('\u0001').concat(gv(g)))), [26, 32].concat(gh.map(() => 11)));
     // 4-7) รายการ
