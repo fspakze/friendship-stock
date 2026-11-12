@@ -26199,7 +26199,7 @@ function renderVariancePage() {
     </div>
     
     <!-- Search + Group Toggle + Export -->
-    <div style="display:grid;grid-template-columns:1fr auto auto;gap:6px;margin-bottom:9px;">
+    <div style="display:grid;grid-template-columns:1fr auto auto auto;gap:6px;margin-bottom:9px;">
       <input type="text" id="varianceSearch" 
              placeholder="🔍 ${isLao ? 'ຄົ້ນຫາ ສິນຄ້າ/barcode/Gondola...' : 'ค้นหา สินค้า/barcode/Gondola...'}"
              oninput="onVarianceSearchInput(this.value)"
@@ -26209,6 +26209,10 @@ function renderVariancePage() {
               id="varianceGroupBtn"
               style="background:var(--violet-100);color:var(--violet-600);border:1px solid var(--violet-300);border-radius:7px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;">
         📍 ${isLao ? 'ກຸ່ມ' : 'กลุ่ม'}
+      </button>
+      <button onclick="exportVarianceLocations()" title="${isLao ? 'ຕຳແໜ່ງທີ່ນັບ → ເຮັດ Pan-O-Gram' : 'ตำแหน่งที่นับ → ทำ Pan-O-Gram'}"
+              style="background:var(--violet-500);color:white;border:none;border-radius:7px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;">
+        🗂️ ${isLao ? 'ຕຳແໜ່ງ' : 'ตำแหน่ง'}
       </button>
       <button onclick="exportVarianceExcel()" 
               style="background:var(--emerald-500);color:white;border:none;border-radius:7px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;">
@@ -27511,6 +27515,107 @@ async function exportVarianceExcel() {
     showToast('Error: ' + e.message, 'error');
   }
 }
+// 🗂️ Export ตำแหน่งที่นับจริง (สินค้า × Gondola × ชั้นวาง/พื้น) เทียบ Pan-O-Gram — ใช้ทำ/อัปเดต Pan-O-Gram ต่อ (Ball 2026-11-12)
+//    แหล่งข้อมูล = _varianceData (ช่วงเวลาเดียวกับหน้าคลาดเคลื่อน) · ยอดต่อจุด = priority manager > ctl > verifier > counter (ล่าสุดต่อจุด)
+//    ⚠️ ระบบเก็บตำแหน่งระดับ Gondola + ชั้นวาง/พื้น (ไม่เก็บเลขชั้น)
+function _vlocRows(items, expMap) {
+  const loc = [], missing = [], gon = {};
+  (items || []).forEach(p => {
+    const bc = (p.product && p.product.barcode) || p.barcode || '';
+    const nTh = (p.product && (p.product.name_th || p.product.name_lo)) || '';
+    const nLo = (p.product && p.product.name_lo) || '';
+    const keys = new Set([...Object.keys(p.counterLocs || {}), ...Object.keys(p.verifierLocs || {}), ...Object.keys(p.ctlLocs || {}), ...Object.keys(p.managerLocs || {})]);
+    const exp = expMap[p.product_id] || new Set();
+    const countedBases = new Set();
+    keys.forEach(lk => {
+      const code = String(lk || '').toUpperCase().trim();
+      const base = floorBaseCode(code);
+      const floor = isFloorCode(code);
+      countedBases.add(base);
+      const best = (p.managerLocs || {})[lk] || (p.ctlLocs || {})[lk] || (p.verifierLocs || {})[lk] || (p.counterLocs || {})[lk];
+      const q = r => (r ? (Number(r.counted_qty) || 0) : null);
+      const inPog = exp.has(base);
+      loc.push({ gon: base, floor, bc, nTh, nLo,
+        qty: best ? (Number(best.counted_qty) || 0) : 0,
+        counter: q((p.counterLocs || {})[lk]), verifier: q((p.verifierLocs || {})[lk]),
+        judge: q((p.managerLocs || {})[lk] || (p.ctlLocs || {})[lk]),
+        pog: exp.size === 0 ? 'none' : (inPog ? 'match' : 'new'),
+        nLocs: 0, at: best ? best.counted_at : '' });
+      const g = gon[base] = gon[base] || { shelf: new Set(), floor: new Set(), fresh: new Set(), qty: 0 };
+      (floor ? g.floor : g.shelf).add(bc);
+      if (!inPog) g.fresh.add(bc);
+      g.qty += best ? (Number(best.counted_qty) || 0) : 0;
+    });
+    const nBases = countedBases.size;
+    loc.forEach(r => { if (r.bc === bc && !r.nLocs) r.nLocs = nBases; });
+    exp.forEach(b => { if (!countedBases.has(b)) missing.push({ gon: b, bc, nTh, nLo, counted: [...countedBases].join(', ') }); });
+  });
+  loc.sort((a, b) => a.gon.localeCompare(b.gon) || (a.floor - b.floor) || a.nTh.localeCompare(b.nTh));
+  missing.sort((a, b) => a.gon.localeCompare(b.gon) || a.nTh.localeCompare(b.nTh));
+  return { loc, missing, gon };
+}
+async function exportVarianceLocations() {
+  const isLao = lang === 'lo';
+  if (!_varianceData || !_varianceData.length) { showToast(isLao ? 'ບໍ່ມີຂໍ້ມູນ' : 'ไม่มีข้อมูล', 'warning'); return; }
+  showToast(isLao ? '⏳ ກຳລັງສ້າງ Excel...' : '⏳ กำลังสร้าง Excel...', 'info');
+  try {
+    const expMap = await fetchExpectedGondolas(_varianceData.map(p => p.product_id));
+    const { loc, missing, gon } = _vlocRows(_varianceData, expMap);
+    const L = (lo, th) => (isLao ? lo : th);
+    const pogTxt = { match: L('✓ ກົງ Pan-O-Gram', '✓ ตรง Pan-O-Gram'), new: L('➕ ໃໝ່ (ບໍ່ມີໃນ Pan-O-Gram)', '➕ ใหม่ (ไม่มีใน Pan-O-Gram)'), none: L('— ສິນຄ້ານີ້ບໍ່ມີ Pan-O-Gram', '— สินค้านี้ไม่มี Pan-O-Gram') };
+    const wb = XLSX.utils.book_new();
+    const h1 = ['Gondola', L('ຕຳແໜ່ງ', 'ตำแหน่ง'), 'Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ຊື່ (ລາວ)', 'ชื่อ (ลาว)'), L('ຈຳນວນທີ່ນັບ (ຈຸດນີ້)', 'จำนวนที่นับ (จุดนี้)'), 'Counter', 'Verifier', L('ນັບຊ້ຳ/ຜູ້ຈັດການ', 'นับซ้ำ/ผู้จัดการ'), 'Pan-O-Gram', L('ສິນຄ້ານີ້ນັບພົບ (Gondola)', 'สินค้านี้นับพบ (Gondola)'), L('ນັບລ່າສຸດ', 'นับล่าสุด')];
+    const a1 = [h1].concat(loc.map(r => [r.gon, r.floor ? L('📦 ພື້ນ', '📦 พื้น') : L('🗄️ ຊັ້ນວາງ', '🗄️ ชั้นวาง'), r.bc, r.nTh, r.nLo, r.qty,
+      r.counter ?? '', r.verifier ?? '', r.judge ?? '', pogTxt[r.pog], r.nLocs, r.at ? new Date(r.at).toLocaleString() : '']));
+    const ws1 = XLSX.utils.aoa_to_sheet(a1);
+    ws1['!cols'] = [{ wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 40 }, { wch: 30 }, { wch: 10 }, { wch: 9 }, { wch: 9 }, { wch: 10 }, { wch: 28 }, { wch: 10 }, { wch: 18 }];
+    ws1['!autofilter'] = { ref: 'A1:L' + a1.length };
+    XLSX.utils.book_append_sheet(wb, ws1, L('ຕຳແໜ່ງທີ່ນັບ', 'ตำแหน่งที่นับ'));
+
+    const h2 = ['Gondola', L('ສິນຄ້າ SKU ຊັ້ນວາງ', 'SKU ชั้นวาง'), L('SKU ພື້ນ', 'SKU พื้น'), L('ຈຳນວນລວມ (ຊິ້ນ)', 'จำนวนรวม (ชิ้น)'), L('SKU ໃໝ່ (ບໍ່ມີໃນ Pan-O-Gram)', 'SKU ใหม่ (ไม่มีใน Pan-O-Gram)'), L('ໃນ Pan-O-Gram ແຕ່ນັບບໍ່ພົບ', 'ใน Pan-O-Gram แต่นับไม่พบ')];
+    const missByGon = {}; missing.forEach(m => { missByGon[m.gon] = (missByGon[m.gon] || 0) + 1; });
+    const allG = [...new Set([...Object.keys(gon), ...Object.keys(missByGon)])].sort();
+    const a2 = [h2].concat(allG.map(g => { const x = gon[g] || { shelf: new Set(), floor: new Set(), fresh: new Set(), qty: 0 }; return [g, x.shelf.size, x.floor.size, x.qty, x.fresh.size, missByGon[g] || 0]; }));
+    const ws2 = XLSX.utils.aoa_to_sheet(a2);
+    ws2['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 26 }, { wch: 24 }];
+    XLSX.utils.book_append_sheet(wb, ws2, L('ສະຫຼຸບຕໍ່ Gondola', 'สรุปต่อ Gondola'));
+
+    const h3 = ['Gondola (Pan-O-Gram)', 'Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ຊື່ (ລາວ)', 'ชื่อ (ลาว)'), L('ນັບພົບຢູ່ Gondola', 'นับพบที่ Gondola')];
+    const a3 = [h3].concat(missing.map(m => [m.gon, m.bc, m.nTh, m.nLo, m.counted || L('— ບໍ່ພົບເລີຍ', '— ไม่พบเลย')]));
+    const ws3 = XLSX.utils.aoa_to_sheet(a3);
+    ws3['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 40 }, { wch: 30 }, { wch: 22 }];
+    XLSX.utils.book_append_sheet(wb, ws3, L('POG ນັບບໍ່ພົບ', 'POG นับไม่พบ'));
+
+    const nNew = loc.filter(r => r.pog === 'new').length, nNone = loc.filter(r => r.pog === 'none').length;
+    const a0 = [
+      ['Friendship Stock — ' + L('ຕຳແໜ່ງສິນຄ້າຈາກການນັບ → ໃຊ້ເຮັດ Pan-O-Gram', 'ตำแหน่งสินค้าจากการนับ → ใช้ทำ Pan-O-Gram')],
+      [],
+      [L('ສາຂາ', 'สาขา'), branch.code + ' - ' + (isLao ? (branch.name_lo || branch.name_th || '') : (branch.name_th || branch.name_lo || ''))],
+      [L('ຮອບນັບ', 'รอบนับ'), (session && session.session_name) || '-'],
+      [L('ສ້າງເມື່ອ', 'สร้างเมื่อ'), new Date().toLocaleString()],
+      [],
+      [L('ສິນຄ້າທີ່ນັບ (SKU)', 'สินค้าที่นับ (SKU)'), _varianceData.length],
+      [L('ຈຸດທີ່ນັບ (ສິນຄ້າ × ຕຳແໜ່ງ)', 'จุดที่นับ (สินค้า × ตำแหน่ง)'), loc.length],
+      [L('Gondola ທີ່ນັບ', 'Gondola ที่นับ'), Object.keys(gon).length],
+      [L('ຈຸດໃໝ່ ບໍ່ມີໃນ Pan-O-Gram', 'จุดใหม่ ไม่มีใน Pan-O-Gram'), nNew],
+      [L('ຈຸດຂອງສິນຄ້າທີ່ບໍ່ມີ Pan-O-Gram ເລີຍ', 'จุดของสินค้าที่ไม่มี Pan-O-Gram เลย'), nNone],
+      [L('ໃນ Pan-O-Gram ແຕ່ນັບບໍ່ພົບ', 'ใน Pan-O-Gram แต่นับไม่พบ'), missing.length],
+      [],
+      [L('⚠️ ລະບົບເກັບຕຳແໜ່ງລະດັບ Gondola + ຊັ້ນວາງ/ພື້ນ (ບໍ່ເກັບເລກຊັ້ນ)', '⚠️ ระบบเก็บตำแหน่งระดับ Gondola + ชั้นวาง/พื้น (ไม่เก็บเลขชั้น)')]
+    ];
+    const ws0 = XLSX.utils.aoa_to_sheet(a0);
+    ws0['!cols'] = [{ wch: 38 }, { wch: 30 }];
+    XLSX.utils.book_append_sheet(wb, ws0, L('ສະຫຼຸບ', 'สรุป'), true);
+    wb.SheetNames = [wb.SheetNames[wb.SheetNames.length - 1]].concat(wb.SheetNames.slice(0, -1));
+
+    XLSX.writeFile(wb, 'count-locations-' + branch.code + '-' + localDayKey(new Date()) + '.xlsx');
+    showToast('✅ ' + loc.length.toLocaleString() + (isLao ? ' ຈຸດ' : ' จุด'), 'success');
+  } catch (e) {
+    console.error('[FS] exportVarianceLocations error:', e);
+    showToast('Error: ' + (e.message || e), 'error');
+  }
+}
+window.exportVarianceLocations = exportVarianceLocations;
 // ==================== END VARIANCE REPORT ====================
 
 function renderKPIPage() {
