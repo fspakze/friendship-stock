@@ -25916,8 +25916,14 @@ function updateLastSync() {
   el.textContent = (isLao ? 'ຂໍ້ມູນລ່າສຸດ' : 'ข้อมูลล่าสุด') + ': ' + time;
 }
 
+// 🎛️ Dashboard = หน้าควบคุมรอบนับ (Ball 2026-11-12) — ความคืบหน้า · สิ่งที่ต้องทำ · ผลนับ (มูลค่า) · Top 5 · ผลงานทีม
+//    ข้อมูลชุดเดียวกับหน้าคลาดเคลื่อน (computeVarianceItems) + สรุปมูลค่าจาก csumLoad (ต้นทุนซื้อล่าสุด)
 function renderDashboardPage() {
   const showQuickBackup = ['admin', 'scc', 'bcs'].includes(user.role);
+  const isLao = lang === 'lo';
+  const box = (id, title) => '<div style="background:white;border:1px solid var(--slate-200);border-radius:13px;padding:12px;margin-bottom:11px;">'
+    + '<div style="font-size:12px;font-weight:800;color:var(--slate-700);margin-bottom:8px;">' + title + '</div>'
+    + '<div id="' + id + '"><div style="text-align:center;padding:14px;"><div class="loader" style="margin:0 auto;"></div></div></div></div>';
   return `
     <div id="updateReminder"></div>
     <div class="banner sky">
@@ -25926,188 +25932,136 @@ function renderDashboardPage() {
       </div>
       <div class="banner-text">
         <h4>${T('bcs_title')}</h4>
-        <p>${session?.session_name || ''} • <span style="font-size:9px;opacity:0.8;" id="dashLastSync">${lang === 'lo' ? 'ກຳລັງໂຫລດ...' : 'กำลังโหลด...'}</span></p>
+        <p>${escapeHtml(session?.session_name || '')} • <span style="font-size:9px;opacity:0.8;" id="dashLastSync">${isLao ? 'ກຳລັງໂຫລດ...' : 'กำลังโหลด...'}</span></p>
       </div>
       ${showQuickBackup ? `
-        <button onclick="quickBackup()" 
-                title="${lang === 'lo' ? 'ສຳຮອງດ່ວນ' : 'สำรองด่วน'}"
-                style="background:rgba(255,255,255,0.25);border:1px solid rgba(255,255,255,0.4);color:white;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;margin-left:auto;flex-shrink:0;">
-          💾
-        </button>
+        <button onclick="quickBackup()" title="${isLao ? 'ສຳຮອງດ່ວນ' : 'สำรองด่วน'}"
+                style="background:rgba(255,255,255,0.25);border:1px solid rgba(255,255,255,0.4);color:white;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;margin-left:auto;flex-shrink:0;">💾</button>
       ` : ''}
     </div>
-    
-    <!-- 🚨 Health Alerts Container (auto-populated) -->
     <div id="dashHealthAlerts"></div>
-    
-    <!-- Workflow Progress (NEW) -->
-    <div id="dashWfSummary"></div>
-    
-    <div class="stat-grid">
-      <div class="stat-card"><div class="num" id="dCounter">-</div><div class="lbl">Counter</div></div>
-      <div class="stat-card"><div class="num" id="dVerifier">-</div><div class="lbl">Verifier</div></div>
-      <div class="stat-card"><div class="num" id="dCTL">-</div><div class="lbl">CTL</div></div>
-      <div class="stat-card"><div class="num" id="dMatched">-</div><div class="lbl">Matched ✓</div></div>
-    </div>
-    
-    <div class="kpi-card kpi-good">
-      <div class="kpi-header"><div class="kpi-title">${T('level1')}</div><div class="kpi-value" id="dL1">-</div></div>
-      <div style="font-size:10px;color:var(--slate-500);margin:5px 0 6px;line-height:1.4;">✅ ${T('level1_desc')}</div>
-      <div class="kpi-bar"><div class="kpi-bar-fill" id="dL1Bar" style="width:0%"></div></div>
-    </div>
-    <div class="kpi-card kpi-warn">
-      <div class="kpi-header"><div class="kpi-title">${T('level2')}</div><div class="kpi-value" id="dL2">-</div></div>
-      <div style="font-size:10px;color:var(--slate-500);margin:5px 0 6px;line-height:1.4;">📝 ${T('level2_desc')}</div>
-      <div class="kpi-bar"><div class="kpi-bar-fill" id="dL2Bar" style="width:0%"></div></div>
-    </div>
-    <div class="kpi-card kpi-bad">
-      <div class="kpi-header"><div class="kpi-title">${T('level3')}</div><div class="kpi-value" id="dL3">-</div></div>
-      <div style="font-size:10px;color:var(--slate-500);margin:5px 0 6px;line-height:1.4;">🔁 ${T('level3_desc')}</div>
-      <div class="kpi-bar"><div class="kpi-bar-fill" id="dL3Bar" style="width:0%"></div></div>
-    </div>
-    <div class="kpi-card kpi-bad">
-      <div class="kpi-header"><div class="kpi-title">${T('level4')}</div><div class="kpi-value" id="dL4">-</div></div>
-      <div style="font-size:10px;color:var(--slate-500);margin:5px 0 6px;line-height:1.4;">🚨 ${T('level4_desc')}</div>
-      <div class="kpi-bar"><div class="kpi-bar-fill" id="dL4Bar" style="width:0%"></div></div>
-    </div>
-    
-    <div class="history-card">
-      <div class="section-title">${T('all_counts')}</div>
-      <div class="history-list" id="dAllList"></div>
-    </div>
+    ${box('dashProgress', '📍 ' + (isLao ? 'ຄວາມຄືບໜ້າ' : 'ความคืบหน้า'))}
+    ${box('dashTodo', '✅ ' + (isLao ? 'ສິ່ງທີ່ຕ້ອງເຮັດຕອນນີ້' : 'สิ่งที่ต้องทำตอนนี้'))}
+    ${box('dashValue', '📊 ' + (isLao ? 'ຜົນນັບ (ມູນຄ່າ)' : 'ผลนับ (มูลค่า)'))}
+    ${box('dashTop', '🔻 ' + (isLao ? 'Top 5 ຂາດ / ເກີນ ຫຼາຍສຸດ' : 'Top 5 ขาด / เกิน มากสุด'))}
+    ${box('dashTeam', '👥 ' + (isLao ? 'ຜົນງານທີມ (SKU ທີ່ນັບ)' : 'ผลงานทีม (SKU ที่นับ)'))}
   `;
 }
 
+function _dashGo(page, after) { window._dashAfter = after || null; goPage(page); }
+window._dashGo = _dashGo;
+
 async function loadDashboard() {
-  if (!session) return;
-  
-  log('Loading dashboard');
-  
-  // 🚨 Load Health Alerts ทันทีพร้อมกับ Dashboard
-  loadHealthAlerts();
-  updateLastSync();
-  
-  // Load workflow summary first
-  const { data: wfItems } = await sb.from('v_gondola_progress')
-    .select('status')
-    .eq('session_id', session.id);
-  
-  const wf = wfItems || [];
-  const wfTotal = wf.length;
-  const wfCompleted = wf.filter(x => x.status === 'completed').length;
-  const wfInProgress = wf.filter(x => ['counting', 'verifying', 'tiebreaker'].includes(x.status)).length;
-  const wfWaiting = wf.filter(x => ['counted', 'open_for_verify', 'verified', 'tiebreaker_needed', 'open_for_counting'].includes(x.status)).length;
-  const wfPct = wfTotal ? Math.round((wfCompleted / wfTotal) * 100) : 0;
-  
-  const wfEl = document.getElementById('dashWfSummary');
-  if (wfEl) {
-    wfEl.innerHTML = `
-      <div class="progress-donut-card">
-        <div style="font-size:11px;color:var(--slate-500);text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">Gondola ${T('progress')}</div>
-        <div class="progress-donut">
-          <svg class="donut-svg" viewBox="0 0 120 120">
-            <circle class="donut-bg" cx="60" cy="60" r="50"/>
-            <circle class="donut-fg" cx="60" cy="60" r="50" 
-              stroke-dasharray="${2 * Math.PI * 50}" 
-              stroke-dashoffset="${2 * Math.PI * 50 * (1 - wfPct/100)}"/>
-            <text class="donut-text" x="60" y="65" text-anchor="middle">${wfPct}%</text>
-          </svg>
-          <div style="text-align:left;">
-            <div style="font-size:24px;font-weight:700;color:var(--emerald-500);">${wfCompleted}<span style="color:var(--slate-400);font-size:14px;">/${wfTotal}</span></div>
-            <div style="font-size:10px;color:var(--slate-500);">Gondolas Done</div>
-          </div>
-        </div>
-        <div class="wf-summary-grid">
-          <div class="wf-sum-card progress">
-            <div class="wf-sum-num">${wfInProgress}</div>
-            <div class="wf-sum-lbl" style="color:var(--teal-700);">${T('in_progress')}</div>
-          </div>
-          <div class="wf-sum-card waiting">
-            <div class="wf-sum-num">${wfWaiting}</div>
-            <div class="wf-sum-lbl" style="color:#92400e;">${T('waiting')}</div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-  
-  // ⭐ นับต่อ distinct product (ยอด final) ให้ตรงกับหน้า "คลาดเคลื่อน" — ใช้ computeVarianceItems แหล่งเดียว
-  //    (เดิมนับ "แถว" stock_counts → verifier/L1-L4 บวมเพราะนับซ้ำ + นับทั้ง counter+verifier row = ไม่ตรงรายงาน)
-  let vAll = [];
-  try {
-    vAll = (await computeVarianceItems('session')).filter(it => !it.isOrphan);
-  } catch (e) { log('Dashboard variance error:', e); }
-  // L1-L4 = เฉพาะสินค้านับครบทุกจุด (ตรงกับหน้าคลาดเคลื่อน) · progress role = ทุกตัวที่นับแล้ว
-  const vItems = vAll.filter(it => it.isComplete);
-  log('Dashboard distinct products:', vAll.length, '(complete:', vItems.length + ')');
-
-  const counter  = vAll.filter(x => x.counter_qty !== null).length;
-  const verifier = vAll.filter(x => x.verifier_qty !== null).length;
-  const ctl      = vAll.filter(x => x.ctl_qty !== null).length;
-  const matched  = vAll.filter(x => x.counter_qty !== null && x.verifier_qty !== null && x.counter_qty === x.verifier_qty).length;
-
-  const l1 = vItems.filter(x => x.level === 'L1').length;
-  const l2 = vItems.filter(x => x.level === 'L2').length;
-  const l3 = vItems.filter(x => x.level === 'L3').length;
-  const l4 = vItems.filter(x => x.level === 'L4').length;
-  
-  document.getElementById('dCounter').textContent = counter;
-  document.getElementById('dVerifier').textContent = verifier;
-  document.getElementById('dCTL').textContent = ctl;
-  document.getElementById('dMatched').textContent = matched;
-  
-  const total = l1 + l2 + l3 + l4 || 1;
-  document.getElementById('dL1').textContent = l1;
-  document.getElementById('dL2').textContent = l2;
-  document.getElementById('dL3').textContent = l3;
-  document.getElementById('dL4').textContent = l4;
-  document.getElementById('dL1Bar').style.width = (l1/total*100) + '%';
-  document.getElementById('dL2Bar').style.width = (l2/total*100) + '%';
-  document.getElementById('dL3Bar').style.width = (l3/total*100) + '%';
-  document.getElementById('dL4Bar').style.width = (l4/total*100) + '%';
-  
-  // All counts list
-  const { data: recent } = await sb.from('stock_counts')
-    .select(`id, counted_qty, diff, variance_level, is_markdown, count_role, counted_at, gondola_code, location_code,
-             products(barcode, name_th, name_lo), users(full_name)`)
-    .eq('session_id', session.id)
-    .order('counted_at', { ascending: false })
-    .limit(30);
-  
-  const list = document.getElementById('dAllList');
-  if (!list) return;
-  
-  const recItems = recent || [];
-  
-  if (!recItems.length) {
-    list.innerHTML = `<div class="empty-state"><p>${T('no_history')}</p></div>`;
+  if (!session) {
+    ['dashProgress', 'dashTodo', 'dashValue', 'dashTop', 'dashTeam'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = '<div style="font-size:11px;color:var(--slate-400);">' + (lang === 'lo' ? 'ບໍ່ມີຮອບນັບ' : 'ไม่มีรอบนับ') + '</div>'; });
     return;
   }
-  
-  list.innerHTML = recItems.map(item => {
-    const p = item.products || {};
-    const u = item.users || {};
-    const name = lang === 'lo' ? (p.name_lo || p.name_th || '?') : (p.name_th || p.name_lo || '?');
-    const diff = item.diff || 0;
-    const cls = diff === 0 ? 'match' : (diff > 0 ? 'diff-plus' : 'diff-minus');
-    const varLevel = item.variance_level ? `<span class="var-level var-level-${item.variance_level}">L${item.variance_level}</span>` : '';
-    const mdBadge = item.is_markdown ? '<span class="md-badge" style="margin-left:4px;">MD</span>' : '';
-    const roleBadge = `<span style="font-size:9px;background:var(--slate-100);padding:1px 5px;border-radius:4px;color:var(--slate-600);">${item.count_role || ''}</span>`;
-    const locBadge = item.gondola_code ? `<span style="background:var(--teal-100);color:var(--teal-700);padding:1px 5px;border-radius:4px;font-weight:700;margin-left:4px;font-family:'Space Grotesk',monospace;">${item.gondola_code}</span>` : '';
-    
-    return `
-      <div class="history-item clickable ${cls}" onclick="openEditCount('${item.id}')">
-        <div class="history-content">
-          <div class="history-name">${name}${mdBadge}${locBadge}</div>
-          <div class="history-meta">${escapeHtml(u.full_name || '?')} ${roleBadge} ${varLevel}</div>
-        </div>
-        <div class="history-qty mono">${item.counted_qty}</div>
-        <div style="color:var(--slate-400);font-size:14px;margin-left:4px;">✏️</div>
-      </div>
-    `;
-  }).join('');
-}
+  log('Loading dashboard');
+  loadHealthAlerts();
+  updateLastSync();
+  const isLao = lang === 'lo';
+  const L = (lo, th) => (isLao ? lo : th);
+  const N = v => Number(v || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
 
+  // ---------- 1) ความคืบหน้า Gondola ----------
+  let wf = [];
+  try {
+    const { data } = await sb.from('v_gondola_progress').select('location_code, status, opened_at').eq('session_id', session.id).order('opened_at', { ascending: false });
+    const seen = new Set();
+    wf = (data || []).filter(r => { const k = String(r.location_code || '').toUpperCase(); if (seen.has(k)) return false; seen.add(k); return true; }).filter(r => r.status !== 'closed');
+  } catch (e) { log('dash wf error', e); }
+  const stOf = {}; wf.forEach(r => { stOf[String(r.location_code || '').toUpperCase()] = r.status; });
+  const cnt = st => wf.filter(r => st.includes(r.status)).length;
+  const done = cnt(['completed']), counting = cnt(['open_for_counting', 'counting']), verifying = cnt(['counted', 'open_for_verify', 'verifying']), judging = cnt(['verified', 'tiebreaker_needed', 'tiebreaker']);
+  const pct = wf.length ? Math.round(done / wf.length * 100) : 0;
+  const seg = (n, color) => n ? '<div style="flex:' + n + ';background:' + color + ';"></div>' : '';
+  set('dashProgress',
+    '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:7px;"><span style="font-size:28px;font-weight:800;color:var(--emerald-600);font-family:\'Space Grotesk\',monospace;">' + pct + '%</span>'
+    + '<span style="font-size:12px;color:var(--slate-600);font-weight:700;">' + done + ' / ' + wf.length + ' Gondola ' + L('ສຳເລັດ', 'เสร็จ') + '</span></div>'
+    + '<div style="display:flex;height:10px;border-radius:6px;overflow:hidden;background:var(--slate-100);margin-bottom:8px;">'
+    + seg(done, 'var(--emerald-500)') + seg(judging, 'var(--violet-500)') + seg(verifying, 'var(--amber-500)') + seg(counting, 'var(--sky-500)') + '</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;font-size:11px;">'
+    + [[counting, L('ກຳລັງນັບ', 'กำลังนับ'), 'var(--sky-600)'], [verifying, L('ລໍຖ້າ/ກຳລັງກວດ', 'รอ/กำลังตรวจ'), 'var(--amber-600)'], [judging, L('ລໍຖ້າຕັດສິນ/ປິດ', 'รอตัดสิน/ปิด'), 'var(--violet-600)'], [done, L('ສຳເລັດ', 'เสร็จ'), 'var(--emerald-600)']]
+      .map(([n, l, c]) => '<div style="background:var(--slate-50);border-radius:8px;padding:6px 8px;"><b style="color:' + c + ';font-size:15px;">' + n + '</b> <span style="color:var(--slate-600);">' + l + '</span></div>').join('')
+    + '</div>');
+
+  // ---------- 2) ข้อมูลนับ (ชุดเดียวกับหน้าคลาดเคลื่อน) ----------
+  let vAll = [];
+  try { vAll = await computeVarianceItems('session'); } catch (e) { log('dash variance error', e); set('dashTodo', '<div style="color:var(--rose-500);font-size:11px;">Error: ' + escapeHtml(e.message || String(e)) + '</div>'); return; }
+  const valid = vAll.filter(it => !it.isOrphan);
+  const complete = valid.filter(it => it.isComplete), pending = valid.filter(it => !it.isComplete);
+  const stCount = {}; complete.forEach(it => { const g = _varStageGroup(varStage(it).key); stCount[g] = (stCount[g] || 0) + 1; });
+  let realGap = 0;
+  try { const byLoc = _covBuild(valid, stOf); Object.keys(byLoc).forEach(k => { realGap += byLoc[k].real.length; }); } catch (e) {}
+  const canWf = ['ctl', 'admin', 'scc', 'it'].includes(user.role);
+  const todo = (icon, label, n, color, onclick) => {
+    const active = n > 0;
+    return '<div ' + (active && onclick ? 'onclick="' + onclick + '" ' : '') + 'style="display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:9px;margin-bottom:5px;'
+      + (active ? 'background:var(--slate-50);border:1px solid var(--slate-200);' + (onclick ? 'cursor:pointer;' : '') : 'opacity:.5;') + '">'
+      + '<span style="font-size:16px;">' + icon + '</span><span style="flex:1;font-size:12px;font-weight:700;color:var(--slate-800);">' + label + '</span>'
+      + '<span style="font-size:15px;font-weight:800;color:' + (active ? color : 'var(--slate-400)') + ';font-family:\'Space Grotesk\',monospace;">' + n + '</span>'
+      + (active && onclick ? '<span style="color:var(--slate-400);">›</span>' : '') + '</div>';
+  };
+  const todoHtml = (aCount) =>
+      todo('⚖️', L('ລໍຖ້າ CTL ຕັດສິນ (Counter ≠ Verifier)', 'รอ CTL ตัดสิน (Counter ≠ Verifier)'), stCount.ctl || 0, 'var(--amber-600)', "_dashGo('tiebreaker')")
+    + todo('🚨', L('3 ຄົນນັບບໍ່ກົງ → BCS ລົງກວດ', '3 คนนับไม่ตรง → BCS ลงตรวจ'), stCount.bcs || 0, 'var(--rose-500)', "_dashGo('variance','stage:bcs')")
+    + todo('⚠️', L('ນັບຂ້າມຈຸດ (ຂ້າມຈິງ)', 'นับข้ามจุด (ข้ามจริง)'), realGap, 'var(--rose-500)', canWf ? "_dashGo('workflow')" : '')
+    + todo('⏳', L('ລໍຖ້ານັບໃຫ້ຄົບທຸກຈຸດ', 'รอนับให้ครบทุกจุด'), pending.length, 'var(--amber-600)', "_dashGo('variance')")
+    + todo('🔍', L('ມີສະຕ໋ອກແຕ່ບໍ່ໄດ້ນັບ (A · ຢູ່ Gondola ທີ່ນັບແລ້ວ)', 'มีสต๊อกแต่ไม่ได้นับ (A · อยู่ใน Gondola ที่นับแล้ว)'), aCount == null ? '…' : aCount, 'var(--rose-500)', "_dashGo('variance','csum:uncounted')")
+    + todo('⏳', L('ລໍຖ້າ Verifier ກວດ', 'รอ Verifier ตรวจ'), stCount.wait || 0, 'var(--sky-600)', '');
+  set('dashTodo', todoHtml(null));
+
+  // ---------- 5) ผลงานทีม ----------
+  try {
+    const per = {};
+    valid.forEach(it => {
+      [['counterLocs', 'C'], ['verifierLocs', 'V'], ['ctlLocs', 'CTL'], ['managerLocs', 'BCS']].forEach(([k, r]) => {
+        Object.values(it[k] || {}).forEach(row => { if (!row || !row.user_id) return; const u = per[row.user_id] = per[row.user_id] || { C: new Set(), V: new Set(), CTL: new Set(), BCS: new Set() }; u[r].add(it.product_id); });
+      });
+    });
+    const ids = Object.keys(per);
+    const names = {};
+    if (ids.length) { const { data } = await sb.from('users').select('id, full_name, username').in('id', ids); (data || []).forEach(u => { names[u.id] = u.full_name || u.username; }); }
+    const rows = ids.map(id => ({ id, name: names[id] || '?', C: per[id].C.size, V: per[id].V.size, T: per[id].CTL.size + per[id].BCS.size })).sort((a, b) => (b.C + b.V + b.T) - (a.C + a.V + a.T));
+    const th = t => '<th style="padding:5px 6px;text-align:right;font-size:10px;color:var(--slate-500);border-bottom:1px solid var(--slate-200);">' + t + '</th>';
+    const td = v => '<td style="padding:5px 6px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;">' + (v || '-') + '</td>';
+    set('dashTeam', rows.length ? '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><tr><th style="padding:5px 6px;text-align:left;font-size:10px;color:var(--slate-500);border-bottom:1px solid var(--slate-200);">' + L('ພະນັກງານ', 'พนักงาน') + '</th>' + th('Counter') + th('Verifier') + th(L('ຕັດສິນ/ຢືນຢັນ', 'ตัดสิน/ยืนยัน')) + '</tr>'
+      + rows.map(r => '<tr style="border-bottom:1px solid var(--slate-100);"><td style="padding:5px 6px;font-size:11px;font-weight:700;">' + escapeHtml(r.name) + '</td>' + td(r.C) + td(r.V) + td(r.T) + '</tr>').join('') + '</table></div>'
+      : '<div style="font-size:11px;color:var(--slate-400);">-</div>');
+  } catch (e) { log('dash team error', e); set('dashTeam', '<div style="font-size:11px;color:var(--slate-400);">-</div>'); }
+
+  // ---------- 3-4) ผลนับมูลค่า + Top 5 (หนัก — ดึงต้นทุน/ประเภท/สินค้าไม่ได้นับ) ----------
+  _varianceAllData = vAll; _varianceData = complete; _variancePending = pending;
+  _csum = null; _csumView = null;
+  const d = await csumLoad(true);
+  if (!d) { set('dashValue', '<div style="color:var(--rose-500);font-size:11px;">' + L('ດຶງມູນຄ່າບໍ່ສຳເລັດ — ລອງໂຫຼດໃໝ່', 'ดึงมูลค่าไม่สำเร็จ — ลองโหลดใหม่') + '</div>'); set('dashTop', ''); set('dashTodo', todoHtml('?')); return; }
+  set('dashTodo', todoHtml(d.uncA.length));
+  const a = _csumAgg(d.done);
+  const aAll = _csumAgg(d.done.concat(_csumInclRows(d, 'AB')));
+  const kc = (t, big, sub, c) => '<div style="background:var(--slate-50);border-radius:9px;padding:8px 10px;"><div style="font-size:10px;font-weight:800;color:var(--slate-500);">' + t + '</div>'
+    + '<div style="font-size:16px;font-weight:800;color:' + (c || 'var(--slate-900)') + ';font-family:\'Space Grotesk\',monospace;">' + big + '</div><div style="font-size:10px;color:var(--slate-500);">' + sub + '</div></div>';
+  set('dashValue', '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;">'
+    + kc(L('ຍອດ POS (ທີ່ນັບ)', 'ยอด POS (ที่นับ)'), '₭' + N(a.posV), N(a.pos) + L(' ຊິ້ນ · ', ' ชิ้น · ') + a.sku + ' SKU')
+    + kc(L('ນັບໄດ້', 'นับได้'), '₭' + N(a.finV), N(a.fin) + L(' ຊິ້ນ', ' ชิ้น'))
+    + kc(L('ເກີນ', 'เกิน'), '+₭' + N(a.overV), a.overSku + ' SKU', 'var(--sky-600)')
+    + kc(L('ຂາດ', 'ขาด'), '−₭' + N(Math.abs(a.shortV)), a.shortSku + ' SKU', 'var(--rose-500)')
+    + kc(L('Diff ສຸດທິ', 'Diff สุทธิ'), (a.diffV < 0 ? '−₭' : '+₭') + N(Math.abs(a.diffV)), a.diffPct.toFixed(2) + '%', a.diffV < 0 ? 'var(--rose-500)' : 'var(--sky-600)')
+    + kc(L('ນັບກົງ POS', 'นับตรง POS'), a.accSku.toFixed(1) + '%', a.exact + ' / ' + a.sku + ' SKU', 'var(--emerald-600)')
+    + '</div>'
+    + '<div style="font-size:10px;color:var(--slate-500);margin-top:7px;line-height:1.5;">' + L('ຖ້ານັບຄົບທັງຮ້ານ (ບໍ່ໄດ້ນັບ = ຂາດ): Diff ສຸດທິ ', 'ถ้านับครบทั้งร้าน (ไม่ได้นับ = ขาด): Diff สุทธิ ') + '<b style="color:var(--rose-500);">' + (aAll.diffV < 0 ? '−₭' : '+₭') + N(Math.abs(aAll.diffV)) + '</b>'
+    + ' · <span onclick="_dashGo(\'variance\',\'csum:summary\')" style="color:var(--sky-600);font-weight:800;cursor:pointer;">' + L('ເບິ່ງສະຫຼຸບຜົນເຕັມ ›', 'ดูสรุปผลเต็ม ›') + '</span></div>');
+  const line = (r, c) => '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--slate-100);font-size:11px;">'
+    + '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:var(--slate-800);">' + escapeHtml(r.name) + '</span>'
+    + '<span style="color:var(--slate-500);font-family:\'Space Grotesk\',monospace;white-space:nowrap;">' + r.pos + ' → ' + r.fin + '</span>'
+    + '<span style="color:' + c + ';font-weight:800;font-family:\'Space Grotesk\',monospace;white-space:nowrap;min-width:84px;text-align:right;">' + (r.diffV < 0 ? '−₭' : '+₭') + N(Math.abs(r.diffV)) + '</span></div>';
+  const shorts = d.done.filter(r => r.diff < 0).sort((x, y) => x.diffV - y.diffV || x.diff - y.diff).slice(0, 5);
+  const overs = d.done.filter(r => r.diff > 0).sort((x, y) => y.diffV - x.diffV || y.diff - x.diff).slice(0, 5);
+  set('dashTop', '<div style="font-size:10px;font-weight:800;color:var(--rose-500);margin-bottom:2px;">' + L('ຂາດຫຼາຍສຸດ', 'ขาดมากสุด') + '</div>'
+    + (shorts.length ? shorts.map(r => line(r, 'var(--rose-500)')).join('') : '<div style="font-size:11px;color:var(--slate-400);">-</div>')
+    + '<div style="font-size:10px;font-weight:800;color:var(--sky-600);margin:9px 0 2px;">' + L('ເກີນຫຼາຍສຸດ', 'เกินมากสุด') + '</div>'
+    + (overs.length ? overs.map(r => line(r, 'var(--sky-600)')).join('') : '<div style="font-size:11px;color:var(--slate-400);">-</div>'));
+}
 // ==================== KPI ====================
 // ==================== VARIANCE REPORT PAGE ====================
 // แสดงสินค้าที่นับแล้ว แยกตาม Variance Level (L1/L2/L3/L4)
@@ -26468,6 +26422,10 @@ async function loadVarianceReport() {
     renderVarianceSummary();
     renderAdvancedKPI();
     renderVarianceList();
+    // 🎛️ มาจาก Dashboard → เปิดมุมมองที่กดมา
+    const _da = window._dashAfter; window._dashAfter = null;
+    if (_da && _da.indexOf('stage:') === 0) { _varStageFilter = _da.slice(6); renderVarianceList(); }
+    else if (_da && _da.indexOf('csum:') === 0) { csumOpen(_da.slice(5)); }
   } catch (e) {
     console.error('[FS] loadVarianceReport error:', e);
     document.getElementById('varianceList').innerHTML = `
@@ -34478,6 +34436,11 @@ async function loadCoverageGaps() {
     const { data } = await sb.from('v_gondola_progress').select('location_code, status, opened_at').eq('session_id', session.id).order('opened_at', { ascending: false });
     (data || []).forEach(r => { const k = String(r.location_code || '').toUpperCase(); if (k && !(k in stOf)) stOf[k] = r.status; });
   } catch (e) { log('coverage status error', e); }
+  _covData = _covBuild(items, stOf);
+  renderCoverageGaps();
+}
+// แยก gap ต่อจุด: real (ข้ามจริง) / wait (รอ Verifier) — ใช้ร่วม Workflow + Dashboard
+function _covBuild(items, stOf) {
   const isLao = lang === 'lo';
   const byLoc = {}; // loc -> { real:[], wait:[], status }
   items.forEach(it => {
@@ -34495,8 +34458,7 @@ async function loadCoverageGaps() {
       if (hasCounter && !_COV_VERIFIER_DONE.includes(st)) g.wait.push(entry); else g.real.push(entry);
     });
   });
-  _covData = byLoc;
-  renderCoverageGaps();
+  return byLoc;
 }
 function renderCoverageGaps() {
   const el = document.getElementById('wfCoverage');
