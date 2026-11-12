@@ -25399,7 +25399,10 @@ function renderTiebreakerList() {
   }).join('');
 }
 const _tbOpen = new Set();   // กลุ่ม Gondola ที่กางอยู่ (หน้าตัดสิน)
-function tbToggleGroup(key) { const k = decodeURIComponent(key); if (_tbOpen.has(k)) _tbOpen.delete(k); else _tbOpen.add(k); renderTiebreakerList(); }
+// แบบ accordion: เปิดกลุ่มหนึ่ง = กลุ่มอื่นพับ · กดกลุ่มที่เปิดอยู่ = พับ (Ball 2026-11-12)
+function tbToggleGroup(key) { const k = decodeURIComponent(key); const was = _tbOpen.has(k); _tbOpen.clear(); if (!was) _tbOpen.add(k); renderTiebreakerList(); if (!was) _accScrollTo('tbToggleGroup', key); }
+// เลื่อนหัวกลุ่มที่เพิ่งเปิดขึ้นมาไว้บนจอ (กลุ่มบนพับแล้วตำแหน่งเลื่อน)
+function _accScrollTo(fn, key) { try { const el = document.querySelector('[onclick="' + fn + '(\x27' + key + '\x27)"]'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) {} }
 window.tbToggleGroup = tbToggleGroup;
 
 async function updateTbBadge() {
@@ -27224,7 +27227,7 @@ function _varGonHeaderHtml(gondola, gItems, open, isLao) {
     + '</div>';
 }
 function varSetStage(k) { _varStageFilter = k; renderVarianceList(); }
-function varToggleGon(key) { const g = decodeURIComponent(key); if (_varOpenGons.has(g)) _varOpenGons.delete(g); else _varOpenGons.add(g); renderVarianceList(); }
+function varToggleGon(key) { const g = decodeURIComponent(key); const was = _varOpenGons.has(g); _varOpenGons.clear(); if (!was) _varOpenGons.add(g); renderVarianceList(); if (!was && typeof _accScrollTo === 'function') _accScrollTo('varToggleGon', key); }   // accordion · 'เปิดทั้งหมด' ยังใช้ได้
 function varGonAll(open) { _varOpenGons.clear(); if (open) (window._varGonKeys || []).forEach(g => _varOpenGons.add(g)); renderVarianceList(); }
 window.varSetStage = varSetStage; window.varToggleGon = varToggleGon; window.varGonAll = varGonAll;
 
