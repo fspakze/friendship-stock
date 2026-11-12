@@ -27178,6 +27178,43 @@ function renderVarianceList() {
   listEl.innerHTML = html;
 }
 
+// 🧭 ขั้นตอนการนับของสินค้า (Counter → Verifier → CTL ตัดสิน → BCS) + ขั้นถัดไป — Ball 2026-11-12
+//    ยอดต่อ role = ผลรวมล่าสุดทุกจุด (เหมือน computeVarianceItems) · null = role นั้นยังไม่นับ
+function varStage(p) {
+  const c = p.counter_qty, v = p.verifier_qty, t = p.ctl_qty, m = p.manager_qty;
+  if (m !== null && m !== undefined) return { key: 'bcs_done', tone: 'ok' };
+  if (t !== null && t !== undefined) return (t === c || t === v) ? { key: 'tb_done', tone: 'ok' } : { key: 'need_bcs', tone: 'bad' };
+  if (c !== null && v !== null) return c === v ? { key: (p.diff === 0 ? 'cv_match' : 'cv_real'), tone: 'ok' } : { key: 'need_ctl', tone: 'warn' };
+  if (c !== null) return { key: 'wait_v', tone: 'wait' };
+  if (v !== null) return { key: 'wait_c', tone: 'wait' };
+  return { key: 'none', tone: 'wait' };
+}
+function varStageHtml(p, isLao) {
+  const st = varStage(p);
+  const TXT = {
+    bcs_done: isLao ? '✅ BCS ຢືນຢັນແລ້ວ' : '✅ BCS ยืนยันแล้ว',
+    tb_done:  isLao ? '✅ ຕັດສິນແລ້ວ (2 ໃນ 3 ກົງ)' : '✅ ตัดสินแล้ว (2 ใน 3 ตรง)',
+    need_bcs: isLao ? '🚨 3 ຄົນນັບບໍ່ກົງ → BCS ລົງກວດ' : '🚨 3 คนนับไม่ตรง → BCS ลงตรวจ',
+    cv_match: isLao ? '✅ ນັບກົງກັນ' : '✅ นับตรงกัน',
+    cv_real:  isLao ? '✅ Counter=Verifier → Diff ຈິງ' : '✅ Counter=Verifier → Diff จริง',
+    need_ctl: isLao ? '⚖️ ບໍ່ກົງ → ລໍຖ້າ CTL ຕັດສິນ' : '⚖️ ไม่ตรง → รอ CTL ตัดสิน',
+    wait_v:   isLao ? '⏳ ລໍຖ້າ Verifier' : '⏳ รอ Verifier',
+    wait_c:   isLao ? '⏳ ລໍຖ້າ Counter' : '⏳ รอ Counter',
+    none:     isLao ? '⏳ ຍັງບໍ່ນັບ' : '⏳ ยังไม่นับ'
+  };
+  const TONE = { ok: ['var(--emerald-100)', 'var(--emerald-700)'], warn: ['var(--amber-100)', 'var(--amber-700)'], bad: ['var(--rose-500)', 'white'], wait: ['var(--sky-100)', 'var(--sky-700)'] };
+  const chip = (lbl, q) => {
+    const done = q !== null && q !== undefined;
+    return '<span style="padding:1px 6px;border-radius:4px;font-weight:700;' + (done ? 'background:white;color:var(--slate-700);border:1px solid var(--slate-300);' : 'background:transparent;color:var(--slate-400);border:1px dashed var(--slate-300);') + '">'
+      + lbl + ' ' + (done ? q : '—') + '</span>';
+  };
+  const tc = TONE[st.tone];
+  return '<div style="font-size:9px;margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">'
+    + chip('Counter', p.counter_qty) + chip('Verifier', p.verifier_qty) + chip('CTL', p.ctl_qty) + chip('BCS', p.manager_qty)
+    + '<span style="padding:1px 7px;border-radius:10px;font-weight:800;background:' + tc[0] + ';color:' + tc[1] + ';">' + TXT[st.key] + '</span>'
+    + '</div>';
+}
+
 function renderVarianceItem(p, fmt, isLao) {
   const name = isLao ? (p.product?.name_lo || p.product?.name_th || p.barcode) : (p.product?.name_th || p.product?.name_lo || p.barcode);
   const unit = isLao ? (p.product?.unit_lo || 'ຊິ້ນ') : (p.product?.unit_th || 'ชิ้น');
@@ -27207,14 +27244,7 @@ function renderVarianceItem(p, fmt, isLao) {
           ${(p.locCount || 0) > 1 ? `<span style="background:var(--sky-100);color:var(--sky-600);padding:1px 5px;border-radius:3px;font-weight:700;">Σ ${p.locCount} ${isLao ? 'ຈຸດ' : 'จุด'}</span>` : ''}
           ${p.hasFloor ? `<span style="background:var(--amber-100);color:var(--amber-700);padding:1px 5px;border-radius:3px;font-weight:700;">📦 ${floorTag()}</span>` : ''}
         </div>
-        ${(p.counter_qty !== null || p.verifier_qty !== null) ? `
-          <div style="font-size:9px;color:var(--slate-500);margin-top:2px;display:flex;gap:7px;">
-            ${p.counter_qty !== null ? `<span>👤 ${p.counter_qty}</span>` : ''}
-            ${p.verifier_qty !== null ? `<span>🔍 ${p.verifier_qty}</span>` : ''}
-            ${p.ctl_qty !== null ? `<span>⚖️ ${p.ctl_qty}</span>` : ''}
-            ${p.manager_qty !== null ? `<span>👔 ${p.manager_qty}</span>` : ''}
-          </div>
-        ` : ''}
+        ${varStageHtml(p, isLao)}
       </div>
       
       <!-- POS vs Final -->
