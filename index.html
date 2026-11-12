@@ -34460,63 +34460,94 @@ function setWfFilter(f) {
 
 // 🚩 รายงาน "นับข้ามจุด" — ต่อ (สินค้า, ตำแหน่ง) ที่ counter/verifier นับไม่ครบคู่กัน
 //    (ผลต่างพวกนี้ไม่เข้า "ตัดสิน" เพราะตัดสินต้องมีทั้ง counter+verifier ที่จุดเดียวกัน)
+// แยก 2 แบบ (Ball 2026-11-12): ⚠️ ข้ามจริง = Verifier ปิดขั้นแล้ว / Counter ข้าม · ⏳ รอ Verifier = ยังตรวจไม่จบ (ปกติ ไม่เตือน)
+//    สถานะ Gondola จาก v_gondola_progress (แถวล่าสุดต่อ location) · กลุ่ม Gondola แบบ accordion
+const _COV_VERIFIER_DONE = ['verified', 'tiebreaker_needed', 'tiebreaker', 'completed'];
+let _covOpen = null;      // Gondola ที่กางอยู่ (เปิดได้ทีละกลุ่ม)
+let _covWaitOpen = false; // กางรายการ "รอ Verifier"
+let _covData = null;
 async function loadCoverageGaps() {
   const el = document.getElementById('wfCoverage');
   if (!el) return;
-  const isLao = lang === 'lo';
   let items = [];
   try { items = (await computeVarianceItems('session')).filter(it => !it.isOrphan); }
   catch (e) { log('coverage error', e); el.innerHTML = ''; return; }
-
-  const byLoc = {}; // location_code -> { counterOnly:[], verifyOnly:[] }
+  // สถานะ Gondola ล่าสุด
+  const stOf = {};
+  try {
+    const { data } = await sb.from('v_gondola_progress').select('location_code, status, opened_at').eq('session_id', session.id).order('opened_at', { ascending: false });
+    (data || []).forEach(r => { const k = String(r.location_code || '').toUpperCase(); if (k && !(k in stOf)) stOf[k] = r.status; });
+  } catch (e) { log('coverage status error', e); }
+  const isLao = lang === 'lo';
+  const byLoc = {}; // loc -> { real:[], wait:[], status }
   items.forEach(it => {
     const name = isLao ? (it.product && (it.product.name_lo || it.product.name_th)) : (it.product && (it.product.name_th || it.product.name_lo));
     const locs = new Set([...Object.keys(it.counterLocs || {}), ...Object.keys(it.verifierLocs || {}), ...Object.keys(it.ctlLocs || {}), ...Object.keys(it.managerLocs || {})]);
     locs.forEach(lk => {
       const hasCounter = !!(it.counterLocs && it.counterLocs[lk]);
       const hasVerify = !!((it.verifierLocs && it.verifierLocs[lk]) || (it.ctlLocs && it.ctlLocs[lk]) || (it.managerLocs && it.managerLocs[lk]));
-      if (hasCounter === hasVerify) return; // ครบคู่ (หรือไม่มีเลย) = ไม่ใช่ gap
+      if (hasCounter === hasVerify) return; // ครบคู่ = ไม่ใช่ gap
       const loc = lk || '?';
-      if (!byLoc[loc]) byLoc[loc] = { counterOnly: [], verifyOnly: [] };
-      const entry = { name: name || it.barcode || '?' };
-      if (hasCounter) byLoc[loc].counterOnly.push(entry);
-      else byLoc[loc].verifyOnly.push(entry);
+      const st = stOf[String(floorBaseCode(loc)).toUpperCase()] || '';
+      const g = byLoc[loc] = byLoc[loc] || { real: [], wait: [], status: st };
+      const entry = { name: name || it.barcode || '?', kind: hasCounter ? 'cOnly' : 'vOnly' };
+      // counter อย่างเดียว + Verifier ยังไม่ปิดขั้น = รอ (ปกติ) · ที่เหลือ = ข้ามจริง
+      if (hasCounter && !_COV_VERIFIER_DONE.includes(st)) g.wait.push(entry); else g.real.push(entry);
     });
   });
-
-  const locKeys = Object.keys(byLoc);
-  const totalGap = locKeys.reduce((s, k) => s + byLoc[k].counterOnly.length + byLoc[k].verifyOnly.length, 0);
-
-  if (!totalGap) {
-    el.innerHTML = `<div style="background:var(--emerald-100);border:1px solid var(--emerald-500);border-radius:11px;padding:10px 13px;margin-bottom:11px;font-size:12px;font-weight:700;color:var(--emerald-600);">✅ ${isLao ? 'counter/verifier ນັບຄົບຄູ່ທຸກຈຸດ' : 'counter/verifier นับครบคู่ทุกจุด'}</div>`;
+  _covData = byLoc;
+  renderCoverageGaps();
+}
+function renderCoverageGaps() {
+  const el = document.getElementById('wfCoverage');
+  const byLoc = _covData;
+  if (!el || !byLoc) return;
+  const isLao = lang === 'lo';
+  const keys = Object.keys(byLoc);
+  const realKeys = keys.filter(k => byLoc[k].real.length).sort((a, b) => byLoc[b].real.length - byLoc[a].real.length);
+  const waitKeys = keys.filter(k => byLoc[k].wait.length).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const nReal = realKeys.reduce((s, k) => s + byLoc[k].real.length, 0);
+  const nWait = waitKeys.reduce((s, k) => s + byLoc[k].wait.length, 0);
+  if (!nReal && !nWait) {
+    el.innerHTML = '<div style="background:var(--emerald-100);border:1px solid var(--emerald-500);border-radius:11px;padding:10px 13px;margin-bottom:11px;font-size:12px;font-weight:700;color:var(--emerald-600);">✅ ' + (isLao ? 'ນັບຄົບຄູ່ທຸກຈຸດ' : 'นับครบคู่ทุกจุด') + '</div>';
     return;
   }
-
-  locKeys.sort((a, b) => (byLoc[b].counterOnly.length + byLoc[b].verifyOnly.length) - (byLoc[a].counterOnly.length + byLoc[a].verifyOnly.length));
-
-  const chips = (list, color, label) => list.length ? `
-    <div style="margin-top:5px;">
-      <span style="font-size:10px;font-weight:800;color:${color};">${label} (${list.length})</span>
-      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">
-        ${list.map(p => `<span style="font-size:10px;background:var(--slate-100);padding:2px 6px;border-radius:5px;color:var(--slate-700);">${escapeHtml(p.name)}</span>`).join('')}
-      </div>
-    </div>` : '';
-
-  el.innerHTML = `
-    <div style="background:var(--fs-orange-tint);border:2px solid var(--amber-500);border-radius:13px;padding:12px 13px;margin-bottom:11px;">
-      <div style="font-size:13px;font-weight:800;color:#92400e;display:flex;align-items:center;gap:6px;">
-        🚩 ${isLao ? 'ນັບຂ້າມຈຸດ' : 'นับข้ามจุด'} <span style="background:var(--rose-500);color:white;border-radius:10px;padding:1px 8px;font-size:11px;">${totalGap}</span>
-      </div>
-      <div style="font-size:10px;color:#92400e;margin-top:2px;margin-bottom:5px;">${isLao ? 'counter/verifier ນັບບໍ່ຄົບຄູ່ — ຜົນຕ່າງບໍ່ເຂົ້າ "ຕັດສິນ" ຕ້ອງຕາມນັບເພີ່ມ' : 'counter/verifier นับไม่ครบคู่ — ผลต่างไม่เข้า "ตัดสิน" ต้องตามนับเพิ่ม'}</div>
-      ${locKeys.map(lk => `
-        <div style="background:white;border-radius:9px;padding:8px 10px;margin-top:6px;">
-          <div style="font-size:12px;font-weight:800;color:var(--violet-600);">📍 ${escapeHtml(fmtLocDisplay(lk))}</div>
-          ${chips(byLoc[lk].counterOnly, 'var(--rose-500)', isLao ? '🔴 counter ນັບ · verifier ຍັງບໍ່ນັບ' : '🔴 counter นับ · verifier ยังไม่นับ')}
-          ${chips(byLoc[lk].verifyOnly, 'var(--amber-600)', isLao ? '🟠 verifier ນັບ · counter ຂ້າມ' : '🟠 verifier นับ · counter ข้าม')}
-        </div>
-      `).join('')}
-    </div>`;
+  const chipList = list => '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">' + list.map(p => '<span style="font-size:10px;background:var(--slate-100);padding:2px 6px;border-radius:5px;color:var(--slate-700);">' + escapeHtml(p.name) + '</span>').join('') + '</div>';
+  const realHtml = realKeys.map(k => {
+    const g = byLoc[k], open = _covOpen === k;
+    const cOnly = g.real.filter(x => x.kind === 'cOnly'), vOnly = g.real.filter(x => x.kind === 'vOnly');
+    const key = encodeURIComponent(k).replace(/'/g, '%27');
+    return '<div style="background:white;border-radius:9px;margin-top:6px;overflow:hidden;">'
+      + '<div onclick="covToggle(\'' + key + '\')" style="cursor:pointer;display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:8px 10px;' + (open ? 'background:var(--violet-100);' : '') + '">'
+      + '<span style="color:var(--violet-600);width:12px;">' + (open ? '▾' : '▸') + '</span>'
+      + '<span style="font-size:12px;font-weight:800;color:var(--violet-600);">📍 ' + escapeHtml(fmtLocDisplay(k)) + '</span>'
+      + (cOnly.length ? '<span style="background:var(--rose-100);color:var(--rose-700);border-radius:9px;padding:1px 7px;font-size:10px;font-weight:800;">🔴 ' + (isLao ? 'Verifier ຂ້າມ ' : 'Verifier ข้าม ') + cOnly.length + '</span>' : '')
+      + (vOnly.length ? '<span style="background:var(--amber-100);color:var(--amber-700);border-radius:9px;padding:1px 7px;font-size:10px;font-weight:800;">🟠 ' + (isLao ? 'Counter ຂ້າມ ' : 'Counter ข้าม ') + vOnly.length + '</span>' : '')
+      + '</div>'
+      + (open ? '<div style="padding:2px 10px 9px;">'
+        + (cOnly.length ? '<div style="font-size:10px;font-weight:800;color:var(--rose-500);margin-top:4px;">🔴 ' + (isLao ? 'counter ນັບ · Verifier ປິດຂັ້ນແລ້ວແຕ່ບໍ່ໄດ້ນັບ' : 'counter นับ · Verifier ปิดขั้นแล้วแต่ไม่ได้นับ') + '</div>' + chipList(cOnly) : '')
+        + (vOnly.length ? '<div style="font-size:10px;font-weight:800;color:var(--amber-600);margin-top:6px;">🟠 ' + (isLao ? 'verifier ນັບ · counter ຂ້າມ' : 'verifier นับ · counter ข้าม') + '</div>' + chipList(vOnly) : '')
+        + '</div>' : '')
+      + '</div>';
+  }).join('');
+  const waitHtml = nWait ? '<div style="background:white;border-radius:9px;margin-top:6px;padding:8px 10px;">'
+    + '<div onclick="covWaitToggle()" style="cursor:pointer;display:flex;align-items:center;gap:7px;flex-wrap:wrap;">'
+    + '<span style="color:var(--slate-500);width:12px;">' + (_covWaitOpen ? '▾' : '▸') + '</span>'
+    + '<span style="font-size:11px;font-weight:800;color:var(--slate-600);">⏳ ' + (isLao ? 'ລໍຖ້າ Verifier (ຍັງກວດບໍ່ຈົບ — ປົກກະຕິ)' : 'รอ Verifier (ยังตรวจไม่จบ — ปกติ)') + ' ' + nWait + '</span></div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;">' + waitKeys.map(k => '<span style="font-size:10px;background:var(--sky-100);color:var(--sky-700);padding:2px 7px;border-radius:9px;font-weight:700;">' + escapeHtml(fmtLocDisplay(k)) + ' · ' + byLoc[k].wait.length + '</span>').join('') + '</div>'
+    + (_covWaitOpen ? waitKeys.map(k => '<div style="margin-top:7px;"><div style="font-size:10px;font-weight:800;color:var(--sky-700);">📍 ' + escapeHtml(fmtLocDisplay(k)) + '</div>' + chipList(byLoc[k].wait) + '</div>').join('') : '')
+    + '</div>' : '';
+  el.innerHTML = '<div style="background:var(--fs-orange-tint);border:2px solid ' + (nReal ? 'var(--amber-500)' : 'var(--slate-300)') + ';border-radius:13px;padding:12px 13px;margin-bottom:11px;">'
+    + '<div style="font-size:13px;font-weight:800;color:#92400e;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">🚩 ' + (isLao ? 'ນັບຂ້າມຈຸດ' : 'นับข้ามจุด')
+    + (nReal ? ' <span style="background:var(--rose-500);color:white;border-radius:10px;padding:1px 8px;font-size:11px;">⚠️ ' + (isLao ? 'ຂ້າມຈິງ ' : 'ข้ามจริง ') + nReal + '</span>' : ' <span style="background:var(--emerald-500);color:white;border-radius:10px;padding:1px 8px;font-size:11px;">✅ ' + (isLao ? 'ບໍ່ມີຂ້າມຈິງ' : 'ไม่มีข้ามจริง') + '</span>')
+    + (nWait ? ' <span style="background:var(--slate-200);color:var(--slate-700);border-radius:10px;padding:1px 8px;font-size:11px;">⏳ ' + nWait + '</span>' : '')
+    + '</div>'
+    + '<div style="font-size:10px;color:#92400e;margin-top:2px;">' + (isLao ? 'ຂ້າມຈິງ = ຕ້ອງໃຫ້ກັບໄປນັບ (ບໍ່ເຂົ້າ "ຕັດສິນ") · ກົດ Gondola ເພື່ອເບິ່ງລາຍການ' : 'ข้ามจริง = ต้องให้กลับไปนับ (ไม่เข้า "ตัดสิน") · กด Gondola เพื่อดูรายการ') + '</div>'
+    + realHtml + waitHtml + '</div>';
 }
+function covToggle(key) { const k = decodeURIComponent(key); _covOpen = (_covOpen === k) ? null : k; renderCoverageGaps(); }
+function covWaitToggle() { _covWaitOpen = !_covWaitOpen; renderCoverageGaps(); }
+window.covToggle = covToggle; window.covWaitToggle = covWaitToggle;
 
 async function loadWorkflowList() {
   if (!session) return;
