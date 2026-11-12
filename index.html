@@ -25327,68 +25327,52 @@ function renderTiebreakerList() {
   const absDiff = it => Math.abs(it.cv_diff || 0);
   const absVal  = it => Math.abs(Number(it.cv_value_diff || 0));
 
-  // การ์ด 1 ใบ (โชว์ตำแหน่ง Planogram — ข้อ 3)
-  const card = (item) => {
+  // 📋 แถวย่อ 1 บรรทัด (Ball 2026-11-12 — นับพร้อมกันหลายหัวชั้นแล้วยาว) · กดแถว = เริ่มนับซ้ำ
+  const row = (item) => {
     const name = isLao ? (item.name_lo || item.name_th) : (item.name_th || item.name_lo);
     const diff = absDiff(item);
     const valDiff = Number(item.cv_value_diff || 0);
-    let icon = '·', color = 'var(--teal-700)', bg = 'var(--teal-100)';
-    if (Math.abs(valDiff) > 300000 || diff >= 20) { icon = '!'; color = 'var(--rose-500)'; bg = 'var(--rose-100)'; }
-    else if (diff >= 5) { icon = '!'; color = 'var(--amber-500)'; bg = 'var(--amber-100)'; }
-
+    let dot = 'var(--teal-500)';
+    if (Math.abs(valDiff) > 300000 || diff >= 20) dot = 'var(--rose-500)';
+    else if (diff >= 5) dot = 'var(--amber-500)';
     const _isFloor = isFloorCode(item.location_code);
     const pog = window._tbPogMap[item.product_id + '|' + floorBaseCode(item.location_code || '')];
-    const shelfTxt = (pog && !_isFloor) ? ` · ${isLao ? 'ຊັ້ນ' : 'ชั้น'} ${pog.shelf}/${pog.seq_in_shelf}` : '';
-    const locTxt = item.location_code ? ('📍 ' + fmtLocDisplay(item.location_code) + shelfTxt) : (isLao ? '📍 ບໍ່ລະບຸຕຳແໜ່ງ' : '📍 ไม่ระบุตำแหน่ง');
-    const locChip = `<span style="display:inline-block;font-size:10px;font-weight:700;color:var(--violet-600);background:var(--violet-100);padding:2px 7px;border-radius:6px;margin-top:4px;">${escapeHtml(locTxt)}</span>`;
-
-    const details = isAdmin ? `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;padding:7px;background:var(--slate-50);border-radius:7px;margin-top:6px;">
-        <div><span style="color:var(--slate-500);">Counter:</span> <strong>${item.counter_qty}</strong></div>
-        <div><span style="color:var(--slate-500);">Verifier:</span> <strong>${item.verifier_qty}</strong></div>
-        <div style="grid-column:1/-1;"><span style="color:var(--slate-500);">Diff:</span> <strong style="color:var(--rose-500);">${item.cv_diff > 0 ? '+' : ''}${item.cv_diff}</strong> (₭ ${valDiff.toLocaleString()})</div>
-      </div>` : '';
-
-    return `
-      <div class="history-item clickable" style="display:block;">
-        <div style="display:flex;align-items:center;gap:9px;" onclick="startTiebreaker(${item.product_id}, ${item.zone_id || 'null'}, '${item.location_code || ''}')">
-          <div style="width:32px;height:32px;border-radius:8px;background:${bg};color:${color};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;">${icon}</div>
-          <div style="flex:1;min-width:0;">
-            <div class="history-name">${name}</div>
-            <div class="history-meta">${item.barcode}</div>
-            ${locChip}
-          </div>
-        </div>
-        ${details}
-        <div style="display:flex;gap:6px;margin-top:7px;">
-          <button class="btn btn-secondary" onclick="event.stopPropagation();showProductLocations(${item.product_id})" style="flex:1;font-size:10px;padding:7px 9px;">
-            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:3px;"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-            ${T('view_all_locations') || 'ดูที่อื่นๆ'}
-          </button>
-          <button class="btn btn-primary" onclick="event.stopPropagation();startTiebreaker(${item.product_id}, ${item.zone_id || 'null'}, '${item.location_code || ''}')" style="flex:1;font-size:10px;padding:7px 9px;background:var(--violet-500);">
-            ${T('start_tiebreaker') || 'เริ่มตรวจสอบ'} →
-          </button>
-        </div>
-      </div>
-    `;
+    const shelfTxt = (pog && !_isFloor) ? (' · ' + (isLao ? 'ຊັ້ນ ' : 'ชั้น ') + pog.shelf + '/' + pog.seq_in_shelf) : '';
+    const locTxt = (item.location_code ? fmtLocDisplay(item.location_code) : (isLao ? 'ບໍ່ລະບຸ' : 'ไม่ระบุ')) + shelfTxt;
+    const loc = String(item.location_code || '').replace(/'/g, '');
+    const nums = isAdmin
+      ? '<div style="text-align:right;flex-shrink:0;font-size:10px;color:var(--slate-500);line-height:1.35;font-family:\'Space Grotesk\',monospace;">'
+        + 'C <b style="color:var(--slate-800);">' + item.counter_qty + '</b> · V <b style="color:var(--slate-800);">' + item.verifier_qty + '</b>'
+        + '<div style="font-weight:800;color:var(--rose-500);">' + (item.cv_diff > 0 ? '+' : '') + item.cv_diff + (valDiff ? ' · ₭' + Math.abs(valDiff).toLocaleString() : '') + '</div></div>'
+      : '';
+    return '<div onclick="startTiebreaker(' + item.product_id + ', ' + (item.zone_id || 'null') + ', \'' + loc + '\')" style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-bottom:1px solid var(--slate-100);cursor:pointer;">'
+      + '<span style="width:8px;height:8px;border-radius:50%;background:' + dot + ';flex-shrink:0;"></span>'
+      + '<div style="flex:1;min-width:0;">'
+      +   '<div style="font-size:12px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(name || '') + '</div>'
+      +   '<div style="font-size:9px;color:var(--slate-500);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(item.barcode || '') + ' · 📍 ' + escapeHtml(locTxt) + '</div>'
+      + '</div>'
+      + nums
+      + '<button onclick="event.stopPropagation();showProductLocations(' + item.product_id + ')" title="' + (isLao ? 'ເບິ່ງທີ່ອື່ນ' : 'ดูที่อื่นๆ') + '" style="flex-shrink:0;background:white;border:1px solid var(--slate-300);border-radius:7px;padding:5px 7px;font-size:11px;cursor:pointer;">🗺️</button>'
+      + '<span style="flex-shrink:0;background:var(--violet-500);color:white;border-radius:7px;padding:5px 9px;font-size:11px;font-weight:800;">' + (isLao ? 'ນັບ' : 'นับ') + ' →</span>'
+      + '</div>';
   };
+  const wrap = inner => '<div style="background:white;border:1px solid var(--slate-200);border-radius:10px;overflow:hidden;margin-bottom:6px;">' + inner + '</div>';
 
   // ปุ่มสลับโหมด (ข้อ 5)
-  const btnStyle = on => `flex:1;font-size:11px;padding:8px;${on ? 'background:var(--violet-100);color:var(--violet-600);font-weight:800;' : ''}`;
-  const bar = `<div style="display:flex;gap:6px;margin-bottom:10px;">
-    <button class="btn btn-secondary" onclick="setTbMode('loc')" style="${btnStyle(_tbMode === 'loc')}">📍 ${isLao ? 'ຕາມຕຳແໜ່ງ' : 'ตามตำแหน่ง'}</button>
-    <button class="btn btn-secondary" onclick="setTbMode('diff')" style="${btnStyle(_tbMode === 'diff')}">🔻 ${isLao ? 'ຕາມ Diff' : 'ตาม Diff'}</button>
-  </div>`;
+  const btnStyle = on => 'flex:1;font-size:11px;padding:8px;' + (on ? 'background:var(--violet-100);color:var(--violet-600);font-weight:800;' : '');
+  const bar = '<div style="display:flex;gap:6px;margin-bottom:10px;">'
+    + '<button class="btn btn-secondary" onclick="setTbMode(\'loc\')" style="' + btnStyle(_tbMode === 'loc') + '">📍 ' + (isLao ? 'ຕາມຕຳແໜ່ງ' : 'ตามตำแหน่ง') + '</button>'
+    + '<button class="btn btn-secondary" onclick="setTbMode(\'diff\')" style="' + btnStyle(_tbMode === 'diff') + '">🔻 ' + (isLao ? 'ຕາມ Diff' : 'ตาม Diff') + '</button>'
+    + '</div>';
 
-  // โหมด diff: เรียงทั้งลิสต์ตามมูลค่า diff มาก→น้อย (ข้อ 5)
+  // โหมด diff: รายการเดียว เรียงมูลค่า diff มาก→น้อย
   if (_tbMode === 'diff') {
     const sorted = items.slice().sort((a, b) => (absVal(b) - absVal(a)) || (absDiff(b) - absDiff(a)));
-    list.innerHTML = bar + sorted.map(card).join('');
+    list.innerHTML = bar + wrap(sorted.map(row).join(''));
     return;
   }
 
-  // โหมด loc: group ตามตำแหน่ง Planogram → กลุ่มเรียงตาม diff สูงสุดในกลุ่ม · ในกลุ่มเรียง diff มาก→น้อย (ข้อ 5)
-  // จับกลุ่มตาม "ฐาน gondola" → ชั้น + พื้น ของ gondola เดียวกันอยู่กลุ่มเดียว (พื้น = การ์ดมีป้าย 📦พื้น)
+  // โหมด loc: กลุ่มตามฐาน Gondola (ชั้น + พื้นรวมกลุ่มเดียว) · พับไว้ ยกเว้นมีกลุ่มเดียว · กลุ่มเรียงตาม diff สูงสุด
   const groups = {};
   items.forEach(it => { const k = floorBaseCode(it.location_code || '') || '__none__'; (groups[k] = groups[k] || []).push(it); });
   const gkeys = Object.keys(groups).sort((a, b) => {
@@ -25396,13 +25380,27 @@ function renderTiebreakerList() {
     const mb = Math.max.apply(null, groups[b].map(absVal));
     return mb - ma;
   });
+  const single = gkeys.length === 1;
   list.innerHTML = bar + gkeys.map(k => {
     const rows = groups[k].slice().sort((a, b) => (absVal(b) - absVal(a)) || (absDiff(b) - absDiff(a)));
+    const open = single || _tbOpen.has(k);
     const label = k === '__none__' ? (isLao ? '— ບໍ່ລະບຸຕຳແໜ່ງ' : '— ไม่ระบุตำแหน่ง') : ('📍 ' + k);
-    const header = `<div style="margin:8px 0 6px;font-size:12px;font-weight:800;color:var(--violet-600);padding:6px 4px;border-bottom:2px solid var(--violet-100);">${escapeHtml(label)} <span style="color:var(--slate-400);font-weight:600;">(${rows.length})</span></div>`;
-    return header + rows.map(card).join('');
+    const maxV = Math.max.apply(null, rows.map(absVal));
+    const red = rows.filter(it => Math.abs(Number(it.cv_value_diff || 0)) > 300000 || absDiff(it) >= 20).length;
+    const key = encodeURIComponent(k).replace(/'/g, '%27');
+    const header = '<div onclick="tbToggleGroup(\'' + key + '\')" style="cursor:pointer;display:flex;align-items:center;gap:7px;padding:8px 10px;margin-top:6px;margin-bottom:' + (open ? '4px' : '0') + ';background:' + (open ? 'var(--violet-100)' : 'white') + ';border:1px solid var(--violet-200, #ddd6fe);border-radius:9px;">'
+      + '<span style="color:var(--violet-600);width:12px;">' + (open ? '▾' : '▸') + '</span>'
+      + '<span style="font-size:12px;font-weight:800;color:var(--violet-600);">' + escapeHtml(label) + '</span>'
+      + '<span style="font-size:10px;color:var(--slate-500);">' + rows.length + (isLao ? ' ລາຍການ' : ' รายการ') + '</span>'
+      + (red ? '<span style="background:var(--rose-100);color:var(--rose-700);border-radius:9px;padding:1px 7px;font-size:10px;font-weight:800;">! ' + red + '</span>' : '')
+      + (isAdmin && maxV ? '<span style="margin-left:auto;font-size:10px;font-weight:800;color:var(--rose-500);">max ₭' + maxV.toLocaleString() + '</span>' : '')
+      + '</div>';
+    return header + (open ? wrap(rows.map(row).join('')) : '');
   }).join('');
 }
+const _tbOpen = new Set();   // กลุ่ม Gondola ที่กางอยู่ (หน้าตัดสิน)
+function tbToggleGroup(key) { const k = decodeURIComponent(key); if (_tbOpen.has(k)) _tbOpen.delete(k); else _tbOpen.add(k); renderTiebreakerList(); }
+window.tbToggleGroup = tbToggleGroup;
 
 async function updateTbBadge() {
   if (!session) return;
