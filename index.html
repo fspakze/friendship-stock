@@ -26290,7 +26290,7 @@ async function computeVarianceItems(periodOverride) {
       let query = sb.from('stock_counts')
         .select(`
           *,
-          products(barcode, name_th, name_lo, unit_th, unit_lo, pos_qty, cost_price, sell_price)
+          products(barcode, name_th, name_lo, unit_th, unit_lo, pos_qty, cost_price, sell_price, is_active)
         `)
         .eq('branch_id', branch.id);
       if (sessionFilter) query = query.eq('session_id', sessionFilter);
@@ -26395,7 +26395,8 @@ async function computeVarianceItems(periodOverride) {
       let posQty = 0;
       let costPrice = 0;
       if (p.product) {
-        posQty = p.product.pos_qty || 0;
+        // ⛔ ปิดขาย (ไม่อยู่ในไฟล์ POS ล่าสุด) = สต๊อกปัจจุบัน 0 — pos_qty ที่ค้างคือยอดเก่าก่อนหายจากไฟล์ (Ball 2026-11-12 · MEMORY 33)
+        posQty = (p.product.is_active === false) ? 0 : (p.product.pos_qty || 0);
         costPrice = p.product.cost_price || 0;
       } else {
         // Orphan: ใช้ snapshot จาก latest count
@@ -26419,6 +26420,7 @@ async function computeVarianceItems(periodOverride) {
         ctl_qty: ctlCount,
         manager_qty: managerCount,
         pos_qty: posQty,
+        posClosed: !!(p.product && p.product.is_active === false),   // ⛔ ปิดขายใน POS
         cost_price: costPrice,
         diff,
         pct,
@@ -27296,6 +27298,7 @@ function renderVarianceItem(p, fmt, isLao) {
           ${p.gondola_code && _varianceFilter.groupBy !== 'gondola' ? `<span style="background:var(--violet-100);color:var(--violet-600);padding:1px 5px;border-radius:3px;font-weight:700;">📍 ${p.gondola_code}</span>` : ''}
           ${(p.locCount || 0) > 1 ? `<span style="background:var(--sky-100);color:var(--sky-600);padding:1px 5px;border-radius:3px;font-weight:700;">Σ ${p.locCount} ${isLao ? 'ຈຸດ' : 'จุด'}</span>` : ''}
           ${p.hasFloor ? `<span style="background:var(--amber-100);color:var(--amber-700);padding:1px 5px;border-radius:3px;font-weight:700;">📦 ${floorTag()}</span>` : ''}
+          ${p.posClosed ? `<span style="background:var(--slate-200);color:var(--slate-700);padding:1px 5px;border-radius:3px;font-weight:700;">⛔ ${isLao ? 'ປິດຂາຍໃນ POS' : 'ปิดขายใน POS'}</span>` : ''}
         </div>
         ${varStageHtml(p, isLao)}
       </div>
@@ -27772,6 +27775,7 @@ function _csumHint(r) {
     if (buyD !== null && buyD <= 30) return _csumL('ຫາກໍຊື້ເຂົ້າ — ກວດຮັບເຄື່ອງ / ຍັງບໍ່ຂຶ້ນຊັ້ນ / ໂອນອອກ', 'เพิ่งซื้อเข้า — ตรวจรับของ / ยังไม่ขึ้นชั้น / โอนออก');
     return _csumL('ຕາມຫາຈຸດອື່ນ / ຂອງເສຍ / ຂາຍບໍ່ຜ່ານ POS', 'ตามหาจุดอื่น / ของเสีย / ขายไม่ผ่าน POS');
   }
+  if (r.diff > 0 && r.posClosed) return _csumL('ປິດຂາຍໃນ POS ແຕ່ຍັງມີເຄື່ອງ — ກວດຮັບເຂົ້າ / ເປີດຂາຍໃນ POS', 'ปิดขายใน POS แต่ยังมีของ — ตรวจรับเข้า / เปิดขายใน POS');
   if (r.diff > 0) {
     if (saleD === null || saleD > 30) return _csumL('ບໍ່ມີຂາຍດົນ — POS ອາດຕັດຂາຍຜິດໂຕ', 'ไม่มีขายนาน — POS อาจตัดขายผิดตัว');
     return _csumL('ຮັບເຄື່ອງບໍ່ໄດ້ຄີ / ຂາຍຜິດບາໂຄດ', 'รับของไม่ได้คีย์ / ขายผิดบาร์โค้ด');
@@ -27840,7 +27844,7 @@ async function csumLoad(force) {
         pos: it.pos_qty, fin: it.final_qty, diff: it.diff,
         posV, finV: it.final_qty * f.cost, diffV, diffSellV: it.diff * f.sell, pct,
         level: calcVarianceLevel(pct, diffV),
-        stageKey: varStage(it).key, gons: gons.join(', '),
+        stageKey: varStage(it).key, gons: gons.join(', '), posClosed: !!it.posClosed,
         c: it.counter_qty, v: it.verifier_qty, t: it.ctl_qty, mgr: it.manager_qty
       }, f);
       r.hint = _csumHint(r);
@@ -28117,10 +28121,10 @@ async function csumExport() {
       _csumGroup(d.done, r => r.cat + '\u0001' + r.grp).map(g => g.key.split('\u0001').concat(gv(g)))), [26, 32].concat(gh.map(() => 11)));
     // 4-7) รายการ
     const stTxt = k => ({ bcs_done: L('BCS ຢືນຢັນແລ້ວ', 'BCS ยืนยันแล้ว'), tb_done: L('ຕັດສິນແລ້ວ', 'ตัดสินแล้ว'), need_bcs: L('3 ຄົນບໍ່ກົງ → BCS', '3 คนไม่ตรง → BCS'), cv_match: L('ນັບກົງກັນ', 'นับตรงกัน'), cv_real: L('C=V → Diff ຈິງ', 'C=V → Diff จริง'), need_ctl: L('ລໍຖ້າ CTL', 'รอ CTL'), wait_v: L('ລໍຖ້າ Verifier', 'รอ Verifier'), wait_c: L('ລໍຖ້າ Counter', 'รอ Counter'), none: '-' }[k] || k);
-    const ih = ['Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ປະເພດ', 'ประเภท'), L('ກຸ່ມສິນຄ້າ', 'กลุ่มสินค้า'), L('ຍີ່ຫໍ້', 'ยี่ห้อ'), 'Gondola', 'POS', L('ນັບໄດ້', 'นับได้'), 'Diff', 'Diff %', L('ຕົ້ນທຶນ ₭', 'ต้นทุน ₭'), 'POS ₭', L('ນັບໄດ້ ₭', 'นับได้ ₭'), 'Diff ₭', L('Diff ₭ (ລາຄາຂາຍ)', 'Diff ₭ (ราคาขาย)'), 'Level', 'Counter', 'Verifier', 'CTL', 'BCS', L('ຂັ້ນຕອນ', 'ขั้นตอน'), 'Buyer', L('ຊື້ລ່າສຸດ', 'ซื้อล่าสุด'), L('ຂາຍລ່າສຸດ', 'ขายล่าสุด'), 'AVG/' + L('ເດືອນ', 'เดือน'), 'Aging', L('ແນະນຳຫາສາເຫດ', 'แนะนำหาสาเหตุ')];
+    const ih = ['Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ປະເພດ', 'ประเภท'), L('ກຸ່ມສິນຄ້າ', 'กลุ่มสินค้า'), L('ຍີ່ຫໍ້', 'ยี่ห้อ'), 'Gondola', 'POS', L('ນັບໄດ້', 'นับได้'), 'Diff', 'Diff %', L('ຕົ້ນທຶນ ₭', 'ต้นทุน ₭'), 'POS ₭', L('ນັບໄດ້ ₭', 'นับได้ ₭'), 'Diff ₭', L('Diff ₭ (ລາຄາຂາຍ)', 'Diff ₭ (ราคาขาย)'), 'Level', 'Counter', 'Verifier', 'CTL', 'BCS', L('ຂັ້ນຕອນ', 'ขั้นตอน'), L('ປິດຂາຍໃນ POS', 'ปิดขายใน POS'), 'Buyer', L('ຊື້ລ່າສຸດ', 'ซื้อล่าสุด'), L('ຂາຍລ່າສຸດ', 'ขายล่าสุด'), 'AVG/' + L('ເດືອນ', 'เดือน'), 'Aging', L('ແນະນຳຫາສາເຫດ', 'แนะนำหาสาเหตุ')];
     const iv = r => [r.bc, r.name, r.cat, r.grp, r.brand, r.gons, r.pos, r.fin, r.diff, Number(r.pct.toFixed(1)), r.cost, Math.round(r.posV), Math.round(r.finV), Math.round(r.diffV), Math.round(r.diffSellV), r.level,
-      r.c ?? '', r.v ?? '', r.t ?? '', r.mgr ?? '', stTxt(r.stageKey), r.buyer, r.lastBuy, r.lastSale, r.avgM, r.aging, r.hint];
-    const iw = [15, 40, 22, 26, 14, 12, 8, 8, 8, 8, 10, 12, 12, 12, 13, 6, 8, 8, 6, 6, 16, 10, 11, 11, 9, 8, 44];
+      r.c ?? '', r.v ?? '', r.t ?? '', r.mgr ?? '', stTxt(r.stageKey), r.posClosed ? '⛔' : '', r.buyer, r.lastBuy, r.lastSale, r.avgM, r.aging, r.hint];
+    const iw = [15, 40, 22, 26, 14, 12, 8, 8, 8, 8, 10, 12, 12, 12, 13, 6, 8, 8, 6, 6, 16, 10, 10, 11, 11, 9, 8, 44];
     const byAbs = (x, y) => Math.abs(y.diffV) - Math.abs(x.diffV) || Math.abs(y.diff) - Math.abs(x.diff);
     const chk = d.done.filter(r => r.diff !== 0 && (r.level === 'L3' || r.level === 'L4')).sort(byAbs);
     add(L('ຕ້ອງກວດສອບ', 'ต้องตรวจสอบ'), [ih].concat(chk.map(iv)), iw);
