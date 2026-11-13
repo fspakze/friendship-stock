@@ -42091,7 +42091,7 @@ const CAL_STATUS = {
 };
 const CAL_REMIND = [[null, 'ไม่เตือน', 'ບໍ່ເຕືອນ'], [60, 'ก่อน 1 ชม.', 'ກ່ອນ 1 ຊມ.'], [180, 'ก่อน 3 ชม.', 'ກ່ອນ 3 ຊມ.'], [1440, 'ก่อน 1 วัน', 'ກ່ອນ 1 ມື້'], [4320, 'ก่อน 3 วัน', 'ກ່ອນ 3 ມື້']];
 const CAL_DEFAULT_DEPTS = [
-  { id: 'mkt', th: 'การตลาด', lo: 'ການຕະຫຼາດ' }, { id: 'buy', th: 'จัดซื้อ', lo: 'ຈັດຊື້' }, { id: 'sales', th: 'ฝ่ายขาย/สาขา', lo: 'ຝ່າຍຂາຍ/ສາຂາ' },
+  { id: 'mkt', th: 'การตลาด', lo: 'ການຕະຫຼາດ' }, { id: 'buy', th: 'จัดซื้อ', lo: 'ຈັດຊື້' }, { id: 'sales', th: 'ฝ่ายขาย/สาขา', lo: 'ຝ່າຍຂາຍ/ສາຂາ' }, { id: 'ops', th: 'Operation', lo: 'Operation' },
   { id: 'wh', th: 'คลังสินค้า', lo: 'ສາງສິນຄ້າ' }, { id: 'it', th: 'IT', lo: 'IT' }, { id: 'acc', th: 'บัญชี', lo: 'ບັນຊີ' }, { id: 'hr', th: 'HR', lo: 'HR' }
 ];
 let _cal = { view: 'list', month: null, events: [], overdue: [], mine: false, cat: '', dept: '', showDone: false, allBranch: false, selDay: null, missing: false };
@@ -42113,6 +42113,23 @@ function _calDateLabel(key) { const d = new Date(key + 'T00:00:00'); return d.to
 function _calEndOf(ev) { return new Date(ev.end_at || ev.start_at); }
 function _calMissingTable(err) { const m = String((err && (err.message || err.code)) || ''); return /42P01|PGRST205|calendar_events/.test(m) && /not exist|could not find|42P01|PGRST205/i.test(m); }
 function _calDeptName(id) { const d = (_calDepts || []).find(x => x.id === id); return d ? _calNm(d) : (id || ''); }
+// ฝ่ายหลายฝ่ายต่องาน (Ball 2026-11-13): เก็บใน dept เป็น "mkt,ops" · 'all' = ทุกฝ่าย
+function _calDeptList(v) { return String(v || '').split(',').map(x => x.trim()).filter(Boolean); }
+function _calDeptNames(v) { const l = _calDeptList(v); if (l.includes('all')) return '🌐 ' + _calL('ທຸກຝ່າຍ', 'ทุกฝ่าย'); return l.map(_calDeptName).join(', '); }
+function calDeptToggle(id) {
+  if (!_calForm) return;
+  let l = _calForm.depts || [];
+  if (id === 'all') l = l.includes('all') ? [] : ['all'];
+  else { l = l.filter(x => x !== 'all'); l = l.includes(id) ? l.filter(x => x !== id) : l.concat([id]); }
+  _calForm.depts = l; calDeptRender();
+}
+function calDeptRender() {
+  const el = document.getElementById('cfDepts'); if (!el || !_calForm) return;
+  const l = _calForm.depts || [];
+  const chip = (id, label) => { const on = l.includes(id); return '<button type="button" onclick="calDeptToggle(\'' + id + '\')" style="background:' + (on ? 'var(--fs-blue,#0E357F)' : 'white') + ';color:' + (on ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:14px;padding:5px 10px;font-size:11px;font-weight:800;cursor:pointer;">' + (on ? '✓ ' : '') + escapeHtml(label) + '</button>'; };
+  el.innerHTML = chip('all', '🌐 ' + _calL('ທຸກຝ່າຍ', 'ทุกฝ่าย')) + (_calDepts || []).map(d => chip(d.id, _calNm(d))).join('');
+}
+window.calDeptToggle = calDeptToggle;
 
 async function calLoadDepts() {
   try {
@@ -42154,7 +42171,7 @@ function _calFiltered(list) {
     if (!_cal.showDone && (ev.status === 'done' || ev.status === 'cancel')) return false;
     if (_cal.mine && !_calIsMine(ev)) return false;
     if (_cal.cat && ev.category !== _cal.cat) return false;
-    if (_cal.dept && ev.dept !== _cal.dept) return false;
+    if (_cal.dept) { const dl = _calDeptList(ev.dept); if (!dl.includes('all') && !dl.includes(_cal.dept)) return false; }
     return true;
   });
 }
@@ -42168,7 +42185,7 @@ function _calEventRow(ev, showDate) {
     + '<div style="flex:1;min-width:0;">'
     +   '<div style="font-size:12.5px;font-weight:800;color:var(--slate-900);' + (ev.status === 'done' ? 'text-decoration:line-through;' : '') + '">' + escapeHtml(ev.title) + '</div>'
     +   '<div style="font-size:10.5px;color:var(--slate-500);margin-top:2px;">' + (showDate ? escapeHtml(_calDateLabel(_calDayKey(ev.start_at))) + ' · ' : '') + escapeHtml(timeTxt)
-    +     (ev.dept ? ' · ' + escapeHtml(_calDeptName(ev.dept)) : '') + (ev.branch_id == null ? ' · 🌐 ' + _calL('ທຸກສາຂາ', 'ทุกสาขา') : '') + '</div>'
+    +     (ev.dept ? ' · ' + escapeHtml(_calDeptNames(ev.dept)) : '') + (ev.branch_id == null ? ' · 🌐 ' + _calL('ທຸກສາຂາ', 'ทุกสาขา') : '') + '</div>'
     +   (who.length ? '<div style="font-size:10.5px;color:var(--slate-600);margin-top:2px;">👤 ' + escapeHtml(who.join(', ')) + '</div>' : '')
     + '</div>'
     + '<span style="flex-shrink:0;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;background:' + (late ? 'var(--rose-500)' : st.color + '1a') + ';color:' + (late ? 'white' : st.color) + ';">' + (late ? '⏰ ' + _calL('ເລີຍກຳນົດ', 'เลยกำหนด') : _calNm(st)) + '</span>'
@@ -42285,7 +42302,7 @@ function calOpenDetail(id) {
     + row(L('ປະເພດ', 'ประเภท'), escapeHtml(_calNm(c)))
     + row(L('ເວລາ', 'เวลา'), escapeHtml(fmt(ev.start_at)) + (ev.end_at ? ' – ' + escapeHtml(fmt(ev.end_at)) : '') + (ev.all_day ? ' (' + L('ທັງມື້', 'ทั้งวัน') + ')' : ''))
     + row(L('ສາຂາ', 'สาขา'), escapeHtml(brName))
-    + row(L('ຝ່າຍ', 'ฝ่าย'), ev.dept ? escapeHtml(_calDeptName(ev.dept)) : '')
+    + row(L('ຝ່າຍ', 'ฝ่าย'), ev.dept ? escapeHtml(_calDeptNames(ev.dept)) : '')
     + row(L('ຜູ້ກ່ຽວຂ້ອງ', 'ผู้เกี่ยวข้อง'), escapeHtml((ev.assignees || []).map(a => a.name).join(', ')))
     + row(L('ສະຖານະ', 'สถานะ'), '<span style="color:' + st.color + ';">' + escapeHtml(_calNm(st)) + '</span>')
     + row(L('ແຈ້ງເຕືອນ', 'แจ้งเตือน'), rem ? escapeHtml(lang === 'lo' ? rem[2] : rem[1]) : '')
@@ -42323,7 +42340,7 @@ async function calOpenForm(id) {
   const ev = id ? _calFind(id) : null;
   if (ev && !_calCanEdit(ev)) return;
   const dayKey = _cal.selDay || localDayKey(new Date());
-  _calForm = { id: ev ? ev.id : null, assignees: ev ? (ev.assignees || []).slice() : [] };
+  _calForm = { id: ev ? ev.id : null, assignees: ev ? (ev.assignees || []).slice() : [], depts: ev ? _calDeptList(ev.dept) : [] };
   const [sd, stt] = ev ? _calSplit(ev.start_at) : [dayKey, '09:00'];
   const [ed, ett] = ev && ev.end_at ? _calSplit(ev.end_at) : [sd, ev ? '' : '10:00'];
   const opt = (v, t, cur) => '<option value="' + escapeHtml(v) + '"' + (String(v) === String(cur) ? ' selected' : '') + '>' + escapeHtml(t) + '</option>';
@@ -42331,10 +42348,8 @@ async function calOpenForm(id) {
   const inp = 'class="form-input" style="font-size:13px;"';
   showModal('<h3>' + (ev ? '✏️ ' + L('ແກ້ໄຂວຽກ', 'แก้ไขงาน') : '➕ ' + L('ເພີ່ມວຽກ', 'เพิ่มงาน')) + '</h3>'
     + lab(L('ຫົວຂໍ້ວຽກ *', 'หัวข้องาน *')) + '<input id="cfTitle" ' + inp + ' maxlength="150" value="' + escapeHtml(ev ? ev.title : '') + '">'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
-    +   '<div>' + lab(L('ປະເພດ', 'ประเภท')) + '<select id="cfCat" ' + inp + '>' + Object.keys(CAL_CATS).map(k => opt(k, CAL_CATS[k].icon + ' ' + _calNm(CAL_CATS[k]), ev ? ev.category : 'task')).join('') + '</select></div>'
-    +   '<div>' + lab(L('ຝ່າຍ', 'ฝ่าย')) + '<select id="cfDept" ' + inp + '>' + opt('', '—', ev ? ev.dept || '' : '') + (_calDepts || []).map(d => opt(d.id, _calNm(d), ev ? ev.dept : '')).join('') + '</select></div>'
-    + '</div>'
+    + lab(L('ປະເພດ', 'ประเภท')) + '<select id="cfCat" ' + inp + '>' + Object.keys(CAL_CATS).map(k => opt(k, CAL_CATS[k].icon + ' ' + _calNm(CAL_CATS[k]), ev ? ev.category : 'task')).join('') + '</select>'
+    + lab(L('ຝ່າຍ (ເລືອກໄດ້ຫຼາຍຝ່າຍ)', 'ฝ่าย (เลือกได้หลายฝ่าย)')) + '<div id="cfDepts" style="display:flex;flex-wrap:wrap;gap:5px;"></div>'
     + lab(L('ສາຂາ', 'สาขา')) + '<select id="cfBranch" ' + inp + '>' + (ev && ev.branch_id != null && ev.branch_id !== branch.id ? opt('keep', L('ສາຂາເດີມ', 'สาขาเดิม') + ' #' + ev.branch_id, 'keep') : '') + opt('cur', L('ສາຂານີ້', 'สาขานี้') + ' (' + (branch.code || '') + ')', ev ? (ev.branch_id == null ? 'all' : 'cur') : 'cur') + opt('all', '🌐 ' + L('ທຸກສາຂາ', 'ทุกสาขา'), ev ? (ev.branch_id == null ? 'all' : 'cur') : 'cur') + '</select>'
     + '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;margin-top:9px;cursor:pointer;"><input type="checkbox" id="cfAllDay" ' + (ev && ev.all_day ? 'checked' : '') + ' onchange="document.querySelectorAll(\'.cfTime\').forEach(x=>x.style.display=this.checked?\'none\':\'\')"> ' + L('ທັງມື້', 'ทั้งวัน') + '</label>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
@@ -42351,6 +42366,7 @@ async function calOpenForm(id) {
     + lab(L('ລາຍລະອຽດ', 'รายละเอียด')) + '<textarea id="cfDetail" class="form-input" rows="4" style="font-size:13px;">' + escapeHtml(ev ? (ev.detail || '') : '') + '</textarea>'
     + '<div class="action-row" style="margin-top:12px;"><button class="btn btn-secondary" onclick="closeModal()">' + L('ຍົກເລີກ', 'ยกเลิก') + '</button><button class="btn btn-primary" id="cfSave" onclick="calSave()">' + T('save') + '</button></div>');
   calWhoRender();
+  calDeptRender();
   if (!_calUsers) {
     try { const { data } = await sb.rpc('list_users_safe'); _calUsers = (data || []).filter(u => u.is_active !== false); } catch (e) { _calUsers = []; }
   }
@@ -42384,7 +42400,7 @@ async function calSave() {
   const rem = g('cfRemind');
   const payload = {
     title, detail: String(g('cfDetail') || '').trim() || null,
-    category: g('cfCat') || 'task', dept: g('cfDept') || null,
+    category: g('cfCat') || 'task', dept: (_calForm && _calForm.depts && _calForm.depts.length) ? _calForm.depts.join(',') : null,
     branch_id: g('cfBranch') === 'all' ? null : (g('cfBranch') === 'keep' ? (_calFind(_calForm.id) || {}).branch_id : branch.id),
     start_at: start.toISOString(), end_at: end ? end.toISOString() : null, all_day: allDay,
     assignees: _calForm ? _calForm.assignees : [], status: g('cfStatus') || 'todo',
