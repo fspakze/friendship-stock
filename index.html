@@ -2907,6 +2907,11 @@ async function fsKvSet(k, v) { try { return await fsIdbPut('kv', { k: k, v: v })
 
 // สถานะเน็ต — navigator.onLine เป็นแค่ตัวช่วย (true ไม่การันตีว่าถึง Supabase จริง) จึงเช็คจาก error ด้วย
 function fsIsOnline() { return navigator.onLine !== false; }
+// ⏱️ ครอบ request ให้มีเวลารอสูงสุด — เกิน = ถือว่าเน็ตสะดุด (ข้อความมีคำว่า timeout → fsIsNetErr จับได้) · Ball 2026-11-13
+function _fsTimeout(p, ms) {
+  let t;
+  return Promise.race([Promise.resolve(p).finally(() => clearTimeout(t)), new Promise((_, rej) => { t = setTimeout(() => rej(new Error('timeout: network slow')), ms || 15000); })]);
+}
 function fsIsNetErr(e) {
   if (!fsIsOnline()) return true;
   if (!e) return false;
@@ -2981,7 +2986,7 @@ async function fsFlushCountQueue() {
     for (let i = 0; i < (items || []).length; i++) {
       const it = items[i];
       try {
-        const { error } = await sb.from('stock_counts').insert(it.payload).select().single();
+        const { error } = await _fsTimeout(sb.from('stock_counts').insert(it.payload).select().single(), 20000);
         if (!error) { await fsIdbDelete('countqueue', it.id); ok++; }
         else { fail++; log('flush insert error', error); }
       } catch (e) { fail++; log('flush exception', e); }
@@ -3083,6 +3088,8 @@ async function fsUpdateOfflineBadge() {
   } catch (e) {}
 }
 window.addEventListener('online', () => { fsUpdateOfflineBadge(); fsSyncSnapshot('online-event'); fsFlushCountQueue(); });
+// 📶 เน็ตอ่อน/สะดุด: มือถือยังคิดว่าออนไลน์ (ไม่มี event 'online') → ลองส่งยอดที่ค้างในเครื่องทุก 1 นาที (คิวว่าง = ไม่ยิงอะไร)
+setInterval(() => { try { if (fsIsOnline()) fsFlushCountQueue(); } catch (e) {} }, 60000);
 window.addEventListener('offline', fsUpdateOfflineBadge);
 
 async function login() {
@@ -24438,6 +24445,7 @@ async function saveCount() {
   
   // Workflow check - Counter/Verifier ต้องให้ CTL เปิดก่อน
   const r = user.role;
+  let _netFallback = false;   // 📶 เน็ตสะดุดกลางทาง → เก็บยอดลงเครื่องแทน
   if (['counter', 'verifier', 'audit'].includes(r) && loc?.location_code) {
    if (!fsIsOnline()) {
     // 🔌 ออฟไลน์ (Option A) — นับได้เฉพาะ Gondola ที่เปิด/จองไว้ตอนมีเน็ตแล้วเท่านั้น (เช็ค realtime ไม่ได้)
@@ -24448,11 +24456,12 @@ async function saveCount() {
       return;
     }
    } else {
-    const { data: gs } = await sb.from('gondola_status')
+   try {
+    const { data: gs } = await _fsTimeout(sb.from('gondola_status')
       .select('status, active_counter_id, active_verifier_id')
       .eq('session_id', session.id)
       .eq('location_code', loc.location_code)
-      .maybeSingle();
+      .maybeSingle());
     
     const isCounter = ['counter'].includes(r);
     const isVerifier = ['verifier', 'audit'].includes(r);
@@ -24490,15 +24499,15 @@ async function saveCount() {
     // ⭐ B7: จับจอง gondola แบบ atomic — update เฉพาะถ้าสถานะยังเป็น open อยู่
     //    ถ้าอีกเครื่องชิงไปก่อน (update ไม่ติด) ให้เช็คซ้ำแล้วแจ้งเตือน
     if (isCounter && gs.status === 'open_for_counting') {
-      const { data: claimed } = await sb.from('gondola_status').update({
+      const { data: claimed } = await _fsTimeout(sb.from('gondola_status').update({
         status: 'counting',
         active_counter_id: user.id,
         counting_started_at: new Date().toISOString()
       }).eq('session_id', session.id).eq('location_code', loc.location_code)
-        .eq('status', 'open_for_counting').select('location_code');
+        .eq('status', 'open_for_counting').select('location_code'));
       if (!claimed || !claimed.length) {
-        const { data: gs2 } = await sb.from('gondola_status').select('active_counter_id')
-          .eq('session_id', session.id).eq('location_code', loc.location_code).maybeSingle();
+        const { data: gs2 } = await _fsTimeout(sb.from('gondola_status').select('active_counter_id')
+          .eq('session_id', session.id).eq('location_code', loc.location_code).maybeSingle());
         if (gs2 && gs2.active_counter_id && gs2.active_counter_id !== user.id) {
           showToast(lang === 'lo' ? '🔒 Gondola ນີ້ມີຄົນອື່ນກຳລັງນັບຢູ່' : '🔒 Gondola นี้มีคนอื่นกำลังนับอยู่', 'warning');
           releaseBtn();
@@ -24507,15 +24516,15 @@ async function saveCount() {
       }
     }
     if (isVerifier && gs.status === 'open_for_verify') {
-      const { data: claimed } = await sb.from('gondola_status').update({
+      const { data: claimed } = await _fsTimeout(sb.from('gondola_status').update({
         status: 'verifying',
         active_verifier_id: user.id,
         verifying_started_at: new Date().toISOString()
       }).eq('session_id', session.id).eq('location_code', loc.location_code)
-        .eq('status', 'open_for_verify').select('location_code');
+        .eq('status', 'open_for_verify').select('location_code'));
       if (!claimed || !claimed.length) {
-        const { data: gs2 } = await sb.from('gondola_status').select('active_verifier_id')
-          .eq('session_id', session.id).eq('location_code', loc.location_code).maybeSingle();
+        const { data: gs2 } = await _fsTimeout(sb.from('gondola_status').select('active_verifier_id')
+          .eq('session_id', session.id).eq('location_code', loc.location_code).maybeSingle());
         if (gs2 && gs2.active_verifier_id && gs2.active_verifier_id !== user.id) {
           showToast(lang === 'lo' ? '🔒 Gondola ນີ້ມີຄົນອື່ນກຳລັງກວດຢູ່' : '🔒 Gondola นี้มีคนอื่นกำลังตรวจอยู่', 'warning');
           releaseBtn();
@@ -24525,6 +24534,17 @@ async function saveCount() {
     }
     // ✅ จอง/ยืนยัน Gondola สำเร็จ (online) → จำไว้ให้ offline นับต่อได้ภายหลัง (Option A)
     await fsClaimRecord(session.id, loc.location_code, ['verifier', 'audit'].includes(r) ? 'verifier' : 'counter');
+   } catch (e) {
+    // 📶 เน็ตสะดุดระหว่างเช็ค Gondola → ใช้กติกาออฟไลน์: Gondola ที่จองไว้แล้ว = บันทึกลงเครื่องได้
+    if (!fsIsNetErr(e)) { showToast('Error: ' + (e.message || e), 'error'); releaseBtn(); return; }
+    const _has = await fsClaimHas(session.id, loc.location_code);
+    if (!_has) {
+      showToast(lang === 'lo' ? '📶 ເນັດສະດຸດ: ບັນທຶກບໍ່ໄດ້ ລອງໃໝ່ອີກຄັ້ງ' : '📶 เน็ตสะดุด: บันทึกไม่ได้ ลองใหม่อีกครั้ง', 'warning');
+      releaseBtn();
+      return;
+    }
+    _netFallback = true;
+   }
    }
   }
 
@@ -24560,6 +24580,17 @@ async function saveCount() {
   log('Saving count:', insertData);
 
   // 🔌 ออฟไลน์ → เก็บการนับลง queue ในเครื่อง แล้ว sync ตอนเน็ตกลับ (Option A)
+  const _queueLocal = async (why) => {
+    const okq = await fsQueueCount(insertData, { name: (curProduct.name_th || curProduct.name_lo || ''), qty: count });
+    if (!okq) { showToast('Error: offline save failed', 'error'); releaseBtn(); return; }
+    const n = await fsCountQueueLen();
+    showToast((why === 'net' ? (lang === 'lo' ? '📶 ເນັດສະດຸດ — ເກັບຍອດໃນເຄື່ອງແລ້ວ (ຄ້າງ ' : '📶 เน็ตสะดุด — เก็บยอดในเครื่องแล้ว (ค้าง ') : (lang === 'lo' ? '📴 ເກັບໃນເຄື່ອງ (ຄ້າງ ' : '📴 เก็บในเครื่อง (ค้าง '))
+      + n + (lang === 'lo' ? ' · ສົ່ງໃຫ້ອັດຕະໂນມັດເມື່ອເນັດກັບມາ)' : ' · ส่งให้อัตโนมัติเมื่อเน็ตกลับ)'), 'warning');
+    cancelCount();
+    fsUpdateOfflineBadge();
+    releaseBtn();
+  };
+  if (_netFallback) { await _queueLocal('net'); return; }
   if (!fsIsOnline()) {
     const okq = await fsQueueCount(insertData, { name: (curProduct.name_th || curProduct.name_lo || ''), qty: count });
     if (!okq) { showToast('Error: offline save failed', 'error'); releaseBtn(); return; }
@@ -24571,7 +24602,13 @@ async function saveCount() {
     return;
   }
 
-  const { data, error } = await sb.from('stock_counts').insert(insertData).select().single();
+  let data, error;
+  try {
+    const res = await _fsTimeout(sb.from('stock_counts').insert(insertData).select().single());
+    data = res.data; error = res.error;
+  } catch (e) { error = e; }
+  // 📶 เน็ตสะดุดตอนส่ง → เก็บลงเครื่องแทน (ไม่ทิ้งยอด) · ⚠️ timeout อาจเป็นกรณี "ส่งถึงแล้วแต่ตอบช้า" → ยอดซ้ำได้ 1 แถว = ค่าเดียวกัน (ระบบใช้ล่าสุดต่อจุด ไม่บวม)
+  if (error && fsIsNetErr(error)) { await _queueLocal('net'); return; }
 
   if (error) {
     console.error('[FS] Save error:', error);
@@ -24594,8 +24631,8 @@ async function saveCount() {
   
   showToast(toastMsg, toastType);
   cancelCount();
-  await loadSessionStats();
-  updateTbBadge();
+  try { await loadSessionStats(); } catch (e) {}
+  try { updateTbBadge(); } catch (e) {}
 }
 
 // ==================== STATS ====================
