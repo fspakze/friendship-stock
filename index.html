@@ -26058,9 +26058,23 @@ async function loadDashboard() {
   const aAll = _csumAgg(d.done.concat(_csumInclRows(d, 'AB')));
   const kc = (t, big, sub, c) => '<div style="background:var(--slate-50);border-radius:9px;padding:8px 10px;"><div style="font-size:10px;font-weight:800;color:var(--slate-500);">' + t + '</div>'
     + '<div style="font-size:16px;font-weight:800;color:' + (c || 'var(--slate-900)') + ';font-family:\'Space Grotesk\',monospace;">' + big + '</div><div style="font-size:10px;color:var(--slate-500);">' + sub + '</div></div>';
-  set('dashValue', '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;">'
+  // 📦 สต๊อก POS ทั้งสาขา (Sabuysoft) vs นับแล้ว — ดูว่ามีเท่าไหร่ นับไปเท่าไหร่ (Ball 2026-11-13)
+  const pa = d.posAll || { sku: 0, qty: 0, v: 0, cntSku: 0, cntV: 0, countedSku: 0 };
+  const covSku = pa.sku ? (pa.cntSku / pa.sku * 100) : 0, covV = pa.v ? (pa.cntV / pa.v * 100) : 0;
+  const posRow = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px;margin-bottom:8px;">'
+    + '<div style="background:var(--sky-50,#f0f9ff);border:1px solid var(--sky-200,#bae6fd);border-radius:10px;padding:9px 11px;">'
+    +   '<div style="font-size:10px;font-weight:800;color:var(--sky-700);">📦 ' + L('ສະຕ໋ອກ POS ທັງສາຂາ (Sabuysoft)', 'สต๊อก POS ทั้งสาขา (Sabuysoft)') + '</div>'
+    +   '<div style="font-size:18px;font-weight:800;color:var(--slate-900);font-family:\'Space Grotesk\',monospace;">₭' + N(pa.v) + '</div>'
+    +   '<div style="font-size:10px;color:var(--slate-500);">' + N(pa.sku) + ' SKU · ' + N(pa.qty) + L(' ຊິ້ນ', ' ชิ้น') + '</div></div>'
+    + '<div style="background:var(--emerald-50,#ecfdf5);border:1px solid var(--emerald-200,#a7f3d0);border-radius:10px;padding:9px 11px;">'
+    +   '<div style="font-size:10px;font-weight:800;color:var(--emerald-700);">✅ ' + L('ນັບແລ້ວ (ສິນຄ້າໃນ POS)', 'นับแล้ว (สินค้าใน POS)') + '</div>'
+    +   '<div style="font-size:18px;font-weight:800;color:var(--slate-900);font-family:\'Space Grotesk\',monospace;">' + N(pa.cntSku) + ' / ' + N(pa.sku) + ' SKU <span style="font-size:12px;color:var(--emerald-700);">' + covSku.toFixed(1) + '%</span></div>'
+    +   '<div style="height:6px;background:var(--slate-100);border-radius:4px;overflow:hidden;margin:4px 0;"><div style="height:100%;width:' + Math.min(100, covSku).toFixed(1) + '%;background:var(--emerald-500);"></div></div>'
+    +   '<div style="font-size:10px;color:var(--slate-500);">' + L('ມູນຄ່າ POS ທີ່ນັບແລ້ວ ₭', 'มูลค่า POS ที่นับแล้ว ₭') + N(pa.cntV) + ' (' + covV.toFixed(1) + '%)' + (pa.countedSku > pa.cntSku ? ' · ' + L('ນັບເຈີສິນຄ້າ POS 0 ອີກ ', 'นับเจอสินค้า POS 0 อีก ') + (pa.countedSku - pa.cntSku) + ' SKU' : '') + '</div></div>'
+    + '</div>';
+  set('dashValue', posRow + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;">'
     + kc(L('ຍອດ POS (ທີ່ນັບ)', 'ยอด POS (ที่นับ)'), '₭' + N(a.posV), N(a.pos) + L(' ຊິ້ນ · ', ' ชิ้น · ') + a.sku + ' SKU')
-    + kc(L('ນັບໄດ້', 'นับได้'), '₭' + N(a.finV), N(a.fin) + L(' ຊິ້ນ', ' ชิ้น'))
+    + kc(L('ນັບໄດ້', 'นับได้'), '₭' + N(a.finV), N(a.fin) + L(' ຊິ້ນ · ', ' ชิ้น · ') + a.sku + ' SKU')
     + kc(L('ເກີນ', 'เกิน'), '+₭' + N(a.overV), a.overSku + ' SKU', 'var(--sky-600)')
     + kc(L('ຂາດ', 'ขาด'), '−₭' + N(Math.abs(a.shortV)), a.shortSku + ' SKU', 'var(--rose-500)')
     + kc(L('Diff ສຸດທິ', 'Diff สุทธิ'), (a.diffV < 0 ? '−₭' : '+₭') + N(Math.abs(a.diffV)), a.diffPct.toFixed(2) + '%', a.diffV < 0 ? 'var(--rose-500)' : 'var(--sky-600)')
@@ -27707,7 +27721,7 @@ let _csumView = null;    // null | 'summary' | 'uncounted'
 let _csumUncTab = 'A';   // 'A' | 'B'
 let _csumBAll = false;   // กลุ่ม B: false = เฉพาะที่ยังขายอยู่ (AVG > 0)
 let _csumBusy = false;
-let _csumIncl = 'none';  // สรุปผล: รวมสินค้าไม่ได้นับเป็นของขาด — 'none' | 'A' | 'AB' (นับครบทั้งร้านแล้ว)
+let _csumIncl = 'AB';    // (ค่าเริ่มต้น = รวม A+B · Ball 2026-11-13) สรุปผล: รวมสินค้าไม่ได้นับเป็นของขาด — 'none' | 'A' | 'AB' (นับครบทั้งร้านแล้ว)
 let _csumUncCat = null;  // หน้าไม่ได้นับ: null = ตารางสรุปตามประเภท · string = รายการของประเภทนั้น
 // สินค้าไม่ได้นับ → แถวแบบ "นับได้ 0" (ขาดเท่ากับ POS) ใช้รวมในสรุป
 function _csumUncAsDone(r) { return { pos: r.pos, fin: 0, diff: -r.pos, posV: r.posV, finV: 0, diffV: -r.posV, noCost: r.noCost, cat: r.cat, grp: r.grp }; }
@@ -27844,7 +27858,11 @@ async function csumLoad(force) {
       pos: it.pos_qty, fin: it.final_qty, counted: (it.countedGons || []).join(', '), missing: (it.missingGons || []).join(', ')
     }));
 
-    _csum = { done, uncA: uncRows.filter(r => r.grpKey === 'A'), uncB: uncRows.filter(r => r.grpKey === 'B'), pend, countedGons: [...countedGons].sort(), at: new Date() };
+    // 📦 สต๊อก POS ทั้งสาขา (Sabuysoft · active POS>0) + ส่วนที่นับแล้ว
+    let pAllSku = 0, pAllQty = 0, pAllV = 0, pCntSku = 0, pCntV = 0;
+    (posProds || []).forEach(p => { const q = Number(p.pos_qty) || 0; const v = q * info(p.barcode, p.cost_price, p.sell_price).cost; pAllSku++; pAllQty += q; pAllV += v; if (countedIds.has(p.id)) { pCntSku++; pCntV += v; } });
+    const posAll = { sku: pAllSku, qty: pAllQty, v: pAllV, cntSku: pCntSku, cntV: pCntV, countedSku: countedIds.size };
+    _csum = { done, uncA: uncRows.filter(r => r.grpKey === 'A'), uncB: uncRows.filter(r => r.grpKey === 'B'), pend, countedGons: [...countedGons].sort(), posAll, at: new Date() };
     return _csum;
   } catch (e) {
     console.error('[FS] csumLoad error:', e);
@@ -27882,8 +27900,13 @@ function csumEntryHtml(isLao) {
     + '</div>';
 }
 async function csumOpen(view) {
+  // ⏳ โชว์สถานะกำลังโหลดทันที (ครั้งแรกต้องดึงต้นทุน/ประเภท/สินค้าทั้งสาขา — สาขาใหญ่ใช้เวลาหลายวินาที)
+  const _el0 = document.getElementById('varianceList');
+  if (!_csum && _el0) _el0.innerHTML = '<div style="text-align:center;padding:40px 20px;"><div class="loader" style="margin:0 auto 12px;"></div>'
+    + '<div style="font-size:13px;font-weight:800;color:var(--slate-700);">' + (lang === 'lo' ? 'ກຳລັງສະຫຼຸບຜົນນັບ...' : 'กำลังสรุปผลนับ...') + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-500);margin-top:4px;">' + (lang === 'lo' ? 'ດຶງຕົ້ນທຶນ · ປະເພດ · ສິນຄ້າທັງສາຂາ (ອາດໃຊ້ເວລາ 10-30 ວິ)' : 'ดึงต้นทุน · ประเภท · สินค้าทั้งสาขา (อาจใช้เวลา 10-30 วิ)') + '</div></div>';
   const d = await csumLoad(false);
-  if (!d) return;
+  if (!d) { renderVarianceList(); return; }
   _csumView = view;
   renderVarianceList();
   const el = document.getElementById('varianceList'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
