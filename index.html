@@ -25965,7 +25965,19 @@ function renderDashboardPage() {
   `;
 }
 
-function _dashGo(page, after) { window._dashAfter = after || null; goPage(page); }
+// กดจาก Dashboard → ไปหน้านั้น + แปะปุ่ม "← กลับ Dashboard" บนสุด (Ball 2026-11-13 — เดิมต้องกลับผ่านเมนู)
+function _dashGo(page, after) {
+  window._dashAfter = after || null;
+  goPage(page);
+  const c = document.getElementById('appContent');
+  if (!c || document.getElementById('dashBackBar')) return;
+  const b = document.createElement('div');
+  b.id = 'dashBackBar';
+  b.style.cssText = 'margin-bottom:10px;';
+  b.innerHTML = '<button onclick="goPage(\'dashboard\')" style="background:white;border:1px solid var(--slate-300);border-radius:9px;padding:8px 13px;font-size:12px;font-weight:800;color:var(--slate-700);cursor:pointer;">← '
+    + (lang === 'lo' ? 'ກັບ Dashboard' : 'กลับ Dashboard') + '</button>';
+  c.insertBefore(b, c.firstChild);
+}
 window._dashGo = _dashGo;
 
 async function loadDashboard() {
