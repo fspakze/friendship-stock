@@ -29028,9 +29028,67 @@ function renderUsersPage() {
       </button>
     </div>
     
+    <div id="countIdsBox"></div>
     <div id="usersList"></div>
   `;
 }
+
+// 🔢 ชุดไอดีนับสต๊อกรายไตรมาส (Count1–N = counter · Ver1–N = verifier) — เปิด/ปิดทั้งชุด (Admin) · Ball 2026-11-13
+const COUNT_ID_RE = /^(count|ver)\d+$/i;
+function renderCountIdsBox() {
+  const el = document.getElementById('countIdsBox'); if (!el) return;
+  if (!user || user.role !== 'admin') { el.innerHTML = ''; return; }
+  const ids = (_allUsers || []).filter(u => COUNT_ID_RE.test(String(u.username || '')));
+  if (!ids.length) { el.innerHTML = ''; return; }
+  const isLao = lang === 'lo';
+  const on = ids.filter(u => u.is_active).length, off = ids.length - on;
+  const cN = ids.filter(u => u.role === 'counter').length, vN = ids.filter(u => u.role === 'verifier').length;
+  el.innerHTML = '<div style="background:white;border:2px solid ' + (on ? 'var(--emerald-300)' : 'var(--slate-300)') + ';border-radius:13px;padding:12px 13px;margin-bottom:11px;">'
+    + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+    + '<div style="flex:1;min-width:180px;"><div style="font-size:13px;font-weight:800;color:var(--slate-800);">🔢 ' + (isLao ? 'ໄອດີນັບສະຕ໋ອກ (Count / Ver)' : 'ไอดีนับสต๊อก (Count / Ver)') + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">Counter ' + cN + ' · Verifier ' + vN + ' · '
+    + '<b style="color:var(--emerald-600);">' + (isLao ? 'ເປີດ ' : 'เปิด ') + on + '</b> · <b style="color:var(--slate-500);">' + (isLao ? 'ປິດ ' : 'ปิด ') + off + '</b></div></div>'
+    + '<button onclick="countIdsSetAll(true)" style="background:var(--emerald-500);color:white;border:none;border-radius:9px;padding:9px 13px;font-size:12px;font-weight:800;cursor:pointer;">✅ ' + (isLao ? 'ເປີດທັງຊຸດ' : 'เปิดทั้งชุด') + '</button>'
+    + '<button onclick="countIdsSetAll(false)" style="background:var(--slate-600);color:white;border:none;border-radius:9px;padding:9px 13px;font-size:12px;font-weight:800;cursor:pointer;">🔒 ' + (isLao ? 'ປິດທັງຊຸດ' : 'ปิดทั้งชุด') + '</button>'
+    + '</div>'
+    + '<div style="font-size:10px;color:var(--slate-500);margin-top:7px;">💡 ' + (isLao ? 'ເປີດຕອນເລີ່ມຮອບນັບ · ປິດຫຼັງນັບສຳເລັດ (ຂໍ້ມູນການນັບເກັບໄວ້ຄືເກົ່າ)' : 'เปิดตอนเริ่มรอบนับ · ปิดหลังนับเสร็จ (ข้อมูลการนับยังเก็บไว้เหมือนเดิม)') + '</div>'
+    + '<div id="countIdsProg" style="font-size:11px;font-weight:700;color:var(--sky-700);margin-top:5px;"></div>'
+    + '</div>';
+}
+async function countIdsSetAll(active) {
+  const isLao = lang === 'lo';
+  if (!user || user.role !== 'admin') { showToast(isLao ? 'ສະເພາະ admin' : 'เฉพาะ admin', 'warning'); return; }
+  const targets = (_allUsers || []).filter(u => COUNT_ID_RE.test(String(u.username || '')) && !!u.is_active !== active);
+  if (!targets.length) { showToast(active ? (isLao ? 'ເປີດຄົບແລ້ວ' : 'เปิดครบแล้ว') : (isLao ? 'ປິດຄົບແລ້ວ' : 'ปิดครบแล้ว'), 'info'); return; }
+  if (!confirm((active ? (isLao ? 'ເປີດໃຊ້ງານ ' : 'เปิดใช้งาน ') : (isLao ? 'ປິດໃຊ້ງານ ' : 'ปิดใช้งาน ')) + targets.length + (isLao ? ' ໄອດີ (Count/Ver)?' : ' ไอดี (Count/Ver)?'))) return;
+  let actorHash = _actorAuthHash;
+  if (!actorHash) {
+    const pw = prompt(isLao ? 'ຢືນຢັນລະຫັດຜ່ານຂອງທ່ານ (admin)' : 'ยืนยันรหัสผ่านของคุณ (admin)');
+    if (!pw) return;
+    actorHash = await hashPassword(pw);
+  }
+  const prog = document.getElementById('countIdsProg');
+  let ok = 0, fail = 0;
+  for (let i = 0; i < targets.length; i++) {
+    const u = targets[i];
+    if (prog) prog.textContent = '⏳ ' + (i + 1) + ' / ' + targets.length;
+    try {
+      const { data, error } = await sb.rpc('rpc_admin_upsert_user', {
+        p_actor_username: user.username, p_actor_hash: actorHash, p_id: u.id,
+        p_username: u.username, p_password_hash: null, p_full_name: u.full_name,
+        p_role: u.role, p_branch_id: u.branch_id, p_is_active: active
+      });
+      if (data && data.error === 'actor_auth_failed') { _actorAuthHash = null; showToast(isLao ? 'ລະຫັດຜ່ານຂອງທ່ານບໍ່ຖືກຕ້ອງ' : 'รหัสผ่านของคุณไม่ถูกต้อง', 'error'); if (prog) prog.textContent = ''; return; }
+      if (error || !data || data.ok === false) { fail++; continue; }
+      u.is_active = active; ok++;
+    } catch (e) { fail++; }
+  }
+  _actorAuthHash = actorHash;
+  logActivity('count_ids_bulk', (active ? 'on ' : 'off ') + ok + (fail ? ' fail ' + fail : ''));
+  renderUsersList();
+  showToast((active ? '✅ ' : '🔒 ') + ok + (isLao ? ' ໄອດີ' : ' ไอดี') + (fail ? ' · ' + (isLao ? 'ບໍ່ສຳເລັດ ' : 'ไม่สำเร็จ ') + fail : ''), fail ? 'warning' : 'success');
+}
+window.countIdsSetAll = countIdsSetAll;
 
 let _allUsers = [];
 let _allBranchesForUsers = [];
@@ -29058,6 +29116,7 @@ async function loadUsers() {
 function renderUsersList() {
   const list = document.getElementById('usersList');
   if (!list) return;
+  try { renderCountIdsBox(); } catch (e) {}   // 🔢 กล่องเปิด/ปิดไอดีนับสต๊อกทั้งชุด
   
   const searchEl = document.getElementById('userSearch');
   const searchTerm = (searchEl?.value || '').toLowerCase().trim();
