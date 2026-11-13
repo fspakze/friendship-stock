@@ -42094,7 +42094,8 @@ const CAL_DEFAULT_DEPTS = [
   { id: 'mkt', th: 'การตลาด', lo: 'ການຕະຫຼາດ' }, { id: 'buy', th: 'จัดซื้อ', lo: 'ຈັດຊື້' }, { id: 'sales', th: 'ฝ่ายขาย/สาขา', lo: 'ຝ່າຍຂາຍ/ສາຂາ' }, { id: 'ops', th: 'Operation', lo: 'Operation' },
   { id: 'wh', th: 'คลังสินค้า', lo: 'ສາງສິນຄ້າ' }, { id: 'it', th: 'IT', lo: 'IT' }, { id: 'acc', th: 'บัญชี', lo: 'ບັນຊີ' }, { id: 'hr', th: 'HR', lo: 'HR' }
 ];
-let _cal = { view: 'list', month: null, events: [], overdue: [], mine: false, cat: '', dept: '', showDone: false, allBranch: false, selDay: null, missing: false };
+let _cal = { view: 'month',   // ค่าเริ่มต้น = ตารางเดือน (Ball 2026-11-13)
+  month: null, events: [], overdue: [], mine: false, cat: '', dept: '', showDone: false, allBranch: false, selDay: null, missing: false };
 let _calDepts = null;
 let _calMyCache = [];        // งานของฉัน (ใช้เตือน)
 let _calRemTimer = null, _calCacheAt = 0;
@@ -42140,7 +42141,7 @@ async function calLoadDepts() {
 }
 
 function renderCalendarPage() {
-  if (!_cal.month) { const n = new Date(); _cal.month = new Date(n.getFullYear(), n.getMonth(), 1); }
+  if (!_cal.month) { const n = new Date(); _cal.month = new Date(n.getFullYear(), n.getMonth(), 1); _cal.selDay = localDayKey(n); }   // เปิดครั้งแรก = เลือกวันนี้ (เห็นงานวันนี้ใต้ตาราง)
   return '<div id="calRoot"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>';
 }
 async function calInitPage() {
