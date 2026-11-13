@@ -42113,6 +42113,45 @@ function _calTime(iso) { const d = new Date(iso); return d.toLocaleTimeString(la
 function _calDateLabel(key) { const d = new Date(key + 'T00:00:00'); return d.toLocaleDateString(lang === 'lo' ? 'lo-LA' : 'th-TH', { weekday: 'short', day: 'numeric', month: 'short' }); }
 function _calEndOf(ev) { return new Date(ev.end_at || ev.start_at); }
 function _calMissingTable(err) { const m = String((err && (err.message || err.code)) || ''); return /42P01|PGRST205|calendar_events/.test(m) && /not exist|could not find|42P01|PGRST205/i.test(m); }
+// 🏪 หลายสาขาต่องาน (Ball 2026-11-13): คอลัมน์ branch_ids (SQL\calendar_branch_ids.sql) · ยังไม่รัน SQL = เลือกได้ทีละสาขา
+let _calHasBranchIds = null, _calBranches = null;
+async function _calProbe() {
+  if (_calHasBranchIds === null) { try { const r = await sb.from('calendar_events').select('branch_ids').limit(1); _calHasBranchIds = !r.error; } catch (e) { _calHasBranchIds = false; } }
+  if (!_calBranches) {
+    let list = window._allBranchesCache;
+    if (!list || !list.length) { try { const { data } = await sb.from('branches').select('*').eq('is_active', true).order('id'); list = data || []; } catch (e) { list = []; } }
+    _calBranches = (list || []).filter(b => b.is_active !== false);
+  }
+}
+function _calMiniIds() { return (_calBranches || []).filter(b => /^mini/i.test(String(b.branch_type || '')) && !/^TEST/i.test(String(b.code || ''))).map(b => b.id); }
+function _calBrOr(id) { return 'branch_id.is.null,branch_id.eq.' + id + (_calHasBranchIds ? ',branch_ids.cs.{' + id + '}' : ''); }
+function _calEvBranches(ev) { if (ev.branch_ids && ev.branch_ids.length) return ev.branch_ids.slice(); return ev.branch_id == null ? ['all'] : [ev.branch_id]; }
+function _calBranchLabel(ev) {
+  const ids = _calEvBranches(ev);
+  if (ids[0] === 'all') return '🌐 ' + _calL('ທຸກສາຂາ', 'ทุกสาขา');
+  const mini = _calMiniIds();
+  if (mini.length && ids.length === mini.length && mini.every(x => ids.includes(x))) return '🏪 ' + _calL('ລວມ Minimart', 'รวม Minimart');
+  return '🏪 ' + ids.map(id => ((_calBranches || []).find(b => b.id === id) || {}).code || ('#' + id)).join(', ');
+}
+function calBrToggle(k) {
+  if (!_calForm) return;
+  let l = (_calForm.brs || []).filter(x => x !== 'all');
+  if (k === 'all') l = (_calForm.brs || []).includes('all') ? [] : ['all'];
+  else if (k === 'mini') { const m = _calMiniIds(); const allOn = m.every(x => l.includes(x)); l = allOn ? l.filter(x => !m.includes(x)) : Array.from(new Set(l.concat(m))); if (!_calHasBranchIds) l = l.slice(0, 1); }
+  else { const id = Number(k); if (!_calHasBranchIds) l = [id]; else l = l.includes(id) ? l.filter(x => x !== id) : l.concat([id]); }
+  _calForm.brs = l; calBrRender();
+}
+function calBrRender() {
+  const el = document.getElementById('cfBrs'); if (!el || !_calForm) return;
+  const l = _calForm.brs || [];
+  const mini = _calMiniIds(), miniOn = mini.length && mini.every(x => l.includes(x));
+  const chip = (k, label, on) => '<button type="button" onclick="calBrToggle(\'' + k + '\')" style="background:' + (on ? 'var(--fs-blue,#0E357F)' : 'white') + ';color:' + (on ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:14px;padding:5px 10px;font-size:11px;font-weight:800;cursor:pointer;">' + (on ? '✓ ' : '') + escapeHtml(label) + '</button>';
+  el.innerHTML = chip('all', '🌐 ' + _calL('ທຸກສາຂາ', 'ทุกสาขา'), l.includes('all'))
+    + (_calHasBranchIds && mini.length ? chip('mini', '🏪 ' + _calL('ລວມ Minimart', 'รวม Minimart') + ' (' + mini.length + ')', miniOn) : '')
+    + (_calBranches || []).map(b => chip(String(b.id), b.code + (b.id === branch.id ? ' ★' : ''), l.includes(b.id))).join('')
+    + (!_calHasBranchIds ? '<div style="width:100%;font-size:10px;color:var(--slate-400);margin-top:2px;">' + _calL('ເລືອກໄດ້ທີລະ 1 ສາຂາ (ລໍຖ້າ Admin ຣັນ SQL calendar_branch_ids.sql)', 'เลือกได้ทีละ 1 สาขา (รอ Admin รัน SQL calendar_branch_ids.sql)') + '</div>' : '');
+}
+window.calBrToggle = calBrToggle;
 function _calDeptName(id) { const d = (_calDepts || []).find(x => x.id === id); return d ? _calNm(d) : (id || ''); }
 // ฝ่ายหลายฝ่ายต่องาน (Ball 2026-11-13): เก็บใน dept เป็น "mkt,ops" · 'all' = ทุกฝ่าย
 function _calDeptList(v) { return String(v || '').split(',').map(x => x.trim()).filter(Boolean); }
@@ -42145,6 +42184,7 @@ function renderCalendarPage() {
   return '<div id="calRoot"><div style="text-align:center;padding:30px;"><div class="loader" style="margin:0 auto;"></div></div></div>';
 }
 async function calInitPage() {
+  await _calProbe();
   await calLoadDepts();
   await calLoad();
 }
@@ -42153,7 +42193,7 @@ async function calLoad() {
   const m = _cal.month;
   const from = new Date(m.getFullYear(), m.getMonth(), 1 - 31).toISOString();
   const to = new Date(m.getFullYear(), m.getMonth() + 1, 8).toISOString();
-  const brFilter = q => (_cal.allBranch && isAllBranch()) ? q : q.or('branch_id.is.null,branch_id.eq.' + branch.id);
+  const brFilter = q => (_cal.allBranch && isAllBranch()) ? q : q.or(_calBrOr(branch.id));
   try {
     _cal.events = await fetchAllQuery(() => brFilter(sb.from('calendar_events').select('*').gte('start_at', from).lt('start_at', to)).order('start_at').order('id'));
     const nowIso = new Date().toISOString();
@@ -42186,7 +42226,7 @@ function _calEventRow(ev, showDate) {
     + '<div style="flex:1;min-width:0;">'
     +   '<div style="font-size:12.5px;font-weight:800;color:var(--slate-900);' + (ev.status === 'done' ? 'text-decoration:line-through;' : '') + '">' + escapeHtml(ev.title) + '</div>'
     +   '<div style="font-size:10.5px;color:var(--slate-500);margin-top:2px;">' + (showDate ? escapeHtml(_calDateLabel(_calDayKey(ev.start_at))) + ' · ' : '') + escapeHtml(timeTxt)
-    +     (ev.dept ? ' · ' + escapeHtml(_calDeptNames(ev.dept)) : '') + (ev.branch_id == null ? ' · 🌐 ' + _calL('ທຸກສາຂາ', 'ทุกสาขา') : '') + '</div>'
+    +     (ev.dept ? ' · ' + escapeHtml(_calDeptNames(ev.dept)) : '') + ((() => { const ids = _calEvBranches(ev); return (ids.length === 1 && ids[0] === branch.id) ? '' : ' · ' + escapeHtml(_calBranchLabel(ev)); })()) + '</div>'
     +   (who.length ? '<div style="font-size:10.5px;color:var(--slate-600);margin-top:2px;">👤 ' + escapeHtml(who.join(', ')) + '</div>' : '')
     + '</div>'
     + '<span style="flex-shrink:0;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;background:' + (late ? 'var(--rose-500)' : st.color + '1a') + ';color:' + (late ? 'white' : st.color) + ';">' + (late ? '⏰ ' + _calL('ເລີຍກຳນົດ', 'เลยกำหนด') : _calNm(st)) + '</span>'
@@ -42294,7 +42334,7 @@ function calOpenDetail(id) {
   const ev = _calFind(id); if (!ev) return;
   const L = _calL, c = CAL_CATS[ev.category] || CAL_CATS.other, st = CAL_STATUS[ev.status] || CAL_STATUS.todo;
   const fmt = iso => new Date(iso).toLocaleString(lang === 'lo' ? 'lo-LA' : 'th-TH', ev.all_day ? { day: 'numeric', month: 'short', year: 'numeric' } : { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  const brName = ev.branch_id == null ? '🌐 ' + L('ທຸກສາຂາ', 'ทุกสาขา') : (((window._allBranchesCache || []).find(b => b.id === ev.branch_id) || {}).code || ('#' + ev.branch_id));
+  const brName = _calBranchLabel(ev);
   const rem = CAL_REMIND.find(r => r[0] === (ev.remind_minutes == null ? null : ev.remind_minutes));
   const row = (k, v) => v ? '<div style="display:flex;gap:8px;font-size:12px;margin-bottom:5px;"><span style="width:92px;flex-shrink:0;color:var(--slate-500);">' + k + '</span><span style="color:var(--slate-800);font-weight:600;">' + v + '</span></div>' : '';
   const stBtns = _calCanEdit(ev) ? '<div style="display:flex;gap:5px;flex-wrap:wrap;margin:10px 0;">' + Object.keys(CAL_STATUS).map(k => '<button onclick="calSetStatus(' + ev.id + ',\'' + k + '\')" style="flex:1;min-width:70px;background:' + (ev.status === k ? CAL_STATUS[k].color : 'white') + ';color:' + (ev.status === k ? 'white' : CAL_STATUS[k].color) + ';border:1px solid ' + CAL_STATUS[k].color + ';border-radius:8px;padding:7px 4px;font-size:11px;font-weight:800;cursor:pointer;">' + _calNm(CAL_STATUS[k]) + '</button>').join('') + '</div>' : '';
@@ -42341,7 +42381,7 @@ async function calOpenForm(id) {
   const ev = id ? _calFind(id) : null;
   if (ev && !_calCanEdit(ev)) return;
   const dayKey = _cal.selDay || localDayKey(new Date());
-  _calForm = { id: ev ? ev.id : null, assignees: ev ? (ev.assignees || []).slice() : [], depts: ev ? _calDeptList(ev.dept) : [] };
+  _calForm = { id: ev ? ev.id : null, assignees: ev ? (ev.assignees || []).slice() : [], depts: ev ? _calDeptList(ev.dept) : [], brs: ev ? _calEvBranches(ev) : [branch.id] };
   const [sd, stt] = ev ? _calSplit(ev.start_at) : [dayKey, '09:00'];
   const [ed, ett] = ev && ev.end_at ? _calSplit(ev.end_at) : [sd, ev ? '' : '10:00'];
   const opt = (v, t, cur) => '<option value="' + escapeHtml(v) + '"' + (String(v) === String(cur) ? ' selected' : '') + '>' + escapeHtml(t) + '</option>';
@@ -42351,7 +42391,7 @@ async function calOpenForm(id) {
     + lab(L('ຫົວຂໍ້ວຽກ *', 'หัวข้องาน *')) + '<input id="cfTitle" ' + inp + ' maxlength="150" value="' + escapeHtml(ev ? ev.title : '') + '">'
     + lab(L('ປະເພດ', 'ประเภท')) + '<select id="cfCat" ' + inp + '>' + Object.keys(CAL_CATS).map(k => opt(k, CAL_CATS[k].icon + ' ' + _calNm(CAL_CATS[k]), ev ? ev.category : 'task')).join('') + '</select>'
     + lab(L('ຝ່າຍ (ເລືອກໄດ້ຫຼາຍຝ່າຍ)', 'ฝ่าย (เลือกได้หลายฝ่าย)')) + '<div id="cfDepts" style="display:flex;flex-wrap:wrap;gap:5px;"></div>'
-    + lab(L('ສາຂາ', 'สาขา')) + '<select id="cfBranch" ' + inp + '>' + (ev && ev.branch_id != null && ev.branch_id !== branch.id ? opt('keep', L('ສາຂາເດີມ', 'สาขาเดิม') + ' #' + ev.branch_id, 'keep') : '') + opt('cur', L('ສາຂານີ້', 'สาขานี้') + ' (' + (branch.code || '') + ')', ev ? (ev.branch_id == null ? 'all' : 'cur') : 'cur') + opt('all', '🌐 ' + L('ທຸກສາຂາ', 'ทุกสาขา'), ev ? (ev.branch_id == null ? 'all' : 'cur') : 'cur') + '</select>'
+    + lab(L('ສາຂາ (ເລືອກໄດ້ຫຼາຍສາຂາ)', 'สาขา (เลือกได้หลายสาขา)')) + '<div id="cfBrs" style="display:flex;flex-wrap:wrap;gap:5px;"></div>'
     + '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;margin-top:9px;cursor:pointer;"><input type="checkbox" id="cfAllDay" ' + (ev && ev.all_day ? 'checked' : '') + ' onchange="document.querySelectorAll(\'.cfTime\').forEach(x=>x.style.display=this.checked?\'none\':\'\')"> ' + L('ທັງມື້', 'ทั้งวัน') + '</label>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
     +   '<div>' + lab(L('ເລີ່ມ', 'เริ่ม')) + '<input type="date" id="cfSd" ' + inp + ' value="' + sd + '"><input type="time" id="cfSt" class="form-input cfTime" style="font-size:13px;margin-top:4px;' + (ev && ev.all_day ? 'display:none;' : '') + '" value="' + stt + '"></div>'
@@ -42368,6 +42408,7 @@ async function calOpenForm(id) {
     + '<div class="action-row" style="margin-top:12px;"><button class="btn btn-secondary" onclick="closeModal()">' + L('ຍົກເລີກ', 'ยกเลิก') + '</button><button class="btn btn-primary" id="cfSave" onclick="calSave()">' + T('save') + '</button></div>');
   calWhoRender();
   calDeptRender();
+  await _calProbe(); calBrRender();
   if (!_calUsers) {
     try { const { data } = await sb.rpc('list_users_safe'); _calUsers = (data || []).filter(u => u.is_active !== false); } catch (e) { _calUsers = []; }
   }
@@ -42399,15 +42440,18 @@ async function calSave() {
   let end = ed ? new Date(ed + 'T' + (allDay ? '23:59' : (g('cfEt') || g('cfSt') || '23:59')) + ':00') : null;
   if (end && end < start) { showToast(L('ເວລາສິ້ນສຸດກ່ອນເວລາເລີ່ມ', 'เวลาสิ้นสุดอยู่ก่อนเวลาเริ่ม'), 'warning'); return; }
   const rem = g('cfRemind');
+  const _calBrs = (_calForm && _calForm.brs) || [];
+  if (!_calBrs.length) { showToast(L('ກະລຸນາເລືອກສາຂາຢ່າງໜ້ອຍ 1', 'กรุณาเลือกสาขาอย่างน้อย 1'), 'warning'); return; }
   const payload = {
     title, detail: String(g('cfDetail') || '').trim() || null,
     category: g('cfCat') || 'task', dept: (_calForm && _calForm.depts && _calForm.depts.length) ? _calForm.depts.join(',') : null,
-    branch_id: g('cfBranch') === 'all' ? null : (g('cfBranch') === 'keep' ? (_calFind(_calForm.id) || {}).branch_id : branch.id),
+    branch_id: _calBrs.includes('all') ? null : _calBrs[0],
     start_at: start.toISOString(), end_at: end ? end.toISOString() : null, all_day: allDay,
     assignees: _calForm ? _calForm.assignees : [], status: g('cfStatus') || 'todo',
     remind_minutes: rem === '' || rem == null ? null : parseInt(rem, 10),
     updated_by: user.id, updated_at: new Date().toISOString()
   };
+  if (_calHasBranchIds) payload.branch_ids = _calBrs.includes('all') ? null : _calBrs;
   const btn = document.getElementById('cfSave'); if (btn) btn.disabled = true;
   let res;
   if (_calForm && _calForm.id) res = await sb.from('calendar_events').update(payload).eq('id', _calForm.id);
@@ -42458,8 +42502,9 @@ async function calRefreshMine(force) {
   _calCacheAt = Date.now();
   try {
     const from = new Date(Date.now() - 60 * 86400000).toISOString(), to = new Date(Date.now() + 7 * 86400000).toISOString();
+    await _calProbe();
     const { data, error } = await sb.from('calendar_events').select('id, title, start_at, end_at, status, remind_minutes, created_by, assignees, branch_id')
-      .in('status', ['todo', 'doing']).gte('start_at', from).lt('start_at', to).or('branch_id.is.null,branch_id.eq.' + branch.id).order('start_at').limit(1000);
+      .in('status', ['todo', 'doing']).gte('start_at', from).lt('start_at', to).or(_calBrOr(branch.id)).order('start_at').limit(1000);
     if (error) return;   // ตารางยังไม่มี/เน็ต = เงียบ (ไม่กระทบการใช้งานหลัก)
     _calMyCache = (data || []).filter(_calIsMine);
   } catch (e) { return; }
