@@ -5801,6 +5801,8 @@ function goPage(page) {
     c.innerHTML = renderHealthPage();
     loadHealth();
   } else if (page === 'variance') {
+    // เข้าหน้าตามปกติ (ไม่ได้มาจากลิงก์ Dashboard) → ล้างตัวกรองขั้นตอน กันค้างจากครั้งก่อน
+    if (!window._dashAfter && typeof _varStageFilter !== 'undefined') _varStageFilter = 'all';
     c.innerHTML = renderVariancePage();
     loadVarianceReport();
   } else if (page === 'gapscan') {
@@ -26038,7 +26040,7 @@ async function loadDashboard() {
     + todo('⚠️', L('ນັບຂ້າມຈຸດ (ຂ້າມຈິງ)', 'นับข้ามจุด (ข้ามจริง)'), realGap, 'var(--rose-500)', canWf ? "_dashGo('workflow')" : '')
     + todo('⏳', L('ລໍຖ້ານັບໃຫ້ຄົບທຸກຈຸດ', 'รอนับให้ครบทุกจุด'), pending.length, 'var(--amber-600)', "_dashGo('variance')")
     + todo('🔍', L('ມີສະຕ໋ອກແຕ່ບໍ່ໄດ້ນັບ (A · ຢູ່ Gondola ທີ່ນັບແລ້ວ)', 'มีสต๊อกแต่ไม่ได้นับ (A · อยู่ใน Gondola ที่นับแล้ว)'), aCount == null ? '…' : aCount, 'var(--rose-500)', "_dashGo('variance','csum:uncounted')")
-    + todo('⏳', L('ລໍຖ້າ Verifier ກວດ', 'รอ Verifier ตรวจ'), stCount.wait || 0, 'var(--sky-600)', '');
+    + todo('⏳', L('ລໍຖ້າ Verifier ກວດ', 'รอ Verifier ตรวจ'), stCount.wait || 0, 'var(--sky-600)', "_dashGo('variance','stage:wait')");
   set('dashTodo', todoHtml(null));
 
   // ---------- 5) ผลงานทีม ----------
@@ -27106,8 +27108,8 @@ function renderVarianceList() {
   const isLao = lang === 'lo';
   const fmt = new Intl.NumberFormat('th-TH');
   
-  // Filter by level
-  let items = _varianceData.filter(p => p.level === _varianceFilter.level);
+  // Filter by level (ตัวกรองขั้นตอน ≠ ทั้งหมด → แสดงทุก Level · Ball 2026-11-13)
+  let items = _varianceData.slice();
   
   // Filter by search
   if (_varianceFilter.search) {
@@ -27123,11 +27125,12 @@ function renderVarianceList() {
   // Sort: highest diff first (absolute)
   items.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
 
-  // 🧭 ตัวกรองตามขั้นตอนการนับ (นับก่อนกรอง เพื่อโชว์จำนวนบนชิป)
+  // 🧭 ตัวกรองตามขั้นตอนการนับ — ชิปนับจากทุก Level · "ทั้งหมด" = Level ที่เลือก
   const _stCount = {};
   items.forEach(p => { const g = _varStageGroup(varStage(p).key); _stCount[g] = (_stCount[g] || 0) + 1; });
-  const _stTotal = items.length;
-  if (_varStageFilter !== 'all') items = items.filter(p => _varStageGroup(varStage(p).key) === _varStageFilter);
+  const _byLevel = items.filter(p => p.level === _varianceFilter.level);
+  const _stTotal = _byLevel.length;
+  items = (_varStageFilter !== 'all') ? items.filter(p => _varStageGroup(varStage(p).key) === _varStageFilter) : _byLevel;
 
   const listEl = document.getElementById('varianceList');
 
@@ -27149,7 +27152,8 @@ function renderVarianceList() {
   }
 
   // Group by gondola?
-  let html = pendingHtml + _varStageChipsHtml(_stCount, _stTotal, isLao);
+  let html = pendingHtml + _varStageChipsHtml(_stCount, _stTotal, isLao)
+    + (_varStageFilter !== 'all' ? '<div style="font-size:10.5px;color:var(--slate-500);margin:-2px 0 6px;">ℹ️ ' + (isLao ? 'ສະແດງທຸກ Level (L1–L4) ຂອງຂັ້ນຕອນນີ້' : 'แสดงทุก Level (L1–L4) ของขั้นตอนนี้') + '</div>' : '');
   
   if (_varianceFilter.groupBy === 'gondola') {
     // Group
