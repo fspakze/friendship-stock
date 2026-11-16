@@ -29034,7 +29034,7 @@ function renderUsersPage() {
 }
 
 // 🔢 ชุดไอดีนับสต๊อกรายไตรมาส (Count1–N = counter · Ver1–N = verifier) — เปิด/ปิดทั้งชุด (Admin) · Ball 2026-11-13
-const COUNT_ID_RE = /^(count|ver)\d+$/i;
+const COUNT_ID_RE = /^(count|ver|ctl)\d+$/i;   // Count1… · Ver1… · CTL1… (ไม่รวม CTL1-DF-RAT / CTLTEST1 ฯลฯ)
 function renderCountIdsBox() {
   const el = document.getElementById('countIdsBox'); if (!el) return;
   if (!user || user.role !== 'admin') { el.innerHTML = ''; return; }
@@ -29042,11 +29042,11 @@ function renderCountIdsBox() {
   if (!ids.length) { el.innerHTML = ''; return; }
   const isLao = lang === 'lo';
   const on = ids.filter(u => u.is_active).length, off = ids.length - on;
-  const cN = ids.filter(u => u.role === 'counter').length, vN = ids.filter(u => u.role === 'verifier').length;
+  const cN = ids.filter(u => u.role === 'counter').length, vN = ids.filter(u => u.role === 'verifier').length, tN = ids.filter(u => u.role === 'ctl').length;
   el.innerHTML = '<div style="background:white;border:2px solid ' + (on ? 'var(--emerald-300)' : 'var(--slate-300)') + ';border-radius:13px;padding:12px 13px;margin-bottom:11px;">'
     + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
-    + '<div style="flex:1;min-width:180px;"><div style="font-size:13px;font-weight:800;color:var(--slate-800);">🔢 ' + (isLao ? 'ໄອດີນັບສະຕ໋ອກ (Count / Ver)' : 'ไอดีนับสต๊อก (Count / Ver)') + '</div>'
-    + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">Counter ' + cN + ' · Verifier ' + vN + ' · '
+    + '<div style="flex:1;min-width:180px;"><div style="font-size:13px;font-weight:800;color:var(--slate-800);">🔢 ' + (isLao ? 'ໄອດີນັບສະຕ໋ອກ (Count / Ver / CTL)' : 'ไอดีนับสต๊อก (Count / Ver / CTL)') + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">Counter ' + cN + ' · Verifier ' + vN + (tN ? ' · CTL ' + tN : '') + ' · '
     + '<b style="color:var(--emerald-600);">' + (isLao ? 'ເປີດ ' : 'เปิด ') + on + '</b> · <b style="color:var(--slate-500);">' + (isLao ? 'ປິດ ' : 'ปิด ') + off + '</b></div></div>'
     + '<button onclick="countIdsSetAll(true)" style="background:var(--emerald-500);color:white;border:none;border-radius:9px;padding:9px 13px;font-size:12px;font-weight:800;cursor:pointer;">✅ ' + (isLao ? 'ເປີດທັງຊຸດ' : 'เปิดทั้งชุด') + '</button>'
     + '<button onclick="countIdsSetAll(false)" style="background:var(--slate-600);color:white;border:none;border-radius:9px;padding:9px 13px;font-size:12px;font-weight:800;cursor:pointer;">🔒 ' + (isLao ? 'ປິດທັງຊຸດ' : 'ปิดทั้งชุด') + '</button>'
@@ -29060,7 +29060,7 @@ async function countIdsSetAll(active) {
   if (!user || user.role !== 'admin') { showToast(isLao ? 'ສະເພາະ admin' : 'เฉพาะ admin', 'warning'); return; }
   const targets = (_allUsers || []).filter(u => COUNT_ID_RE.test(String(u.username || '')) && !!u.is_active !== active);
   if (!targets.length) { showToast(active ? (isLao ? 'ເປີດຄົບແລ້ວ' : 'เปิดครบแล้ว') : (isLao ? 'ປິດຄົບແລ້ວ' : 'ปิดครบแล้ว'), 'info'); return; }
-  if (!confirm((active ? (isLao ? 'ເປີດໃຊ້ງານ ' : 'เปิดใช้งาน ') : (isLao ? 'ປິດໃຊ້ງານ ' : 'ปิดใช้งาน ')) + targets.length + (isLao ? ' ໄອດີ (Count/Ver)?' : ' ไอดี (Count/Ver)?'))) return;
+  if (!confirm((active ? (isLao ? 'ເປີດໃຊ້ງານ ' : 'เปิดใช้งาน ') : (isLao ? 'ປິດໃຊ້ງານ ' : 'ปิดใช้งาน ')) + targets.length + (isLao ? ' ໄອດີ (Count/Ver/CTL)?' : ' ไอดี (Count/Ver/CTL)?'))) return;
   let actorHash = _actorAuthHash;
   if (!actorHash) {
     const pw = prompt(isLao ? 'ຢືນຢັນລະຫັດຜ່ານຂອງທ່ານ (admin)' : 'ยืนยันรหัสผ่านของคุณ (admin)');
