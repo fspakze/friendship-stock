@@ -3509,6 +3509,175 @@ async function saveCountMenuBranches() {
   if (ok) closeModal();
 }
 
+// ==================== 🏁 ปิดรอบนับ + ดูรอบนับเก่า (cntRound*) — Ball 2026-11-16 ====================
+// ปิดรอบ = RPC rpc_close_count_round (admin/scc/it · ยืนยันรหัส) → สำเนา POS ทั้งสาขาลง count_pos_snapshots
+//          + stock_sessions.status='completed' + ปิดเมนูนับสาขานั้น → นับครั้งหน้า ensureSession เปิดรอบใหม่เอง
+// ดูรอบเก่า = _viewRound + computeVarianceItems('round') → ยอดนับรอบนั้น เทียบ POS ตามสำเนาวันปิดรอบ
+function cntRoundCanClose() { return !!user && ['admin', 'scc', 'it'].includes(user.role); }
+function _cntL(lo, th) { return lang === 'lo' ? lo : th; }
+function _cntDate(ts) { if (!ts) return '-'; const d = new Date(ts); return isNaN(d) ? '-' : localDayKey(d); }
+
+async function cntRoundSnapMap(sid) {
+  const rows = await fetchAllQuery(() => sb.from('count_pos_snapshots')
+    .select('product_id, barcode, pos_qty, cost_price, sell_price').eq('session_id', sid).order('product_id'));
+  const m = {};
+  (rows || []).forEach(r => { m[r.product_id] = r; });
+  return m;
+}
+
+// รายการรอบที่ปิดแล้วของสาขาปัจจุบัน (ใหม่สุดก่อน)
+async function cntRoundsList() {
+  const { data, error } = await sb.from('stock_sessions')
+    .select('id, session_name, started_at, completed_at, status')
+    .eq('branch_id', branch.id).neq('status', 'active')
+    .order('completed_at', { ascending: false, nullsFirst: false }).limit(40);
+  if (error) throw error;
+  return data || [];
+}
+
+function _cntErrModal(e) {
+  showModal(`<div style="color:var(--rose-500);font-size:12px;">Error: ${escapeHtml((e && e.message) || String(e))}</div><div class="action-row" style="margin-top:12px;"><button class="btn btn-secondary" onclick="closeModal()">${_cntL('ປິດ', 'ปิด')}</button></div>`);
+}
+
+async function openCountRoundPicker() {
+  if (!branch) return;
+  showModal(`<h3 style="font-size:16px;margin:0 0 10px;">📜 ${_cntL('ຮອບນັບເກົ່າ', 'รอบนับเก่า')}</h3><div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>`);
+  let rounds = [];
+  try { rounds = await cntRoundsList(); } catch (e) { _cntErrModal(e); return; }
+  window._cntRoundsCache = rounds;
+  const rows = rounds.map(r => `
+    <button onclick="setVarianceRound(${Number(r.id)})" style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 11px;border:1px solid var(--slate-200);border-radius:9px;background:${_viewRound && _viewRound.id === r.id ? 'var(--fs-purple-tint)' : 'white'};cursor:pointer;">
+      <span style="font-size:18px;">🏁</span>
+      <span style="flex:1;min-width:0;">
+        <span style="display:block;font-weight:700;font-size:12px;color:var(--slate-800);">${escapeHtml(r.session_name || ('#' + r.id))}</span>
+        <span style="display:block;font-size:10px;color:var(--slate-500);margin-top:2px;">${_cntL('ເລີ່ມ', 'เริ่ม')} ${_cntDate(r.started_at)} · ${_cntL('ປິດຮອບ', 'ปิดรอบ')} ${_cntDate(r.completed_at)}</span>
+      </span>
+    </button>`).join('');
+  showModal(`<h3 style="font-size:16px;margin:0 0 6px;">📜 ${_cntL('ຮອບນັບເກົ່າ', 'รอบนับเก่า')}</h3>
+    <div style="font-size:11px;color:var(--slate-500);margin-bottom:11px;line-height:1.5;">${_cntL('ເລືອກຮອບ → ລາຍງານຈະທຽບຍອດນັບກັບ POS ຕາມມື້ປິດຮອບ (ບໍ່ແມ່ນ POS ປັດຈຸບັນ)', 'เลือกรอบ → รายงานจะเทียบยอดนับกับ POS ตามวันปิดรอบ (ไม่ใช่ POS ปัจจุบัน)')}</div>
+    <div style="display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow-y:auto;">${rows || ('<div style="text-align:center;padding:16px;color:var(--slate-400);font-size:12px;">' + _cntL('ຍັງບໍ່ມີຮອບທີ່ປິດແລ້ວ', 'ยังไม่มีรอบที่ปิดแล้ว') + '</div>')}</div>
+    <div class="action-row" style="margin-top:13px;"><button class="btn btn-secondary" onclick="closeModal()">${_cntL('ປິດ', 'ปิด')}</button></div>`);
+}
+
+// สำเนา POS > 0 ของรอบ (รูปแบบเดียวกับ products) — ใช้หา "มีสต๊อกแต่ไม่ได้นับ" ของรอบเก่า
+async function cntRoundUncountedBase(sid) {
+  const snap = await fetchAllQuery(() => sb.from('count_pos_snapshots')
+    .select('product_id, barcode, pos_qty, cost_price, sell_price').eq('session_id', sid).gt('pos_qty', 0).order('product_id'));
+  const ids = (snap || []).map(r => r.product_id);
+  const names = {};
+  for (let i = 0; i < ids.length; i += 300) {
+    const rows = await _sbSel(() => sb.from('products').select('id, name_th, name_lo').in('id', ids.slice(i, i + 300)));
+    (rows || []).forEach(r => { names[r.id] = r; });
+  }
+  return (snap || []).map(r => ({ id: r.product_id, barcode: r.barcode, name_th: (names[r.product_id] || {}).name_th || '', name_lo: (names[r.product_id] || {}).name_lo || '',
+    pos_qty: r.pos_qty, cost_price: r.cost_price, sell_price: r.sell_price }));
+}
+
+function setVarianceRound(id) {
+  const r = (window._cntRoundsCache || []).find(x => Number(x.id) === Number(id));
+  if (!r) return;
+  closeModal();
+  _viewRound = r;
+  setVariancePeriod('round');
+}
+
+function cntRoundBannerHtml() {
+  if (!_viewRound) return '';
+  return `<div style="display:flex;align-items:center;gap:8px;background:var(--fs-purple-tint);border:1.5px solid var(--amber-500);border-radius:9px;padding:8px 10px;margin-bottom:9px;">
+    <span style="font-size:16px;">📜</span>
+    <span style="flex:1;min-width:0;font-size:11px;line-height:1.45;color:var(--slate-800);">
+      <b>${escapeHtml(_viewRound.session_name || ('#' + _viewRound.id))}</b><br>
+      <span style="color:var(--slate-500);">${_cntL('ປິດຮອບ', 'ปิดรอบ')} ${_cntDate(_viewRound.completed_at)} · ${_cntL('POS ຕາມມື້ປິດຮອບ', 'POS ตามวันปิดรอบ')}</span>
+    </span>
+    <button onclick="setVariancePeriod('session')" style="border:none;background:var(--violet-500);color:white;border-radius:7px;padding:6px 9px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;">${_cntL('ກັບຮອບປັດຈຸບັນ', 'กลับรอบปัจจุบัน')}</button>
+  </div>`;
+}
+
+// ---------- ปิดรอบ ----------
+async function openCloseCountRound() {
+  if (!cntRoundCanClose()) { showToast(_cntL('ບໍ່ມີສິດ', 'ไม่มีสิทธิ์'), 'error'); return; }
+  showModal(`<h3 style="font-size:16px;margin:0 0 10px;">🏁 ${_cntL('ປິດຮອບນັບ', 'ปิดรอบนับ')}</h3><div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div>`);
+  try {
+    let brs = window._allBranchesCache;
+    if (!brs || !brs.length) {
+      const { data, error } = await sb.from('branches').select('id, code, name_th, name_lo').order('id');
+      if (error) throw error;
+      brs = data || []; window._allBranchesCache = brs;
+    }
+    const { data: act, error } = await sb.from('stock_sessions').select('id, branch_id, session_name, started_at').eq('status', 'active');
+    if (error) throw error;
+    const cnt = {};
+    for (const a of (act || [])) {
+      const { count } = await sb.from('stock_counts').select('id', { count: 'exact', head: true }).eq('session_id', a.id);
+      cnt[a.id] = count || 0;
+    }
+    const rows = (act || []).filter(a => brs.some(b => b.id === a.branch_id)).map(a => {
+      const b = brs.find(x => x.id === a.branch_id) || {};
+      const nm = lang === 'lo' ? (b.name_lo || b.name_th || b.code) : (b.name_th || b.name_lo || b.code);
+      const n = cnt[a.id] || 0;
+      return `<label style="display:flex;align-items:center;gap:10px;padding:10px 11px;border:1px solid var(--slate-200);border-radius:9px;cursor:${n ? 'pointer' : 'default'};opacity:${n ? 1 : .55};">
+        <input type="radio" name="cntCloseBr" value="${Number(a.branch_id)}" ${n ? '' : 'disabled'} style="width:18px;height:18px;flex-shrink:0;">
+        <span style="flex:1;min-width:0;">
+          <span style="display:block;font-weight:700;font-size:13px;color:var(--slate-800);">${escapeHtml(nm || ('#' + a.branch_id))}</span>
+          <span style="display:block;font-size:10px;color:var(--slate-500);margin-top:2px;">${_cntL('ເລີ່ມ', 'เริ่ม')} ${_cntDate(a.started_at)} · ${_cntL('ນັບແລ້ວ', 'นับแล้ว')} ${n.toLocaleString('en-US')} ${_cntL('ແຖວ', 'แถว')}${n ? '' : ' · ' + _cntL('ບໍ່ມີຍອດນັບ', 'ไม่มียอดนับ')}</span>
+        </span>
+      </label>`;
+    }).join('');
+    showModal(`<h3 style="font-size:16px;margin:0 0 6px;">🏁 ${_cntL('ປິດຮອບນັບ', 'ปิดรอบนับ')}</h3>
+      <div style="font-size:11px;color:var(--slate-600);margin-bottom:10px;line-height:1.55;background:var(--slate-100);border-radius:8px;padding:8px 10px;">
+        ${_cntL('ກົດປິດແລ້ວ ລະບົບຈະ:', 'กดปิดแล้ว ระบบจะ:')}<br>
+        1) ${_cntL('ເກັບສຳເນົາ POS ທັງສາຂາ ໄວ້ທຽບຍ້ອນຫຼັງ', 'เก็บสำเนา POS ทั้งสาขา ไว้เทียบย้อนหลัง')}<br>
+        2) ${_cntL('ປິດຮອບນີ້ — ນັບຄັ້ງໜ້າ ເລີ່ມຮອບໃໝ່ (Workflow ເລີ່ມຈາກສູນ)', 'ปิดรอบนี้ — นับครั้งหน้า เริ่มรอบใหม่ (Workflow เริ่มจากศูนย์)')}<br>
+        3) ${_cntL('ປິດເມນູນັບຂອງສາຂານັ້ນ', 'ปิดเมนูนับของสาขานั้น')}<br>
+        ⚠️ <b>${_cntL('ກວດ POS ໃຫ້ຖືກກ່ອນປິດ (POS ຕອນປິດ = POS ທີ່ໃຊ້ທຽບຍ້ອນຫຼັງ) — ປິດແລ້ວຍ້ອນກັບບໍ່ໄດ້', 'ตรวจ POS ให้ถูกก่อนปิด (POS ตอนปิด = POS ที่ใช้เทียบย้อนหลัง) — ปิดแล้วย้อนกลับไม่ได้')}</b>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;max-height:42vh;overflow-y:auto;">${rows || ('<div style="text-align:center;padding:16px;color:var(--slate-400);font-size:12px;">' + _cntL('ບໍ່ມີຮອບທີ່ເປີດຢູ່', 'ไม่มีรอบที่เปิดอยู่') + '</div>')}</div>
+      <div class="action-row" style="margin-top:13px;"><button class="btn btn-secondary" onclick="closeModal()">${_cntL('ຍົກເລີກ', 'ยกเลิก')}</button>
+      <button class="btn" style="background:var(--rose-500);color:white;" onclick="confirmCloseCountRound()">🏁 ${_cntL('ປິດຮອບ', 'ปิดรอบ')}</button></div>`);
+  } catch (e) { _cntErrModal(e); }
+}
+
+// ปิดเมนูนับเฉพาะสาขาที่ปิดรอบ ('on' → ทุกสาขายกเว้นสาขานี้ · 'branch:..' → ตัดออก · 'off' → คงเดิม)
+function _cntMenuValueWithout(raw, brId, allIds) {
+  raw = raw || 'on';
+  if (raw === 'off') return 'off';
+  let ids = raw.indexOf('branch:') === 0 ? raw.slice(7).split(',').map(x => x.trim()).filter(Boolean) : (allIds || []).map(String);
+  ids = ids.filter(x => x !== String(brId));
+  return ids.length ? 'branch:' + ids.join(',') : 'off';
+}
+
+async function confirmCloseCountRound() {
+  const sel = document.querySelector('input[name="cntCloseBr"]:checked');
+  if (!sel) { showToast(_cntL('ເລືອກສາຂາກ່ອນ', 'เลือกสาขาก่อน'), 'warning'); return; }
+  const brId = Number(sel.value);
+  const b = (window._allBranchesCache || []).find(x => x.id === brId) || {};
+  const nm = lang === 'lo' ? (b.name_lo || b.name_th || b.code) : (b.name_th || b.name_lo || b.code);
+  if (!confirm(_cntL('ຢືນຢັນປິດຮອບນັບ: ', 'ยืนยันปิดรอบนับ: ') + nm + '\n' + _cntL('ປິດແລ້ວຍ້ອນກັບບໍ່ໄດ້', 'ปิดแล้วย้อนกลับไม่ได้'))) return;
+  showToast(_cntL('⏳ ກຳລັງເກັບສຳເນົາ POS...', '⏳ กำลังเก็บสำเนา POS...'), 'info');
+  let res;
+  try { res = await _rpcAsActor('rpc_close_count_round', { p_branch_id: brId }); }
+  catch (e) { showToast('Error: ' + (e.message || String(e)), 'error'); return; }
+  if (res && res.error) {
+    if (_rpcMissing(res.error)) { showToast(_cntL('ຍັງບໍ່ໄດ້ຮັນ SQL count_round_history.sql', 'ยังไม่ได้รัน SQL count_round_history.sql'), 'error'); return; }
+    showToast('Error: ' + (res.error.message || 'failed'), 'error'); return;
+  }
+  const d = res && res.data;
+  if (!d || d.ok === false) {
+    const map = { auth_failed: _cntL('ລະຫັດຜ່ານບໍ່ຖືກ', 'รหัสผ่านไม่ถูก'), forbidden: _cntL('ບໍ່ມີສິດ', 'ไม่มีสิทธิ์'), no_active_round: _cntL('ບໍ່ມີຮອບທີ່ເປີດຢູ່', 'ไม่มีรอบที่เปิดอยู่') };
+    showToast(map[d && d.error] || ((d && d.error) || 'failed'), 'error'); return;
+  }
+  logActivity('close_count_round', 'branch ' + brId + ' · session ' + d.session_id + ' · snapshot ' + d.snapshot_rows);
+  const allIds = (window._allBranchesCache || []).map(x => x.id);
+  await _setCountMenuValue(_cntMenuValueWithout(_countMenuRaw, brId, allIds), null);
+  if (branch && branch.id === brId) { session = null; _viewRound = null; _varianceData = null; _varianceAllData = null; _csum = null; }
+  closeModal();
+  showToast(_cntL('🏁 ປິດຮອບແລ້ວ · ເກັບ POS ', '🏁 ปิดรอบแล้ว · เก็บ POS ') + Number(d.snapshot_rows || 0).toLocaleString('en-US') + _cntL(' ລາຍການ', ' รายการ'), 'success');
+}
+window.openCountRoundPicker = openCountRoundPicker;
+window.setVarianceRound = setVarianceRound;
+window.openCloseCountRound = openCloseCountRound;
+window.confirmCloseCountRound = confirmCloseCountRound;
+
 
 async function afterLogin() {
   // 📅 เริ่ม session เข้าใช้งานรอบใหม่ (login จริง) — refresh จะ resume รอบเดิมแทน
@@ -26166,6 +26335,8 @@ async function loadDashboard() {
 let _varianceData = null;
 let _varianceAllData = null; // includes orphans (deleted products)
 let _variancePending = null; // สินค้านับหลาย gondola ยังไม่ครบทุกจุด (ยังไม่สรุป Diff)
+// 🏁 ดูรอบนับเก่า (Ball 2026-11-16) — null = รอบปัจจุบัน · {id, name, started_at, completed_at}
+let _viewRound = null;
 let _varianceFilter = {
   level: 'L3',      // เริ่มที่ L3 (Recount) เพราะสำคัญสุด
   search: '',
@@ -26204,7 +26375,7 @@ function renderVariancePage() {
     <!-- Period Filter -->
     <div style="display:flex;gap:5px;margin-bottom:9px;background:var(--slate-100);padding:4px;border-radius:9px;">
       <button onclick="setVariancePeriod('session')" id="vpBtnSession" class="vp-btn" 
-              style="flex:1;padding:7px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:var(--violet-500);color:white;">
+              style="flex:1;padding:7px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:${_viewRound ? 'transparent' : 'var(--violet-500)'};color:${_viewRound ? 'var(--slate-600)' : 'white'};">
         📋 Session
       </button>
       <button onclick="setVariancePeriod('today')" id="vpBtnToday" class="vp-btn" 
@@ -26219,7 +26390,12 @@ function renderVariancePage() {
               style="flex:1;padding:7px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:var(--slate-600);">
         ${isLao ? 'ທັງໝົດ' : 'ทั้งหมด'}
       </button>
+      <button onclick="openCountRoundPicker()" id="vpBtnRound" class="vp-btn" 
+              style="flex:1;padding:7px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:${_viewRound ? 'var(--violet-500)' : 'transparent'};color:${_viewRound ? 'white' : 'var(--slate-600)'};">
+        📜 ${isLao ? 'ຮອບເກົ່າ' : 'รอบเก่า'}
+      </button>
     </div>
+    <div id="vpRoundBanner">${cntRoundBannerHtml()}</div>
     
     <!-- Level Tabs -->
     <div id="varianceLevelTabs" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;margin-bottom:9px;">
@@ -26323,7 +26499,9 @@ async function computeVarianceItems(periodOverride) {
     // Build date filter
     let dateFilter = '';
     let sessionFilter = '';
-    if (_vp === 'session' && session) {
+    if (_vp === 'round' && _viewRound) {
+      sessionFilter = _viewRound.id;   // 🏁 รอบนับที่ปิดแล้ว
+    } else if (_vp === 'session' && session) {
       sessionFilter = session.id;
     } else if (_vp === 'today') {
       const today = new Date();
@@ -26398,6 +26576,8 @@ async function computeVarianceItems(periodOverride) {
 
     // 📍 ตำแหน่งที่สินค้าควรอยู่ (Planogram) → เช็คว่านับครบทุก gondola หรือยัง
     const _expMap = await fetchExpectedGondolas((counts || []).map(c => c.product_id));
+    // 🏁 รอบเก่า: POS = สำเนาตอนปิดรอบ (ไม่ใช่ POS ปัจจุบัน) · ไม่มีในสำเนา = 0
+    const _snap = (_vp === 'round' && _viewRound) ? await cntRoundSnapMap(_viewRound.id) : null;
 
     // Calculate variance for each product
     const items = Object.values(byProduct).map(p => {
@@ -26444,7 +26624,11 @@ async function computeVarianceItems(periodOverride) {
       // ถ้า orphan → ใช้ pos_qty_snapshot จาก stock_counts (เผื่อ Admin ดูข้อมูลย้อนหลัง)
       let posQty = 0;
       let costPrice = 0;
-      if (p.product) {
+      if (_snap) {
+        const sp = _snap[p.product_id];
+        posQty = sp ? (Number(sp.pos_qty) || 0) : 0;
+        costPrice = (sp && Number(sp.cost_price) > 0) ? Number(sp.cost_price) : ((p.product && p.product.cost_price) || 0);
+      } else if (p.product) {
         // ⛔ ปิดขาย (ไม่อยู่ในไฟล์ POS ล่าสุด) = สต๊อกปัจจุบัน 0 — pos_qty ที่ค้างคือยอดเก่าก่อนหายจากไฟล์ (Ball 2026-11-12 · MEMORY 33)
         posQty = (p.product.is_active === false) ? 0 : (p.product.pos_qty || 0);
         costPrice = p.product.cost_price || 0;
@@ -26470,7 +26654,7 @@ async function computeVarianceItems(periodOverride) {
         ctl_qty: ctlCount,
         manager_qty: managerCount,
         pos_qty: posQty,
-        posClosed: !!(p.product && p.product.is_active === false),   // ⛔ ปิดขายใน POS
+        posClosed: _snap ? false : !!(p.product && p.product.is_active === false),   // ⛔ ปิดขายใน POS (รอบเก่า: ไม่ใช้สถานะปัจจุบัน)
         cost_price: costPrice,
         diff,
         pct,
@@ -27425,10 +27609,14 @@ function setVarianceLevel(level) {
 }
 
 function setVariancePeriod(period) {
+  if (period !== 'round') _viewRound = null;   // 🏁 ออกจากโหมดรอบเก่า
+  if (period === 'round' && !_viewRound) period = 'session';
   _varianceFilter.period = period;
+  const _rb = document.getElementById('vpRoundBanner');
+  if (_rb) _rb.innerHTML = cntRoundBannerHtml();
   
   // Update button styling
-  ['session', 'today', 'week', 'all'].forEach(p => {
+  ['session', 'today', 'week', 'all', 'round'].forEach(p => {
     const btn = document.getElementById('vpBtn' + p.charAt(0).toUpperCase() + p.slice(1));
     if (!btn) return;
     if (p === period) {
@@ -27636,7 +27824,7 @@ async function exportVarianceExcel() {
       ['Branch', branch.code + ' - ' + (branch.name_th || branch.name_lo)],
       ['Generated', new Date().toLocaleString()],
       ['Period', _varianceFilter.period],
-      ['Session', session?.session_name || '-'],
+      ['Session', (_viewRound ? _viewRound.session_name : session?.session_name) || '-'],
       [],
       ['KPI', 'Value'],
       ['Total Items', total],
@@ -27853,7 +28041,10 @@ async function csumLoad(force) {
       Object.keys(m || {}).forEach(k => { const b = floorBaseCode(String(k || '').toUpperCase().trim()); if (b && b !== '?') countedGons.add(b); })));
 
     // 1) สินค้า POS > 0 ที่ไม่มีใครนับ
-    const posProds = await fetchAllQuery(() => sb.from('products')
+    // 🏁 รอบเก่า: ใช้สำเนา POS วันปิดรอบ (ชื่อสินค้าดึงจาก products ปัจจุบัน)
+    const posProds = (_varianceFilter.period === 'round' && _viewRound)
+      ? await cntRoundUncountedBase(_viewRound.id)
+      : await fetchAllQuery(() => sb.from('products')
       .select('id, barcode, name_th, name_lo, pos_qty, cost_price, sell_price')
       .eq('branch_id', branch.id).eq('is_active', true).gt('pos_qty', 0).order('id'));
     const unc = (posProds || []).filter(p => !countedIds.has(p.id));
@@ -28157,7 +28348,7 @@ async function csumExport() {
     const s0 = [
       ['Friendship Stock — ' + L('ສະຫຼຸບຜົນນັບສະຕ໋ອກ', 'สรุปผลนับสต๊อก')], [],
       [L('ສາຂາ', 'สาขา'), branch.code + ' - ' + (lang === 'lo' ? (branch.name_lo || branch.name_th || '') : (branch.name_th || branch.name_lo || ''))],
-      [L('ຮອບນັບ', 'รอบนับ'), (session && session.session_name) || '-', L('ຊ່ວງ', 'ช่วง'), per],
+      [L('ຮອບນັບ', 'รอบนับ'), (_viewRound ? (_viewRound.session_name + ' (' + L('POS ຕາມມື້ປິດຮອບ', 'POS ตามวันปิดรอบ') + ')') : ((session && session.session_name) || '-')), L('ຊ່ວງ', 'ช่วง'), per],
       [L('ສ້າງເມື່ອ', 'สร้างเมื่อ'), d.at.toLocaleString()], [],
       ['', L('SKU', 'SKU'), L('ຈຳນວນ (ຊິ້ນ)', 'จำนวน (ชิ้น)'), L('ມູນຄ່າ ₭ (ຕົ້ນທຶນ)', 'มูลค่า ₭ (ต้นทุน)')],
       [L('ຍອດ POS (ສິນຄ້າທີ່ນັບ)', 'ยอด POS (สินค้าที่นับ)'), a.sku, a.pos, Math.round(a.posV)],
@@ -35064,6 +35255,9 @@ function renderSettingsPage() {
       <div id="countMenuStatus" style="font-size:11px;font-weight:700;margin-top:9px;color:${cm.color};line-height:1.5;">${cm.icon} ${escapeHtml(cm.text)}</div>
       <button class="btn" style="background:var(--teal-500);color:white;font-size:12px;padding:10px;width:100%;margin-top:10px;" onclick="openCountMenuBranchPicker()">
         ⚙️ ${lang === 'lo' ? 'ເລືອກສາຂາທີ່ເປີດນັບ' : 'เลือกสาขาที่เปิดนับ'}
+      </button>
+      <button class="btn" style="background:var(--rose-500);color:white;font-size:12px;padding:10px;width:100%;margin-top:8px;" onclick="openCloseCountRound()">
+        🏁 ${lang === 'lo' ? 'ປິດຮອບນັບ (ເກັບ POS ໄວ້ທຽບຍ້ອນຫຼັງ)' : 'ปิดรอบนับ (เก็บ POS ไว้เทียบย้อนหลัง)'}
       </button>
     </div>`; })()}
     ` : ''}
