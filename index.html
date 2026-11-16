@@ -26739,6 +26739,20 @@ async function computeVarianceItems(periodOverride) {
 
     // 📍 ตำแหน่งที่สินค้าควรอยู่ (Planogram) → เช็คว่านับครบทุก gondola หรือยัง
     const _expMap = await fetchExpectedGondolas((counts || []).map(c => c.product_id));
+    // 📍 Gondola ที่ "นับแล้ว" (มียอดนับสินค้าใดก็ได้ในชั้นนั้น) และ Counter ไม่ได้กำลังนับอยู่
+    //    → สินค้าตาม Pan-O-Gram เดิมที่ไม่ถูกสแกนในชั้นนั้น = ไม่พบแล้ว (ไม่ต้องรอนับ) · Ball 2026-11-17
+    const _gonCounted = new Set();
+    (counts || []).forEach(c => { const b = floorBaseCode(String(c.location_code || c.gondola_code || '').toUpperCase().trim()); if (b) _gonCounted.add(b); });
+    const _gonOpen = new Set();   // ยังเปิดให้ Counter นับอยู่ = ยังไม่จบ
+    if (sessionFilter) {
+      try {
+        const { data: gp } = await sb.from('v_gondola_progress').select('location_code, status, opened_at').eq('session_id', sessionFilter);
+        const lastSt = {};
+        (gp || []).forEach(r => { const k = String(r.location_code || ''); if (!lastSt[k] || String(r.opened_at || '') > String(lastSt[k].opened_at || '')) lastSt[k] = r; });
+        Object.values(lastSt).forEach(r => { if (r.status === 'open_for_counting') _gonOpen.add(floorBaseCode(String(r.location_code || '').toUpperCase().trim())); });
+      } catch (e) {}
+    }
+    const _gonDone = g => _gonCounted.has(g) && !_gonOpen.has(g);
     // 🏁 รอบเก่า: POS = สำเนาตอนปิดรอบ (ไม่ใช่ POS ปัจจุบัน) · ไม่มีในสำเนา = 0
     const _snap = (_vp === 'round' && _viewRound) ? await cntRoundSnapMap(_viewRound.id) : null;
 
@@ -26764,10 +26778,12 @@ async function computeVarianceItems(periodOverride) {
       //    ยังไม่ครบ → กันสรุป Diff หลอก (POS = ยอดรวมทั้งสาขา แต่ยังนับได้บางจุด)
       const countedGons = new Set([...locSet].map(lk => floorBaseCode(String(lk || '').toUpperCase().trim())).filter(Boolean));
       const expectedSet = _expMap[p.product_id] || null;
-      let isComplete = true, expectedLocs = 0, countedLocs = countedGons.size, missingLocs = [];
+      let isComplete = true, expectedLocs = 0, countedLocs = countedGons.size, missingLocs = [], notFoundLocs = [];
       if (expectedSet && expectedSet.size > 0) {
         expectedLocs = expectedSet.size;
-        missingLocs = [...expectedSet].filter(g => !countedGons.has(g));
+        const _unc = [...expectedSet].filter(g => !countedGons.has(g));
+        notFoundLocs = _unc.filter(g => _gonDone(g));        // ชั้นนั้นนับแล้ว แต่ไม่เจอสินค้านี้ = ไม่พบ
+        missingLocs = _unc.filter(g => !_gonDone(g));        // ชั้นที่ยังไม่มีใครนับ = รอนับ
         isComplete = missingLocs.length === 0;
       } else {
         // ไม่มีใน Planogram → สรุปตามที่นับ (ถือว่าครบ)
@@ -26830,6 +26846,7 @@ async function computeVarianceItems(periodOverride) {
         expectedLocs,      // จำนวน gondola ที่ควรนับ (จาก Planogram)
         countedLocs,       // จำนวน gondola ที่นับแล้ว (ฐาน)
         missingGons: missingLocs,  // gondola ที่ Planogram มี แต่ยังไม่ได้นับ (ใช้ปุ่ม "สรุปเลย")
+        notFoundGons: notFoundLocs, // gondola ตาม Planogram ที่นับแล้ว แต่ไม่พบสินค้านี้ (ถือว่า 0 ที่จุดนั้น)
         countedGons: [...countedGons].sort(),  // gondola ที่นับจริง (ฐาน) — โชว์ในกล่อง "รอนับ"
         isOrphan  // 🔥 flag สำหรับแสดงเตือน
       };
@@ -27425,6 +27442,7 @@ function renderVariancePending(isLao) {
         <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;font-size:10px;font-weight:700;">
           ${(p.countedGons || []).map(g => `<span style="background:var(--emerald-100);color:var(--emerald-700);border-radius:5px;padding:2px 6px;font-family:monospace;">✓ ${escapeHtml(g)}</span>`).join('')}
           ${(p.missingGons || []).map(g => `<span style="background:var(--rose-100);color:var(--rose-700);border-radius:5px;padding:2px 6px;font-family:monospace;">⏳ ${escapeHtml(g)} ${isLao ? 'ຍັງບໍ່ນັບ' : 'ยังไม่นับ'}</span>`).join('')}
+          ${(p.notFoundGons || []).map(g => `<span style="background:var(--slate-100);color:var(--slate-500);border-radius:5px;padding:2px 6px;font-family:monospace;">${escapeHtml(g)} ${isLao ? 'ນັບແລ້ວ ບໍ່ພົບ' : 'นับแล้ว ไม่พบ'}</span>`).join('')}
         </div>
         ${varStageHtml(p, isLao)}
         ${canConclude ? `<button onclick="event.stopPropagation();concludePendingProduct(${p.product_id})" style="width:100%;margin-top:6px;background:var(--emerald-100);color:var(--emerald-700);border:1px solid var(--emerald-500);border-radius:7px;padding:6px;font-size:11px;font-weight:800;cursor:pointer;">✓ ${isLao ? 'ສະຫຼຸບເລີຍ (ຈຸດທີ່ຂາດບໍ່ມີຂອງແລ້ວ)' : 'สรุปเลย (จุดที่ขาดไม่มีของแล้ว)'}</button>` : ''}
