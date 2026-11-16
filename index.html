@@ -19402,6 +19402,22 @@ async function lookupProduct(barcode) {
     return;
   }
 
+  // STEP 1b: มีแถวในสาขาตัวเองแต่ "ปิดขายใน POS" (ไม่อยู่ในไฟล์ POS ล่าสุด) → นับได้เลย ถือ POS = 0
+  //   (Ball 2026-11-16 · MEMORY 33: ปิดขาย = สต๊อก 0 · pos_qty ที่ค้างคือยอดเก่า ห้ามใช้)
+  try {
+    const { data: closedRows, error: closedErr } = await sb.from('products').select('*')
+      .eq('barcode', barcode).eq('branch_id', branch.id).eq('is_active', false)
+      .order('updated_at', { ascending: false }).limit(1);
+    if (!closedErr && closedRows && closedRows[0]) {
+      const cp = Object.assign({}, closedRows[0], { pos_qty: 0, _posClosed: true });
+      log('Found closed-in-POS product in own branch:', cp.id);
+      curProduct = cp;
+      renderProduct(cp);
+      showToast(lang === 'lo' ? '⛔ ປິດຂາຍໃນ POS — ນັບໄດ້ (POS = 0)' : '⛔ ปิดขายใน POS — นับได้ (POS = 0)', 'warning');
+      return;
+    }
+  } catch (e) { log('Closed-product lookup error:', e); }
+
   // STEP 2: ไม่เจอในสาขาตัวเอง → หาในสาขาอื่นเพื่อช่วยตัดสินใจ
   log('Not found in own branch, searching other branches...');
   const { data: otherData, error: otherErr } = await sb
@@ -19592,6 +19608,7 @@ function renderProduct(p) {
   document.getElementById('productCard').innerHTML = `
     <div class="product-card ${modeClass}">
       ${mdWarning}
+      ${p._posClosed ? `<div style="background:var(--slate-100);border:1px solid var(--slate-300);color:var(--slate-700);border-radius:8px;padding:6px 9px;font-size:11px;font-weight:700;margin-bottom:7px;">⛔ ${lang === 'lo' ? 'ປິດຂາຍໃນ POS — ນັບໄດ້ຕາມປົກກະຕິ (POS = 0)' : 'ปิดขายใน POS — นับได้ตามปกติ (POS = 0)'}</div>` : ''}
       <div class="product-name">${name}</div>
       <div class="product-barcode">${p.barcode}</div>
       ${metaSection}
