@@ -25610,6 +25610,8 @@ async function vfLoadList() {
       return;
     }
     const verified = new Set((here || []).filter(isV).map(r => r.product_id));
+    const cFirst = {};   // เวลาที่ Counter นับสินค้านี้ครั้งแรกในชั้นนี้ → ลำดับเดินนับ
+    (here || []).filter(isC).forEach(r => { if (!cFirst[r.product_id] || r.counted_at < cFirst[r.product_id]) cFirst[r.product_id] = r.counted_at; });
     // ยอด Counter ทุกจุดของสินค้า (ล่าสุดต่อจุด) + POS (ปิดขาย = 0)
     const cTot = {}, prod = {};
     for (let i = 0; i < pids.length; i += 300) {
@@ -25628,8 +25630,8 @@ async function vfLoadList() {
       const p = prod[pid] || {};
       const pos = p.is_active === false ? 0 : (Number(p.pos_qty) || 0);
       return (cTot[pid] || 0) !== pos || vfSampled(session.id, pid);
-    }).map(pid => ({ pid, p: prod[pid] || {}, done: verified.has(pid) }))
-      .sort((a, b) => (a.done - b.done) || String(a.p.name_th || '').localeCompare(String(b.p.name_th || '')));
+    }).map(pid => ({ pid, p: prod[pid] || {}, done: verified.has(pid), at: cFirst[pid] || '' }))
+      .sort((a, b) => String(a.at).localeCompare(String(b.at)));   // ตามลำดับที่ Counter นับ (ซ้าย→ขวา บน→ล่าง)
     const nDone = need.filter(x => x.done).length;
     const skip = pids.length - need.length;
     let html = '<div style="background:white;border:2px solid var(--violet-300);border-radius:12px;padding:10px 11px;margin-bottom:9px;">'
@@ -25638,11 +25640,13 @@ async function vfLoadList() {
       + '<span style="font-size:12px;font-weight:800;color:' + (nDone === need.length ? 'var(--emerald-600)' : 'var(--amber-600)') + ';">' + nDone + ' / ' + need.length + '</span>'
       + '<button onclick="vfLoadList()" style="margin-left:auto;border:1px solid var(--slate-300);background:white;border-radius:7px;padding:3px 8px;font-size:10px;font-weight:700;color:var(--slate-600);cursor:pointer;">🔄</button></div>'
       + '<div style="font-size:10.5px;color:var(--slate-500);margin:3px 0 7px;line-height:1.5;">'
-      + (isLao ? 'ສິນຄ້າອື່ນ ' + skip + ' ລາຍການ Counter ນັບກົງແລ້ວ — ບໍ່ຕ້ອງນັບ · ນັບຊັ້ນວາງ + ພື້ນ ໃຫ້ຄົບ' : 'สินค้าอื่น ' + skip + ' รายการ Counter นับตรงแล้ว — ไม่ต้องนับ · นับชั้นวาง + พื้น ให้ครบ') + '</div>';
+      + (isLao ? 'ສິນຄ້າອື່ນ ' + skip + ' ລາຍການ Counter ນັບກົງແລ້ວ — ບໍ່ຕ້ອງນັບ · ນັບຊັ້ນວາງ + ພື້ນ ໃຫ້ຄົບ' : 'สินค้าอื่น ' + skip + ' รายการ Counter นับตรงแล้ว — ไม่ต้องนับ · นับชั้นวาง + พื้น ให้ครบ')
+      + '<br>' + (isLao ? 'ຮຽງຕາມລຳດັບທີ່ Counter ນັບ (ຊ້າຍ→ຂວາ ເທິງ→ລຸ່ມ)' : 'เรียงตามลำดับที่ Counter นับ (ซ้าย→ขวา บน→ล่าง)') + '</div>';
     if (!need.length) html += '<div style="font-size:12px;font-weight:800;color:var(--emerald-600);">✅ ' + (isLao ? 'ບໍ່ມີລາຍການຕ້ອງນັບ — ແຈ້ງ CTL ປິດ Verifier ໄດ້' : 'ไม่มีรายการต้องนับ — แจ้ง CTL ปิด Verifier ได้') + '</div>';
     else html += '<div style="display:flex;flex-direction:column;gap:4px;max-height:38vh;overflow-y:auto;">' + need.map(x => {
       const nm = (isLao ? (x.p.name_lo || x.p.name_th) : (x.p.name_th || x.p.name_lo)) || x.p.barcode || ('#' + x.pid);
       return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:' + (x.done ? 'var(--emerald-50, #ecfdf5)' : 'var(--slate-50, #f8fafc)') + ';border:1px solid ' + (x.done ? 'var(--emerald-200)' : 'var(--slate-200)') + ';">'
+        + '<span style="font-size:10px;font-weight:800;color:var(--slate-400);min-width:18px;text-align:right;font-family:\'Space Grotesk\',monospace;">' + (need.indexOf(x) + 1) + '</span>'
         + '<span style="font-size:14px;">' + (x.done ? '✅' : '⬜') + '</span>'
         + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:12px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + (x.done ? 'text-decoration:line-through;color:var(--slate-500);' : '') + '">' + escapeHtml(nm) + '</span>'
         + '<span style="display:block;font-size:9.5px;color:var(--slate-500);font-family:monospace;">' + escapeHtml(x.p.barcode || '') + '</span></span></div>';
@@ -25653,6 +25657,58 @@ async function vfLoadList() {
   }
 }
 window.vfLoadList = vfLoadList;
+
+
+// 🗺️ แผนผัง: จำนวนที่ Verifier ต้องนับ / นับแล้ว ต่อ Gondola (กติกาเดียวกับ vfLoadList) · cache 60 วิ
+let _vfMapCache = null;
+async function vfCountsByGondola(sid) {
+  if (_vfMapCache && _vfMapCache.sid === sid && Date.now() - _vfMapCache.at < 60000) return _vfMapCache.map;
+  const rows = await fetchAllQuery(() => sb.from('stock_counts')
+    .select('id, product_id, count_role, counted_qty, location_code, gondola_code, counted_at')
+    .eq('session_id', sid).order('id'));
+  const isC = r => r.count_role === 'counter' || r.count_role === 'staff';
+  const lastC = {}, cBases = {}, vBases = {};
+  (rows || []).forEach(r => {
+    const lk = r.location_code || r.gondola_code || '?';
+    const b = floorBaseCode(String(lk).toUpperCase().trim());
+    if (isC(r)) {
+      const k = r.product_id + '|' + lk;
+      if (!lastC[k] || r.counted_at > lastC[k].counted_at) lastC[k] = r;
+      (cBases[r.product_id] = cBases[r.product_id] || new Set()).add(b);
+    } else (vBases[r.product_id] = vBases[r.product_id] || new Set()).add(b);
+  });
+  const cTot = {};
+  Object.values(lastC).forEach(r => { cTot[r.product_id] = (cTot[r.product_id] || 0) + (Number(r.counted_qty) || 0); });
+  const pids = Object.keys(cBases).map(Number);
+  const pos = {};
+  for (let i = 0; i < pids.length; i += 300) {
+    const ps = await _sbSel(() => sb.from('products').select('id, pos_qty, is_active').in('id', pids.slice(i, i + 300)));
+    (ps || []).forEach(x => { pos[x.id] = x.is_active === false ? 0 : (Number(x.pos_qty) || 0); });
+  }
+  const map = {};
+  pids.forEach(pid => {
+    const need = (cTot[pid] || 0) !== (pos[pid] || 0) || vfSampled(sid, pid);
+    cBases[pid].forEach(b => {
+      const m = map[b] = map[b] || { need: 0, done: 0, sku: 0 };
+      m.sku++;
+      if (need) { m.need++; if (vBases[pid] && vBases[pid].has(b)) m.done++; }
+    });
+  });
+  _vfMapCache = { sid, at: Date.now(), map };
+  return map;
+}
+async function fmFillVerifyBadges() {
+  if (!session || ['counter', 'staff'].includes(user.role)) return;   // Counter ไม่ต้องเห็น (กันเดาว่าตัวไหนไม่ตรง)
+  let map;
+  try { map = await vfCountsByGondola(session.id); } catch (e) { return; }
+  document.querySelectorAll('.fm-vf[data-loc]').forEach(el => {
+    const m = map[String(el.dataset.loc || '').toUpperCase()];
+    if (!m) { el.innerHTML = ''; return; }
+    const ok = m.done >= m.need;
+    el.innerHTML = '<span title="' + (lang === 'lo' ? 'Verifier ຕ້ອງນັບ / ນັບແລ້ວ' : 'Verifier ต้องนับ / นับแล้ว') + '" style="display:inline-block;margin-top:2px;padding:0 5px;border-radius:6px;font-size:9px;font-weight:800;background:' + (ok ? 'var(--emerald-500)' : 'var(--violet-600)') + ';color:white;">'
+      + (m.need === 0 ? 'V ✓' : ('V ' + m.done + '/' + m.need + (ok ? ' ✓' : ''))) + '</span>';
+  });
+}
 
 // ==================== 📦 ชั้น + พื้น: ยอดรวมต่อชั้น (Ball 2026-11-16 · W12 FSMINI) ====================
 // ปัญหา: Counter นับ "ชั้น (รวมพื้น)" แต่ Verifier นับแยก ชั้น + พื้น (หรือลืมสลับโหมด นับในพื้นทั้งหมด)
@@ -26921,6 +26977,7 @@ async function computeVarianceItems(periodOverride) {
         level,
         needsRecount,
         cvRows,            // 📍 C/V แยกรายจุด
+        counterFirstAt: Object.values(p.counterLocs || {}).reduce((m, c) => (!m || c.counted_at < m) ? c.counted_at : m, null),   // ลำดับเดินนับของ Counter
         locCount,          // จำนวนตำแหน่งที่รวมยอด (>1 = นับหลาย gondola)
         hasFloor,          // 📦 มีการนับที่พื้น (นอกชั้น)
         isComplete,        // ✅ นับครบทุก gondola ที่ Planogram กำหนดหรือยัง (false = ยังไม่สรุป Diff)
@@ -27669,6 +27726,7 @@ function renderVarianceList() {
     window._varGonKeys = sortedGroups.map(g => g[0]);
 
     sortedGroups.forEach(([gondola, gItems]) => {
+      gItems = gItems.slice().sort((a, b) => String(a.counterFirstAt || '~').localeCompare(String(b.counterFirstAt || '~')));   // ตามลำดับที่ Counter นับ (ซ้าย→ขวา บน→ล่าง)
       const groupDiff = gItems.reduce((s, p) => s + p.diff, 0);
       const groupValue = gItems.reduce((s, p) => s + p.value, 0);
       const _open = _autoOpen || _varOpenGons.has(gondola);
@@ -32951,6 +33009,7 @@ async function loadFloorMap() {
   
   log('Floor map data:', fmRes.data, 'PoG locations:', Object.keys(window._pogCountByLoc).length, 'Gap locations:', Object.keys(window._gapCountByLoc).length);
   renderFloorMapContent(fmRes.data || {});
+  fmFillVerifyBadges();   // 🗺️ V ต้องนับ/นับแล้ว ต่อ Gondola (async ไม่หน่วงแผนผัง)
 }
 
 function renderFloorMapContent(data) {
@@ -33005,6 +33064,7 @@ function renderFloorMapContent(data) {
         ${gapBadge}
         <div class="fm-code">${item.location_code}</div>
         ${progress}
+        <div class="fm-vf" data-loc="${escapeHtml(String(item.location_code || '').toUpperCase())}"></div>
       </div>
     `;
   };
