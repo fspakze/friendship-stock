@@ -19612,7 +19612,9 @@ function renderProduct(p) {
   const tbBanner = tbCtx ? `<div style="background:var(--amber-50);border:1.5px solid var(--amber-500);color:var(--amber-800, #92400e);border-radius:9px;padding:7px 10px;font-size:11.5px;font-weight:700;margin-bottom:8px;line-height:1.5;">
       ⚖️ ${lang === 'lo' ? 'ນັບຊ້ຳ: ນັບສະເພາະ' : 'นับซ้ำ: นับเฉพาะ'} <span style="font-family:'Space Grotesk',monospace;">${escapeHtml(fmtLocDisplay(tbCtx.loc) || '-')}</span>
       ${isAdmin && tbCtx.c !== undefined ? ` · C ${tbCtx.c} · V ${tbCtx.v}` : ''}<br>
-      <span style="font-weight:600;">${lang === 'lo' ? 'ໃສ່ຈຳນວນທີ່ນັບໄດ້ຢູ່ຈຸດນີ້ເທົ່ານັ້ນ — ບໍ່ແມ່ນສະຕ໋ອກທັງໝົດ' : 'ใส่จำนวนที่นับได้ที่จุดนี้เท่านั้น — ไม่ใช่สต๊อกทั้งหมด'}</span></div>` : '';
+      <span style="font-weight:600;">${tbCtx.combined
+        ? (lang === 'lo' ? '📦 ນັບລວມ ເທິງຊັ້ນ + ພື້ນ ຂອງ ' + escapeHtml(floorBaseCode(tbCtx.loc)) + ' ແລ້ວໃສ່ຍອດດຽວ (Counter / Verifier ນັບຄົນລະໂໝດ)' : '📦 นับรวม บนชั้น + พื้น ของ ' + escapeHtml(floorBaseCode(tbCtx.loc)) + ' แล้วใส่ยอดเดียว (Counter / Verifier นับคนละโหมด)')
+        : (lang === 'lo' ? 'ໃສ່ຈຳນວນທີ່ນັບໄດ້ຢູ່ຈຸດນີ້ເທົ່ານັ້ນ — ບໍ່ແມ່ນສະຕ໋ອກທັງໝົດ' : 'ใส่จำนวนที่นับได้ที่จุดนี้เท่านั้น — ไม่ใช่สต๊อกทั้งหมด')}</span></div>` : '';
   
   document.getElementById('productCard').innerHTML = `
     <div class="product-card ${modeClass}">
@@ -25791,17 +25793,32 @@ async function tbDropBaseMatches(rows) {
       if (!latest[k] || c.counted_at > latest[k].counted_at) latest[k] = c;
     });
   }
-  const tot = {};   // pid|base → {counter, verifier}
+  const tot = {};   // pid|base → {counter, verifier, cLocs, vLocs}
   Object.values(latest).forEach(c => {
     const role = (c.count_role === 'counter' || c.count_role === 'staff') ? 'counter' : 'verifier';
-    const k = c.product_id + '|' + _cvBase(c.location_code || c.gondola_code);
-    const t = tot[k] = tot[k] || { counter: null, verifier: null };
+    const lk = c.location_code || c.gondola_code || '?';
+    const k = c.product_id + '|' + _cvBase(lk);
+    const t = tot[k] = tot[k] || { counter: null, verifier: null, cLocs: new Set(), vLocs: new Set() };
     t[role] = (t[role] || 0) + (Number(c.counted_qty) || 0);
+    (role === 'counter' ? t.cLocs : t.vLocs).add(lk);
   });
-  return rows.filter(r => {
-    const t = tot[r.product_id + '|' + _cvBase(r.location_code)];
-    return !(t && t.counter !== null && t.verifier !== null && t.counter === t.verifier);
+  const seen = new Set();
+  const out = [];
+  rows.forEach(r => {
+    const base = _cvBase(r.location_code);
+    const t = tot[r.product_id + '|' + base];
+    if (t && t.counter !== null && t.verifier !== null && t.counter === t.verifier) return;   // ยอดรวมชั้น+พื้นตรง = ไม่ต้องตัดสิน
+    const mixed = t && t.counter !== null && t.verifier !== null && [...t.cLocs].sort().join('|') !== [...t.vLocs].sort().join('|');
+    if (!mixed) { out.push(r); return; }
+    // 📦 C/V นับคนละโหมด → 1 แถวต่อชั้น · ใช้ยอดรวมชั้น+พื้น · CTL นับรวมใส่ยอดเดียว (Ball 2026-11-17 · Protex C 8+20 vs V 32)
+    const key = r.product_id + '|' + base;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const d = t.counter - t.verifier;
+    const unit = (r.cv_diff && Number(r.cv_value_diff)) ? Math.abs(Number(r.cv_value_diff) / r.cv_diff) : (Number(r.sell_price) || 0);
+    out.push(Object.assign({}, r, { location_code: base, counter_qty: t.counter, verifier_qty: t.verifier, cv_diff: d, cv_value_diff: d * unit, _combined: true }));
   });
+  return out;
 }
 
 let _tbMode = 'loc'; // หน้าตัดสิน: 'loc'=group ตามตำแหน่ง Planogram · 'diff'=เรียงตาม diff มาก→น้อย
@@ -25875,7 +25892,7 @@ function renderTiebreakerList() {
     const _isFloor = isFloorCode(item.location_code);
     const pog = window._tbPogMap[item.product_id + '|' + floorBaseCode(item.location_code || '')];
     const shelfTxt = (pog && !_isFloor) ? (' · ' + (isLao ? 'ຊັ້ນ ' : 'ชั้น ') + pog.shelf + '/' + pog.seq_in_shelf) : '';
-    const locTxt = (item.location_code ? fmtLocDisplay(item.location_code) : (isLao ? 'ບໍ່ລະບຸ' : 'ไม่ระบุ')) + shelfTxt;
+    const locTxt = (item.location_code ? fmtLocDisplay(item.location_code) : (isLao ? 'ບໍ່ລະບຸ' : 'ไม่ระบุ')) + (item._combined ? (isLao ? ' · ຊັ້ນ+ພື້ນ' : ' · ชั้น+พื้น') : shelfTxt);
     const loc = String(item.location_code || '').replace(/'/g, '');
     const nums = isAdmin
       ? '<div style="text-align:right;flex-shrink:0;font-size:10px;color:var(--slate-500);line-height:1.35;font-family:\'Space Grotesk\',monospace;">'
@@ -25991,7 +26008,7 @@ async function startTiebreaker(productId, zoneId, locationCode) {
 
     curProduct = p;
     const _tbIt = (window._tbItems || []).find(x => x.product_id === productId && String(x.location_code || '') === String(locationCode || '')) || {};
-    curTask = { type: 'tiebreaker', pid: p.id, loc: locationCode || '', c: _tbIt.counter_qty, v: _tbIt.verifier_qty };
+    curTask = { type: 'tiebreaker', pid: p.id, loc: locationCode || '', c: _tbIt.counter_qty, v: _tbIt.verifier_qty, combined: !!_tbIt._combined };
     renderProduct(p);
   }, 200);
 }
