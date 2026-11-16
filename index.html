@@ -18093,6 +18093,7 @@ function renderScanPage() {
       </div>
       <div id="floorModeHint" style="display:${_floorMode ? 'block' : 'none'};background:var(--amber-50);border:1px solid var(--amber-300);border-radius:9px;padding:7px 11px;font-size:11px;color:var(--amber-700);margin-bottom:9px;line-height:1.5;">
         📦 ${lang === 'lo' ? 'ກຳລັງນັບສິນຄ້າທີ່ຍົກມາວາງພື້ນ — ຈະຜູກກັບ Gondola ' : 'กำลังนับสินค้าที่ยกมาวางพื้น — จะผูกกับ Gondola '}<b id="floorModeGon">${loc ? floorBaseCode(loc.location_code) : '?'}</b></div>
+      <div id="vfListBox"></div>
       <!-- ⭐ วิธีใช้งานอย่างย่อ -->
       <button onclick="const h=document.getElementById('countHelpBox'); if(h) h.style.display = h.style.display==='none' ? 'block' : 'none';"
               style="border:none;background:none;color:var(--sky-600);font-size:11px;font-weight:700;cursor:pointer;padding:2px;text-align:center;width:100%;margin-bottom:7px;">
@@ -24863,6 +24864,7 @@ async function saveCount() {
 // ==================== STATS ====================
 async function loadSessionStats() {
   if (!session) return;
+  if (['verifier', 'audit'].includes(user.role)) { try { vfLoadList(); } catch (e) {} }   // 📋 รายการที่ Verifier ต้องนับ
   
   const r = user.role;
   const isAdmin = ['admin', 'scc', 'bcs'].includes(r);
@@ -25572,6 +25574,85 @@ function renderTiebreakerPage() {
   `;
 }
 
+
+
+// ==================== ✅ Verifier นับเฉพาะ Diff + สุ่ม 10% (vf*) — Ball 2026-11-17 ====================
+// Counter นับ (ไม่เห็น POS) แล้วได้ "ตรง POS" = ผ่าน ไม่ต้องให้ Verifier นับซ้ำ · ยกเว้นถูกสุ่ม 10% (ตรวจกันบังเอิญตรง)
+// Counter ≠ POS (Diff) = Verifier ต้องนับทุกตัว · การสุ่มคงที่ต่อ (รอบนับ, สินค้า) → ทุกเครื่องเห็นชุดเดียวกัน ไม่ต้องเก็บใน DB
+const VF_SAMPLE_PCT = 10;
+function vfSampled(sid, pid) {
+  const str = String(sid || 0) + ':' + String(pid || 0);
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return ((h >>> 0) % 100) < VF_SAMPLE_PCT;
+}
+function _vfSid(p) { const r = p && (p.counter || p.verifier || p.ctl || p.manager); return r ? r.session_id : (session ? session.id : 0); }
+// สินค้านี้ "ต้องให้ Verifier นับ" ไหม (จากผลรายงาน computeVarianceItems)
+function vfRequired(p) { return !(p && p.diff === 0 && p.isComplete !== false && !vfSampled(_vfSid(p), p.product_id)); }
+
+// 📋 รายการที่ Verifier ต้องนับ ใน Gondola ปัจจุบัน (หน้าสแกน · เฉพาะ verifier/audit)
+async function vfLoadList() {
+  const box = document.getElementById('vfListBox');
+  if (!box) return;
+  if (!session || !loc || !['verifier', 'audit'].includes(user.role)) { box.innerHTML = ''; return; }
+  const isLao = lang === 'lo';
+  const base = floorBaseCode(String(loc.location_code || '').toUpperCase().trim());
+  box.innerHTML = '<div style="font-size:11px;color:var(--slate-500);padding:6px 2px;">⏳ ' + (isLao ? 'ກຳລັງໂຫຼດລາຍການທີ່ຕ້ອງນັບ...' : 'กำลังโหลดรายการที่ต้องนับ...') + '</div>';
+  try {
+    const here = await fetchAllQuery(() => sb.from('stock_counts')
+      .select('id, product_id, count_role, counted_qty, location_code, counted_at')
+      .eq('session_id', session.id).in('location_code', [base, base + FLOOR_SUFFIX]).order('id'));
+    const isC = r => r.count_role === 'counter' || r.count_role === 'staff';
+    const isV = r => r.count_role === 'verifier' || r.count_role === 'audit' || r.count_role === 'ctl_tiebreaker' || r.count_role === 'manager_final';
+    const pids = [...new Set((here || []).filter(isC).map(r => r.product_id).filter(Boolean))];
+    if (!pids.length) {
+      box.innerHTML = '<div style="background:var(--slate-100);border-radius:10px;padding:9px 11px;font-size:11.5px;color:var(--slate-600);margin-bottom:9px;">📋 ' + (isLao ? 'Counter ຍັງບໍ່ໄດ້ນັບ ' : 'Counter ยังไม่ได้นับ ') + escapeHtml(base) + '</div>';
+      return;
+    }
+    const verified = new Set((here || []).filter(isV).map(r => r.product_id));
+    // ยอด Counter ทุกจุดของสินค้า (ล่าสุดต่อจุด) + POS (ปิดขาย = 0)
+    const cTot = {}, prod = {};
+    for (let i = 0; i < pids.length; i += 300) {
+      const part = pids.slice(i, i + 300);
+      const [cs, ps] = await Promise.all([
+        fetchAllQuery(() => sb.from('stock_counts').select('id, product_id, count_role, counted_qty, location_code, counted_at')
+          .eq('session_id', session.id).in('product_id', part).in('count_role', ['counter', 'staff']).order('id')),
+        _sbSel(() => sb.from('products').select('id, barcode, name_th, name_lo, pos_qty, is_active').in('id', part))
+      ]);
+      const last = {};
+      (cs || []).forEach(r => { const k = r.product_id + '|' + (r.location_code || '?'); if (!last[k] || r.counted_at > last[k].counted_at) last[k] = r; });
+      Object.values(last).forEach(r => { cTot[r.product_id] = (cTot[r.product_id] || 0) + (Number(r.counted_qty) || 0); });
+      (ps || []).forEach(p => { prod[p.id] = p; });
+    }
+    const need = pids.filter(pid => {
+      const p = prod[pid] || {};
+      const pos = p.is_active === false ? 0 : (Number(p.pos_qty) || 0);
+      return (cTot[pid] || 0) !== pos || vfSampled(session.id, pid);
+    }).map(pid => ({ pid, p: prod[pid] || {}, done: verified.has(pid) }))
+      .sort((a, b) => (a.done - b.done) || String(a.p.name_th || '').localeCompare(String(b.p.name_th || '')));
+    const nDone = need.filter(x => x.done).length;
+    const skip = pids.length - need.length;
+    let html = '<div style="background:white;border:2px solid var(--violet-300);border-radius:12px;padding:10px 11px;margin-bottom:9px;">'
+      + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+      + '<span style="font-size:13px;font-weight:800;color:var(--violet-700);">📋 ' + (isLao ? 'ຕ້ອງນັບໃນ ' : 'ต้องนับใน ') + escapeHtml(base) + '</span>'
+      + '<span style="font-size:12px;font-weight:800;color:' + (nDone === need.length ? 'var(--emerald-600)' : 'var(--amber-600)') + ';">' + nDone + ' / ' + need.length + '</span>'
+      + '<button onclick="vfLoadList()" style="margin-left:auto;border:1px solid var(--slate-300);background:white;border-radius:7px;padding:3px 8px;font-size:10px;font-weight:700;color:var(--slate-600);cursor:pointer;">🔄</button></div>'
+      + '<div style="font-size:10.5px;color:var(--slate-500);margin:3px 0 7px;line-height:1.5;">'
+      + (isLao ? 'ສິນຄ້າອື່ນ ' + skip + ' ລາຍການ Counter ນັບກົງແລ້ວ — ບໍ່ຕ້ອງນັບ · ນັບຊັ້ນວາງ + ພື້ນ ໃຫ້ຄົບ' : 'สินค้าอื่น ' + skip + ' รายการ Counter นับตรงแล้ว — ไม่ต้องนับ · นับชั้นวาง + พื้น ให้ครบ') + '</div>';
+    if (!need.length) html += '<div style="font-size:12px;font-weight:800;color:var(--emerald-600);">✅ ' + (isLao ? 'ບໍ່ມີລາຍການຕ້ອງນັບ — ແຈ້ງ CTL ປິດ Verifier ໄດ້' : 'ไม่มีรายการต้องนับ — แจ้ง CTL ปิด Verifier ได้') + '</div>';
+    else html += '<div style="display:flex;flex-direction:column;gap:4px;max-height:38vh;overflow-y:auto;">' + need.map(x => {
+      const nm = (isLao ? (x.p.name_lo || x.p.name_th) : (x.p.name_th || x.p.name_lo)) || x.p.barcode || ('#' + x.pid);
+      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:' + (x.done ? 'var(--emerald-50, #ecfdf5)' : 'var(--slate-50, #f8fafc)') + ';border:1px solid ' + (x.done ? 'var(--emerald-200)' : 'var(--slate-200)') + ';">'
+        + '<span style="font-size:14px;">' + (x.done ? '✅' : '⬜') + '</span>'
+        + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:12px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + (x.done ? 'text-decoration:line-through;color:var(--slate-500);' : '') + '">' + escapeHtml(nm) + '</span>'
+        + '<span style="display:block;font-size:9.5px;color:var(--slate-500);font-family:monospace;">' + escapeHtml(x.p.barcode || '') + '</span></span></div>';
+    }).join('') + '</div>';
+    box.innerHTML = html + '</div>';
+  } catch (e) {
+    box.innerHTML = '<div style="color:var(--rose-500);font-size:11px;margin-bottom:9px;">Error: ' + escapeHtml(e.message || String(e)) + '</div>';
+  }
+}
+window.vfLoadList = vfLoadList;
 
 // ==================== 📦 ชั้น + พื้น: ยอดรวมต่อชั้น (Ball 2026-11-16 · W12 FSMINI) ====================
 // ปัญหา: Counter นับ "ชั้น (รวมพื้น)" แต่ Verifier นับแยก ชั้น + พื้น (หรือลืมสลับโหมด นับในพื้นทั้งหมด)
@@ -27663,6 +27744,9 @@ function varStage(p) {
   const rows = p.cvRows;
   if (rows && rows.length) {
     if (rows.some(r => r.st === 'diff')) return { key: 'need_ctl', tone: 'warn' };
+    // ✅ Counter ตรง POS + ไม่ถูกสุ่ม → ไม่ต้องรอ Verifier (Ball 2026-11-17 · นับ V เฉพาะ Diff + สุ่ม 10%)
+    if (!rows.some(r => r.st === 'wait_c') && rows.some(r => r.st === 'wait_v') && !vfRequired(p))
+      return rows.some(r => r.v !== null) ? { key: 'cv_match', tone: 'ok' } : { key: 'c_match', tone: 'ok' };
     if (rows.some(r => r.st === 'wait_v')) return { key: 'wait_v', tone: 'wait' };
     if (rows.some(r => r.st === 'wait_c')) return { key: 'wait_c', tone: 'wait' };
     return { key: (p.diff === 0 ? 'cv_match' : 'cv_real'), tone: 'ok' };
@@ -27679,6 +27763,7 @@ function varStageHtml(p, isLao) {
     tb_done:  isLao ? '✅ ຕັດສິນແລ້ວ (2 ໃນ 3 ກົງ)' : '✅ ตัดสินแล้ว (2 ใน 3 ตรง)',
     need_bcs: isLao ? '🚨 3 ຄົນນັບບໍ່ກົງ → BCS ລົງກວດ' : '🚨 3 คนนับไม่ตรง → BCS ลงตรวจ',
     cv_match: isLao ? '✅ ນັບກົງກັນ' : '✅ นับตรงกัน',
+    c_match:  isLao ? '✅ Counter ກົງ POS (ບໍ່ຕ້ອງ Verify)' : '✅ Counter ตรง POS (ไม่ต้อง Verify)',
     cv_real:  isLao ? '✅ Counter=Verifier → Diff ຈິງ' : '✅ Counter=Verifier → Diff จริง',
     need_ctl: isLao ? '⚖️ ບໍ່ກົງ → ລໍຖ້າ CTL ຕັດສິນ' : '⚖️ ไม่ตรง → รอ CTL ตัดสิน',
     wait_v:   isLao ? '⏳ ລໍຖ້າ Verifier' : '⏳ รอ Verifier',
@@ -28737,7 +28822,7 @@ async function csumExport() {
     add(L('ຕາມກຸ່ມສິນຄ້າ', 'ตามกลุ่มสินค้า'), [[L('ປະເພດ', 'ประเภท'), L('ກຸ່ມສິນຄ້າ', 'กลุ่มสินค้า')].concat(gh)].concat(
       _csumGroup(d.done, r => r.cat + '\u0001' + r.grp).map(g => g.key.split('\u0001').concat(gv(g)))), [26, 32].concat(gh.map(() => 11)));
     // 4-7) รายการ
-    const stTxt = k => ({ bcs_done: L('BCS ຢືນຢັນແລ້ວ', 'BCS ยืนยันแล้ว'), tb_done: L('ຕັດສິນແລ້ວ', 'ตัดสินแล้ว'), need_bcs: L('3 ຄົນບໍ່ກົງ → BCS', '3 คนไม่ตรง → BCS'), cv_match: L('ນັບກົງກັນ', 'นับตรงกัน'), cv_real: L('C=V → Diff ຈິງ', 'C=V → Diff จริง'), need_ctl: L('ລໍຖ້າ CTL', 'รอ CTL'), wait_v: L('ລໍຖ້າ Verifier', 'รอ Verifier'), wait_c: L('ລໍຖ້າ Counter', 'รอ Counter'), none: '-' }[k] || k);
+    const stTxt = k => ({ bcs_done: L('BCS ຢືນຢັນແລ້ວ', 'BCS ยืนยันแล้ว'), tb_done: L('ຕັດສິນແລ້ວ', 'ตัดสินแล้ว'), need_bcs: L('3 ຄົນບໍ່ກົງ → BCS', '3 คนไม่ตรง → BCS'), cv_match: L('ນັບກົງກັນ', 'นับตรงกัน'), c_match: L('Counter ກົງ POS', 'Counter ตรง POS'), cv_real: L('C=V → Diff ຈິງ', 'C=V → Diff จริง'), need_ctl: L('ລໍຖ້າ CTL', 'รอ CTL'), wait_v: L('ລໍຖ້າ Verifier', 'รอ Verifier'), wait_c: L('ລໍຖ້າ Counter', 'รอ Counter'), none: '-' }[k] || k);
     const ih = ['Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ປະເພດ', 'ประเภท'), L('ກຸ່ມສິນຄ້າ', 'กลุ่มสินค้า'), L('ຍີ່ຫໍ້', 'ยี่ห้อ'), 'Gondola', 'POS', L('ນັບໄດ້', 'นับได้'), 'Diff', 'Diff %', L('ຕົ້ນທຶນ ₭', 'ต้นทุน ₭'), 'POS ₭', L('ນັບໄດ້ ₭', 'นับได้ ₭'), 'Diff ₭', L('Diff ₭ (ລາຄາຂາຍ)', 'Diff ₭ (ราคาขาย)'), 'Level', 'Counter', 'Verifier', 'CTL', 'BCS', L('ຂັ້ນຕອນ', 'ขั้นตอน'), L('ປິດຂາຍໃນ POS', 'ปิดขายใน POS'), 'Buyer', L('ຊື້ລ່າສຸດ', 'ซื้อล่าสุด'), L('ຂາຍລ່າສຸດ', 'ขายล่าสุด'), 'AVG/' + L('ເດືອນ', 'เดือน'), 'Aging', L('ແນະນຳຫາສາເຫດ', 'แนะนำหาสาเหตุ')];
     const iv = r => [r.bc, r.name, r.cat, r.grp, r.brand, r.gons, r.pos, r.fin, r.diff, Number(r.pct.toFixed(1)), r.cost, Math.round(r.posV), Math.round(r.finV), Math.round(r.diffV), Math.round(r.diffSellV), r.level,
       r.c ?? '', r.v ?? '', r.t ?? '', r.mgr ?? '', stTxt(r.stageKey), r.posClosed ? '⛔' : '', r.buyer, r.lastBuy, r.lastSale, r.avgM, r.aging, r.hint];
@@ -35216,6 +35301,7 @@ function _covBuild(items, stOf) {
       const hasCounter = !!(it.counterLocs && it.counterLocs[lk]);
       const hasVerify = !!((it.verifierLocs && it.verifierLocs[lk]) || (it.ctlLocs && it.ctlLocs[lk]) || (it.managerLocs && it.managerLocs[lk]));
       if (hasCounter === hasVerify) return; // ครบคู่ = ไม่ใช่ gap
+      if (hasCounter && !hasVerify && !vfRequired(it)) return; // Counter ตรง POS + ไม่ถูกสุ่ม = ไม่ต้อง Verify
       const loc = lk || '?';
       const st = stOf[String(floorBaseCode(loc)).toUpperCase()] || '';
       const g = byLoc[loc] = byLoc[loc] || { real: [], wait: [], status: st };
