@@ -33251,8 +33251,9 @@ function cleanupQuickNav() {
 async function onFloorMapCellClick(locationCode, status) {
   log('Floor map cell click:', locationCode, status);
   
-  // CTL/Admin/SCC/BCS → action panel (แก้/ลบได้) | อื่นๆ → ดูข้อมูลเฉยๆ
-  if (user.role === 'ctl' || user.role === 'admin' || user.role === 'scc' || user.role === 'bcs') {
+  // CTL/Admin/SCC/BCS/IT → action panel เปิด/ปิด Gondola (แก้/ลบ Gondola ยังคุมด้วย gondolaEditAllowed) | อื่นๆ → ดูข้อมูลเฉยๆ
+  // IT เพิ่ม 2026-11-16 (Ball: ITXay ต้องเปิด/ปิด Gondola ได้)
+  if (['ctl', 'admin', 'scc', 'bcs', 'it'].includes(user.role)) {
     showGondolaActions(locationCode, status);
   } else {
     showLocationDetail(locationCode);
