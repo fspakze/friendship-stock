@@ -25577,6 +25577,38 @@ function cvFinalCount(roleLocs) {
   });
   return total;
 }
+// 📍 C/V แยกรายจุด (Ball 2026-11-16 · SOMERSBY: C 54 vs V 10 เพราะ V ยังไม่นับ 2 จุด — ต้องเห็นรายจุด)
+//   ต่อฐาน gondola: นับโหมดเดียวกัน → แยกทีละจุด (ชั้น / พื้น) · คนละโหมด → 1 แถวยอดรวมชั้น+พื้น (floor = null)
+//   st: ok = C=V · diff = C≠V (รอ CTL) · wait_v / wait_c = อีกคนยังไม่นับจุดนี้ · judged = CTL/BCS นับแล้ว
+function cvRowsFor(p) {
+  const roles = { counter: p.counterLocs, verifier: p.verifierLocs, ctl: p.ctlLocs, manager: p.managerLocs };
+  const byBase = {};
+  Object.entries(roles).forEach(([r, m]) => Object.entries(m || {}).forEach(([lk, row]) => {
+    const b = _cvBase(lk); const x = byBase[b] = byBase[b] || {};
+    (x[r] = x[r] || {})[lk] = Number(row && row.counted_qty) || 0;
+  }));
+  const sum = o => o ? Object.values(o).reduce((a, q) => a + q, 0) : null;
+  const val = (o, lk) => (o && o[lk] !== undefined) ? o[lk] : null;
+  const out = [];
+  Object.keys(byBase).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).forEach(b => {
+    const x = byBase[b];
+    const push = (loc, floor, c, v, t, m) => {
+      let st;
+      if (m !== null || t !== null) st = 'judged';
+      else if (c !== null && v !== null) st = (c === v ? 'ok' : 'diff');
+      else if (c !== null) st = 'wait_v';
+      else st = 'wait_c';
+      out.push({ base: b, loc, floor, c, v, t, m, st });
+    };
+    const cK = x.counter ? Object.keys(x.counter).sort().join('|') : null;
+    const vK = x.verifier ? Object.keys(x.verifier).sort().join('|') : null;
+    if (cK !== null && vK !== null && cK !== vK) push(b, null, sum(x.counter), sum(x.verifier), sum(x.ctl), sum(x.manager));
+    else [...new Set(Object.values(x).flatMap(o => Object.keys(o)))].sort().forEach(lk =>
+      push(lk, isFloorCode(lk), val(x.counter, lk), val(x.verifier, lk), val(x.ctl, lk), val(x.manager, lk)));
+  });
+  return out;
+}
+
 // กรองรายการตัดสิน (v_needs_tiebreaker = เทียบทีละจุด) → ตัดแถวที่ "ยอดรวมชั้น + พื้น" ของ Counter = Verifier
 async function tbDropBaseMatches(rows) {
   if (!rows || !rows.length || !session) return rows || [];
@@ -26744,7 +26776,9 @@ async function computeVarianceItems(periodOverride) {
       const level = calcVarianceLevel(pct, value);
       
       // Check if needs recount (counter vs verifier mismatch)
-      const needsRecount = (counterCount !== null && verifierCount !== null && counterCount !== verifierCount);
+      // 📍 เทียบ C/V รายจุด (ไม่เทียบยอดรวมทุกจุด — V ยังไม่ครบทุกจุดจะดูห่างหลอก)
+      const cvRows = cvRowsFor(p);
+      const needsRecount = cvRows.some(r => r.st === 'diff');
       
       return {
         ...p,
@@ -26761,6 +26795,7 @@ async function computeVarianceItems(periodOverride) {
         value,
         level,
         needsRecount,
+        cvRows,            // 📍 C/V แยกรายจุด
         locCount,          // จำนวนตำแหน่งที่รวมยอด (>1 = นับหลาย gondola)
         hasFloor,          // 📦 มีการนับที่พื้น (นอกชั้น)
         isComplete,        // ✅ นับครบทุก gondola ที่ Planogram กำหนดหรือยัง (false = ยังไม่สรุป Diff)
@@ -27579,6 +27614,13 @@ function varStage(p) {
   const c = p.counter_qty, v = p.verifier_qty, t = p.ctl_qty, m = p.manager_qty;
   if (m !== null && m !== undefined) return { key: 'bcs_done', tone: 'ok' };
   if (t !== null && t !== undefined) return (t === c || t === v) ? { key: 'tb_done', tone: 'ok' } : { key: 'need_bcs', tone: 'bad' };
+  const rows = p.cvRows;
+  if (rows && rows.length) {
+    if (rows.some(r => r.st === 'diff')) return { key: 'need_ctl', tone: 'warn' };
+    if (rows.some(r => r.st === 'wait_v')) return { key: 'wait_v', tone: 'wait' };
+    if (rows.some(r => r.st === 'wait_c')) return { key: 'wait_c', tone: 'wait' };
+    return { key: (p.diff === 0 ? 'cv_match' : 'cv_real'), tone: 'ok' };
+  }
   if (c !== null && v !== null) return c === v ? { key: (p.diff === 0 ? 'cv_match' : 'cv_real'), tone: 'ok' } : { key: 'need_ctl', tone: 'warn' };
   if (c !== null) return { key: 'wait_v', tone: 'wait' };
   if (v !== null) return { key: 'wait_c', tone: 'wait' };
@@ -27604,8 +27646,29 @@ function varStageHtml(p, isLao) {
       + lbl + ' ' + (done ? q : '—') + '</span>';
   };
   const tc = TONE[st.tone];
+  const rows = p.cvRows || [];
+  let chips;
+  if (rows.length > 1) {
+    // 📍 หลายจุด → แยก C/V รายจุด (ไม่โชว์ยอดรวม Counter/Verifier ที่ชวนเข้าใจผิด)
+    const fl = floorTag(), sh = isLao ? 'ຊັ້ນ' : 'ชั้น';
+    const q = x => (x === null || x === undefined) ? '—' : x;
+    chips = rows.map(r => {
+      const lbl = escapeHtml(r.base) + ' ' + (r.floor === null ? sh + '+' + fl : (r.floor ? fl : sh));
+      let txt = lbl + ': C ' + q(r.c) + ' · V ' + q(r.v) + (r.t !== null ? ' · CTL ' + r.t : '') + (r.m !== null ? ' · BCS ' + r.m : '');
+      let sty = 'background:white;color:var(--slate-700);border:1px solid var(--slate-300);';
+      if (r.st === 'diff') { txt += ' ⚠️'; sty = 'background:var(--amber-50);color:var(--amber-700);border:1px solid var(--amber-500);'; }
+      else if (r.st === 'wait_v' || r.st === 'wait_c') sty = 'background:transparent;color:var(--slate-500);border:1px dashed var(--slate-300);';
+      else if (r.st === 'ok') txt += ' ✓';
+      return '<span style="padding:1px 6px;border-radius:4px;font-weight:700;' + sty + '">' + txt + '</span>';
+    }).join('');
+    const waitV = rows.filter(r => r.st === 'wait_v').map(r => r.base), waitC = rows.filter(r => r.st === 'wait_c').map(r => r.base);
+    if (waitV.length && st.key !== 'wait_v') chips += '<span style="padding:1px 7px;border-radius:10px;font-weight:800;background:var(--sky-100);color:var(--sky-700);">⏳ ' + (isLao ? 'ລໍຖ້າ Verifier ' : 'รอ Verifier ') + waitV.length + (isLao ? ' ຈຸດ (' : ' จุด (') + escapeHtml([...new Set(waitV)].join(', ')) + ')</span>';
+    if (waitC.length && st.key !== 'wait_c') chips += '<span style="padding:1px 7px;border-radius:10px;font-weight:800;background:var(--sky-100);color:var(--sky-700);">⏳ ' + (isLao ? 'ລໍຖ້າ Counter ' : 'รอ Counter ') + waitC.length + (isLao ? ' ຈຸດ (' : ' จุด (') + escapeHtml([...new Set(waitC)].join(', ')) + ')</span>';
+  } else {
+    chips = chip('Counter', p.counter_qty) + chip('Verifier', p.verifier_qty) + chip('CTL', p.ctl_qty) + chip('BCS', p.manager_qty);
+  }
   return '<div style="font-size:9px;margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">'
-    + chip('Counter', p.counter_qty) + chip('Verifier', p.verifier_qty) + chip('CTL', p.ctl_qty) + chip('BCS', p.manager_qty)
+    + chips
     + '<span style="padding:1px 7px;border-radius:10px;font-weight:800;background:' + tc[0] + ';color:' + tc[1] + ';">' + TXT[st.key] + '</span>'
     + '</div>';
 }
