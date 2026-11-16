@@ -18069,6 +18069,8 @@ function renderScanPage() {
     </div>
     
     ${locPickerHtml}
+    <!-- 📋 Verifier: รายการที่ต้องนับในชั้นนี้ (บนสุด ไม่ต้องเลื่อนหา) -->
+    <div id="vfListBox"></div>
     
     <div class="scan-card">
       <div class="scan-frame" id="scanFrame">
@@ -18093,7 +18095,6 @@ function renderScanPage() {
       </div>
       <div id="floorModeHint" style="display:${_floorMode ? 'block' : 'none'};background:var(--amber-50);border:1px solid var(--amber-300);border-radius:9px;padding:7px 11px;font-size:11px;color:var(--amber-700);margin-bottom:9px;line-height:1.5;">
         📦 ${lang === 'lo' ? 'ກຳລັງນັບສິນຄ້າທີ່ຍົກມາວາງພື້ນ — ຈະຜູກກັບ Gondola ' : 'กำลังนับสินค้าที่ยกมาวางพื้น — จะผูกกับ Gondola '}<b id="floorModeGon">${loc ? floorBaseCode(loc.location_code) : '?'}</b></div>
-      <div id="vfListBox"></div>
       <!-- ⭐ วิธีใช้งานอย่างย่อ -->
       <button onclick="const h=document.getElementById('countHelpBox'); if(h) h.style.display = h.style.display==='none' ? 'block' : 'none';"
               style="border:none;background:none;color:var(--sky-600);font-size:11px;font-weight:700;cursor:pointer;padding:2px;text-align:center;width:100%;margin-bottom:7px;">
