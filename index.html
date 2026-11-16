@@ -3571,9 +3571,10 @@ async function openCountRoundPicker() {
 }
 
 // สำเนา POS > 0 ของรอบ (รูปแบบเดียวกับ products) — ใช้หา "มีสต๊อกแต่ไม่ได้นับ" ของรอบเก่า
-async function cntRoundUncountedBase(sid) {
-  const snap = await fetchAllQuery(() => sb.from('count_pos_snapshots')
-    .select('product_id, barcode, pos_qty, cost_price, sell_price').eq('session_id', sid).gt('pos_qty', 0).order('product_id'));
+async function cntRoundUncountedBase(sid, negative) {
+  const snap = await fetchAllQuery(() => { const q = sb.from('count_pos_snapshots')
+    .select('product_id, barcode, pos_qty, cost_price, sell_price').eq('session_id', sid);
+    return (negative ? q.lt('pos_qty', 0) : q.gt('pos_qty', 0)).order('product_id'); });
   const ids = (snap || []).map(r => r.product_id);
   const names = {};
   for (let i = 0; i < ids.length; i += 300) {
@@ -27550,6 +27551,7 @@ function renderVarianceItem(p, fmt, isLao) {
           ${(p.locCount || 0) > 1 ? `<span style="background:var(--sky-100);color:var(--sky-600);padding:1px 5px;border-radius:3px;font-weight:700;">Σ ${p.locCount} ${isLao ? 'ຈຸດ' : 'จุด'}</span>` : ''}
           ${p.hasFloor ? `<span style="background:var(--amber-100);color:var(--amber-700);padding:1px 5px;border-radius:3px;font-weight:700;">📦 ${floorTag()}</span>` : ''}
           ${p.posClosed ? `<span style="background:var(--slate-200);color:var(--slate-700);padding:1px 5px;border-radius:3px;font-weight:700;">⛔ ${isLao ? 'ປິດຂາຍໃນ POS' : 'ปิดขายใน POS'}</span>` : ''}
+          ${(Number(p.pos_qty) || 0) < 0 ? `<span style="background:var(--rose-100);color:var(--rose-700);padding:1px 5px;border-radius:3px;font-weight:700;">⚠️ ${isLao ? 'POS ຕິດລົບ' : 'POS ติดลบ'}</span>` : ''}
         </div>
         ${varStageHtml(p, isLao)}
       </div>
@@ -28024,6 +28026,8 @@ function _csumDays(d) { if (!d) return null; const t = new Date(d); if (isNaN(t)
 // 🔎 คำแนะนำหาสาเหตุ (ภาษาตามผู้ใช้)
 function _csumHint(r) {
   const buyD = _csumDays(r.lastBuy), saleD = _csumDays(r.lastSale);
+  if ((Number(r.pos) || 0) < 0)
+    return _csumL('POS ຕິດລົບ — ກວດຮັບເຄື່ອງທີ່ຍັງບໍ່ໄດ້ຄີ / ຂາຍຜິດບາໂຄດ → ແກ້ໃນ POS ກ່ອນປິດຮອບ', 'POS ติดลบ — ตรวจรับของที่ยังไม่ได้คีย์ / ขายผิดบาร์โค้ด → แก้ใน POS ก่อนปิดรอบ');
   if (r.stageKey === 'wait_v' || r.stageKey === 'wait_c' || r.stageKey === 'need_ctl')
     return _csumL('ການນັບຍັງບໍ່ຄົບຂັ້ນ — ໃຫ້ນັບ/ຕັດສິນໃຫ້ຈົບກ່ອນ', 'การนับยังไม่ครบขั้น — ให้นับ/ตัดสินให้จบก่อน');
   if (r.diff < 0) {
@@ -28059,6 +28063,12 @@ async function csumLoad(force) {
       .select('id, barcode, name_th, name_lo, pos_qty, cost_price, sell_price')
       .eq('branch_id', branch.id).eq('is_active', true).gt('pos_qty', 0).order('id'));
     const unc = (posProds || []).filter(p => !countedIds.has(p.id));
+    // ⚠️ POS ติดลบ (active · pos<0) — ทั้งนับแล้ว/ไม่ได้นับ (Ball 2026-11-16 · เดิมไม่อยู่รายงานไหนถ้าไม่ได้นับ)
+    const negProds = (_varianceFilter.period === 'round' && _viewRound)
+      ? await cntRoundUncountedBase(_viewRound.id, true)
+      : await fetchAllQuery(() => sb.from('products')
+        .select('id, barcode, name_th, name_lo, pos_qty, cost_price, sell_price')
+        .eq('branch_id', branch.id).eq('is_active', true).lt('pos_qty', 0).order('id'));
 
     // 2) Pan-O-Gram ทั้งสาขา
     const pogRows = await fetchAllQuery(() => sb.from('pan_o_grams').select('product_id, location_code').eq('branch_id', branch.id).order('id'));
@@ -28066,7 +28076,7 @@ async function csumLoad(force) {
     (pogRows || []).forEach(r => { const b = floorBaseCode(String(r.location_code || '').toUpperCase().trim()); if (r.product_id && b) (pog[r.product_id] = pog[r.product_id] || new Set()).add(b); });
 
     // 3) ข้อมูลประกอบ: ประเภท/กลุ่ม · ซื้อ/ขายล่าสุด · ต้นทุน
-    const bcs = [...new Set(valid.map(it => it.product?.barcode).concat(unc.map(p => p.barcode)).filter(Boolean))];
+    const bcs = [...new Set(valid.map(it => it.product?.barcode).concat(unc.map(p => p.barcode), (negProds || []).map(p => p.barcode)).filter(Boolean))];
     const mRows = await _csumChunks(bcs, 300, part => _sbSel(() => sb.from('master_products').select('barcode, category, product_group, brand, sell_price').in('barcode', part)));
     const sRows = await _csumChunks(bcs, 300, part => _sbSel(() => sb.from('product_status').select('barcode, buyer, branch_avg, last_buy, last_sale, aging').in('barcode', part)));
     const costs = await _csumCosts(bcs);
@@ -28122,6 +28132,23 @@ async function csumLoad(force) {
       }, f);
     }).sort((a, b) => b.posV - a.posV || b.pos - a.pos);
 
+    // ⚠️ POS ติดลบ
+    const vById = {}; valid.forEach(it => { vById[it.product_id] = it; });
+    const negRows = (negProds || []).map(p => {
+      const f = info(p.barcode, p.cost_price, p.sell_price);
+      const it = vById[p.id];
+      const cg = it ? [...new Set([it.counterLocs, it.verifierLocs, it.ctlLocs, it.managerLocs].flatMap(m => Object.keys(m || {})))].sort().join(', ') : '';
+      const r = Object.assign({
+        pid: p.id, bc: p.barcode,
+        name: (lang === 'lo' ? (p.name_lo || p.name_th) : (p.name_th || p.name_lo)) || p.barcode,
+        pos: Number(p.pos_qty) || 0, posV: (Number(p.pos_qty) || 0) * f.cost,
+        counted: !!it, fin: it ? it.final_qty : null, pending: !!(it && it.isComplete === false),
+        gons: cg, pogGons: [...(pog[p.id] || new Set())].sort().join(', ')
+      }, f);
+      r.hint = _csumHint(r);
+      return r;
+    }).sort((a, b) => a.pos - b.pos || a.posV - b.posV);
+
     const pend = (_variancePending || []).map(it => ({
       bc: it.product?.barcode || '', name: (lang === 'lo' ? (it.product?.name_lo || it.product?.name_th) : (it.product?.name_th || it.product?.name_lo)) || '',
       pos: it.pos_qty, fin: it.final_qty, counted: (it.countedGons || []).join(', '), missing: (it.missingGons || []).join(', ')
@@ -28131,7 +28158,7 @@ async function csumLoad(force) {
     let pAllSku = 0, pAllQty = 0, pAllV = 0, pCntSku = 0, pCntV = 0;
     (posProds || []).forEach(p => { const q = Number(p.pos_qty) || 0; const v = q * info(p.barcode, p.cost_price, p.sell_price).cost; pAllSku++; pAllQty += q; pAllV += v; if (countedIds.has(p.id)) { pCntSku++; pCntV += v; } });
     const posAll = { sku: pAllSku, qty: pAllQty, v: pAllV, cntSku: pCntSku, cntV: pCntV, countedSku: countedIds.size };
-    _csum = { done, uncA: uncRows.filter(r => r.grpKey === 'A'), uncB: uncRows.filter(r => r.grpKey === 'B'), pend, countedGons: [...countedGons].sort(), posAll, at: new Date() };
+    _csum = { done, uncA: uncRows.filter(r => r.grpKey === 'A'), uncB: uncRows.filter(r => r.grpKey === 'B'), neg: negRows, pend, countedGons: [...countedGons].sort(), posAll, at: new Date() };
     return _csum;
   } catch (e) {
     console.error('[FS] csumLoad error:', e);
@@ -28166,6 +28193,7 @@ function csumEntryHtml(isLao) {
   return '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:11px;">'
     + btn('csumOpen(\'summary\')', 'var(--fs-blue, #0E357F)', '📊 ' + (isLao ? 'ສະຫຼຸບຜົນນັບສະຕ໋ອກ' : 'สรุปผลนับสต๊อก'))
     + btn('csumOpen(\'uncounted\')', 'var(--rose-500)', '🔍 ' + (isLao ? 'ມີສະຕ໋ອກ ແຕ່ບໍ່ໄດ້ນັບ' : 'มีสต๊อกแต่ไม่ได้นับ'))
+    + btn('csumOpen(\'negative\')', 'var(--rose-700, #be123c)', '⚠️ ' + (isLao ? 'POS ຕິດລົບ' : 'POS ติดลบ'))
     + '</div>';
 }
 async function csumOpen(view) {
@@ -28191,11 +28219,41 @@ function csumRenderView() {
     + '<button onclick="csumClose()" style="background:var(--slate-100);color:var(--slate-700);border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">← ' + L('ກັບລາຍການ', 'กลับรายการ') + '</button>'
     + '<button onclick="csumOpen(\'summary\')" style="background:' + (_csumView === 'summary' ? 'var(--fs-blue, #0E357F)' : 'white') + ';color:' + (_csumView === 'summary' ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">📊 ' + L('ສະຫຼຸບ', 'สรุป') + '</button>'
     + '<button onclick="csumOpen(\'uncounted\')" style="background:' + (_csumView === 'uncounted' ? 'var(--rose-500)' : 'white') + ';color:' + (_csumView === 'uncounted' ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">🔍 ' + L('ບໍ່ໄດ້ນັບ', 'ไม่ได้นับ') + ' (' + (d.uncA.length + d.uncB.length) + ')</button>'
+    + '<button onclick="csumOpen(\'negative\')" style="background:' + (_csumView === 'negative' ? 'var(--rose-700, #be123c)' : 'white') + ';color:' + (_csumView === 'negative' ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">⚠️ ' + L('POS ຕິດລົບ', 'POS ติดลบ') + ' (' + (d.neg || []).length + ')</button>'
     + '<span style="flex:1;"></span>'
     + '<button onclick="csumRefresh()" style="background:white;color:var(--slate-600);border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;">🔄 ' + L('ໂຫຼດໃໝ່', 'โหลดใหม่') + '</button>'
     + '<button onclick="csumExport()" style="background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">⬇ Excel ' + L('ສະຫຼຸບຜົນ', 'สรุปผล') + '</button>'
     + '</div>';
-  return top + (_csumView === 'uncounted' ? _csumUncHtml(d, isLao) : _csumSumHtml(d, isLao));
+  return top + (_csumView === 'uncounted' ? _csumUncHtml(d, isLao) : (_csumView === 'negative' ? _csumNegHtml(d, isLao) : _csumSumHtml(d, isLao)));
+}
+
+// ⚠️ POS ติดลบ — นับแล้ว + ยังไม่ได้นับ (Ball 2026-11-16)
+function _csumNegHtml(d, isLao) {
+  const L = _csumL, N = _csumN;
+  const list = d.neg || [];
+  const nC = list.filter(r => r.counted).length, nU = list.length - nC;
+  const card = (label, val, color) => '<div style="background:white;border:1px solid var(--slate-200);border-radius:9px;padding:8px 10px;"><div style="font-size:10px;color:var(--slate-500);">' + label + '</div><div style="font-size:15px;font-weight:800;color:' + color + ';">' + val + '</div></div>';
+  let html = '<div style="background:var(--rose-50);border:1px solid var(--rose-200);border-radius:10px;padding:9px 11px;margin-bottom:9px;font-size:11px;color:var(--slate-700);line-height:1.6;">'
+    + '<b style="color:var(--rose-700);">' + L('POS ຕິດລົບ = ຂາຍອອກຫຼາຍກວ່າຮັບເຂົ້າໃນລະບົບ', 'POS ติดลบ = ขายออกมากกว่ารับเข้าในระบบ') + '</b><br>'
+    + L('ສາເຫດຫຼັກ: ຮັບເຄື່ອງແລ້ວບໍ່ໄດ້ຄີ / ຂາຍຜິດບາໂຄດ → ແກ້ໃນ POS ກ່ອນປິດຮອບ · ສິນຄ້າທີ່ນັບແລ້ວ ລະບົບຈະຂຶ້ນເປັນ "ເກີນ" (L4) ຈົນກວ່າຈະແກ້ POS', 'สาเหตุหลัก: รับของแล้วไม่ได้คีย์ / ขายผิดบาร์โค้ด → แก้ใน POS ก่อนปิดรอบ · สินค้าที่นับแล้ว ระบบจะขึ้นเป็น "เกิน" (L4) จนกว่าจะแก้ POS')
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;margin-bottom:9px;">'
+    + card(L('ທັງໝົດ', 'ทั้งหมด'), list.length + ' SKU', 'var(--rose-700)')
+    + card(L('ນັບແລ້ວ', 'นับแล้ว'), nC + ' SKU', 'var(--slate-800)')
+    + card(L('ຍັງບໍ່ໄດ້ນັບ', 'ยังไม่ได้นับ'), nU + ' SKU', 'var(--slate-800)')
+    + card(L('ລວມ POS ຕິດລົບ', 'รวม POS ติดลบ'), N(list.reduce((s, r) => s + r.pos, 0)), 'var(--rose-700)')
+    + '</div>';
+  if (!list.length) return html + '<div style="text-align:center;padding:30px;color:var(--slate-400);font-size:12px;">✅ ' + L('ບໍ່ມີສິນຄ້າ POS ຕິດລົບ', 'ไม่มีสินค้า POS ติดลบ') + '</div>';
+  const shown = list.slice(0, 200);
+  html += shown.map(r => '<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid var(--rose-500);border-radius:9px;padding:8px 10px;margin-bottom:5px;display:flex;gap:9px;align-items:center;">'
+    + '<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(r.name) + '</div>'
+    + '<div style="font-size:9px;color:var(--slate-500);font-family:monospace;margin-top:1px;">' + escapeHtml(r.bc) + (r.gons ? ' · 📍 ' + escapeHtml(r.gons) : (r.pogGons ? ' · Pan-O-Gram ' + escapeHtml(r.pogGons) : '')) + '</div>'
+    + '<div style="font-size:9px;color:var(--slate-500);margin-top:1px;">' + (r.lastBuy ? L('ຊື້ລ່າສຸດ ', 'ซื้อล่าสุด ') + escapeHtml(r.lastBuy) : '') + (r.lastSale ? ' · ' + L('ຂາຍລ່າສຸດ ', 'ขายล่าสุด ') + escapeHtml(r.lastSale) : '') + (r.avgM ? ' · AVG ' + r.avgM + L('/ເດືອນ', '/เดือน') : '') + '</div></div>'
+    + '<div style="text-align:right;flex-shrink:0;"><div style="font-size:12px;font-weight:800;color:var(--rose-600);font-family:\'Space Grotesk\',monospace;">POS ' + N(r.pos) + '</div>'
+    + '<div style="font-size:10px;font-weight:700;margin-top:2px;color:' + (r.counted ? 'var(--slate-700)' : 'var(--amber-600)') + ';">'
+    + (r.counted ? (L('ນັບໄດ້ ', 'นับได้ ') + N(r.fin) + (r.pending ? ' ⏳' : '')) : L('ຍັງບໍ່ໄດ້ນັບ', 'ยังไม่ได้นับ')) + '</div></div></div>').join('');
+  if (list.length > shown.length) html += '<div style="text-align:center;font-size:11px;color:var(--slate-500);padding:8px;">+' + (list.length - shown.length) + ' ' + L('ລາຍການ — ເບິ່ງທັງໝົດໃນ Excel', 'รายการ — ดูทั้งหมดใน Excel') + '</div>';
+  return html;
 }
 
 function _csumSumHtml(d, isLao) {
@@ -28371,7 +28429,8 @@ async function csumExport() {
       [L('ນັບກົງ POS (SKU)', 'นับตรง POS (SKU)'), a.exact, '', Number(a.accSku.toFixed(1)) + '%'], [],
       [L('ມີສະຕ໋ອກແຕ່ບໍ່ໄດ້ນັບ — A ຢູ່ Gondola ທີ່ນັບແລ້ວ', 'มีสต๊อกแต่ไม่ได้นับ — A อยู่ใน Gondola ที่นับแล้ว'), d.uncA.length, d.uncA.reduce((s, r) => s + r.pos, 0), Math.round(sumA)],
       [L('ມີສະຕ໋ອກແຕ່ບໍ່ໄດ້ນັບ — B ນອກຮອບນັບ', 'มีสต๊อกแต่ไม่ได้นับ — B นอกรอบนับ'), d.uncB.length, d.uncB.reduce((s, r) => s + r.pos, 0), Math.round(sumB)],
-      [L('ລໍຖ້ານັບໃຫ້ຄົບທຸກຈຸດ (ບໍ່ລວມໃນສະຫຼຸບ)', 'รอนับให้ครบทุกจุด (ไม่รวมในสรุป)'), d.pend.length], [],
+      [L('ລໍຖ້ານັບໃຫ້ຄົບທຸກຈຸດ (ບໍ່ລວມໃນສະຫຼຸບ)', 'รอนับให้ครบทุกจุด (ไม่รวมในสรุป)'), d.pend.length],
+      [L('⚠️ POS ຕິດລົບ (SKU · ນັບແລ້ວ/ທັງໝົດ)', '⚠️ POS ติดลบ (SKU · นับแล้ว/ทั้งหมด)'), (d.neg || []).length, (d.neg || []).filter(r => r.counted).length + ' / ' + (d.neg || []).length], [],
       [L('ຖ້ານັບຄົບທັງຮ້ານ (ບໍ່ໄດ້ນັບ = ຂາດ)', 'ถ้านับครบทั้งร้าน (ไม่ได้นับ = ขาด)'), L('SKU', 'SKU'), L('Diff ຊິ້ນ', 'Diff ชิ้น'), 'Diff ₭'],
       ...[['+ A', 'A'], ['+ A+B', 'AB']].map(([lbl, k]) => { const g = _csumAgg(d.done.concat(_csumInclRows(d, k))); return [L('Diff ສຸດທິ ', 'Diff สุทธิ ') + lbl, g.sku, g.diff, Math.round(g.diffV)]; }), [],
       [L('⚠️ ມູນຄ່າ = ຕົ້ນທຶນຊື້ລ່າສຸດ (ບໍ່ມີ = ຕົ້ນທຶນໃນ POS) · ບໍ່ມີຕົ້ນທຶນ ', '⚠️ มูลค่า = ต้นทุนซื้อล่าสุด (ไม่มี = ต้นทุนใน POS) · ไม่มีต้นทุน ') + a.noCost + ' SKU'],
@@ -28404,6 +28463,10 @@ async function csumExport() {
     const uw = [15, 40, 22, 26, 8, 10, 12, 22, 10, 11, 11, 9, 8];
     add(L('ບໍ່ໄດ້ນັບ-A', 'ไม่ได้นับ-A'), [uh].concat(d.uncA.map(uv)), uw);
     add(L('ບໍ່ໄດ້ນັບ-B', 'ไม่ได้นับ-B'), [uh].concat(d.uncB.map(uv)), uw);
+    // 9b) POS ติดลบ
+    add(L('POS ຕິດລົບ', 'POS ติดลบ'), [['Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ປະເພດ', 'ประเภท'), L('ກຸ່ມສິນຄ້າ', 'กลุ่มสินค้า'), 'POS', L('ນັບແລ້ວ', 'นับแล้ว'), L('ນັບໄດ້', 'นับได้'), L('Gondola ທີ່ນັບ', 'Gondola ที่นับ'), L('Gondola ຕາມ Pan-O-Gram', 'Gondola ตาม Pan-O-Gram'), L('ຕົ້ນທຶນ ₭', 'ต้นทุน ₭'), 'Buyer', L('ຊື້ລ່າສຸດ', 'ซื้อล่าสุด'), L('ຂາຍລ່າສຸດ', 'ขายล่าสุด'), 'AVG/' + L('ເດືອນ', 'เดือน'), L('ແນະນຳ', 'แนะนำ')]]
+      .concat((d.neg || []).map(r => [r.bc, r.name, r.cat, r.grp, r.pos, r.counted ? (r.pending ? L('ບາງຈຸດ', 'บางจุด') : '✓') : '', r.counted ? r.fin : '', r.gons, r.pogGons, r.cost, r.buyer, r.lastBuy, r.lastSale, r.avgM, r.hint])),
+      [15, 40, 22, 26, 8, 8, 8, 16, 22, 10, 10, 11, 11, 9, 50]);
     // 10) รอนับครบ
     add(L('ລໍຖ້ານັບຄົບ', 'รอนับครบ'), [['Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), 'POS', L('ນັບໄດ້ (ບາງຈຸດ)', 'นับได้ (บางจุด)'), L('ນັບແລ້ວ', 'นับแล้ว'), L('ຍັງບໍ່ນັບ', 'ยังไม่นับ')]].concat(d.pend.map(p => [p.bc, p.name, p.pos, p.fin, p.counted, p.missing])), [15, 40, 8, 12, 18, 18]);
     XLSX.writeFile(wb, 'count-summary-' + branch.code + '-' + localDayKey(new Date()) + '.xlsx');
