@@ -19362,6 +19362,7 @@ async function manualLookup() {
 
 async function lookupProduct(barcode) {
   beep();
+  curTask = null;   // สแกนใหม่ = ออกจากบริบทนับซ้ำ (tiebreaker)
   log('Lookup product:', barcode, 'in branch:', branch?.id);
   
   if (!branch || !branch.id) {
@@ -19603,15 +19604,23 @@ function renderProduct(p) {
     </div>`;
   
   const mdWarning = p.is_markdown ? `<div class="md-badge">MD ${p.barcode.substring(0,3)}</div>` : '';
-  const startValue = isAdmin ? (p.pos_qty || 0) : 0;
+  // ⚖️ เข้าจากหน้านับซ้ำ → นับเฉพาะตำแหน่งที่แจ้ง: เริ่ม 0 + ไม่มีปุ่ม "ตรง POS" (POS = ยอดรวมสาขา · Ball 2026-11-16)
+  const tbCtx = (typeof curTask !== 'undefined' && curTask && curTask.type === 'tiebreaker' && curTask.pid === p.id) ? curTask : null;
+  const startValue = (isAdmin && !tbCtx) ? (p.pos_qty || 0) : 0;
+  const tbBanner = tbCtx ? `<div style="background:var(--amber-50);border:1.5px solid var(--amber-500);color:var(--amber-800, #92400e);border-radius:9px;padding:7px 10px;font-size:11.5px;font-weight:700;margin-bottom:8px;line-height:1.5;">
+      ⚖️ ${lang === 'lo' ? 'ນັບຊ້ຳ: ນັບສະເພາະ' : 'นับซ้ำ: นับเฉพาะ'} <span style="font-family:'Space Grotesk',monospace;">${escapeHtml(fmtLocDisplay(tbCtx.loc) || '-')}</span>
+      ${isAdmin && tbCtx.c !== undefined ? ` · C ${tbCtx.c} · V ${tbCtx.v}` : ''}<br>
+      <span style="font-weight:600;">${lang === 'lo' ? 'ໃສ່ຈຳນວນທີ່ນັບໄດ້ຢູ່ຈຸດນີ້ເທົ່ານັ້ນ — ບໍ່ແມ່ນສະຕ໋ອກທັງໝົດ' : 'ใส่จำนวนที่นับได้ที่จุดนี้เท่านั้น — ไม่ใช่สต๊อกทั้งหมด'}</span></div>` : '';
   
   document.getElementById('productCard').innerHTML = `
     <div class="product-card ${modeClass}">
       ${mdWarning}
       ${p._posClosed ? `<div style="background:var(--slate-100);border:1px solid var(--slate-300);color:var(--slate-700);border-radius:8px;padding:6px 9px;font-size:11px;font-weight:700;margin-bottom:7px;">⛔ ${lang === 'lo' ? 'ປິດຂາຍໃນ POS — ນັບໄດ້ຕາມປົກກະຕິ (POS = 0)' : 'ปิดขายใน POS — นับได้ตามปกติ (POS = 0)'}</div>` : ''}
+      ${tbBanner}
       <div class="product-name">${name}</div>
       <div class="product-barcode">${p.barcode}</div>
       ${metaSection}
+      <div id="multiLocNote"></div>
       
       <!-- Planogram section (จะโหลดข้อมูล async) -->
       <div id="pogSection" style="margin-top:9px;"></div>
@@ -19632,7 +19641,7 @@ function renderProduct(p) {
                   style="flex:1;padding:7px;background:var(--rose-100);color:var(--rose-700);border:1px solid var(--rose-300);border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">
             ${lang === 'lo' ? '🚫 ໝົດ (0)' : '🚫 หมด (0)'}
           </button>
-          ${isAdmin ? `<button onclick="setCountValue(${p.pos_qty || 0})" title="${lang === 'lo' ? 'ກົງ POS' : 'ตรงกับ POS'}"
+          ${(isAdmin && !tbCtx) ? `<button id="posMatchBtn" onclick="setCountValue(${p.pos_qty || 0})" title="${lang === 'lo' ? 'ກົງ POS' : 'ตรงกับ POS'}"
                   style="flex:1;padding:7px;background:var(--emerald-100);color:var(--emerald-700);border:1px solid var(--emerald-300);border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">
             ${lang === 'lo' ? '✓ ກົງ POS' : '✓ ตรง POS'} (${p.pos_qty || 0})
           </button>` : ''}
@@ -19651,6 +19660,7 @@ function renderProduct(p) {
   }, 100);
 
   ccCheckPrev(p);   // 🔁 เคยนับตัวนี้ในตำแหน่งนี้แล้วหรือยัง (async · ไม่หน่วงการแสดงการ์ด)
+  if (isAdmin && !tbCtx && p.id) rpCheckMultiLoc(p);   // 📍 อยู่หลาย Gondola → ห้ามใช้ยอด POS รวมสาขา
 
   // ⭐ ราคา Unit ในการ์ดใช้ Master (ราคาปัจจุบัน) — อัปเดตช่องหลังโหลด (เฉพาะ admin ที่เห็นราคา ไม่หน่วงสแกน) (Ball 2026-07-08)
   if (isAdmin && p.barcode) {
@@ -19666,6 +19676,23 @@ function renderProduct(p) {
   if (canEditPog && loc?.location_code) {
     loadPanOGramForProduct(p, loc.location_code);
   }
+}
+
+// 📍 สินค้าอยู่หลาย Gondola (ตาม Pan-O-Gram) → ซ่อนปุ่ม "ตรง POS" + ค่าเริ่ม 0 (POS = ยอดรวมสาขา ไม่ใช่ยอดจุดนี้)
+async function rpCheckMultiLoc(p) {
+  try {
+    const { data, error } = await sb.from('pan_o_grams').select('location_code').eq('branch_id', branch.id).eq('product_id', p.id).limit(200);
+    if (error || !data) return;
+    const bases = [...new Set(data.map(r => floorBaseCode(String(r.location_code || '').toUpperCase().trim())).filter(Boolean))];
+    if (bases.length < 2 || !curProduct || curProduct.id !== p.id) return;
+    const btn = document.getElementById('posMatchBtn'); if (btn) btn.remove();
+    const inp = document.getElementById('countInput');
+    if (inp && Number(inp.value) === Number(p.pos_qty || 0)) { inp.value = 0; if (typeof ccUpdatePreview === 'function') ccUpdatePreview(); }
+    const note = document.getElementById('multiLocNote');
+    if (note) note.innerHTML = '<div style="background:var(--sky-50, #f0f9ff);border:1px solid var(--sky-300);color:var(--sky-700);border-radius:8px;padding:6px 9px;font-size:11px;font-weight:700;margin-top:7px;">📍 '
+      + (lang === 'lo' ? 'ສິນຄ້ານີ້ຢູ່ ' + bases.length + ' ຈຸດ (' : 'สินค้านี้อยู่ ' + bases.length + ' จุด (') + escapeHtml(bases.join(', ')) + ') — '
+      + (lang === 'lo' ? 'ໃສ່ສະເພາະຈຳນວນຢູ່ຈຸດນີ້ (POS ' + (p.pos_qty || 0) + ' = ຍອດລວມສາຂາ)' : 'ใส่เฉพาะจำนวนที่จุดนี้ (POS ' + (p.pos_qty || 0) + ' = ยอดรวมสาขา)') + '</div>';
+  } catch (e) {}
 }
 
 // ==================== PAN-O-GRAM ====================
@@ -25825,7 +25852,8 @@ async function startTiebreaker(productId, zoneId, locationCode) {
     }
 
     curProduct = p;
-    curTask = { type: 'tiebreaker' };
+    const _tbIt = (window._tbItems || []).find(x => x.product_id === productId && String(x.location_code || '') === String(locationCode || '')) || {};
+    curTask = { type: 'tiebreaker', pid: p.id, loc: locationCode || '', c: _tbIt.counter_qty, v: _tbIt.verifier_qty };
     renderProduct(p);
   }, 200);
 }
