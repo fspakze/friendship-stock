@@ -25497,14 +25497,22 @@ function confirmDeleteCount() {
 async function deleteCount(id) {
   log('Deleting count:', id);
   
-  const { error } = await sb.from('stock_counts').delete().eq('id', id);
-  
+  // .select() = ขอแถวที่ลบจริงกลับมา — ถ้าฐานข้อมูลไม่ให้ลบ (RLS) Supabase ไม่คืน error แต่ลบ 0 แถว (Ball 2026-11-16: Counter ลบไม่ได้)
+  let data = null, error = null;
+  try { const r = await sb.from('stock_counts').delete().eq('id', id).select('id'); data = r.data; error = r.error; }
+  catch (e) { error = e; }
+
   if (error) {
     log('Delete error:', error);
-    showToast('Error: ' + error.message, 'error');
+    showToast('Error: ' + (error.message || error) + (error.code ? ' [' + error.code + ']' : ''), 'error');
     return;
   }
-  
+  if (!data || !data.length) {
+    log('Delete affected 0 rows:', id);
+    showToast(lang === 'lo' ? '❌ ລຶບບໍ່ສຳເລັດ — ຖານຂໍ້ມູນບໍ່ອະນຸຍາດໃຫ້ລຶບ (ແຈ້ງ Admin)' : '❌ ลบไม่สำเร็จ — ฐานข้อมูลไม่อนุญาตให้ลบ (แจ้ง Admin)', 'error');
+    return;
+  }
+  logActivity('delete_count', 'stock_counts ' + id);
   showToast(T('deleted'), 'success');
   closeModal();
   
