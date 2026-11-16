@@ -25545,6 +25545,68 @@ function renderTiebreakerPage() {
   `;
 }
 
+
+// ==================== 📦 ชั้น + พื้น: ยอดรวมต่อชั้น (Ball 2026-11-16 · W12 FSMINI) ====================
+// ปัญหา: Counter นับ "ชั้น (รวมพื้น)" แต่ Verifier นับแยก ชั้น + พื้น (หรือลืมสลับโหมด นับในพื้นทั้งหมด)
+//   → เดิมเลือกยอด "ทีละจุด" แล้วบวก = ชั้นได้ยอด Counter + พื้นได้ยอด Verifier → นับซ้ำ 2 เท่า (81417: 14+14=28)
+//   → หน้าตัดสินเทียบทีละจุด = ไม่ตรงหลอก (Meiji C60 vs V44 ทั้งที่ V ชั้น44+พื้น16 = 60)
+// กติกาใหม่ ต่อ 1 ชั้น (ฐาน gondola · ชั้น + -FL):
+//   โหมดเดียวกัน (C กับ V นับชุดจุดเดียวกัน) → priority ต่อจุด แบบเดิม (รองรับ CTL ตัดสินเฉพาะจุด)
+//   คนละโหมด → ใช้ "ยอดรวมของชั้น" ของ role สูงสุดที่นับ (manager > ctl > verifier > counter) ไม่บวกข้ามคน
+const _CV_ORDER = ['manager', 'ctl', 'verifier', 'counter'];
+function _cvBase(lk) { return floorBaseCode(String(lk || '').toUpperCase().trim()) || String(lk || '?'); }
+// roleLocs = { manager:{loc:row|qty}, ctl:{...}, verifier:{...}, counter:{...} } → ยอดสุดท้ายรวมทุกชั้น
+function cvFinalCount(roleLocs) {
+  const byBase = {};
+  _CV_ORDER.forEach(r => Object.entries(roleLocs[r] || {}).forEach(([lk, row]) => {
+    const q = (row && typeof row === 'object') ? (Number(row.counted_qty) || 0) : (Number(row) || 0);
+    const x = byBase[_cvBase(lk)] = byBase[_cvBase(lk)] || {};
+    (x[r] = x[r] || {})[lk] = q;
+  }));
+  let total = 0;
+  Object.values(byBase).forEach(x => {
+    const cK = x.counter ? Object.keys(x.counter).sort().join('|') : null;
+    const vK = x.verifier ? Object.keys(x.verifier).sort().join('|') : null;
+    if (cK !== null && vK !== null && cK !== vK) {
+      const r = _CV_ORDER.find(k => x[k]);
+      total += Object.values(x[r]).reduce((a, q) => a + q, 0);
+    } else {
+      const lks = new Set(_CV_ORDER.flatMap(k => Object.keys(x[k] || {})));
+      lks.forEach(lk => { const r = _CV_ORDER.find(k => x[k] && x[k][lk] !== undefined); total += x[r][lk]; });
+    }
+  });
+  return total;
+}
+// กรองรายการตัดสิน (v_needs_tiebreaker = เทียบทีละจุด) → ตัดแถวที่ "ยอดรวมชั้น + พื้น" ของ Counter = Verifier
+async function tbDropBaseMatches(rows) {
+  if (!rows || !rows.length || !session) return rows || [];
+  const pids = [...new Set(rows.map(r => r.product_id).filter(Boolean))];
+  const latest = {};   // pid|role|loc → row ล่าสุด
+  for (let i = 0; i < pids.length; i += 300) {
+    const part = pids.slice(i, i + 300);
+    const cs = await fetchAllQuery(() => sb.from('stock_counts')
+      .select('id, product_id, count_role, counted_qty, location_code, gondola_code, counted_at')
+      .eq('session_id', session.id).in('product_id', part).order('id'));
+    (cs || []).forEach(c => {
+      const role = (c.count_role === 'counter' || c.count_role === 'staff') ? 'counter' : ((c.count_role === 'verifier' || c.count_role === 'audit') ? 'verifier' : null);
+      if (!role) return;
+      const k = c.product_id + '|' + role + '|' + (c.location_code || c.gondola_code || '?');
+      if (!latest[k] || c.counted_at > latest[k].counted_at) latest[k] = c;
+    });
+  }
+  const tot = {};   // pid|base → {counter, verifier}
+  Object.values(latest).forEach(c => {
+    const role = (c.count_role === 'counter' || c.count_role === 'staff') ? 'counter' : 'verifier';
+    const k = c.product_id + '|' + _cvBase(c.location_code || c.gondola_code);
+    const t = tot[k] = tot[k] || { counter: null, verifier: null };
+    t[role] = (t[role] || 0) + (Number(c.counted_qty) || 0);
+  });
+  return rows.filter(r => {
+    const t = tot[r.product_id + '|' + _cvBase(r.location_code)];
+    return !(t && t.counter !== null && t.verifier !== null && t.counter === t.verifier);
+  });
+}
+
 let _tbMode = 'loc'; // หน้าตัดสิน: 'loc'=group ตามตำแหน่ง Planogram · 'diff'=เรียงตาม diff มาก→น้อย
 async function loadTiebreakerList() {
   if (!session) return;
@@ -25561,7 +25623,8 @@ async function loadTiebreakerList() {
     showToast('Error: ' + error.message, 'error');
   }
 
-  const items = data || [];
+  let items = data || [];
+  try { items = await tbDropBaseMatches(items); } catch (e) { log('tbDropBaseMatches error (ใช้รายการเดิม):', e); }
   log('Tiebreaker items:', items.length);
   window._tbItems = items;
 
@@ -25684,10 +25747,12 @@ window.tbToggleGroup = tbToggleGroup;
 
 async function updateTbBadge() {
   if (!session) return;
-  if (!['ctl', 'audit', 'verifier', 'admin', 'scc', 'bcs'].includes(user.role)) return;
+  if (!['ctl', 'audit', 'verifier', 'admin', 'scc', 'bcs', 'it'].includes(user.role)) return;
   
-  const { data } = await sb.from('v_needs_tiebreaker').select('product_id').eq('session_id', session.id);
-  const count = (data || []).length;
+  const { data } = await sb.from('v_needs_tiebreaker').select('product_id, location_code').eq('session_id', session.id);
+  let _tbRows = data || [];
+  try { _tbRows = await tbDropBaseMatches(_tbRows); } catch (e) {}
+  const count = _tbRows.length;
   
   const badge = document.getElementById('tabTbBadge');
   // Phase v4.4: also update drawer badge (for admin/scc/bcs who have tiebreaker in drawer)
@@ -26649,11 +26714,8 @@ async function computeVarianceItems(periodOverride) {
         expectedLocs = countedLocs;
         isComplete = true;
       }
-      let finalCount = 0;
-      locSet.forEach(lk => {
-        const best = p.managerLocs[lk] || p.ctlLocs[lk] || p.verifierLocs[lk] || p.counterLocs[lk];
-        if (best) finalCount += Number(best.counted_qty) || 0;
-      });
+      // 📦 ต่อชั้น: โหมดเดียวกัน = priority ต่อจุด · C/V นับคนละโหมด (ชั้นรวมพื้น vs แยก) = ยอดรวมชั้นของ role สูงสุด (กันนับซ้ำ)
+      const finalCount = cvFinalCount({ manager: p.managerLocs, ctl: p.ctlLocs, verifier: p.verifierLocs, counter: p.counterLocs });
       
       // 🔍 Detect orphan: product was deleted, only stock_counts remain
       const isOrphan = !p.product;
@@ -27919,7 +27981,11 @@ function _vlocRows(items, expMap) {
       const g = gon[base] = gon[base] || { shelf: new Set(), floor: new Set(), fresh: new Set(), qty: 0 };
       (floor ? g.floor : g.shelf).add(bc);
       if (!inPog) g.fresh.add(bc);
-      g.qty += best ? (Number(best.counted_qty) || 0) : 0;
+    });
+    // จำนวนรวมต่อ Gondola = กติกาเดียวกับรายงาน (ชั้น+พื้น · C/V คนละโหมด ไม่บวกซ้ำ)
+    countedBases.forEach(b => {
+      const pick = m => Object.fromEntries(Object.entries(m || {}).filter(([k]) => floorBaseCode(String(k || '').toUpperCase().trim()) === b));
+      gon[b].qty += cvFinalCount({ manager: pick(p.managerLocs), ctl: pick(p.ctlLocs), verifier: pick(p.verifierLocs), counter: pick(p.counterLocs) });
     });
     const nBases = countedBases.size;
     loc.forEach(r => { if (r.bc === bc && !r.nLocs) r.nLocs = nBases; });
@@ -31969,7 +32035,9 @@ async function exportToExcel(mode = 'full') {
     // ============ SHEET 6: TIEBREAKER LOG ============
     if (mode === 'full') {
       const { data: tbData } = await sb.from('v_needs_tiebreaker').select('*').eq('session_id', session.id);
-      buildTiebreakerSheet(wb, tbData || []);
+      let _tbx = tbData || [];
+      try { _tbx = await tbDropBaseMatches(_tbx); } catch (e) {}
+      buildTiebreakerSheet(wb, _tbx);
     }
     
     // ============ SHEET 7: EXPIRY & NEW SKU ============
