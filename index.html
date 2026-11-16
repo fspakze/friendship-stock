@@ -3436,7 +3436,7 @@ window.appAccessSet = appAccessSet;
 // core: เขียนค่า count_menu_enabled ('on'/'off'/'branch:...') → recompute → re-render
 async function _setCountMenuValue(value, toastMsg) {
   const isLao = lang === 'lo';
-  if (!['admin', 'scc', 'it'].includes(user.role)) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return false; }
+  if (!countMenuCanToggle()) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return false; }
   const { error } = await sb.from('app_settings').upsert({ key: 'count_menu_enabled', value: value, updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: 'key' });
   if (error) { showToast('Error: ' + error.message, 'error'); return false; }
   _countMenuRaw = value;
@@ -3463,13 +3463,17 @@ function _countMenuSummary() {
 }
 
 // เปิด modal เลือกสาขาที่เปิดนับ (per-branch)
+// เปิด/ปิดเมนูนับ: admin/scc/it/bcs (BCS เพิ่ม 2026-11-16) · ไอดีที่ตั้งเฉพาะสาขาตัวเอง → เลือกได้แค่สาขาตัวเอง
+function countMenuCanToggle() { return !!user && ['admin', 'scc', 'it', 'bcs'].includes(user.role); }
+
 async function openCountMenuBranchPicker() {
   const isLao = lang === 'lo';
-  if (!['admin', 'scc', 'it'].includes(user.role)) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
+  if (!countMenuCanToggle()) { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
   let brs = window._allBranchesCache;
   if (!brs || !brs.length) {
     try { const { data } = await sb.from('branches').select('id, code, name_th, name_lo').order('id'); brs = data || []; window._allBranchesCache = brs; } catch (e) { brs = []; }
   }
+  if (!isAllBranch()) brs = (brs || []).filter(b => branch && b.id === branch.id);   // 🏪 เฉพาะสาขาตัวเอง
   const raw = _countMenuRaw || 'on';
   const allOn = (raw === 'on' || (raw !== 'off' && raw.indexOf('branch:') !== 0));
   const onIds = raw.indexOf('branch:') === 0 ? raw.slice(7).split(',').map(s => s.trim()).filter(Boolean) : [];
@@ -3492,6 +3496,17 @@ async function openCountMenuBranchPicker() {
     <button class="btn btn-primary" onclick="saveCountMenuBranches()">${isLao ? 'ບັນທຶກ' : 'บันทึก'}</button></div>`);
 }
 
+// รวมค่าใหม่: แก้เฉพาะสาขาที่อยู่ในรายการ (changes) · สาขาอื่นคงตามค่าเดิม
+function _countMenuMerge(raw, allIds, changes) {
+  raw = raw || 'on';
+  const on = new Set(raw === 'off' ? [] : (raw.indexOf('branch:') === 0 ? raw.slice(7).split(',').map(x => x.trim()).filter(Boolean) : allIds));
+  changes.forEach(c => { if (c.on) on.add(c.id); else on.delete(c.id); });
+  const ids = allIds.filter(id => on.has(id));
+  if (!ids.length) return 'off';
+  if (allIds.length && ids.length === allIds.length) return 'on';
+  return 'branch:' + ids.join(',');
+}
+
 function _cmPickAll(on) {
   document.querySelectorAll('.cmBrChk').forEach(c => { c.checked = !!on; });
 }
@@ -3499,12 +3514,8 @@ function _cmPickAll(on) {
 async function saveCountMenuBranches() {
   const isLao = lang === 'lo';
   const boxes = Array.from(document.querySelectorAll('.cmBrChk'));
-  const total = boxes.length;
-  const checked = boxes.filter(c => c.checked).map(c => c.value);
-  let value;
-  if (checked.length === 0) value = 'off';
-  else if (checked.length === total) value = 'on';
-  else value = 'branch:' + checked.join(',');
+  const allIds = (window._allBranchesCache || []).map(b => String(b.id));
+  const value = _countMenuMerge(_countMenuRaw, allIds, boxes.map(c => ({ id: String(c.value), on: c.checked })));
   const ok = await _setCountMenuValue(value, isLao ? 'ບັນທຶກສະຫວິດນັບແລ້ວ ✓' : 'บันทึกสวิตช์นับแล้ว ✓');
   if (ok) closeModal();
 }
@@ -35243,7 +35254,7 @@ function renderSettingsPage() {
     </div>`; })() : ''}
 
     ${['admin', 'scc', 'bcs', 'it'].includes(user.role) ? `
-    ${['admin', 'scc', 'it'].includes(user.role) ? `
+    ${countMenuCanToggle() ? `
     <!-- เมนูนับสต๊อก — เลือกเปิดต่อสาขาได้ -->
     ${(() => { const cm = _countMenuSummary(); return `
     <div style="background:white;border:2px solid var(--teal-200);border-radius:14px;padding:16px;margin-top:14px;">
@@ -35257,9 +35268,9 @@ function renderSettingsPage() {
       <button class="btn" style="background:var(--teal-500);color:white;font-size:12px;padding:10px;width:100%;margin-top:10px;" onclick="openCountMenuBranchPicker()">
         ⚙️ ${lang === 'lo' ? 'ເລືອກສາຂາທີ່ເປີດນັບ' : 'เลือกสาขาที่เปิดนับ'}
       </button>
-      <button class="btn" style="background:var(--rose-500);color:white;font-size:12px;padding:10px;width:100%;margin-top:8px;" onclick="openCloseCountRound()">
+      ${cntRoundCanClose() ? `<button class="btn" style="background:var(--rose-500);color:white;font-size:12px;padding:10px;width:100%;margin-top:8px;" onclick="openCloseCountRound()">
         🏁 ${lang === 'lo' ? 'ປິດຮອບນັບ (ເກັບ POS ໄວ້ທຽບຍ້ອນຫຼັງ)' : 'ปิดรอบนับ (เก็บ POS ไว้เทียบย้อนหลัง)'}
-      </button>
+      </button>` : ''}
     </div>`; })()}
     ` : ''}
 
