@@ -25598,7 +25598,8 @@ function renderTiebreakerList() {
     return;
   }
 
-  const isAdmin = ['admin', 'scc', 'bcs'].includes(user.role);
+  // เห็นยอด C/V + มูลค่า: admin/scc/bcs/it (IT เพิ่ม 2026-11-16) · CTL ไม่เห็น = นับรอบ 3 แบบไม่รู้ยอดคนอื่น
+  const isAdmin = ['admin', 'scc', 'bcs', 'it'].includes(user.role);
   const isLao = lang === 'lo';
   const absDiff = it => Math.abs(it.cv_diff || 0);
   const absVal  = it => Math.abs(Number(it.cv_value_diff || 0));
