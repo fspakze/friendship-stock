@@ -18071,6 +18071,8 @@ function renderScanPage() {
     ${locPickerHtml}
     <!-- 📋 Verifier: รายการที่ต้องนับในชั้นนี้ (บนสุด ไม่ต้องเลื่อนหา) -->
     <div id="vfListBox"></div>
+    <!-- 📐 Counter: สินค้าตาม Pan-O-Gram ที่ยังไม่ได้สแกนในชั้นนี้ -->
+    <div id="cnListBox"></div>
     
     <div class="scan-card">
       <div class="scan-frame" id="scanFrame">
@@ -24859,6 +24861,7 @@ async function saveCount() {
   }
   
   showToast(toastMsg, toastType);
+  try { if (data) cnMarkSeen(data.product_id, data.location_code || data.gondola_code); } catch (e) {}
   cancelCount();
   try { await loadSessionStats(); } catch (e) {}
   try { updateTbBadge(); } catch (e) {}
@@ -24868,6 +24871,7 @@ async function saveCount() {
 async function loadSessionStats() {
   if (!session) return;
   if (['verifier', 'audit'].includes(user.role)) { try { vfLoadList(); } catch (e) {} }   // 📋 รายการที่ Verifier ต้องนับ
+  if (['counter', 'staff'].includes(user.role)) { try { cnLoadList(); } catch (e) {} }     // 📐 ตาม Pan-O-Gram ยังไม่สแกน
   
   const r = user.role;
   const isAdmin = ['admin', 'scc', 'bcs'].includes(r);
@@ -25711,6 +25715,134 @@ async function fmFillVerifyBadges() {
     el.innerHTML = '<span title="' + (lang === 'lo' ? 'Verifier ຕ້ອງນັບ / ນັບແລ້ວ' : 'Verifier ต้องนับ / นับแล้ว') + '" style="display:inline-block;margin-top:2px;padding:0 5px;border-radius:6px;font-size:9px;font-weight:800;background:' + (ok ? 'var(--emerald-500)' : 'var(--violet-600)') + ';color:white;">'
       + (m.need === 0 ? 'V ✓' : ('V ' + m.done + '/' + m.need + (ok ? ' ✓' : ''))) + '</span>';
   });
+}
+
+
+// ==================== 📐 Counter: สินค้าตาม Pan-O-Gram ที่ยังไม่ได้สแกนในชั้นนี้ (cn*) — Ball 2026-11-17 ข้อ A ====================
+// กันกลุ่ม "ไม่ได้นับ A" ตั้งแต่ตอนนับ · โชว์แค่ชื่อ/บาร์โค้ด/ตำแหน่ง (ไม่โชว์ยอด POS — Counter ยังนับแบบไม่เห็นยอด)
+// นับเฉพาะสินค้าที่ยังมีสต๊อกในระบบ (active · POS > 0) = ตัวที่ถ้าไม่สแกนจะตกไปอยู่กลุ่ม A
+let _cnPogCache = {};      // base → [{pid, barcode, name_th, name_lo, shelf, seq}]
+let _cnOpen = false;
+async function cnPogItems(base) {
+  if (_cnPogCache[base]) return _cnPogCache[base];
+  const pg = await fetchAllQuery(() => sb.from('pan_o_grams')
+    .select('id, product_id, location_code, shelf, seq_in_shelf')
+    .eq('branch_id', branch.id).in('location_code', [base, base + FLOOR_SUFFIX]).order('id'));
+  const pos = {};
+  (pg || []).forEach(r => { if (!r.product_id) return; const o = pos[r.product_id]; const k = [Number(r.shelf) || 99, Number(r.seq_in_shelf) || 999]; if (!o || k[0] < o[0] || (k[0] === o[0] && k[1] < o[1])) pos[r.product_id] = k; });
+  const pids = Object.keys(pos).map(Number);
+  const out = [];
+  for (let i = 0; i < pids.length; i += 300) {
+    const ps = await _sbSel(() => sb.from('products').select('id, barcode, name_th, name_lo, pos_qty, is_active')
+      .eq('branch_id', branch.id).in('id', pids.slice(i, i + 300)));
+    (ps || []).forEach(p => { if (p.is_active !== false && Number(p.pos_qty) > 0) out.push({ pid: p.id, barcode: p.barcode, name_th: p.name_th, name_lo: p.name_lo, shelf: pos[p.id][0], seq: pos[p.id][1] }); });
+  }
+  out.sort((a, b) => a.shelf - b.shelf || a.seq - b.seq);
+  _cnPogCache[base] = out;
+  return out;
+}
+// สินค้าใน Pan-O-Gram ของชั้นนี้ที่ยังไม่มีใครสแกน (ทุก role · ชั้น + พื้น) ในรอบนับนี้
+//   ประหยัด request (Log Ingestion): ดึงยอดสแกนของชั้นครั้งเดียว แล้วเติมเองหลังบันทึก (cnMarkSeen) · ดึงใหม่ทุก 5 นาที / กด 🔄
+let _cnSeen = {};          // base → { at, set:Set(pid) }
+async function cnMissingFor(base, force) {
+  const items = await cnPogItems(base);
+  if (!items.length) return { items, missing: [] };
+  const c = _cnSeen[base];
+  if (force || !c || c.sid !== session.id || Date.now() - c.at > 300000) {
+    const sc = await fetchAllQuery(() => sb.from('stock_counts').select('id, product_id')
+      .eq('session_id', session.id).in('location_code', [base, base + FLOOR_SUFFIX]).order('id'));
+    _cnSeen[base] = { sid: session.id, at: Date.now(), set: new Set((sc || []).map(r => r.product_id)) };
+  }
+  const seen = _cnSeen[base].set;
+  return { items, missing: items.filter(x => !seen.has(x.pid)) };
+}
+function cnMarkSeen(pid, locCode) {
+  const b = floorBaseCode(String(locCode || '').toUpperCase().trim());
+  if (pid && _cnSeen[b]) _cnSeen[b].set.add(pid);
+}
+function cnToggle() { _cnOpen = !_cnOpen; cnLoadList(); }
+async function cnLoadList(force) {
+  const box = document.getElementById('cnListBox');
+  if (!box) return;
+  if (!session || !loc || !['counter', 'staff'].includes(user.role)) { box.innerHTML = ''; return; }
+  const isLao = lang === 'lo';
+  const base = floorBaseCode(String(loc.location_code || '').toUpperCase().trim());
+  try {
+    const { items, missing } = await cnMissingFor(base, force);
+    if (!items.length) { box.innerHTML = ''; return; }
+    const ok = !missing.length;
+    let html = '<div style="background:white;border:2px solid ' + (ok ? 'var(--emerald-300, #6ee7b7)' : 'var(--amber-300, #fcd34d)') + ';border-radius:12px;padding:9px 11px;margin-bottom:9px;">'
+      + '<div onclick="cnToggle()" style="display:flex;align-items:center;gap:8px;cursor:pointer;">'
+      + '<span style="font-size:12.5px;font-weight:800;color:' + (ok ? 'var(--emerald-700)' : 'var(--amber-700)') + ';">📐 ' + (isLao ? 'ຕາມ Pan-O-Gram ' : 'ตาม Pan-O-Gram ') + escapeHtml(base) + '</span>'
+      + '<span style="font-size:12px;font-weight:800;color:' + (ok ? 'var(--emerald-600)' : 'var(--amber-600)') + ';">' + (ok ? '✅ ' + (isLao ? 'ສະແກນຄົບ' : 'สแกนครบ') : (isLao ? 'ຍັງບໍ່ສະແກນ ' : 'ยังไม่สแกน ') + missing.length + ' / ' + items.length) + '</span>'
+      + '<span style="margin-left:auto;display:flex;gap:6px;align-items:center;">'
+      + '<button onclick="event.stopPropagation();cnLoadList(true)" style="border:1px solid var(--slate-300);background:white;border-radius:7px;padding:2px 7px;font-size:10px;cursor:pointer;">🔄</button>'
+      + (ok ? '' : '<span style="font-size:11px;color:var(--slate-500);">' + (_cnOpen ? '▲' : '▼') + '</span>') + '</span></div>';
+    if (!ok && _cnOpen) {
+      html += '<div style="font-size:10.5px;color:var(--slate-500);margin:4px 0 6px;line-height:1.5;">'
+        + (isLao ? 'ສິນຄ້າຄວນຢູ່ຊັ້ນນີ້ ແຕ່ຍັງບໍ່ມີໃຜສະແກນ — ກວດຫຼັງສິນຄ້າອື່ນ/ຊ້ອນກັນ · ຖ້າບໍ່ພົບແທ້ ບໍ່ຕ້ອງສະແກນ' : 'สินค้าควรอยู่ชั้นนี้ แต่ยังไม่มีใครสแกน — ดูหลังสินค้าอื่น/วางซ้อนกัน · ถ้าไม่พบจริง ไม่ต้องสแกน') + '</div>'
+        + '<div style="display:flex;flex-direction:column;gap:4px;max-height:34vh;overflow-y:auto;">' + missing.map(x => {
+          const nm = (isLao ? (x.name_lo || x.name_th) : (x.name_th || x.name_lo)) || x.barcode;
+          return '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:8px;background:var(--amber-50, #fffbeb);border:1px solid var(--amber-200, #fde68a);">'
+            + '<span style="font-size:9.5px;font-weight:800;color:var(--slate-500);white-space:nowrap;font-family:\'Space Grotesk\',monospace;">' + (isLao ? 'ຊັ້ນ ' : 'ชั้น ') + (x.shelf === 99 ? '?' : x.shelf) + '·' + (x.seq === 999 ? '?' : x.seq) + '</span>'
+            + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:12px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(nm) + '</span>'
+            + '<span style="display:block;font-size:9.5px;color:var(--slate-500);font-family:monospace;">' + escapeHtml(x.barcode || '') + '</span></span></div>';
+        }).join('') + '</div>';
+    }
+    box.innerHTML = html + '</div>';
+  } catch (e) {
+    box.innerHTML = '<div style="color:var(--rose-500);font-size:11px;margin-bottom:9px;">Error: ' + escapeHtml(e.message || String(e)) + '</div>';
+  }
+}
+window.cnLoadList = cnLoadList; window.cnToggle = cnToggle;
+
+// ==================== 🔀 สงสัยนับปน/นับสลับ (Ball 2026-11-17 ข้อ C) ====================
+// ในชั้นเดียวกัน ตัวหนึ่ง "เกิน" อีกตัว "ขาด" (หรือไม่ได้นับ A) จำนวนใกล้กัน + แบรนด์/กลุ่ม/ชื่อคล้ายกัน
+//   = มักเกิดจากวางซ้อน แล้ว Counter สแกนตัวหนึ่งแต่นับรวมของอีกตัว
+function _mixKey(name) { return String(name || '').toUpperCase().replace(/[^A-Z0-9฀-໿ ]/g, ' ').trim().split(/\s+/)[0] || ''; }
+function csumMixPairs(d) {
+  const noGrp = [_csumL('(ບໍ່ມີກຸ່ມ)', '(ไม่มีกลุ่ม)')];
+  const byGon = {};
+  const add = (g, x) => { if (g && g !== '-' && g !== '?') (byGon[g] = byGon[g] || []).push(x); };
+  d.done.forEach(r => {
+    if (!r.diff) return;
+    const x = { kind: 'done', pid: r.pid, bc: r.bc, name: r.name, brand: r.brand, grp: r.grp, cat: r.cat, n: r.diff, cost: r.cost || 0, c: r.c, v: r.v, fin: r.fin, pos: r.pos };
+    new Set(String(r.gons || '').split(',').map(k => floorBaseCode(String(k).toUpperCase().trim())).filter(Boolean)).forEach(g => add(g, x));
+  });
+  d.uncA.forEach(r => {
+    const x = { kind: 'unc', pid: r.pid, bc: r.bc, name: r.name, brand: r.brand, grp: r.grp, cat: r.cat, n: -r.pos, cost: r.cost || 0, fin: 0, pos: r.pos };
+    (r.hitGons || []).forEach(g => add(g, x));
+  });
+  const pairs = [];
+  Object.keys(byGon).forEach(g => {
+    const list = byGon[g];
+    const over = list.filter(x => x.n > 0), short = list.filter(x => x.n < 0);
+    const used = new Set();
+    over.forEach(o => {
+      let best = null;
+      short.forEach(s => {
+        if (used.has(s.pid) || s.pid === o.pid) return;
+        const a = o.n, b = -s.n;
+        if (Math.abs(a - b) > Math.max(1, 0.25 * Math.max(a, b))) return;   // จำนวนใกล้กัน (±25%)
+        let why = null, w = 0;
+        if (o.brand && o.brand === s.brand) { why = 'brand'; w = 3; }
+        else if (_mixKey(o.name) && _mixKey(o.name) === _mixKey(s.name)) { why = 'name'; w = 2; }
+        else if (o.grp && o.grp === s.grp && !noGrp.includes(o.grp)) { why = 'grp'; w = 1; }
+        if (!why) return;
+        const score = w * 10 - Math.abs(a - b);
+        if (!best || score > best.score) best = { s, why, score };
+      });
+      if (best) {
+        used.add(best.s.pid);
+        pairs.push({ gon: g, over: o, short: best.s, why: best.why, val: Math.min(o.n * o.cost, -best.s.n * best.s.cost) });
+      }
+    });
+  });
+  // สินค้าคู่เดียวกันอยู่หลายชั้น → รวมเป็นคู่เดียว (ชั้นต่อกันด้วย ,)
+  const uniq = {};
+  pairs.forEach(p => { const k = p.over.pid + '|' + p.short.pid; if (uniq[k]) uniq[k].gon += ', ' + p.gon; else uniq[k] = p; });
+  const W = { brand: 3, name: 2, grp: 1 };
+  return Object.values(uniq).sort((a, b) => (W[b.why] - W[a.why]) || (b.val - a.val));   // แบรนด์ → ชื่อ → กลุ่ม แล้วตามมูลค่า
 }
 
 // ==================== 📦 ชั้น + พื้น: ยอดรวมต่อชั้น (Ball 2026-11-16 · W12 FSMINI) ====================
@@ -28582,7 +28714,7 @@ async function csumOpen(view) {
 let _csumTrackTab = 'gon';   // 'gon' | 'unc'
 let _csumTrackF = 'all';     // all | cv | wait | unc
 let _csumTrackGon = null;    // gondola ที่เปิดดูรายการ
-function csumTrackTab(k) { _csumTrackTab = k === 'unc' ? 'unc' : 'gon'; renderVarianceList(); }
+function csumTrackTab(k) { _csumTrackTab = ['unc', 'mix'].includes(k) ? k : 'gon'; renderVarianceList(); }
 function csumTrackF(k) { _csumTrackF = ['cv', 'wait', 'unc'].includes(k) ? k : 'all'; _csumTrackGon = null; renderVarianceList(); }
 function csumTrackGon(key) { const g = decodeURIComponent(key || ''); _csumTrackGon = (_csumTrackGon === g) ? null : g; renderVarianceList(); }
 window.csumTrackTab = csumTrackTab; window.csumTrackF = csumTrackF; window.csumTrackGon = csumTrackGon;
@@ -28626,7 +28758,9 @@ function _csumTrackHtml(d, isLao) {
   let html = '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px;">'
     + tab('gon', '📍 ' + L('ໄລ່ຕາມຊັ້ນ (ນັບບໍ່ກົງ)', 'ไล่ตามชั้น (นับไม่ตรง)'))
     + tab('unc', '🔍 ' + L('ບໍ່ໄດ້ນັບ A+B ຕາມມູນຄ່າ', 'ไม่ได้นับ A+B ตามมูลค่า') + ' (' + uncAll.length + ')')
+    + tab('mix', '🔀 ' + L('ສົງໄສນັບປົນ', 'สงสัยนับปน') + ' (' + csumMixPairs(d).length + ')')
     + '</div>';
+  if (_csumTrackTab === 'mix') return html + _csumTrackMixHtml(d, isLao);
   return html + (_csumTrackTab === 'unc' ? _csumTrackUncHtml(d, uncAll, isLao) : _csumTrackGonHtml(gons, tot, isLao));
 }
 
@@ -28702,6 +28836,29 @@ function _csumTrackGonHtml(gons, tot, isLao) {
     }
     return h + '</div>';
   }).join('');
+  return html;
+}
+
+function _csumTrackMixHtml(d, isLao) {
+  const L = _csumL, N = _csumN;
+  const pairs = csumMixPairs(d);
+  const WHY = { brand: L('ແບຣນດຽວກັນ', 'แบรนด์เดียวกัน'), name: L('ຊື່ຄ້າຍກັນ', 'ชื่อคล้ายกัน'), grp: L('ກຸ່ມດຽວກັນ', 'กลุ่มเดียวกัน') };
+  let html = '<div style="font-size:11px;color:var(--slate-600);line-height:1.6;margin-bottom:8px;">'
+    + L('ໃນຊັ້ນດຽວກັນ ຕົວໜຶ່ງ "ເກີນ" ອີກຕົວ "ຂາດ / ບໍ່ໄດ້ນັບ" ຈຳນວນໃກ້ກັນ + ແບຣນ/ຊື່/ກຸ່ມ ຄ້າຍກັນ → ມັກເກີດຈາກວາງຊ້ອນ ແລ້ວນັບລວມເປັນຕົວດຽວ · ໃຫ້ CTL ໄປແຍກນັບ 2 ຕົວນີ້',
+        'ในชั้นเดียวกัน ตัวหนึ่ง "เกิน" อีกตัว "ขาด / ไม่ได้นับ" จำนวนใกล้กัน + แบรนด์/ชื่อ/กลุ่ม คล้ายกัน → มักเกิดจากวางซ้อน แล้วนับรวมเป็นตัวเดียว · ให้ CTL ไปแยกนับ 2 ตัวนี้')
+    + '</div>';
+  if (!pairs.length) return html + '<div style="text-align:center;padding:30px;color:var(--emerald-600);font-size:13px;font-weight:800;">✅ ' + L('ບໍ່ພົບຄູ່ສົງໄສ', 'ไม่พบคู่สงสัย') + '</div>';
+  const line = (x, sign, color) => '<div style="display:flex;gap:8px;align-items:center;">'
+    + '<span style="font-size:13px;font-weight:800;color:' + color + ';min-width:46px;text-align:right;font-family:\'Space Grotesk\',monospace;">' + sign + Math.abs(x.n) + '</span>'
+    + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:12px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(x.name) + '</span>'
+    + '<span style="display:block;font-size:9.5px;color:var(--slate-500);font-family:monospace;">' + escapeHtml(x.bc) + ' · POS ' + N(x.pos) + ' · ' + (x.kind === 'unc' ? L('ບໍ່ໄດ້ນັບ', 'ไม่ได้นับ') : L('ນັບໄດ້ ', 'นับได้ ') + N(x.fin)) + '</span></span></div>';
+  html += pairs.map(p => '<div style="background:white;border:1px solid var(--violet-300, #c4b5fd);border-radius:11px;padding:8px 10px;margin-bottom:6px;">'
+    + '<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">'
+    + '<span style="font-size:13px;font-weight:800;color:var(--slate-900);font-family:\'Space Grotesk\',monospace;">📍 ' + escapeHtml(p.gon) + '</span>'
+    + '<span style="background:var(--violet-100, #ede9fe);color:var(--violet-700, #6d28d9);border-radius:8px;padding:1px 7px;font-size:10px;font-weight:800;">' + WHY[p.why] + '</span>'
+    + '<span style="margin-left:auto;font-size:11px;font-weight:700;color:var(--slate-500);font-family:\'Space Grotesk\',monospace;">₭' + N(p.val) + '</span></div>'
+    + line(p.over, '+', 'var(--sky-600, #0284c7)') + line(p.short, '−', 'var(--rose-600)')
+    + '</div>').join('');
   return html;
 }
 
@@ -29096,6 +29253,8 @@ async function csumExport() {
       g.unc.forEach(x => trk.push([g.base, L('ບໍ່ໄດ້ນັບ (A)', 'ไม่ได้นับ (A)'), x.bc, x.name, x.pogGons || '', '', '', '', x.pos, Math.round(x.posV)]));
     });
     add(L('ຕິດຕາມຕໍ່ຊັ້ນ', 'ติดตามต่อชั้น'), [['Gondola', L('ສະຖານະ', 'สถานะ'), 'Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ຈຸດ', 'จุด'), 'Counter', 'Verifier', 'CTL', 'POS', L('ມູນຄ່າ ₭', 'มูลค่า ₭')]].concat(trk), [10, 22, 15, 40, 18, 9, 9, 9, 9, 14]);
+    add(L('ສົງໄສນັບປົນ', 'สงสัยนับปน'), [['Gondola', L('ເຫດຜົນ', 'เหตุผล'), L('ເກີນ: Barcode', 'เกิน: Barcode'), L('ເກີນ: ຊື່', 'เกิน: ชื่อ'), L('ເກີນ', 'เกิน'), L('ຂາດ: Barcode', 'ขาด: Barcode'), L('ຂາດ: ຊື່', 'ขาด: ชื่อ'), L('ຂາດ', 'ขาด'), L('ມູນຄ່າ ₭', 'มูลค่า ₭')]]
+      .concat(csumMixPairs(d).map(p => [p.gon, p.why, p.over.bc, p.over.name, p.over.n, p.short.bc, p.short.name, p.short.n, Math.round(p.val)])), [10, 8, 15, 36, 7, 15, 36, 7, 12]);
     const uncS = d.uncA.concat(d.uncB).sort((x, y) => y.posV - x.posV);
     add(L('ບໍ່ໄດ້ນັບ A+B ຕາມມູນຄ່າ', 'ไม่ได้นับ A+B ตามมูลค่า'), [[L('ກຸ່ມ', 'กลุ่ม'), 'Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ປະເພດ', 'ประเภท'), 'Pan-O-Gram', 'POS', L('ມູນຄ່າ ₭', 'มูลค่า ₭'), L('ຂາຍລ່າສຸດ', 'ขายล่าสุด'), 'AVG/' + L('ເດືອນ', 'เดือน')]]
       .concat(uncS.map(r => [r.grpKey, r.bc, r.name, r.cat, r.pogGons || '', r.pos, Math.round(r.posV), r.lastSale || '', r.avgM || 0])), [6, 15, 40, 18, 18, 8, 14, 12, 10]);
@@ -35874,7 +36033,14 @@ async function wfOpenForCounter(locCode) {
 
 async function wfCloseCounter(locCode) {
   if (!wfNeedSession()) return;
-  if (!confirm(`${T('close_counter')} ${locCode}?`)) return;
+  // 📐 เตือน CTL ถ้ายังมีสินค้าตาม Pan-O-Gram ที่ไม่มีใครสแกน (Ball 2026-11-17 · กันกลุ่ม "ไม่ได้นับ A")
+  let _cnWarn = '';
+  try {
+    const { missing } = await cnMissingFor(floorBaseCode(String(locCode).toUpperCase().trim()), true);
+    if (missing.length) _cnWarn = '\n\n⚠️ ' + (lang === 'lo' ? 'ຍັງມີສິນຄ້າຕາມ Pan-O-Gram ທີ່ບໍ່ມີໃຜສະແກນ ' : 'ยังมีสินค้าตาม Pan-O-Gram ที่ไม่มีใครสแกน ') + missing.length + (lang === 'lo' ? ' ລາຍການ:\n' : ' รายการ:\n')
+      + missing.slice(0, 8).map(x => '• ' + ((lang === 'lo' ? (x.name_lo || x.name_th) : (x.name_th || x.name_lo)) || x.barcode)).join('\n') + (missing.length > 8 ? '\n…' : '');
+  } catch (e) {}
+  if (!confirm(`${T('close_counter')} ${locCode}?` + _cnWarn)) return;
 
   log('CTL closing counter for:', locCode);
   
