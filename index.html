@@ -24631,6 +24631,7 @@ function cancelCount() {
   if (c) c.innerHTML = '';
 }
 
+let _gsOkKey = '', _gsOkAt = 0;   // cache ผลเช็คสถานะ Gondola ล่าสุดที่ผ่าน
 async function saveCount() {
   if (!curProduct) {
     showToast('No product selected', 'error');
@@ -24688,11 +24689,19 @@ async function saveCount() {
     }
    } else {
    try {
-    const { data: gs } = await _fsTimeout(sb.from('gondola_status')
-      .select('status, active_counter_id, active_verifier_id')
-      .eq('session_id', session.id)
-      .eq('location_code', loc.location_code)
-      .maybeSingle());
+    // 📉 ลด request (Ball 2026-11-17): เช็คผ่านแล้วภายใน 90 วิ (Gondola เดิม · คนเดิม) = ไม่ต้องถาม DB ซ้ำทุกสแกน
+    const _gsKey = session.id + '|' + loc.location_code + '|' + user.id + '|' + r;
+    let gs;
+    if (_gsOkKey === _gsKey && Date.now() - _gsOkAt < 90000) {
+      gs = { status: ['verifier', 'audit'].includes(r) ? 'verifying' : 'counting', active_counter_id: user.id, active_verifier_id: user.id };
+    } else {
+      const _gsRes = await _fsTimeout(sb.from('gondola_status')
+        .select('status, active_counter_id, active_verifier_id')
+        .eq('session_id', session.id)
+        .eq('location_code', loc.location_code)
+        .maybeSingle());
+      gs = _gsRes.data;
+    }
     
     const isCounter = ['counter'].includes(r);
     const isVerifier = ['verifier', 'audit'].includes(r);
@@ -24764,6 +24773,7 @@ async function saveCount() {
       }
     }
     // ✅ จอง/ยืนยัน Gondola สำเร็จ (online) → จำไว้ให้ offline นับต่อได้ภายหลัง (Option A)
+    _gsOkKey = _gsKey; _gsOkAt = Date.now();
     await fsClaimRecord(session.id, loc.location_code, ['verifier', 'audit'].includes(r) ? 'verifier' : 'counter');
    } catch (e) {
     // 📶 เน็ตสะดุดระหว่างเช็ค Gondola → ใช้กติกาออฟไลน์: Gondola ที่จองไว้แล้ว = บันทึกลงเครื่องได้
@@ -24863,11 +24873,39 @@ async function saveCount() {
   showToast(toastMsg, toastType);
   try { if (data) cnMarkSeen(data.product_id, data.location_code || data.gondola_code); } catch (e) {}
   cancelCount();
-  try { await loadSessionStats(); } catch (e) {}
-  try { updateTbBadge(); } catch (e) {}
+  try { await statsAfterSave(data); } catch (e) {}
+  try { if (Date.now() - _tbBadgeAt > 180000) { _tbBadgeAt = Date.now(); updateTbBadge(); } } catch (e) {}   // 📉 ไม่ยิงทุกสแกน
 }
 
 // ==================== STATS ====================
+// 📉 ลด request (Ball 2026-11-17 · Log Ingestion วันนับ 300 MB): ดึงสถิติจาก DB ตอนเข้าหน้า/ทุก 3 นาที · ระหว่างนั้นบวกในเครื่องหลังบันทึก
+let _myStats = null;   // { sid, uid, n, qty, diff, at }
+let _tbBadgeAt = 0;
+function _renderMyStats() {
+  if (!_myStats) return;
+  const isAdmin = ['admin', 'scc', 'bcs'].includes(user.role);
+  const sEl = document.getElementById('statScanned');
+  const tEl = document.getElementById('statTotal');
+  const dEl = document.getElementById('statDiff');
+  const dCard = document.getElementById('statDiffCard');
+  if (sEl) sEl.textContent = _myStats.n.toLocaleString();
+  if (tEl) tEl.textContent = _myStats.qty.toLocaleString();
+  if (isAdmin) {
+    if (dEl) dEl.textContent = (_myStats.diff > 0 ? '+' : '') + _myStats.diff.toLocaleString();
+  } else if (dCard) {
+    dCard.style.display = 'none';
+    const parent = dCard.parentElement;
+    if (parent) parent.style.gridTemplateColumns = '1fr 1fr';
+  }
+}
+async function statsAfterSave(row) {
+  const fresh = row && _myStats && session && _myStats.sid === session.id && _myStats.uid === user.id && Date.now() - _myStats.at < 180000;
+  if (!fresh) return loadSessionStats();
+  _myStats.n++; _myStats.qty += Number(row.counted_qty) || 0; _myStats.diff += Number(row.diff) || 0;
+  _renderMyStats();
+  if (['verifier', 'audit'].includes(user.role)) { try { vfMarkDone(row.product_id, row.location_code || row.gondola_code); } catch (e) {} }
+  if (['counter', 'staff'].includes(user.role)) { try { cnLoadList(); } catch (e) {} }   // ใช้ cache (cnMarkSeen ติ๊กไว้แล้ว)
+}
 async function loadSessionStats() {
   if (!session) return;
   if (['verifier', 'audit'].includes(user.role)) { try { vfLoadList(); } catch (e) {} }   // 📋 รายการที่ Verifier ต้องนับ
@@ -24892,27 +24930,9 @@ async function loadSessionStats() {
   log('My counts:', (data || []).length);
   
   const items = data || [];
-  const totalScanned = items.length;
-  const totalQty = items.reduce((s, x) => s + (x.counted_qty || 0), 0);
-  const totalDiff = items.reduce((s, x) => s + (x.diff || 0), 0);
-  
-  const sEl = document.getElementById('statScanned');
-  const tEl = document.getElementById('statTotal');
-  const dEl = document.getElementById('statDiff');
-  const dCard = document.getElementById('statDiffCard');
-  
-  if (sEl) sEl.textContent = totalScanned.toLocaleString();
-  if (tEl) tEl.textContent = totalQty.toLocaleString();
-  
-  if (isAdmin) {
-    if (dEl) dEl.textContent = (totalDiff > 0 ? '+' : '') + totalDiff.toLocaleString();
-  } else {
-    if (dCard) {
-      dCard.style.display = 'none';
-      const parent = dCard.parentElement;
-      if (parent) parent.style.gridTemplateColumns = '1fr 1fr';
-    }
-  }
+  _myStats = { sid: session.id, uid: user.id, n: items.length, at: Date.now(),
+    qty: items.reduce((s, x) => s + (x.counted_qty || 0), 0), diff: items.reduce((s, x) => s + (x.diff || 0), 0) };
+  _renderMyStats();
 }
 
 // ==================== HISTORY ====================
@@ -25598,12 +25618,20 @@ function _vfSid(p) { const r = p && (p.counter || p.verifier || p.ctl || p.manag
 function vfRequired(p) { return !(p && p.diff === 0 && p.isComplete !== false && !vfSampled(_vfSid(p), p.product_id)); }
 
 // 📋 รายการที่ Verifier ต้องนับ ใน Gondola ปัจจุบัน (หน้าสแกน · เฉพาะ verifier/audit)
-async function vfLoadList() {
+let _vfState = null;   // { sid, base, at, need, skip } — 📉 cache รายการต่อชั้น 5 นาที
+function vfMarkDone(pid, locCode) {
+  const b = floorBaseCode(String(locCode || '').toUpperCase().trim());
+  if (!_vfState || _vfState.base !== b || !pid) return;
+  const x = _vfState.need.find(y => y.pid === pid);
+  if (x && !x.done) { x.done = true; _vfRender(); }
+}
+async function vfLoadList(force) {
   const box = document.getElementById('vfListBox');
   if (!box) return;
   if (!session || !loc || !['verifier', 'audit'].includes(user.role)) { box.innerHTML = ''; return; }
   const isLao = lang === 'lo';
   const base = floorBaseCode(String(loc.location_code || '').toUpperCase().trim());
+  if (force !== true && _vfState && _vfState.sid === session.id && _vfState.base === base && Date.now() - _vfState.at < 300000) { _vfRender(); return; }
   box.innerHTML = '<div style="font-size:11px;color:var(--slate-500);padding:6px 2px;">⏳ ' + (isLao ? 'ກຳລັງໂຫຼດລາຍການທີ່ຕ້ອງນັບ...' : 'กำลังโหลดรายการที่ต้องนับ...') + '</div>';
   try {
     const here = await fetchAllQuery(() => sb.from('stock_counts')
@@ -25639,13 +25667,24 @@ async function vfLoadList() {
       return (cTot[pid] || 0) !== pos || vfSampled(session.id, pid);
     }).map(pid => ({ pid, p: prod[pid] || {}, done: verified.has(pid), at: cFirst[pid] || '' }))
       .sort((a, b) => String(a.at).localeCompare(String(b.at)));   // ตามลำดับที่ Counter นับ (ซ้าย→ขวา บน→ล่าง)
+    _vfState = { sid: session.id, base, at: Date.now(), need, skip: pids.length - need.length };
+    _vfRender();
+  } catch (e) {
+    box.innerHTML = '<div style="color:var(--rose-500);font-size:11px;margin-bottom:9px;">Error: ' + escapeHtml(e.message || String(e)) + '</div>';
+  }
+}
+function _vfRender() {
+  const box = document.getElementById('vfListBox');
+  if (!box || !_vfState) return;
+  const isLao = lang === 'lo';
+  const { base, need, skip } = _vfState;
+  {
     const nDone = need.filter(x => x.done).length;
-    const skip = pids.length - need.length;
     let html = '<div style="background:white;border:2px solid var(--violet-300);border-radius:12px;padding:10px 11px;margin-bottom:9px;">'
       + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
       + '<span style="font-size:13px;font-weight:800;color:var(--violet-700);">📋 ' + (isLao ? 'ຕ້ອງນັບໃນ ' : 'ต้องนับใน ') + escapeHtml(base) + '</span>'
       + '<span style="font-size:12px;font-weight:800;color:' + (nDone === need.length ? 'var(--emerald-600)' : 'var(--amber-600)') + ';">' + nDone + ' / ' + need.length + '</span>'
-      + '<button onclick="vfLoadList()" style="margin-left:auto;border:1px solid var(--slate-300);background:white;border-radius:7px;padding:3px 8px;font-size:10px;font-weight:700;color:var(--slate-600);cursor:pointer;">🔄</button></div>'
+      + '<button onclick="vfLoadList(true)" style="margin-left:auto;border:1px solid var(--slate-300);background:white;border-radius:7px;padding:3px 8px;font-size:10px;font-weight:700;color:var(--slate-600);cursor:pointer;">🔄</button></div>'
       + '<div style="font-size:10.5px;color:var(--slate-500);margin:3px 0 7px;line-height:1.5;">'
       + (isLao ? 'ສິນຄ້າອື່ນ ' + skip + ' ລາຍການ Counter ນັບກົງແລ້ວ — ບໍ່ຕ້ອງນັບ · ນັບຊັ້ນວາງ + ພື້ນ ໃຫ້ຄົບ' : 'สินค้าอื่น ' + skip + ' รายการ Counter นับตรงแล้ว — ไม่ต้องนับ · นับชั้นวาง + พื้น ให้ครบ')
       + '<br>' + (isLao ? 'ຮຽງຕາມລຳດັບທີ່ Counter ນັບ (ຊ້າຍ→ຂວາ ເທິງ→ລຸ່ມ)' : 'เรียงตามลำดับที่ Counter นับ (ซ้าย→ขวา บน→ล่าง)') + '</div>';
@@ -25659,8 +25698,6 @@ async function vfLoadList() {
         + '<span style="display:block;font-size:9.5px;color:var(--slate-500);font-family:monospace;">' + escapeHtml(x.p.barcode || '') + '</span></span></div>';
     }).join('') + '</div>';
     box.innerHTML = html + '</div>';
-  } catch (e) {
-    box.innerHTML = '<div style="color:var(--rose-500);font-size:11px;margin-bottom:9px;">Error: ' + escapeHtml(e.message || String(e)) + '</div>';
   }
 }
 window.vfLoadList = vfLoadList;
