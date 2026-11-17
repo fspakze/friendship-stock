@@ -28347,7 +28347,7 @@ window.exportVarianceLocations = exportVarianceLocations;
 //              + product_status (ซื้อ/ขายล่าสุด, AVG) + rpc_po_latest_costs (ต้นทุนซื้อล่าสุด · fallback products.cost_price)
 // ⚠️ ทุก query ที่กระทบตัวเลข: retry แล้ว throw (ห้ามกลืนเงียบ — MEMORY 26/27)
 let _csum = null;        // ผลคำนวณล่าสุด
-let _csumView = null;    // null | 'summary' | 'uncounted'
+let _csumView = null;    // null | 'summary' | 'uncounted' | 'gondola' | 'negative' | 'track'
 let _csumUncTab = 'A';   // 'A' | 'B'
 let _csumBAll = false;   // กลุ่ม B: false = เฉพาะที่ยังขายอยู่ (AVG > 0)
 let _csumBusy = false;
@@ -28560,6 +28560,7 @@ function csumEntryHtml(isLao) {
     + btn('csumOpen(\'uncounted\')', 'var(--rose-500)', '🔍 ' + (isLao ? 'ມີສະຕ໋ອກ ແຕ່ບໍ່ໄດ້ນັບ' : 'มีสต๊อกแต่ไม่ได้นับ'))
     + btn('csumOpen(\'gondola\')', 'var(--sky-600, #0284c7)', '📍 ' + (isLao ? 'ສະຫຼຸບຕໍ່ຊັ້ນວາງ' : 'สรุปต่อชั้นวาง'))
     + btn('csumOpen(\'negative\')', 'var(--rose-700, #be123c)', '⚠️ ' + (isLao ? 'POS ຕິດລົບ' : 'POS ติดลบ'))
+    + btn('csumOpen(\'track\')', 'var(--violet-600, #7c3aed)', '🎯 ' + (isLao ? 'ຕິດຕາມສິນຄ້ານັບສະຕ໋ອກ' : 'ติดตามสินค้านับสต๊อก'))
     + '</div>';
 }
 async function csumOpen(view) {
@@ -28574,6 +28575,163 @@ async function csumOpen(view) {
   renderVarianceList();
   const el = document.getElementById('varianceList'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
+
+// 🎯 ติดตามสินค้านับสต๊อก (Ball 2026-11-17) — ผู้จัดการไล่ปิดงานให้ครบ
+//   แท็บ 1 ไล่ตามชั้น: ต่อ Gondola → C≠V รอตัดสิน · รอนับอีกฝ่าย · CTL ไม่ตรงทั้งคู่ · ไม่ได้นับ (A = อยู่ใน Pan-O-Gram ชั้นนี้)
+//   แท็บ 2 ไม่ได้นับ A+B เรียงตามมูลค่า
+let _csumTrackTab = 'gon';   // 'gon' | 'unc'
+let _csumTrackF = 'all';     // all | cv | wait | unc
+let _csumTrackGon = null;    // gondola ที่เปิดดูรายการ
+function csumTrackTab(k) { _csumTrackTab = k === 'unc' ? 'unc' : 'gon'; renderVarianceList(); }
+function csumTrackF(k) { _csumTrackF = ['cv', 'wait', 'unc'].includes(k) ? k : 'all'; _csumTrackGon = null; renderVarianceList(); }
+function csumTrackGon(key) { const g = decodeURIComponent(key || ''); _csumTrackGon = (_csumTrackGon === g) ? null : g; renderVarianceList(); }
+window.csumTrackTab = csumTrackTab; window.csumTrackF = csumTrackF; window.csumTrackGon = csumTrackGon;
+
+function _csumTrackBuild(d) {
+  const byPid = {}; d.done.forEach(r => { byPid[r.pid] = r; });
+  const gon = {};
+  const G = b => gon[b] = gon[b] || { base: b, cv: [], wait: [], judge: [], unc: [] };
+  (_varianceAllData || []).filter(it => !it.isOrphan).forEach(it => {
+    const rows = it.cvRows || [];
+    if (!rows.length) return;
+    const f = byPid[it.product_id] || {};
+    const cost = Number(f.cost) || 0;
+    const bc = it.product?.barcode || '';
+    const name = (lang === 'lo' ? (it.product?.name_lo || it.product?.name_th) : (it.product?.name_th || it.product?.name_lo)) || bc;
+    const st = varStage(it).key;
+    const needV = vfRequired(it);
+    rows.forEach(r => {
+      const x = { pid: it.product_id, bc, name, loc: r.loc, floor: r.floor, c: r.c, v: r.v, t: r.t, m: r.m, pos: it.pos_qty, cost };
+      if (st === 'need_bcs' && r.t !== null) { x.val = Math.abs((r.t || 0) - (r.c || 0)) * cost; G(r.base).judge.push(x); }
+      else if (r.st === 'diff') { x.gap = Math.abs(r.c - r.v); x.val = x.gap * cost; G(r.base).cv.push(x); }
+      else if (r.st === 'wait_v' && needV) { x.who = 'V'; x.val = Math.abs(it.diff || 0) * cost; G(r.base).wait.push(x); }
+      else if (r.st === 'wait_c') { x.who = 'C'; x.val = Math.abs(it.diff || 0) * cost; G(r.base).wait.push(x); }
+    });
+  });
+  d.uncA.forEach(r => (r.hitGons || []).forEach(g => G(g).unc.push(r)));
+  const list = Object.values(gon).map(g => {
+    ['cv', 'wait', 'judge', 'unc'].forEach(k => g[k].sort((a, b) => (b.val !== undefined ? b.val : b.posV) - (a.val !== undefined ? a.val : a.posV)));
+    g.v = g.cv.concat(g.wait, g.judge).reduce((s, x) => s + (x.val || 0), 0) + g.unc.reduce((s, x) => s + x.posV, 0);
+    return g;
+  }).sort((a, b) => a.base.localeCompare(b.base, undefined, { numeric: true }));
+  return list;
+}
+
+function _csumTrackHtml(d, isLao) {
+  const L = _csumL, N = _csumN;
+  const gons = _csumTrackBuild(d);
+  const tot = k => gons.reduce((s, g) => s + g[k].length, 0);
+  const uncAll = d.uncA.concat(d.uncB);   // A+B ทั้งหมด (ตรงกับปุ่ม "ไม่ได้นับ")
+  const tab = (k, label) => '<button onclick="csumTrackTab(\'' + k + '\')" style="flex:1;min-width:150px;background:' + (_csumTrackTab === k ? 'var(--violet-600, #7c3aed)' : 'white') + ';color:' + (_csumTrackTab === k ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--violet-600, #7c3aed);border-radius:10px;padding:9px 11px;font-size:12px;font-weight:800;cursor:pointer;">' + label + '</button>';
+  let html = '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px;">'
+    + tab('gon', '📍 ' + L('ໄລ່ຕາມຊັ້ນ (ນັບບໍ່ກົງ)', 'ไล่ตามชั้น (นับไม่ตรง)'))
+    + tab('unc', '🔍 ' + L('ບໍ່ໄດ້ນັບ A+B ຕາມມູນຄ່າ', 'ไม่ได้นับ A+B ตามมูลค่า') + ' (' + uncAll.length + ')')
+    + '</div>';
+  return html + (_csumTrackTab === 'unc' ? _csumTrackUncHtml(d, uncAll, isLao) : _csumTrackGonHtml(gons, tot, isLao));
+}
+
+function _csumTrackGonHtml(gons, tot, isLao) {
+  const L = _csumL, N = _csumN;
+  const F = _csumTrackF;
+  const chip = (k, label, n, color) => '<button onclick="csumTrackF(\'' + k + '\')" style="background:' + (F === k ? color : 'white') + ';color:' + (F === k ? 'white' : color) + ';border:1px solid ' + color + ';border-radius:16px;padding:5px 11px;font-size:11px;font-weight:800;cursor:pointer;">' + label + ' ' + n + '</button>';
+  let html = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'
+    + chip('all', L('ທັງໝົດ', 'ทั้งหมด'), gons.length + L(' ຊັ້ນ', ' ชั้น'), 'var(--slate-600)')
+    + chip('cv', '⚖️ C≠V', tot('cv') + tot('judge'), 'var(--amber-600)')
+    + chip('wait', '⏳ ' + L('ລໍຖ້ານັບ', 'รอนับ'), tot('wait'), 'var(--sky-600, #0284c7)')
+    + chip('unc', '🔍 ' + L('ບໍ່ໄດ້ນັບ (A)', 'ไม่ได้นับ (A)'), tot('unc'), 'var(--rose-500)')
+    + '</div>'
+    + '<div style="font-size:10.5px;color:var(--slate-500);line-height:1.6;margin-bottom:8px;">'
+    + L('ກົດຊັ້ນເພື່ອເບິ່ງລາຍການ · ຍ່າງໄລ່ຕາມລຳດັບຊັ້ນ · ກວດແລ້ວກົດ 🔄 ໂຫຼດໃໝ່ ລາຍການຈະຫາຍໄປ', 'กดชั้นเพื่อดูรายการ · เดินไล่ตามลำดับชั้น · ตรวจแล้วกด 🔄 โหลดใหม่ รายการจะหายไป')
+    + '</div>';
+  const keys = F === 'cv' ? ['cv', 'judge'] : (F === 'wait' ? ['wait'] : (F === 'unc' ? ['unc'] : ['cv', 'judge', 'wait', 'unc']));
+  const shown = gons.filter(g => keys.some(k => g[k].length));
+  if (!shown.length) return html + '<div style="text-align:center;padding:30px;color:var(--emerald-600);font-size:13px;font-weight:800;">✅ ' + L('ບໍ່ມີລາຍການຕ້ອງຕິດຕາມ', 'ไม่มีรายการต้องติดตาม') + '</div>';
+  const can = csumCanConfirm() && !!session;
+  const fl = floorTag(), sh = L('ຊັ້ນ', 'ชั้น');
+  const locLbl = x => escapeHtml(x.floor === null ? floorBaseCode(x.loc) + ' ' + sh + '+' + fl : fmtLocDisplay(x.loc));
+  const q = v => (v === null || v === undefined) ? '—' : v;
+  const row = (x, kind) => {
+    let mid = '', how = '', bg = 'white', bd = 'var(--slate-200)';
+    if (kind === 'cv') {
+      bg = 'var(--amber-50, #fffbeb)'; bd = 'var(--amber-300, #fcd34d)';
+      mid = '📍 ' + locLbl(x) + ' · C ' + q(x.c) + ' · V ' + q(x.v) + ' (' + L('ຕ່າງ ', 'ต่าง ') + x.gap + ')';
+      how = x.floor === null
+        ? L('CTL ນັບລວມ ເທິງຊັ້ນ + ພື້ນ ແລ້ວໃສ່ຍອດດຽວ', 'CTL นับรวม บนชั้น + พื้น แล้วใส่ยอดเดียว')
+        : L('CTL ນັບສະເພາະຈຸດນີ້ (', 'CTL นับเฉพาะจุดนี้ (') + (x.floor ? fl : sh) + ')';
+    } else if (kind === 'judge') {
+      bg = 'var(--rose-50, #fff1f2)'; bd = 'var(--rose-300)';
+      mid = '📍 ' + locLbl(x) + ' · C ' + q(x.c) + ' · V ' + q(x.v) + ' · CTL ' + q(x.t);
+      how = (x.c === null && x.v === null)
+        ? L('CTL ນັບເອງຈຸດນີ້ (ບໍ່ມີ C/V ທຽບ) → BCS ຢືນຢັນ', 'CTL นับเองจุดนี้ (ไม่มี C/V เทียบ) → BCS ยืนยัน')
+        : L('3 ຄົນບໍ່ກົງ → BCS ລົງນັບເອງ', '3 คนไม่ตรง → BCS ลงนับเอง');
+    } else if (kind === 'wait') {
+      mid = '📍 ' + locLbl(x) + ' · ' + (x.who === 'V' ? 'C ' + q(x.c) : 'V ' + q(x.v));
+      how = x.who === 'V' ? L('ລໍຖ້າ Verifier ນັບຈຸດນີ້', 'รอ Verifier นับจุดนี้') : L('ລໍຖ້າ Counter ນັບຈຸດນີ້', 'รอ Counter นับจุดนี้');
+    } else {
+      bg = 'var(--rose-50, #fff1f2)'; bd = 'var(--rose-200, #fecdd3)';
+      mid = 'POS ' + N(x.pos) + ' · 📍 Pan-O-Gram: ' + escapeHtml(x.pogGons || '-');
+      how = L('ບໍ່ມີໃຜສະແກນ → ຫາໃນຊັ້ນ (ອາດວາງຊ້ອນ/ປົນກັບສິນຄ້າອື່ນ)', 'ไม่มีใครสแกน → หาในชั้น (อาจวางซ้อน/ปนกับสินค้าอื่น)');
+    }
+    const val = kind === 'unc' ? x.posV : (x.val || 0);
+    return '<div style="background:' + bg + ';border:1px solid ' + bd + ';border-radius:9px;padding:7px 9px;margin-bottom:5px;display:flex;gap:8px;align-items:center;">'
+      + '<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(x.name) + '</div>'
+      + '<div style="font-size:9.5px;color:var(--slate-500);font-family:monospace;">' + escapeHtml(x.bc) + '</div>'
+      + '<div style="font-size:10.5px;font-weight:700;color:var(--slate-700);margin-top:2px;">' + mid + '</div>'
+      + '<div style="font-size:10px;color:var(--slate-600);margin-top:1px;">👉 ' + how + '</div></div>'
+      + '<div style="text-align:right;flex-shrink:0;"><div style="font-size:11px;font-weight:800;color:var(--slate-800);font-family:\'Space Grotesk\',monospace;">₭' + N(val) + '</div>'
+      + (kind === 'unc' && can ? '<button onclick="csumConfirmZero(\'one\',' + x.pid + ')" style="margin-top:4px;background:white;color:var(--rose-600);border:1px solid var(--rose-300);border-radius:6px;padding:3px 7px;font-size:10px;font-weight:800;cursor:pointer;">🚫 ' + L('ບໍ່ພົບ = 0', 'ไม่พบ = 0') + '</button>' : '')
+      + '</div></div>';
+  };
+  const sec = (title, arr, kind) => arr.length ? '<div style="font-size:11px;font-weight:800;color:var(--slate-700);margin:8px 0 5px;">' + title + ' (' + arr.length + ')</div>' + arr.map(x => row(x, kind)).join('') : '';
+  html += shown.map(g => {
+    const open = _csumTrackGon === g.base;
+    const n = k => keys.includes(k) ? g[k].length : 0;
+    const badge = (v, color, label) => v ? '<span style="background:' + color + ';color:white;border-radius:9px;padding:1px 7px;font-size:10px;font-weight:800;">' + label + ' ' + v + '</span>' : '';
+    let h = '<div style="background:white;border:1px solid ' + (open ? 'var(--violet-400, #a78bfa)' : 'var(--slate-200)') + ';border-radius:11px;margin-bottom:6px;overflow:hidden;">'
+      + '<div onclick="csumTrackGon(\'' + encodeURIComponent(g.base).replace(/'/g, '%27') + '\')" style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px 11px;cursor:pointer;">'
+      + '<span style="font-size:14px;font-weight:800;color:var(--slate-900);font-family:\'Space Grotesk\',monospace;min-width:58px;">' + escapeHtml(g.base) + '</span>'
+      + badge(n('cv') + n('judge'), 'var(--amber-600)', '⚖️') + badge(n('wait'), 'var(--sky-600, #0284c7)', '⏳') + badge(n('unc'), 'var(--rose-500)', '🔍')
+      + '<span style="margin-left:auto;font-size:11px;font-weight:700;color:var(--slate-500);font-family:\'Space Grotesk\',monospace;">₭' + N(g.v) + ' ' + (open ? '▲' : '▼') + '</span></div>';
+    if (open) {
+      h += '<div style="padding:0 9px 9px;">'
+        + (keys.includes('judge') ? sec('🚨 ' + L('CTL ບໍ່ກົງທັງ C ແລະ V', 'CTL ไม่ตรงทั้ง C และ V'), g.judge, 'judge') : '')
+        + (keys.includes('cv') ? sec('⚖️ ' + L('Counter ≠ Verifier — ລໍຖ້າ CTL ຕັດສິນ', 'Counter ≠ Verifier — รอ CTL ตัดสิน'), g.cv, 'cv') : '')
+        + (keys.includes('wait') ? sec('⏳ ' + L('ນັບແລ້ວຝ່າຍດຽວ', 'นับแล้วฝ่ายเดียว'), g.wait, 'wait') : '')
+        + (keys.includes('unc') ? sec('🔍 ' + L('ບໍ່ໄດ້ນັບ — Pan-O-Gram ບອກວ່າຢູ່ຊັ້ນນີ້', 'ไม่ได้นับ — Pan-O-Gram บอกว่าอยู่ชั้นนี้'), g.unc, 'unc') : '')
+        + '</div>';
+    }
+    return h + '</div>';
+  }).join('');
+  return html;
+}
+
+function _csumTrackUncHtml(d, uncAll, isLao) {
+  const L = _csumL, N = _csumN;
+  const can = csumCanConfirm() && !!session;
+  const list = uncAll.slice().sort((a, b) => b.posV - a.posV || b.pos - a.pos);
+  const sumV = list.reduce((s, r) => s + r.posV, 0);
+  let html = '<div style="font-size:11px;color:var(--slate-600);line-height:1.6;margin-bottom:8px;">'
+    + '<b>' + list.length + ' SKU · ₭' + N(sumV) + '</b> · '
+    + L('ຮຽງມູນຄ່າສູງ → ຕ່ຳ · ຕາມຫາຈາກຕົວເທິງກ່ອນ · ', 'เรียงมูลค่าสูง → ต่ำ · ตามหาจากตัวบนก่อน · ')
+    + '<span style="background:var(--rose-500);color:white;border-radius:4px;padding:0 5px;font-weight:800;">A</span> ' + L('ຄວນຢູ່ຊັ້ນທີ່ນັບແລ້ວ', 'ควรอยู่ชั้นที่นับแล้ว') + ' · '
+    + '<span style="background:var(--amber-600);color:white;border-radius:4px;padding:0 5px;font-weight:800;">B</span> ' + L('ບໍ່ຮູ້ຕຳແໜ່ງ / ຊັ້ນຍັງບໍ່ນັບ', 'ไม่รู้ตำแหน่ง / ชั้นยังไม่นับ')
+    + '</div>';
+  if (!list.length) return html + '<div style="text-align:center;padding:30px;color:var(--emerald-600);font-size:13px;font-weight:800;">✅ ' + L('ນັບຄົບແລ້ວ', 'นับครบแล้ว') + '</div>';
+  const shown = list.slice(0, 300);
+  html += shown.map((r, i) => '<div style="background:white;border:1px solid var(--slate-200);border-radius:9px;padding:7px 9px;margin-bottom:5px;display:flex;gap:8px;align-items:center;">'
+    + '<span style="font-size:10px;font-weight:800;color:var(--slate-400);min-width:22px;text-align:right;font-family:\'Space Grotesk\',monospace;">' + (i + 1) + '</span>'
+    + '<span style="background:' + (r.grpKey === 'A' ? 'var(--rose-500)' : 'var(--amber-600)') + ';color:white;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:800;">' + r.grpKey + '</span>'
+    + '<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(r.name) + '</div>'
+    + '<div style="font-size:9.5px;color:var(--slate-500);font-family:monospace;">' + escapeHtml(r.bc) + (r.pogGons ? ' · 📍 ' + escapeHtml(r.pogGons) : ' · ' + L('ບໍ່ມີ Pan-O-Gram', 'ไม่มี Pan-O-Gram')) + '</div>'
+    + '<div style="font-size:9.5px;color:var(--slate-500);">' + escapeHtml(r.cat) + (r.lastSale ? ' · ' + L('ຂາຍລ່າສຸດ ', 'ขายล่าสุด ') + escapeHtml(r.lastSale) : '') + (r.avgM ? ' · AVG ' + r.avgM + L('/ເດືອນ', '/เดือน') : '') + '</div></div>'
+    + '<div style="text-align:right;flex-shrink:0;"><div style="font-size:12px;font-weight:800;color:var(--rose-500);font-family:\'Space Grotesk\',monospace;">₭' + N(r.posV) + '</div>'
+    + '<div style="font-size:10px;color:var(--slate-500);font-family:\'Space Grotesk\',monospace;">POS ' + N(r.pos) + '</div>'
+    + (can ? '<button onclick="csumConfirmZero(\'one\',' + r.pid + ')" style="margin-top:3px;background:white;color:var(--rose-600);border:1px solid var(--rose-300);border-radius:6px;padding:3px 7px;font-size:10px;font-weight:800;cursor:pointer;">🚫 ' + L('ບໍ່ພົບ = 0', 'ไม่พบ = 0') + '</button>' : '')
+    + '</div></div>').join('');
+  if (list.length > shown.length) html += '<div style="text-align:center;font-size:11px;color:var(--slate-500);padding:8px;">+' + (list.length - shown.length) + ' ' + L('ລາຍການ — ເບິ່ງທັງໝົດໃນ Excel', 'รายการ — ดูทั้งหมดใน Excel') + '</div>';
+  return html;
+}
+
 function csumClose() { _csumView = null; renderVarianceList(); }
 async function csumRefresh() { const v = _csumView; await loadVarianceReport(); const d = await csumLoad(true); if (d && v) { _csumView = v; renderVarianceList(); } }
 
@@ -28587,10 +28745,12 @@ function csumRenderView() {
     + '<button onclick="csumOpen(\'uncounted\')" style="background:' + (_csumView === 'uncounted' ? 'var(--rose-500)' : 'white') + ';color:' + (_csumView === 'uncounted' ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">🔍 ' + L('ບໍ່ໄດ້ນັບ', 'ไม่ได้นับ') + ' (' + (d.uncA.length + d.uncB.length) + ')</button>'
     + '<button onclick="csumOpen(\'gondola\')" style="background:' + (_csumView === 'gondola' ? 'var(--sky-600, #0284c7)' : 'white') + ';color:' + (_csumView === 'gondola' ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">📍 ' + L('ຕໍ່ຊັ້ນວາງ', 'ต่อชั้นวาง') + '</button>'
     + '<button onclick="csumOpen(\'negative\')" style="background:' + (_csumView === 'negative' ? 'var(--rose-700, #be123c)' : 'white') + ';color:' + (_csumView === 'negative' ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">⚠️ ' + L('POS ຕິດລົບ', 'POS ติดลบ') + ' (' + (d.neg || []).length + ')</button>'
+    + '<button onclick="csumOpen(\'track\')" style="background:' + (_csumView === 'track' ? 'var(--violet-600, #7c3aed)' : 'white') + ';color:' + (_csumView === 'track' ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">🎯 ' + L('ຕິດຕາມ', 'ติดตาม') + '</button>'
     + '<span style="flex:1;"></span>'
     + '<button onclick="csumRefresh()" style="background:white;color:var(--slate-600);border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;">🔄 ' + L('ໂຫຼດໃໝ່', 'โหลดใหม่') + '</button>'
     + '<button onclick="csumExport()" style="background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">⬇ Excel ' + L('ສະຫຼຸບຜົນ', 'สรุปผล') + '</button>'
     + '</div>';
+  if (_csumView === 'track') return top + _csumTrackHtml(d, isLao);
   return top + (_csumView === 'uncounted' ? _csumUncHtml(d, isLao) : (_csumView === 'negative' ? _csumNegHtml(d, isLao) : (_csumView === 'gondola' ? _csumGonHtml(d, isLao) : _csumSumHtml(d, isLao))));
 }
 
@@ -28925,6 +29085,20 @@ async function csumExport() {
       [15, 40, 22, 26, 8, 8, 8, 16, 22, 10, 10, 11, 11, 9, 50]);
     // 10) รอนับครบ
     add(L('ລໍຖ້ານັບຄົບ', 'รอนับครบ'), [['Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), 'POS', L('ນັບໄດ້ (ບາງຈຸດ)', 'นับได้ (บางจุด)'), L('ນັບແລ້ວ', 'นับแล้ว'), L('ຍັງບໍ່ນັບ', 'ยังไม่นับ')]].concat(d.pend.map(p => [p.bc, p.name, p.pos, p.fin, p.counted, p.missing])), [15, 40, 8, 12, 18, 18]);
+    // 🎯 ติดตาม (Ball 2026-11-17)
+    const trk = [];
+    _csumTrackBuild(d).forEach(g => {
+      const q = v => (v === null || v === undefined) ? '' : v;
+      const lc = x => x.floor === null ? floorBaseCode(x.loc) + ' ' + L('ຊັ້ນ+ພື້ນ', 'ชั้น+พื้น') : x.loc;
+      g.judge.forEach(x => trk.push([g.base, L('CTL ບໍ່ກົງ → BCS', 'CTL ไม่ตรง → BCS'), x.bc, x.name, lc(x), q(x.c), q(x.v), q(x.t), '', Math.round(x.val || 0)]));
+      g.cv.forEach(x => trk.push([g.base, 'C≠V → CTL', x.bc, x.name, lc(x), q(x.c), q(x.v), '', '', Math.round(x.val || 0)]));
+      g.wait.forEach(x => trk.push([g.base, x.who === 'V' ? L('ລໍຖ້າ Verifier', 'รอ Verifier') : L('ລໍຖ້າ Counter', 'รอ Counter'), x.bc, x.name, lc(x), q(x.c), q(x.v), '', '', Math.round(x.val || 0)]));
+      g.unc.forEach(x => trk.push([g.base, L('ບໍ່ໄດ້ນັບ (A)', 'ไม่ได้นับ (A)'), x.bc, x.name, x.pogGons || '', '', '', '', x.pos, Math.round(x.posV)]));
+    });
+    add(L('ຕິດຕາມຕໍ່ຊັ້ນ', 'ติดตามต่อชั้น'), [['Gondola', L('ສະຖານະ', 'สถานะ'), 'Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ຈຸດ', 'จุด'), 'Counter', 'Verifier', 'CTL', 'POS', L('ມູນຄ່າ ₭', 'มูลค่า ₭')]].concat(trk), [10, 22, 15, 40, 18, 9, 9, 9, 9, 14]);
+    const uncS = d.uncA.concat(d.uncB).sort((x, y) => y.posV - x.posV);
+    add(L('ບໍ່ໄດ້ນັບ A+B ຕາມມູນຄ່າ', 'ไม่ได้นับ A+B ตามมูลค่า'), [[L('ກຸ່ມ', 'กลุ่ม'), 'Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ປະເພດ', 'ประเภท'), 'Pan-O-Gram', 'POS', L('ມູນຄ່າ ₭', 'มูลค่า ₭'), L('ຂາຍລ່າສຸດ', 'ขายล่าสุด'), 'AVG/' + L('ເດືອນ', 'เดือน')]]
+      .concat(uncS.map(r => [r.grpKey, r.bc, r.name, r.cat, r.pogGons || '', r.pos, Math.round(r.posV), r.lastSale || '', r.avgM || 0])), [6, 15, 40, 18, 18, 8, 14, 12, 10]);
     XLSX.writeFile(wb, 'count-summary-' + branch.code + '-' + localDayKey(new Date()) + '.xlsx');
     showToast('✅ Excel', 'success');
   } catch (e) {
@@ -29044,7 +29218,8 @@ function renderPerformancePage() {
       </h2>
       <p style="font-size:11px;color:var(--slate-500);margin:0;">
         ${isLao ? 'ສະຖິຕິ 30 ວັນຫຼ້າສຸດ' : 'สถิติ 30 วันล่าสุด'} · 
-        ${isLao ? 'ຄະແນນ = ຄວາມແມ່ນຍຳ × 0.5 + ຄວາມໄວ × 0.3 + ປະລິມານ × 0.2' : 'คะแนน = แม่นยำ × 0.5 + ความเร็ว × 0.3 + ปริมาณ × 0.2'}
+        ${isLao ? 'ຄະແນນ = ຄວາມແມ່ນຍຳ × 0.5 + ຄວາມໄວ × 0.3 + ປະລິມານ × 0.2' : 'คะแนน = แม่นยำ × 0.5 + ความเร็ว × 0.3 + ปริมาณ × 0.2'}<br>
+        ${isLao ? 'ແມ່ນຍຳ = % ຈຸດທີ່ນັບກົງກັບຍອດສຸດທ້າຍ (BCS / CTL / Counter = Verifier)' : 'แม่นยำ = % จุดที่นับตรงกับยอดสุดท้าย (BCS / CTL / Counter = Verifier)'}
       </p>
     </div>
 
@@ -29122,6 +29297,7 @@ async function loadPerformance() {
     const counts = await fetchAllQuery(() => {
       let query = sb.from('stock_counts')
         .select(`id, user_id, counted_qty, diff, variance_level, counted_at, branch_id,
+                 session_id, product_id, location_code, gondola_code, count_role, pos_qty_snapshot,
                  users!user_id(full_name, role)`)
         .gte('counted_at', since)
         .not('user_id', 'is', null);
@@ -29171,12 +29347,13 @@ async function loadPerformance() {
     } catch (e) {}
 
     // Compute composite score per user
+    const accMap = perfAccuracy(items);   // 🎯 ตรงกับยอดสุดท้าย (Ball 2026-11-17 · เดิมเทียบ POS ทั้งสาขา = หักคะแนนคนนับถูก)
     const scored = Object.values(perUser).map(u => {
       const total = u.counts.length;
       
-      // 1) Accuracy = % rows ที่ variance_level = 1 (counter ครั้งแรกถูก)
-      const accurate = u.counts.filter(c => c.variance_level === 1 || c.variance_level === 0).length;
-      const accuracyPct = total > 0 ? (accurate / total * 100) : 0;
+      // 1) Accuracy = % จุดที่ยอดตรงกับยอดสุดท้าย (BCS > CTL > C=V > Counter ตรง POS) · ยังวัดไม่ได้ = null
+      const acc = accMap[u.userId];
+      const accuracyPct = (acc && acc.n) ? (acc.ok / acc.n * 100) : null;
       
       // 2) Speed = counts per active day (avg)
       const activeDays = Object.keys(u.dailyTotals).length;
@@ -29190,6 +29367,8 @@ async function loadPerformance() {
         total,
         activeDays,
         accuracyPct,
+        accOk: acc ? acc.ok : 0,
+        accN: acc ? acc.n : 0,
         avgPerDay,
         volume,
         pogCount: u.pogCount || 0,
@@ -29212,11 +29391,11 @@ async function loadPerformance() {
     const maxSpeed = Math.max(...scored.map(u => u.rawSpeed));
     const maxVolume = Math.max(...scored.map(u => u.rawVolume));
     scored.forEach(u => {
-      const accN = u.rawAcc; // already 0-100
+      const accN = u.rawAcc; // 0-100 · null = ยังไม่มีจุดที่วัดได้
       const speedN = maxSpeed > 0 ? (u.rawSpeed / maxSpeed * 100) : 0;
       const volN = maxVolume > 0 ? (u.rawVolume / maxVolume * 100) : 0;
       // Composite weights: Accuracy=0.5, Speed=0.3, Volume=0.2 (per บอลเลือก)
-      u.compositeScore = (accN * 0.5) + (speedN * 0.3) + (volN * 0.2);
+      u.compositeScore = accN === null ? ((speedN * 0.3) + (volN * 0.2)) / 0.5 : (accN * 0.5) + (speedN * 0.3) + (volN * 0.2);
     });
     
     // Sort by composite score desc
@@ -29245,6 +29424,62 @@ async function loadPerformance() {
     const myEl = document.getElementById('perfMyContent');
     if (myEl) myEl.innerHTML = `<div style="opacity:0.8;">${errMsg}</div>`;
   }
+}
+
+
+// 🎯 ความแม่น (Ball 2026-11-17) = % จุดที่ยอดของคนนั้น "ตรงกับยอดสุดท้าย" — ไม่เทียบ POS แล้ว
+//   ยอดอ้างอิงต่อจุด: BCS > CTL > (C = V) > Counter อย่างเดียวที่ยอดรวมตรง POS (ไม่ต้อง Verify)
+//   C ≠ V ยังไม่ตัดสิน / นับฝ่ายเดียวรอคู่ = ยังวัดไม่ได้ → ไม่นับ · C/V นับคนละโหมด (ชั้นรวมพื้น vs แยก) เทียบยอดรวมชั้น
+//   คืน { user_id: { ok, n } } — CTL/BCS เป็นผู้ตัดสิน ไม่ถูกวัด
+function perfAccuracy(rows) {
+  const roleOf = r => (r.count_role === 'counter' || r.count_role === 'staff') ? 'counter'
+    : ((r.count_role === 'verifier' || r.count_role === 'audit') ? 'verifier'
+    : (r.count_role === 'ctl_tiebreaker' ? 'ctl' : (r.count_role === 'manager_final' ? 'manager' : null)));
+  const last = {};
+  (rows || []).forEach(r => {
+    const role = roleOf(r);
+    if (!role || !r.session_id || !r.product_id) return;
+    const lk = String(r.location_code || r.gondola_code || '?').toUpperCase().trim();
+    const k = r.session_id + '|' + r.product_id + '|' + role + '|' + lk;
+    if (!last[k] || r.counted_at > last[k].counted_at) last[k] = Object.assign({}, r, { _role: role, _lk: lk });
+  });
+  const prod = {};
+  Object.values(last).forEach(r => {
+    const P = prod[r.session_id + '|' + r.product_id] = prod[r.session_id + '|' + r.product_id] || { bases: {}, cTot: 0, pos: null, posAt: '' };
+    const x = P.bases[_cvBase(r._lk)] = P.bases[_cvBase(r._lk)] || {};
+    (x[r._role] = x[r._role] || {})[r._lk] = r;
+    if (r._role === 'counter') P.cTot += Number(r.counted_qty) || 0;
+    if (r.pos_qty_snapshot !== null && r.pos_qty_snapshot !== undefined && r.counted_at > P.posAt) { P.pos = Number(r.pos_qty_snapshot) || 0; P.posAt = r.counted_at; }
+  });
+  const res = {};
+  const sum = a => a.length ? a.reduce((s, r) => s + (Number(r.counted_qty) || 0), 0) : null;
+  const credit = (arr, ref) => {
+    if (!arr.length) return;
+    const q = sum(arr);
+    [...new Set(arr.map(r => r.user_id).filter(Boolean))].forEach(u => { const s = res[u] = res[u] || { ok: 0, n: 0 }; s.n++; if (q === ref) s.ok++; });
+  };
+  Object.values(prod).forEach(P => {
+    const cOnlyOk = P.pos !== null && P.cTot === P.pos;
+    Object.values(P.bases).forEach(x => {
+      const cK = x.counter ? Object.keys(x.counter).sort().join('|') : null;
+      const vK = x.verifier ? Object.keys(x.verifier).sort().join('|') : null;
+      const units = [];
+      const pick = (role, lk) => (x[role] && (lk === null ? Object.values(x[role]) : (x[role][lk] ? [x[role][lk]] : []))) || [];
+      if (cK !== null && vK !== null && cK !== vK) units.push(null);   // คนละโหมด → ยอดรวมทั้งชั้น
+      else [...new Set(Object.values(x).flatMap(o => Object.keys(o)))].forEach(lk => units.push(lk));
+      units.forEach(lk => {
+        const C = pick('counter', lk), V = pick('verifier', lk), T = pick('ctl', lk), M = pick('manager', lk);
+        let ref;
+        if (M.length) ref = sum(M);
+        else if (T.length) ref = sum(T);
+        else if (C.length && V.length) { if (sum(C) === sum(V)) ref = sum(C); }
+        else if (C.length && cOnlyOk) ref = sum(C);
+        if (ref === undefined) return;
+        credit(C, ref); credit(V, ref);
+      });
+    });
+  });
+  return res;
 }
 
 /**
@@ -29281,8 +29516,8 @@ function renderMyCard(me, rank, totalUsers) {
       </div>
       <div style="background:rgba(255,255,255,0.15);border-radius:9px;padding:9px;text-align:center;">
         <div style="font-size:10px;opacity:0.85;margin-bottom:3px;">${isLao ? 'ແມ່ນຍຳ' : 'แม่นยำ'}</div>
-        <div style="font-size:22px;font-weight:800;font-family:'Space Grotesk',monospace;line-height:1;">${me.accuracyPct.toFixed(1)}</div>
-        <div style="font-size:9px;opacity:0.7;margin-top:2px;">%</div>
+        <div style="font-size:22px;font-weight:800;font-family:'Space Grotesk',monospace;line-height:1;">${me.accuracyPct === null ? '—' : me.accuracyPct.toFixed(1)}</div>
+        <div style="font-size:9px;opacity:0.7;margin-top:2px;">% · ${me.accOk}/${me.accN} ${isLao ? 'ຈຸດ' : 'จุด'}</div>
       </div>
     </div>
     <div style="background:rgba(0,0,0,0.15);border-radius:9px;padding:9px;text-align:center;font-size:12px;font-weight:700;">
@@ -29322,7 +29557,7 @@ function renderLeaderboard(scored) {
             ${escapeHtml(u.userName)}${youLabel}
           </div>
           <div style="font-size:9px;color:var(--slate-500);font-family:'Space Grotesk',monospace;">
-            ${u.volume} ${isLao ? 'ນັບ' : 'นับ'} · ${u.avgPerDay.toFixed(1)}/${isLao ? 'ວັນ' : 'วัน'} · ${u.accuracyPct.toFixed(1)}%${(u.pogCount || 0) > 0 ? ' · 📐' + u.pogCount : ''}
+            ${u.volume} ${isLao ? 'ນັບ' : 'นับ'} · ${u.avgPerDay.toFixed(1)}/${isLao ? 'ວັນ' : 'วัน'} · ${u.accuracyPct === null ? '—' : u.accuracyPct.toFixed(1) + '%'} (${u.accOk}/${u.accN})${(u.pogCount || 0) > 0 ? ' · 📐' + u.pogCount : ''}
           </div>
         </div>
         <div style="text-align:right;flex-shrink:0;">
