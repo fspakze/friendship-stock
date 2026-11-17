@@ -25618,11 +25618,32 @@ function _vfSid(p) { const r = p && (p.counter || p.verifier || p.ctl || p.manag
 function vfRequired(p) { return !(p && p.diff === 0 && p.isComplete !== false && !vfSampled(_vfSid(p), p.product_id)); }
 
 // 📋 รายการที่ Verifier ต้องนับ ใน Gondola ปัจจุบัน (หน้าสแกน · เฉพาะ verifier/audit)
+
+// ⏳ Verifier ตามหลัง Counter ทีละชั้น (Ball 2026-11-17 เลือก A) — สินค้าหลายจุดที่ยังนับไม่ครบ = ยังสรุป Diff ไม่ได้ → พักไว้
+//   need = นับเลย · skip = ไม่ต้องนับ · wait = รอ Counter นับที่อื่นก่อน (ย้ายขึ้น need เองเมื่อรู้ผล)
+const VF_C_ACTIVE = ['open_for_counting', 'counting'];
+async function vfCounterPhase(sid) {
+  const rows = await fetchAllQuery(() => sb.from('gondola_status').select('id, location_code, status').eq('session_id', sid).order('id'));
+  const done = new Set(); let active = false;
+  (rows || []).forEach(r => {
+    const b = floorBaseCode(String(r.location_code || '').toUpperCase().trim());
+    if (VF_C_ACTIVE.includes(r.status)) active = true; else if (r.status) done.add(b);
+  });
+  return { done, active };
+}
+// cTot = ยอด Counter รวมทุกจุด · pogSet = ชั้นตาม Pan-O-Gram · cBases = ชั้นที่ Counter นับเจอ · phase = vfCounterPhase
+function vfClassify(cTot, pos, sampled, pogSet, cBases, phase) {
+  if (cTot > pos) return 'need';                          // เกินแล้ว — นับที่อื่นเพิ่มก็ยิ่งเกิน
+  if (cTot === pos) return sampled ? 'need' : 'skip';
+  if (!phase || !phase.active) return 'need';             // ไม่มีชั้นไหนกำลังนับ = Counter นับครบแล้ว → ขาดจริง
+  if (pogSet && pogSet.size && [...pogSet].every(b => cBases.has(b) || phase.done.has(b))) return 'need';   // ทุกจุดตาม Pan-O-Gram นับแล้ว
+  return 'wait';
+}
 let _vfState = null;   // { sid, base, at, need, skip } — 📉 cache รายการต่อชั้น 5 นาที
 function vfMarkDone(pid, locCode) {
   const b = floorBaseCode(String(locCode || '').toUpperCase().trim());
   if (!_vfState || _vfState.base !== b || !pid) return;
-  const x = _vfState.need.find(y => y.pid === pid);
+  const x = _vfState.need.concat(_vfState.wait || []).find(y => y.pid === pid);
   if (x && !x.done) { x.done = true; _vfRender(); }
 }
 async function vfLoadList(force) {
@@ -25647,27 +25668,36 @@ async function vfLoadList(force) {
     const verified = new Set((here || []).filter(isV).map(r => r.product_id));
     const cFirst = {};   // เวลาที่ Counter นับสินค้านี้ครั้งแรกในชั้นนี้ → ลำดับเดินนับ
     (here || []).filter(isC).forEach(r => { if (!cFirst[r.product_id] || r.counted_at < cFirst[r.product_id]) cFirst[r.product_id] = r.counted_at; });
-    // ยอด Counter ทุกจุดของสินค้า (ล่าสุดต่อจุด) + POS (ปิดขาย = 0)
-    const cTot = {}, prod = {};
+    // ยอด Counter ทุกจุดของสินค้า (ล่าสุดต่อจุด) + POS (ปิดขาย = 0) + Pan-O-Gram + สถานะ Counter ทุกชั้น
+    const cTot = {}, prod = {}, cBases = {}, pog = {};
+    const phase = await vfCounterPhase(session.id);
     for (let i = 0; i < pids.length; i += 300) {
       const part = pids.slice(i, i + 300);
-      const [cs, ps] = await Promise.all([
+      const [cs, ps, pg] = await Promise.all([
         fetchAllQuery(() => sb.from('stock_counts').select('id, product_id, count_role, counted_qty, location_code, counted_at')
           .eq('session_id', session.id).in('product_id', part).in('count_role', ['counter', 'staff']).order('id')),
-        _sbSel(() => sb.from('products').select('id, barcode, name_th, name_lo, pos_qty, is_active').in('id', part))
+        _sbSel(() => sb.from('products').select('id, barcode, name_th, name_lo, pos_qty, is_active').in('id', part)),
+        _sbSel(() => sb.from('pan_o_grams').select('product_id, location_code').eq('branch_id', branch.id).in('product_id', part))
       ]);
       const last = {};
       (cs || []).forEach(r => { const k = r.product_id + '|' + (r.location_code || '?'); if (!last[k] || r.counted_at > last[k].counted_at) last[k] = r; });
-      Object.values(last).forEach(r => { cTot[r.product_id] = (cTot[r.product_id] || 0) + (Number(r.counted_qty) || 0); });
+      Object.values(last).forEach(r => {
+        cTot[r.product_id] = (cTot[r.product_id] || 0) + (Number(r.counted_qty) || 0);
+        (cBases[r.product_id] = cBases[r.product_id] || new Set()).add(floorBaseCode(String(r.location_code || '').toUpperCase().trim()));
+      });
       (ps || []).forEach(p => { prod[p.id] = p; });
+      (pg || []).forEach(r => { (pog[r.product_id] = pog[r.product_id] || new Set()).add(floorBaseCode(String(r.location_code || '').toUpperCase().trim())); });
     }
-    const need = pids.filter(pid => {
+    const cls = {};
+    pids.forEach(pid => {
       const p = prod[pid] || {};
       const pos = p.is_active === false ? 0 : (Number(p.pos_qty) || 0);
-      return (cTot[pid] || 0) !== pos || vfSampled(session.id, pid);
-    }).map(pid => ({ pid, p: prod[pid] || {}, done: verified.has(pid), at: cFirst[pid] || '' }))
+      cls[pid] = vfClassify(cTot[pid] || 0, pos, vfSampled(session.id, pid), pog[pid], cBases[pid] || new Set(), phase);
+    });
+    const mk = k => pids.filter(pid => cls[pid] === k).map(pid => ({ pid, p: prod[pid] || {}, done: verified.has(pid), at: cFirst[pid] || '' }))
       .sort((a, b) => String(a.at).localeCompare(String(b.at)));   // ตามลำดับที่ Counter นับ (ซ้าย→ขวา บน→ล่าง)
-    _vfState = { sid: session.id, base, at: Date.now(), need, skip: pids.length - need.length };
+    const need = mk('need'), wait = mk('wait');
+    _vfState = { sid: session.id, base, at: Date.now(), need, wait, active: phase.active, skip: pids.length - need.length - wait.length };
     _vfRender();
   } catch (e) {
     box.innerHTML = '<div style="color:var(--rose-500);font-size:11px;margin-bottom:9px;">Error: ' + escapeHtml(e.message || String(e)) + '</div>';
@@ -25678,6 +25708,7 @@ function _vfRender() {
   if (!box || !_vfState) return;
   const isLao = lang === 'lo';
   const { base, need, skip } = _vfState;
+  const wait = _vfState.wait || [];
   {
     const nDone = need.filter(x => x.done).length;
     let html = '<div style="background:white;border:2px solid var(--violet-300);border-radius:12px;padding:10px 11px;margin-bottom:9px;">'
@@ -25688,7 +25719,8 @@ function _vfRender() {
       + '<div style="font-size:10.5px;color:var(--slate-500);margin:3px 0 7px;line-height:1.5;">'
       + (isLao ? 'ສິນຄ້າອື່ນ ' + skip + ' ລາຍການ Counter ນັບກົງແລ້ວ — ບໍ່ຕ້ອງນັບ · ນັບຊັ້ນວາງ + ພື້ນ ໃຫ້ຄົບ' : 'สินค้าอื่น ' + skip + ' รายการ Counter นับตรงแล้ว — ไม่ต้องนับ · นับชั้นวาง + พื้น ให้ครบ')
       + '<br>' + (isLao ? 'ຮຽງຕາມລຳດັບທີ່ Counter ນັບ (ຊ້າຍ→ຂວາ ເທິງ→ລຸ່ມ)' : 'เรียงตามลำดับที่ Counter นับ (ซ้าย→ขวา บน→ล่าง)') + '</div>';
-    if (!need.length) html += '<div style="font-size:12px;font-weight:800;color:var(--emerald-600);">✅ ' + (isLao ? 'ບໍ່ມີລາຍການຕ້ອງນັບ — ແຈ້ງ CTL ປິດ Verifier ໄດ້' : 'ไม่มีรายการต้องนับ — แจ้ง CTL ปิด Verifier ได้') + '</div>';
+    if (!need.length && wait.length) html += '<div style="font-size:12px;font-weight:800;color:var(--slate-600);">✅ ' + (isLao ? 'ຕອນນີ້ບໍ່ມີລາຍການຕ້ອງນັບ' : 'ตอนนี้ไม่มีรายการต้องนับ') + '</div>';
+    else if (!need.length) html += '<div style="font-size:12px;font-weight:800;color:var(--emerald-600);">✅ ' + (isLao ? 'ບໍ່ມີລາຍການຕ້ອງນັບ — ແຈ້ງ CTL ປິດ Verifier ໄດ້' : 'ไม่มีรายการต้องนับ — แจ้ง CTL ปิด Verifier ได้') + '</div>';
     else html += '<div style="display:flex;flex-direction:column;gap:4px;max-height:38vh;overflow-y:auto;">' + need.map(x => {
       const nm = (isLao ? (x.p.name_lo || x.p.name_th) : (x.p.name_th || x.p.name_lo)) || x.p.barcode || ('#' + x.pid);
       return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:' + (x.done ? 'var(--emerald-50, #ecfdf5)' : 'var(--slate-50, #f8fafc)') + ';border:1px solid ' + (x.done ? 'var(--emerald-200)' : 'var(--slate-200)') + ';">'
@@ -25697,6 +25729,15 @@ function _vfRender() {
         + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:12px;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + (x.done ? 'text-decoration:line-through;color:var(--slate-500);' : '') + '">' + escapeHtml(nm) + '</span>'
         + '<span style="display:block;font-size:9.5px;color:var(--slate-500);font-family:monospace;">' + escapeHtml(x.p.barcode || '') + '</span></span></div>';
     }).join('') + '</div>';
+    if (wait.length) {
+      html += '<details style="margin-top:8px;border-top:1px dashed var(--slate-300);padding-top:6px;"><summary style="cursor:pointer;font-size:11.5px;font-weight:800;color:var(--sky-700);">⏳ '
+        + (isLao ? 'ລໍຖ້າ Counter ນັບຈຸດອື່ນກ່ອນ ' : 'รอ Counter นับจุดอื่นก่อน ') + wait.length + (isLao ? ' ລາຍການ — ຍັງບໍ່ຕ້ອງນັບ' : ' รายการ — ยังไม่ต้องนับ') + '</summary>'
+        + '<div style="font-size:10px;color:var(--slate-500);margin:4px 0 5px;line-height:1.5;">'
+        + (isLao ? 'ສິນຄ້າອາດຢູ່ຫຼາຍຈຸດ ຍັງສະຫຼຸບ Diff ບໍ່ໄດ້ · ລະບົບຈະຍ້າຍຂຶ້ນລາຍການຕ້ອງນັບເອງ ເມື່ອ Counter ນັບຄົບ (ກົດ 🔄)' : 'สินค้าอาจอยู่หลายจุด ยังสรุป Diff ไม่ได้ · ระบบจะย้ายขึ้นรายการต้องนับเอง เมื่อ Counter นับครบ (กด 🔄)') + '</div>'
+        + wait.map(x => '<div style="font-size:11px;color:var(--slate-600);padding:3px 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (x.done ? '✅ ' : '· ')
+          + escapeHtml((isLao ? (x.p.name_lo || x.p.name_th) : (x.p.name_th || x.p.name_lo)) || x.p.barcode || ('#' + x.pid)) + '</div>').join('')
+        + '</details>';
+    }
     box.innerHTML = html + '</div>';
   }
 }
@@ -25706,7 +25747,7 @@ window.vfLoadList = vfLoadList;
 // 🗺️ แผนผัง: จำนวนที่ Verifier ต้องนับ / นับแล้ว ต่อ Gondola (กติกาเดียวกับ vfLoadList) · cache 60 วิ
 let _vfMapCache = null;
 async function vfCountsByGondola(sid) {
-  if (_vfMapCache && _vfMapCache.sid === sid && Date.now() - _vfMapCache.at < 60000) return _vfMapCache.map;
+  if (_vfMapCache && _vfMapCache.sid === sid && Date.now() - _vfMapCache.at < 180000) return _vfMapCache.map;   // 📉 3 นาที
   const rows = await fetchAllQuery(() => sb.from('stock_counts')
     .select('id, product_id, count_role, counted_qty, location_code, gondola_code, counted_at')
     .eq('session_id', sid).order('id'));
@@ -25724,6 +25765,10 @@ async function vfCountsByGondola(sid) {
   const cTot = {};
   Object.values(lastC).forEach(r => { cTot[r.product_id] = (cTot[r.product_id] || 0) + (Number(r.counted_qty) || 0); });
   const pids = Object.keys(cBases).map(Number);
+  const phase = await vfCounterPhase(sid);
+  const pog = {};
+  const pgRows = await fetchAllQuery(() => sb.from('pan_o_grams').select('id, product_id, location_code').eq('branch_id', branch.id).order('id'));
+  (pgRows || []).forEach(r => { if (r.product_id) (pog[r.product_id] = pog[r.product_id] || new Set()).add(floorBaseCode(String(r.location_code || '').toUpperCase().trim())); });
   const pos = {};
   for (let i = 0; i < pids.length; i += 300) {
     const ps = await _sbSel(() => sb.from('products').select('id, pos_qty, is_active').in('id', pids.slice(i, i + 300)));
@@ -25731,11 +25776,12 @@ async function vfCountsByGondola(sid) {
   }
   const map = {};
   pids.forEach(pid => {
-    const need = (cTot[pid] || 0) !== (pos[pid] || 0) || vfSampled(sid, pid);
+    const k = vfClassify(cTot[pid] || 0, pos[pid] || 0, vfSampled(sid, pid), pog[pid], cBases[pid], phase);
     cBases[pid].forEach(b => {
-      const m = map[b] = map[b] || { need: 0, done: 0, sku: 0 };
+      const m = map[b] = map[b] || { need: 0, done: 0, sku: 0, wait: 0 };
       m.sku++;
-      if (need) { m.need++; if (vBases[pid] && vBases[pid].has(b)) m.done++; }
+      if (k === 'need') { m.need++; if (vBases[pid] && vBases[pid].has(b)) m.done++; }
+      else if (k === 'wait') m.wait++;
     });
   });
   _vfMapCache = { sid, at: Date.now(), map };
@@ -25750,7 +25796,8 @@ async function fmFillVerifyBadges() {
     if (!m) { el.innerHTML = ''; return; }
     const ok = m.done >= m.need;
     el.innerHTML = '<span title="' + (lang === 'lo' ? 'Verifier ຕ້ອງນັບ / ນັບແລ້ວ' : 'Verifier ต้องนับ / นับแล้ว') + '" style="display:inline-block;margin-top:2px;padding:0 5px;border-radius:6px;font-size:9px;font-weight:800;background:' + (ok ? 'var(--emerald-500)' : 'var(--violet-600)') + ';color:white;">'
-      + (m.need === 0 ? 'V ✓' : ('V ' + m.done + '/' + m.need + (ok ? ' ✓' : ''))) + '</span>';
+      + (m.need === 0 ? 'V ✓' : ('V ' + m.done + '/' + m.need + (ok ? ' ✓' : ''))) + '</span>'
+      + (m.wait ? '<span title="' + (lang === 'lo' ? 'ລໍຖ້າ Counter ນັບຈຸດອື່ນ' : 'รอ Counter นับจุดอื่น') + '" style="display:inline-block;margin:2px 0 0 3px;padding:0 5px;border-radius:6px;font-size:9px;font-weight:800;background:var(--sky-100);color:var(--sky-700);">⏳' + m.wait + '</span>' : '');
   });
 }
 
