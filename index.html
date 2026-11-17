@@ -3420,7 +3420,7 @@ async function appAccessSet(mode) {
   if (!user || user.role !== 'admin') { showToast(isLao ? 'ບໍ່ມີສິດ' : 'ไม่มีสิทธิ์', 'error'); return; }
   const off = mode === 'admin_only';
   const msg = off
-    ? (isLao ? 'ປິດການໃຊ້ງານພະນັກງານ?\n\n• ເຂົ້າໄດ້ສະເພາະໄອດີ Admin\n• ຄົນທີ່ໃຊ້ຢູ່ຈະຖືກອອກຈາກລະບົບພາຍໃນ ~1 ນາທີ' : 'ปิดการใช้งานพนักงาน?\n\n• เข้าได้เฉพาะไอดี Admin\n• คนที่ใช้อยู่จะถูกออกจากระบบภายใน ~1 นาที')
+    ? (isLao ? 'ປິດການໃຊ້ງານພະນັກງານ?\n\n• ເຂົ້າໄດ້ສະເພາະໄອດີ Admin\n• ຄົນທີ່ໃຊ້ຢູ່ຈະຖືກອອກຈາກລະບົບພາຍໃນ ~3 ນາທີ' : 'ปิดการใช้งานพนักงาน?\n\n• เข้าได้เฉพาะไอดี Admin\n• คนที่ใช้อยู่จะถูกออกจากระบบภายใน ~3 นาที')
     : (isLao ? 'ເປີດການໃຊ້ງານພະນັກງານຄືນ?\n\nທຸກໄອດີເຂົ້າໄດ້ຕາມປົກກະຕິ' : 'เปิดการใช้งานพนักงานคืน?\n\nทุกไอดีเข้าได้ตามปกติ');
   if (!confirm(msg)) return;
   const { error } = await sb.from('app_settings').upsert({ key: 'app_access_mode', value: off ? 'admin_only' : 'open', updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: 'key' });
@@ -36175,7 +36175,7 @@ function renderSettingsPage() {
           ${off ? (lang === 'lo' ? 'ເປີດ' : 'เปิด') : (lang === 'lo' ? 'ປິດ' : 'ปิด')}
         </button>
       </div>
-      <div style="font-size:10px;color:var(--slate-500);margin-top:9px;line-height:1.5;">💡 ${lang === 'lo' ? 'ປິດ = ພະນັກງານທຸກຕຳແໜ່ງ (ລວມ SCC/BCS/IT) ລັອກອິນບໍ່ໄດ້ · ຄົນທີ່ໃຊ້ຢູ່ຖືກອອກພາຍໃນ ~1 ນາທີ' : 'ปิด = พนักงานทุกตำแหน่ง (รวม SCC/BCS/IT) ล็อกอินไม่ได้ · คนที่ใช้อยู่ถูกออกภายใน ~1 นาที'}</div>
+      <div style="font-size:10px;color:var(--slate-500);margin-top:9px;line-height:1.5;">💡 ${lang === 'lo' ? 'ປິດ = ພະນັກງານທຸກຕຳແໜ່ງ (ລວມ SCC/BCS/IT) ລັອກອິນບໍ່ໄດ້ · ຄົນທີ່ໃຊ້ຢູ່ຖືກອອກພາຍໃນ ~3 ນາທີ' : 'ปิด = พนักงานทุกตำแหน่ง (รวม SCC/BCS/IT) ล็อกอินไม่ได้ · คนที่ใช้อยู่ถูกออกภายใน ~3 นาที'}</div>
     </div>`; })() : ''}
 
     ${['admin', 'scc', 'bcs', 'it'].includes(user.role) ? `
@@ -43746,14 +43746,18 @@ window.calOpenDepts = calOpenDepts; window.calSaveDepts = calSaveDepts;
 // ==================== 🟢 PRESENCE / ใครออนไลน์ (presence*) ====================
 // heartbeat: ทุก user ที่ล็อกอิน upsert last_seen ทุก 40 วิ · admin ดูคนที่ last_seen ภายใน 2 นาที = ออนไลน์
 // ปิดเบราว์เซอร์/แครช = ไม่ต้อง cleanup (age-out เอง 2 นาที) · logout = ลบทันที
-const PRESENCE_BEAT_MS = 40000;
-const PRESENCE_ONLINE_MS = 120000;
+// 📉 ลด Log Ingestion (Ball 2026-11-17 · 70% ใน 1 รอบบิล): 40 วิ → 3 นาที + หยุดตอนพับจอ/สลับแอป + เช็คทันทีตอนกลับมา
+const PRESENCE_BEAT_MS = 180000;
+const PRESENCE_ONLINE_MS = 420000;   // ออนไลน์ = เคลื่อนไหวภายใน 7 นาที (เผื่อ beat 3 นาทีพลาด 1 รอบ)
+let _presenceLastBeat = 0;
 let _presenceTimer = null;
 let _onlineTimer = null;
 
-async function presenceBeat() {
+async function presenceBeat(force) {
   if (!user || !user.id) return;
-  // 🔒 ระหว่างใช้งาน: admin ปิดการใช้งานพนักงาน → เตะออกภายใน ~40 วิ
+  if (!force && typeof document !== 'undefined' && document.hidden) return;   // พับจอ/สลับแอป = ไม่ยิง
+  _presenceLastBeat = Date.now();
+  // 🔒 ระหว่างใช้งาน: admin ปิดการใช้งานพนักงาน → เตะออกภายใน ~3 นาที (หรือทันทีที่เปิดจอกลับมา)
   if (user.role !== 'admin') {
     await appAccessFetch();
     if (appAccessBlocked(user)) { await appAccessKick(); return; }
@@ -43825,10 +43829,14 @@ async function accessSessionEnd() {
 }
 function presenceStart() {
   if (!user || !user.id) return;
-  presenceBeat();
+  presenceBeat(true);
   if (_presenceTimer) clearInterval(_presenceTimer);
-  _presenceTimer = setInterval(presenceBeat, PRESENCE_BEAT_MS);
+  _presenceTimer = setInterval(() => presenceBeat(false), PRESENCE_BEAT_MS);
 }
+// กลับมาเปิดจอ → ถ้าห่างจาก beat ล่าสุดเกิน 1 นาที ยิงทันที (เช็คสิทธิ์/ออนไลน์ไม่ค้าง)
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && _presenceTimer && Date.now() - _presenceLastBeat > 60000) presenceBeat(true);
+});
 function presenceStop() { if (_presenceTimer) { clearInterval(_presenceTimer); _presenceTimer = null; } }
 async function presenceOffline() {
   presenceStop();
@@ -43858,7 +43866,7 @@ function renderOnlineUsersPage() {
     + '<h2 style="font-size:18px;font-weight:800;color:var(--slate-800);margin:0;display:flex;align-items:center;gap:7px;"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#22c55e;flex-shrink:0;"></span>' + (isLao ? 'ໃຜອອນລາຍ' : 'ใครออนไลน์') + '</h2>'
     + '<button onclick="loadOnlineUsers()" style="margin-left:auto;background:var(--slate-100);border:1px solid var(--slate-200);border-radius:9px;padding:8px 12px;font-size:12px;font-weight:800;cursor:pointer;">' + (isLao ? 'ໂຫຼດ' : 'รีเฟรช') + '</button>'
     + '</div>'
-    + '<div style="font-size:11.5px;color:var(--slate-400);margin-bottom:12px;">' + (isLao ? 'ອອນລາຍ = ເຄື່ອນໄຫວພາຍໃນ 2 ນາທີ · ອັບເດດອັດຕະໂນມັດທຸກ 15 ວິ' : 'ออนไลน์ = เคลื่อนไหวภายใน 2 นาที · อัปเดตอัตโนมัติทุก 15 วิ') + '</div>'
+    + '<div style="font-size:11.5px;color:var(--slate-400);margin-bottom:12px;">' + (isLao ? 'ອອນລາຍ = ເຄື່ອນໄຫວພາຍໃນ 7 ນາທີ · ອັບເດດອັດຕະໂນມັດທຸກ 1 ນາທີ' : 'ออนไลน์ = เคลื่อนไหวภายใน 7 นาที · อัปเดตอัตโนมัติทุก 1 นาที') + '</div>'
     + '<div id="onlineList"><div style="text-align:center;padding:20px;"><div class="loader" style="margin:0 auto;"></div></div></div>'
     + '</div>';
 }
@@ -43887,7 +43895,7 @@ async function loadOnlineUsers() {
     box.innerHTML = '<div style="color:var(--rose-500);padding:14px;font-size:12px;">Error: ' + escapeHtml(e.message) + '</div>';
   }
   if (_onlineTimer) clearTimeout(_onlineTimer);
-  _onlineTimer = setTimeout(() => { if (window._currentPage === 'onlineusers') loadOnlineUsers(); }, 15000);
+  _onlineTimer = setTimeout(() => { if (window._currentPage === 'onlineusers') loadOnlineUsers(); }, 60000);
 }
 // ---------- 📅 ประวัติเข้าใช้งานรายวัน ----------
 let _accessDay = null;
