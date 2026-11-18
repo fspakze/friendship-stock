@@ -45228,6 +45228,22 @@ if (typeof isPWAMode === 'function') {
   if (saved) {
     // 🚀 มี session ค้างอยู่ → ซ่อนหน้า login ทันที กันเห็นหน้า login "วูบ" ก่อนเด้งเข้าแอป (Ball 2026-08-07)
     if (loginScreen) loginScreen.style.display = 'none';
+    // ⏳ ตัวโหลดระหว่างกู้ session (เดิมจอขาวเปล่า ถ้าเน็ตช้า = ดูเหมือนแอปพัง · Ball 2026-11-19)
+    //    เกิน 20 วิ ยังไม่เข้าแอป → กลับหน้า login (ไม่ลบ session) ให้กดเข้าใหม่ได้
+    const _bootL = document.createElement('div');
+    _bootL.id = 'fsBootLoader';
+    _bootL.style.cssText = 'position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:var(--slate-50, #f8fafc);z-index:50;font-size:13px;color:var(--slate-600, #475569);';
+    _bootL.innerHTML = '<div class="loader" style="margin:0 auto;"></div><div>' + (lang === 'lo' ? 'ກຳລັງໂຫຼດ...' : 'กำลังโหลด...') + '</div>';
+    document.body.appendChild(_bootL);
+    const _bootDone = () => !!document.getElementById('appContent') || (loginScreen && loginScreen.style.display !== 'none');   // เข้าแอปแล้ว หรือหน้า login/เลือกโซน (showZoneStep โชว์ loginScreen) กลับมาแล้ว
+    const _bootPoll = setInterval(() => { if (_bootDone()) { clearInterval(_bootPoll); _bootL.remove(); } }, 300);
+    setTimeout(() => {
+      if (document.getElementById('fsBootLoader') && !document.getElementById('appContent')) {
+        clearInterval(_bootPoll); _bootL.remove();
+        if (loginScreen) loginScreen.style.display = '';
+        try { showToast(lang === 'lo' ? 'ເນັດຊ້າ — ກົດເຂົ້າສູ່ລະບົບອີກຄັ້ງ' : 'เน็ตช้า — กดเข้าสู่ระบบอีกครั้ง', 'warning'); } catch (e) {}
+      }
+    }, 20000);
     try {
       user = JSON.parse(saved);
       if (user && user.role === 'staff') user.role = 'counter'; // Staff เลิกใช้ → counter (Ball 2026-07-08)
