@@ -26465,6 +26465,50 @@ async function tbDropBaseMatches(rows) {
 }
 
 let _tbMode = 'loc'; // หน้าตัดสิน: 'loc'=group ตามตำแหน่ง Planogram · 'diff'=เรียงตาม diff มาก→น้อย
+// ⚖️ เติมรายการที่ view ตกหล่น (Ball 2026-11-18: รายงาน "รอ CTL 26" แต่หน้าตัดสินมี 6)
+//   v_needs_tiebreaker จับคู่ C/V เฉพาะ location_code เดียวกันเป๊ะ → C นับโหมดพื้น (WH04-FL) แต่ V นับโหมดชั้น (WH04)
+//   = ไม่มีคู่ → หาย · ที่นี่รวมยอดต่อฐาน Gondola (ชั้น+พื้น) แบบเดียวกับรายงาน · มีคนตัดสินจุดใดในฐานนั้นแล้ว = ข้าม
+async function tbAddMixedMissing(items) {
+  if (!session) return items || [];
+  items = items || [];
+  const have = new Set(items.map(r => r.product_id + '|' + _cvBase(r.location_code)));
+  const cs = await fetchAllQuery(() => sb.from('stock_counts')
+    .select('id, product_id, count_role, counted_qty, location_code, gondola_code, zone_id, counted_at')
+    .eq('session_id', session.id).order('id'));
+  const latest = {};
+  (cs || []).forEach(c => {
+    const role = ['counter', 'staff'].includes(c.count_role) ? 'C' : (['verifier', 'audit'].includes(c.count_role) ? 'V' : 'J');
+    const lk = c.location_code || c.gondola_code || '?';
+    if (zone && c.zone_id && Number(c.zone_id) !== Number(zone.id)) return;
+    const k = c.product_id + '|' + role + '|' + lk;
+    if (!latest[k] || c.counted_at > latest[k].counted_at) latest[k] = Object.assign({}, c, { _r: role, _lk: lk });
+  });
+  const G = {};
+  Object.values(latest).forEach(c => {
+    const k = c.product_id + '|' + _cvBase(c._lk);
+    const g = G[k] = G[k] || { pid: c.product_id, base: _cvBase(c._lk), C: null, V: null, J: false, cl: new Set(), vl: new Set(), zone_id: c.zone_id || null };
+    if (c._r === 'J') { g.J = true; return; }
+    if (c._r === 'C') { g.C = (g.C || 0) + (Number(c.counted_qty) || 0); g.cl.add(c._lk); }
+    else { g.V = (g.V || 0) + (Number(c.counted_qty) || 0); g.vl.add(c._lk); }
+  });
+  const miss = Object.values(G).filter(g => g.C !== null && g.V !== null && g.C !== g.V && !g.J && !have.has(g.pid + '|' + g.base));
+  if (!miss.length) return items;
+  const P = {};
+  const pids = [...new Set(miss.map(g => g.pid))];
+  for (let i = 0; i < pids.length; i += 300) {
+    const rows = await _sbSel(() => sb.from('products').select('id, barcode, name_th, name_lo, sell_price, pos_qty').in('id', pids.slice(i, i + 300)));
+    (rows || []).forEach(r => { P[r.id] = r; });
+  }
+  miss.forEach(g => {
+    const pr = P[g.pid] || {};
+    const d = g.C - g.V;
+    items.push({ session_id: session.id, branch_id: branch && branch.id, zone_id: g.zone_id, product_id: g.pid, location_code: g.base,
+      barcode: pr.barcode, name_th: pr.name_th, name_lo: pr.name_lo, sell_price: pr.sell_price, pos_qty: pr.pos_qty,
+      counter_qty: g.C, verifier_qty: g.V, cv_diff: d, cv_value_diff: Math.abs(d) * (Number(pr.sell_price) || 0), _combined: true, _fromMixed: true });
+  });
+  return items;
+}
+
 async function loadTiebreakerList() {
   if (!session) return;
 
@@ -26482,6 +26526,7 @@ async function loadTiebreakerList() {
 
   let items = data || [];
   try { items = await tbDropBaseMatches(items); } catch (e) { log('tbDropBaseMatches error (ใช้รายการเดิม):', e); }
+  try { items = await tbAddMixedMissing(items); } catch (e) { log('tbAddMixedMissing error (ใช้รายการเดิม):', e); }
   log('Tiebreaker items:', items.length);
   window._tbItems = items;
 
