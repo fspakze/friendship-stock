@@ -26424,6 +26424,7 @@ async function tbDropBaseMatches(rows) {
   if (!rows || !rows.length || !session) return rows || [];
   const pids = [...new Set(rows.map(r => r.product_id).filter(Boolean))];
   const latest = {};   // pid|role|loc → row ล่าสุด
+  const judged = new Set();   // pid|base ที่มี CTL/BCS ตัดสินแล้ว (จุดใดก็ได้ในชั้น+พื้น)
   for (let i = 0; i < pids.length; i += 300) {
     const part = pids.slice(i, i + 300);
     const cs = await fetchAllQuery(() => sb.from('stock_counts')
@@ -26431,7 +26432,7 @@ async function tbDropBaseMatches(rows) {
       .eq('session_id', session.id).in('product_id', part).order('id'));
     (cs || []).forEach(c => {
       const role = (c.count_role === 'counter' || c.count_role === 'staff') ? 'counter' : ((c.count_role === 'verifier' || c.count_role === 'audit') ? 'verifier' : null);
-      if (!role) return;
+      if (!role) { if (['ctl_tiebreaker', 'manager_final'].includes(c.count_role)) judged.add(c.product_id + '|' + _cvBase(c.location_code || c.gondola_code || '?')); return; }
       const k = c.product_id + '|' + role + '|' + (c.location_code || c.gondola_code || '?');
       if (!latest[k] || c.counted_at > latest[k].counted_at) latest[k] = c;
     });
@@ -26453,6 +26454,8 @@ async function tbDropBaseMatches(rows) {
     if (t && t.counter !== null && t.verifier !== null && t.counter === t.verifier) return;   // ยอดรวมชั้น+พื้นตรง = ไม่ต้องตัดสิน
     const mixed = t && t.counter !== null && t.verifier !== null && [...t.cLocs].sort().join('|') !== [...t.vLocs].sort().join('|');
     if (!mixed) { out.push(r); return; }
+    // คนละโหมด = ยอดสุดท้ายใช้ยอดรวมชั้นของ role สูงสุด (cvFinalCount) → มี CTL/BCS นับจุดใดในชั้นนี้แล้ว = ตัดสินแล้ว (Ball 2026-11-19: 122507020 ตัดสิน 5 แล้วยังค้าง)
+    if (judged.has(r.product_id + '|' + base)) return;
     // 📦 C/V นับคนละโหมด → 1 แถวต่อชั้น · ใช้ยอดรวมชั้น+พื้น · CTL นับรวมใส่ยอดเดียว (Ball 2026-11-17 · Protex C 8+20 vs V 32)
     const key = r.product_id + '|' + base;
     if (seen.has(key)) return;
