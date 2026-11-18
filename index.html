@@ -28528,6 +28528,8 @@ function varStageHtml(p, isLao) {
   return '<div style="font-size:9px;margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">'
     + chips
     + '<span style="padding:1px 7px;border-radius:10px;font-weight:800;background:' + tc[0] + ';color:' + tc[1] + ';">' + TXT[st.key] + '</span>'
+    + ((typeof varCanJudge === 'function' && varCanJudge() && ['need_bcs', 'need_ctl'].includes(st.key))
+      ? '<button onclick="event.stopPropagation();varJudgeOpen(' + Number(p.product_id) + ')" style="padding:3px 10px;border-radius:10px;font-weight:800;font-size:10px;background:var(--fs-blue, #0E357F);color:white;border:none;cursor:pointer;">⚖️ ' + (isLao ? 'ໃສ່ຍອດຕັດສິນ' : 'ใส่ยอดตัดสิน') + '</button>' : '')
     + '</div>';
 }
 
@@ -28780,9 +28782,91 @@ async function openVarianceDetail(productId) {
     
     <div class="action-row" style="margin-top:11px;">
       <button class="btn btn-secondary" onclick="closeModal()" style="flex:1;padding:13px;font-size:13px;">${T('cancel')}</button>
+      ${varCanJudge() ? `<button class="btn btn-primary" onclick="varJudgeOpen(${Number(productId)})" style="flex:1;padding:13px;font-size:13px;">⚖️ ${isLao ? 'ໃສ່ຍອດຕັດສິນ' : 'ใส่ยอดตัดสิน'}</button>` : ''}
     </div>
   `);
 }
+
+// ⚖️ BCS ใส่ยอดตัดสินจากรายงานคลาดเคลื่อน (Ball 2026-11-18) — ไม่ต้องไปหน้าสแกน
+//   บันทึก count_role = manager_final ต่อจุด (ยอดสูงสุดในลำดับ priority → เป็นยอดสุดท้ายของจุดนั้น)
+//   จุดที่ให้กรอก = ทุกจุดที่มีคนนับ + จุดตาม Pan-O-Gram ที่ยังไม่นับ · เว้นว่าง = ไม่บันทึกจุดนั้น · เพิ่มจุดอื่นได้ 1 ช่อง
+//   CTL ใช้ได้ด้วย (Ball 2026-11-18) → บันทึกเป็น ctl_tiebreaker ตาม _ccMyRole · admin/scc/bcs = manager_final
+function varCanJudge() { return !!user && ['admin', 'scc', 'bcs', 'ctl'].includes(user.role) && !(_varianceFilter && _varianceFilter.period === 'round') && !!session; }
+function _vjLocs(p) {
+  const set = new Set();
+  [p.counterLocs, p.verifierLocs, p.ctlLocs, p.managerLocs].forEach(m => Object.keys(m || {}).forEach(k => { if (k && k !== '?') set.add(String(k).toUpperCase().trim()); }));
+  (p.missingGons || []).forEach(g => { if (g) set.add(String(g).toUpperCase().trim()); });
+  return [...set].sort((a, b) => floorBaseCode(a).localeCompare(floorBaseCode(b)) || (isFloorCode(a) ? 1 : 0) - (isFloorCode(b) ? 1 : 0));
+}
+function varJudgeOpen(productId) {
+  const isLao = lang === 'lo', L = (lo, th) => isLao ? lo : th;
+  if (!varCanJudge()) { showToast(L('ບໍ່ມີສິດ', 'ไม่มีสิทธิ์'), 'error'); return; }
+  const p = (_varianceAllData || []).find(x => Number(x.product_id) === Number(productId));
+  if (!p) { showToast(L('ບໍ່ພົບສິນຄ້າ', 'ไม่พบสินค้า'), 'error'); return; }
+  const name = isLao ? (p.product?.name_lo || p.product?.name_th || p.barcode) : (p.product?.name_th || p.product?.name_lo || p.barcode);
+  const q = (m, k) => (m && m[k] && m[k].counted_qty != null) ? m[k].counted_qty : '—';
+  const locs = _vjLocs(p);
+  const rows = locs.map((loc, i) => {
+    const counted = [p.counterLocs, p.verifierLocs, p.ctlLocs, p.managerLocs].some(m => m && m[loc]);
+    const _mine = _ccMyRole() === 'ctl_tiebreaker' ? p.ctlLocs : p.managerLocs;
+    const cur = _mine && _mine[loc] ? _mine[loc].counted_qty : '';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--slate-100);">'
+      + '<div style="flex:1;min-width:0;"><div style="font-weight:800;font-size:13px;font-family:\'Space Grotesk\',monospace;">📍 ' + escapeHtml(loc) + (isFloorCode(loc) ? ' <span style="font-size:10px;color:var(--amber-700);">(' + floorTag() + ')</span>' : '') + '</div>'
+      + '<div style="font-size:10px;color:var(--slate-500);">' + (counted ? 'C ' + q(p.counterLocs, loc) + ' · V ' + q(p.verifierLocs, loc) + ' · CTL ' + q(p.ctlLocs, loc) + ' · BCS ' + q(p.managerLocs, loc) : L('⏳ ຍັງບໍ່ມີຄົນນັບຈຸດນີ້', '⏳ ยังไม่มีคนนับจุดนี้')) + '</div></div>'
+      + '<input class="vjQty" data-loc="' + escapeHtml(loc) + '" type="number" inputmode="numeric" min="0" value="' + escapeHtml(String(cur)) + '" placeholder="—" style="width:86px;padding:10px;border:2px solid var(--slate-300);border-radius:9px;font-size:16px;font-weight:800;text-align:center;font-family:\'Space Grotesk\',monospace;">'
+      + '</div>';
+  }).join('');
+  showModal('<h3 style="font-size:16px;margin:0 0 4px;">⚖️ ' + (_ccMyRole() === 'ctl_tiebreaker' ? 'CTL' : 'BCS') + ' ' + L('ໃສ່ຍອດຕັດສິນ', 'ใส่ยอดตัดสิน') + '</h3>'
+    + '<div style="font-size:13px;font-weight:700;">' + escapeHtml(name) + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-500);font-family:monospace;margin-bottom:8px;">' + escapeHtml(p.product?.barcode || '') + ' · POS ' + (p.pos_qty || 0) + ' · ' + L('ຍອດຕອນນີ້ ', 'ยอดตอนนี้ ') + (p.final_qty ?? '—') + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-600);background:var(--slate-50);border-radius:8px;padding:7px 9px;margin-bottom:6px;line-height:1.5;">'
+    + L('ນັບເອງແລ້ວໃສ່ຍອດ <b>ທຸກຈຸດທີ່ມີຂອງ</b> · ຈຸດທີ່ບໍ່ມີຂອງ ໃສ່ 0 · ເວັ້ນວ່າງ = ບໍ່ປ່ຽນຈຸດນັ້ນ', 'นับเองแล้วใส่ยอด <b>ทุกจุดที่มีของ</b> · จุดที่ไม่มีของ ใส่ 0 · เว้นว่าง = ไม่เปลี่ยนจุดนั้น') + '</div>'
+    + '<div style="max-height:44vh;overflow-y:auto;">' + rows
+    + '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;">'
+    + '<input id="vjExtraLoc" type="text" placeholder="' + L('+ ຈຸດອື່ນ (ເຊັ່ນ WH05)', '+ จุดอื่น (เช่น WH05)') + '" style="flex:1;min-width:0;padding:10px;border:1px dashed var(--slate-300);border-radius:9px;font-size:13px;text-transform:uppercase;font-family:\'Space Grotesk\',monospace;">'
+    + '<input id="vjExtraQty" type="number" inputmode="numeric" min="0" placeholder="—" style="width:86px;padding:10px;border:2px dashed var(--slate-300);border-radius:9px;font-size:16px;font-weight:800;text-align:center;">'
+    + '</div></div>'
+    + '<div id="vjSum" style="font-size:12px;font-weight:800;margin-top:6px;"></div>'
+    + '<div class="action-row" style="margin-top:10px;"><button class="btn btn-secondary" onclick="closeModal()">' + L('ຍົກເລີກ', 'ยกเลิก') + '</button>'
+    + '<button class="btn btn-primary" id="vjSaveBtn" onclick="varJudgeSave(' + Number(productId) + ')">💾 ' + L('ບັນທຶກຍອດຕັດສິນ', 'บันทึกยอดตัดสิน') + '</button></div>');
+  const upd = () => {
+    let s = 0, n = 0;
+    document.querySelectorAll('.vjQty').forEach(i => { if (i.value !== '') { s += Number(i.value) || 0; n++; } });
+    const ex = document.getElementById('vjExtraQty'); if (ex && ex.value !== '') { s += Number(ex.value) || 0; n++; }
+    const el = document.getElementById('vjSum');
+    if (el) el.innerHTML = n ? (L('ລວມທີ່ໃສ່ ', 'รวมที่ใส่ ') + s + ' · POS ' + (p.pos_qty || 0) + ' → ' + L('ຕ່າງ ', 'ต่าง ') + (s - (p.pos_qty || 0) > 0 ? '+' : '') + (s - (p.pos_qty || 0))) : '';
+  };
+  setTimeout(() => { document.querySelectorAll('#modalContent input').forEach(i => i.addEventListener('input', upd)); upd(); const f = document.querySelector('.vjQty'); if (f) f.focus(); }, 30);
+}
+async function varJudgeSave(productId) {
+  const isLao = lang === 'lo', L = (lo, th) => isLao ? lo : th;
+  if (!varCanJudge()) return;
+  const p = (_varianceAllData || []).find(x => Number(x.product_id) === Number(productId)); if (!p) return;
+  const entries = [];
+  document.querySelectorAll('.vjQty').forEach(i => { if (i.value !== '') entries.push({ loc: i.dataset.loc, qty: parseInt(i.value, 10) }); });
+  const exLoc = ((document.getElementById('vjExtraLoc') || {}).value || '').toUpperCase().trim();
+  const exQty = (document.getElementById('vjExtraQty') || {}).value;
+  if (exLoc && exQty !== '') entries.push({ loc: exLoc, qty: parseInt(exQty, 10) });
+  else if (exLoc || exQty !== '') { showToast(L('ຈຸດອື່ນ: ໃສ່ທັງລະຫັດຈຸດ ແລະ ຈຳນວນ', 'จุดอื่น: ใส่ทั้งรหัสจุดและจำนวน'), 'warning'); return; }
+  if (!entries.length) { showToast(L('ໃສ່ຍອດຢ່າງໜ້ອຍ 1 ຈຸດ', 'ใส่ยอดอย่างน้อย 1 จุด'), 'warning'); return; }
+  if (entries.some(e => isNaN(e.qty) || e.qty < 0)) { showToast(L('ຈຳນວນບໍ່ຖືກ', 'จำนวนไม่ถูก'), 'warning'); return; }
+  const btn = document.getElementById('vjSaveBtn'); if (btn) btn.disabled = true;
+  const _role = _ccMyRole();   // ctl → ctl_tiebreaker · admin/scc/bcs → manager_final
+  const note = (_role === 'ctl_tiebreaker' ? 'CTL ' : 'BCS ') + L('ຕັດສິນຈາກລາຍງານ', 'ตัดสินจากรายงาน');
+  const rows = entries.map(e => ({
+    session_id: session.id, branch_id: branch?.id || user.branch_id, product_id: productId, zone_id: p.zone_id || null,
+    location_code: e.loc, gondola_code: floorBaseCode(e.loc), user_id: user.id, counted_qty: e.qty,
+    pos_qty_snapshot: p.pos_qty || 0, count_role: _role, is_markdown: false, note
+  }));
+  let error = null;
+  try { const r = await sb.from('stock_counts').insert(rows); error = r.error; } catch (e) { error = e; }
+  if (error) { if (btn) btn.disabled = false; showToast('Error: ' + (error.message || error), 'error'); return; }
+  logActivity('bcs_judge', _role + ' · product ' + productId + ' · ' + entries.map(e => e.loc + '=' + e.qty).join(', '));
+  showToast(L('✓ ບັນທຶກຍອດຕັດສິນແລ້ວ', '✓ บันทึกยอดตัดสินแล้ว'), 'success');
+  closeModal();
+  loadVarianceReport();
+}
+window.varJudgeOpen = varJudgeOpen; window.varJudgeSave = varJudgeSave;
 
 // ==================== EXPORT VARIANCE EXCEL ====================
 async function exportVarianceExcel() {
