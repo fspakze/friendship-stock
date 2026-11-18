@@ -31777,6 +31777,61 @@ async function saveNewSKU() {
   closeModal();
 }
 
+// 🛡️ กันอัปโหลด POS ผิดสาขา (Ball 2026-11-18 — ไฟล์โพนสะอาดเคยลง SUPERMART: ปิดขาย 12,373 ตัว)
+//   เทียบบาร์โค้ดในไฟล์กับสินค้าที่เปิดขายของสาขาปลายทาง → คำนวณ % ตรงกัน + จำนวนที่จะถูกปิดขาย (ไม่อยู่ในไฟล์)
+//   ผิดปกติ (สาขามีสินค้า ≥ 200 และ ตรงกัน < 50% หรือ ปิดขาย > 30%) = บล็อก ต้องพิมพ์รหัสสาขายืนยัน
+function posGuardEval(fileBarcodes, activeBarcodes) {
+  const file = new Set((fileBarcodes || []).map(x => String(x || '').trim()).filter(Boolean));
+  const act = new Set((activeBarcodes || []).map(x => String(x || '').trim()).filter(Boolean));
+  let hit = 0; file.forEach(b => { if (act.has(b)) hit++; });
+  let gone = 0; act.forEach(b => { if (!file.has(b)) gone++; });
+  const overlap = file.size ? hit / file.size : 0;
+  const deactPct = act.size ? gone / act.size : 0;
+  const danger = act.size >= 200 && (overlap < 0.5 || deactPct > 0.3);
+  return { fileN: file.size, activeN: act.size, hit, gone, overlap, deactPct, danger };
+}
+async function posImportGuard(destBranchId, products, quiet) {
+  const isLao = lang === 'lo';
+  const b = (window._allBranchesCache || []).find(x => Number(x.id) === Number(destBranchId)) || (branch && Number(branch.id) === Number(destBranchId) ? branch : null);
+  const bName = b ? ((isLao ? (b.name_lo || b.name_th) : (b.name_th || b.name_lo)) || b.code) : ('#' + destBranchId);
+  const bCode = b ? String(b.code || destBranchId) : String(destBranchId);
+  let act;
+  try {
+    act = await fetchAllQuery(() => sb.from('products').select('barcode').eq('branch_id', destBranchId).eq('is_active', true).order('id'));
+  } catch (e) {
+    showToast((isLao ? 'ກວດສາຂາປາຍທາງບໍ່ສຳເລັດ: ' : 'ตรวจสาขาปลายทางไม่สำเร็จ: ') + ((e && e.message) || e), 'error');
+    return null;
+  }
+  const g = posGuardEval(products.map(p => p.barcode), (act || []).map(r => r.barcode));
+  const pct = v => Math.round(v * 100) + '%';
+  const N = v => Number(v).toLocaleString('en-US');
+  const head = isLao
+    ? `📥 ນຳເຂົ້າ POS ໄປສາຂາ:\n\n   ${bName}  (${bCode})\n\n• ສິນຄ້າໃນໄຟລ໌: ${N(g.fileN)}\n• ກົງກັບສິນຄ້າຂອງສາຂານີ້: ${pct(g.overlap)}\n• ຈະຖືກປິດຂາຍ (ບໍ່ຢູ່ໃນໄຟລ໌): ${N(g.gone)} ຈາກ ${N(g.activeN)} (${pct(g.deactPct)})`
+    : `📥 นำเข้า POS ไปสาขา:\n\n   ${bName}  (${bCode})\n\n• สินค้าในไฟล์: ${N(g.fileN)}\n• ตรงกับสินค้าของสาขานี้: ${pct(g.overlap)}\n• จะถูกปิดขาย (ไม่อยู่ในไฟล์): ${N(g.gone)} จาก ${N(g.activeN)} (${pct(g.deactPct)})`;
+  if (!g.danger) {
+    if (quiet) return g;   // multi-branch: ยืนยันรวมไปแล้ว — ถามเฉพาะสาขาที่ผิดปกติ
+    if (!confirm(head + (isLao ? '\n\nຢືນຢັນນຳເຂົ້າ?' : '\n\nยืนยันนำเข้า?'))) return null;
+    return g;
+  }
+  const typed = prompt(head + (isLao
+    ? `\n\n⛔ ຜິດປົກກະຕິ — ໄຟລ໌ນີ້ອາດເປັນຂອງສາຂາອື່ນ!\nຖ້າແນ່ໃຈ ພິມລະຫັດສາຂາ "${bCode}" ເພື່ອຢືນຢັນ`
+    : `\n\n⛔ ผิดปกติ — ไฟล์นี้อาจเป็นของสาขาอื่น!\nถ้าแน่ใจ พิมพ์รหัสสาขา "${bCode}" เพื่อยืนยัน`), '');
+  if (typed == null) return null;
+  if (String(typed).trim().toUpperCase() !== bCode.trim().toUpperCase()) {
+    showToast(isLao ? '⛔ ລະຫັດສາຂາບໍ່ກົງ — ຍົກເລີກການນຳເຂົ້າ' : '⛔ รหัสสาขาไม่ตรง — ยกเลิกการนำเข้า', 'error');
+    return null;
+  }
+  g.forced = true;
+  return g;
+}
+function posLogImport(destBranchId, total, stats, g, mode) {
+  const b = (window._allBranchesCache || []).find(x => Number(x.id) === Number(destBranchId));
+  const code = b ? b.code : destBranchId;
+  logActivity('pos_import', 'branch ' + destBranchId + ' ' + code + ' · ' + mode + ' · rows ' + total
+    + (stats ? ' · new ' + (stats.new_products || stats.new || 0) + ' · upd ' + (stats.updated_products || stats.updated || 0) + (stats.deactivated_products != null ? ' · deact ' + stats.deactivated_products : '') : '')
+    + (g ? ' · match ' + Math.round(g.overlap * 100) + '% · off ' + g.gone + '/' + g.activeN + (g.forced ? ' · FORCED' : '') : ''));
+}
+
 // ==================== IMPORT POS DATA ====================
 let _pendingImport = null;
 
@@ -32434,7 +32489,15 @@ async function executeMultiBranchImport() {
     : `🌐 Import หลายสาขา\n\nรวม ${totalItems.toLocaleString()} สินค้า ใน ${totalBranches} สาขา:\n\n${branchNames}\n\nต้องการดำเนินต่อหรือไม่?`;
   
   if (!confirm(confirmMsg)) return;
-  
+
+  // 🛡️ เช็คทีละสาขา — ผิดปกติ = ต้องพิมพ์รหัสสาขายืนยัน ไม่งั้นยกเลิกทั้งชุด
+  const _mbGuard = {};
+  for (const bId of branchIds) {
+    const g = await posImportGuard(bId, branchGroups[bId], true);
+    if (!g) return;
+    _mbGuard[bId] = g;
+  }
+
   // Show progress modal
   closeModal();
   showModal(`
@@ -32555,6 +32618,7 @@ async function executeMultiBranchImport() {
       statuses[bId].status = 'done';
       statuses[bId].new = branchNew;
       statuses[bId].updated = branchUpdated;
+      posLogImport(bId, products.length, { new: branchNew, updated: branchUpdated }, _mbGuard[bId], 'multi');
       aggStats.new += branchNew;
       aggStats.updated += branchUpdated;
     }
@@ -32672,6 +32736,9 @@ async function executeImport() {
     if (!confirmed) return;
   }
   
+  // 🛡️ เทียบกับสินค้าของสาขาปลายทาง (กันลงผิดสาขา) — ยกเลิก = ไม่ทำอะไร
+  const _posGuard = await posImportGuard(destBranchId, _pendingImport);
+  if (!_posGuard) return;
   const btn = document.getElementById('importBtn');
   const errEl = document.getElementById('importErr');
   
@@ -32843,6 +32910,7 @@ async function executeImport() {
       </button>
     `);
     
+    posLogImport(destBranchId, total, aggStats, _posGuard, 'single');
     _pendingImport = null;
     markDataUpdated('last_update_pos');
     
