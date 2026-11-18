@@ -27683,7 +27683,10 @@ async function loadVarianceReport() {
     renderVarianceList();
     // 🎛️ มาจาก Dashboard → เปิดมุมมองที่กดมา
     const _da = window._dashAfter; window._dashAfter = null;
-    if (_da && _da.indexOf('stage:') === 0) { _varStageFilter = _da.slice(6); renderVarianceList(); }
+    if (_da && _da.indexOf('stage:') === 0) {
+      _varStageFilter = _da.slice(6); renderVarianceList();
+      const _anc = document.getElementById('varStageAnchor'); if (_anc && _anc.scrollIntoView) setTimeout(() => _anc.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60);
+    }
     else if (_da && _da.indexOf('csum:') === 0) { csumOpen(_da.slice(5)); }
   } catch (e) {
     console.error('[FS] loadVarianceReport error:', e);
@@ -28351,7 +28354,11 @@ function renderVarianceList() {
   const listEl = document.getElementById('varianceList');
 
   // ⏳ สินค้าที่นับหลาย gondola ยังไม่ครบทุกจุด → โชว้แยกไว้บนสุด (ยังไม่สรุป Diff · ไม่เข้า L1-L4)
-  const pendingHtml = csumEntryHtml(isLao) + renderVariancePending(isLao);
+  //    กรองตามขั้นตอนอยู่ (เช่น กดมาจาก Dashboard "3 คนนับไม่ตรง") → พับกล่องนี้ไว้ ไม่งั้นรายการที่กรองไปอยู่ใต้กล่องยาว หาไม่เจอ (Ball 2026-11-18)
+  const _pendBox = renderVariancePending(isLao);
+  const pendingHtml = csumEntryHtml(isLao) + ((_varStageFilter !== 'all' && _pendBox)
+    ? '<details style="margin-bottom:10px;"><summary style="cursor:pointer;font-size:11px;font-weight:700;color:var(--amber-700, #b45309);padding:7px 10px;background:var(--amber-50, #fffbeb);border:1px solid var(--amber-200, #fde68a);border-radius:9px;">⏳ ' + (isLao ? 'ລໍຖ້ານັບໃຫ້ຄົບທຸກຈຸດ ' : 'รอนับให้ครบทุกจุด ') + ((_variancePending || []).length) + (isLao ? ' ລາຍການ (ກົດເພື່ອເບິ່ງ)' : ' รายการ (กดเพื่อดู)') + '</summary>' + _pendBox + '</details>'
+    : _pendBox) + '<div id="varStageAnchor"></div>';
 
   if (items.length === 0) {
     listEl.innerHTML = pendingHtml + `
