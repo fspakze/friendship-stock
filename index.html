@@ -24880,7 +24880,7 @@ let _ccMode = null;   // null | 'add' | 'replace'
 function _ccMyRole() {
   const r = user && user.role;
   if (['verifier', 'audit'].includes(r)) return 'verifier';
-  if (r === 'ctl') return 'ctl_tiebreaker';
+  if (r === 'ctl' || r === 'it') return 'ctl_tiebreaker';   // IT = ควบคุมการนับ/ตัดสิน (เดิมตกเป็น counter · Ball 2026-11-18)
   if (['admin', 'scc', 'bcs'].includes(r)) return 'manager_final';
   return 'counter';
 }
@@ -25137,7 +25137,7 @@ async function saveCount() {
   // Determine count_role
   let countRole = 'counter';
   if (['verifier', 'audit'].includes(r)) countRole = 'verifier';
-  else if (r === 'ctl') countRole = 'ctl_tiebreaker';
+  else if (r === 'ctl' || r === 'it') countRole = 'ctl_tiebreaker';   // IT ตัดสิน = ระดับ CTL (เดิมตกเป็น counter)
   else if (['admin', 'scc', 'bcs'].includes(r)) countRole = 'manager_final';
   
   const insertData = {
