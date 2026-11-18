@@ -29874,22 +29874,37 @@ function _gtClock(ts) { if (!ts) return '–'; const d = new Date(ts); return is
 function _gtMed(a) { a = a.filter(x => x != null).sort((x, y) => x - y); return a.length ? a[a.length >> 1] : null; }
 
 // คำนวณล้วน (ไม่แตะ DB) — แยกไว้เทสได้
+// ⏱️ เวลาทำงานจริง (Ball 2026-11-19) — รวมช่วงห่างระหว่างการสแกนต่อเนื่องของแต่ละคน · ห่าง > 10 นาที = พัก/ไม่ได้นับ → ตัดทิ้ง
+//   สแกนครั้งเดียว = 1 นาที · หลายคนนับชั้นเดียวกัน = รวมเวลาของทุกคน (แรงงานจริง)
+const GT_IDLE_MIN = 10;
+function gtActiveMin(byUser) {
+  let tot = 0;
+  Object.values(byUser || {}).forEach(ts => {
+    const a = ts.map(t => new Date(t).getTime()).filter(x => !isNaN(x)).sort((x, y) => x - y);
+    if (!a.length) return;
+    let m = 0;
+    for (let i = 1; i < a.length; i++) { const g = (a[i] - a[i - 1]) / 60000; if (g <= GT_IDLE_MIN) m += g; }
+    tot += Math.max(1, m);
+  });
+  return tot || null;
+}
 function gtCompute(gs, sc, endTs) {
   const C = ['counter', 'staff'], V = ['verifier', 'audit'], J = ['ctl_tiebreaker', 'manager_final'];
   const by = {};
   (sc || []).forEach(c => {
     const b = floorBaseCode(String(c.location_code || c.gondola_code || '').toUpperCase().trim());
     if (!b) return;
-    const g = by[b] = by[b] || { cP: new Set(), cU: new Set(), vP: new Set(), vU: new Set(), jLast: null, first: null, last: null };
-    if (C.includes(c.count_role)) { g.cP.add(c.product_id); g.cU.add(c.user_id); }
-    else if (V.includes(c.count_role)) { g.vP.add(c.product_id); g.vU.add(c.user_id); }
+    const g = by[b] = by[b] || { cP: new Set(), cU: new Set(), vP: new Set(), vU: new Set(), jLast: null, first: null, last: null, cT: {}, vT: {} };
+    if (C.includes(c.count_role)) { g.cP.add(c.product_id); g.cU.add(c.user_id); (g.cT[c.user_id] = g.cT[c.user_id] || []).push(c.counted_at); }
+    else if (V.includes(c.count_role)) { g.vP.add(c.product_id); g.vU.add(c.user_id); (g.vT[c.user_id] = g.vT[c.user_id] || []).push(c.counted_at); }
     else if (J.includes(c.count_role)) { if (!g.jLast || c.counted_at > g.jLast) g.jLast = c.counted_at; }
     if (!g.first || c.counted_at < g.first) g.first = c.counted_at;
     if (!g.last || c.counted_at > g.last) g.last = c.counted_at;
   });
   const rows = (gs || []).map(s => {
     const code = String(s.location_code || '').toUpperCase().trim();
-    const g = by[code] || { cP: new Set(), cU: new Set(), vP: new Set(), vU: new Set() };
+    const g = by[code] || { cP: new Set(), cU: new Set(), vP: new Set(), vU: new Set(), cT: {}, vT: {} };
+    const cntAct = gtActiveMin(g.cT), verAct = gtActiveMin(g.vT);
     const cnt = _gtMin(s.counting_started_at, s.counting_finished_at);
     const waitV = _gtMin(s.counting_finished_at, s.verifying_started_at);
     const ver = _gtMin(s.verifying_started_at, s.verifying_finished_at);
@@ -29904,14 +29919,14 @@ function gtCompute(gs, sc, endTs) {
     const endEv = judgeEnd || (judgePending ? endTs : null) || s.verifying_finished_at || s.counting_finished_at || g.last || null;
     const items = g.cP.size;
     return {
-      code, status: s.status, start, end: endEv, cnt, waitV, ver, judge, judgePending,
+      code, status: s.status, start, end: endEv, cnt, waitV, ver, judge, judgePending, cntAct, verAct,
       total: _gtMin(start, endEv),
       items, vItems: g.vP.size, cPeople: g.cU.size, vPeople: g.vU.size,
-      rate: (cnt && cnt > 0 && items) ? items / cnt : null,
+      rate: (cntAct && cntAct > 0 && items) ? items / cntAct : null,   // ต่อนาทีที่นับจริง
       cs: s.counting_started_at, cf: s.counting_finished_at, vs: s.verifying_started_at, vf: s.verifying_finished_at
     };
   });
-  const keys = ['cnt', 'waitV', 'ver', 'judge', 'total'];
+  const keys = ['cnt', 'cntAct', 'waitV', 'ver', 'verAct', 'judge', 'total'];
   const med = {}; keys.forEach(k => { med[k] = _gtMed(rows.map(r => r[k])); });
   const sumOf = k => rows.reduce((s, r) => s + (r[k] || 0), 0);
   const starts = rows.map(r => r.start).filter(Boolean).sort(), ends = rows.map(r => r.end).filter(Boolean).sort();
@@ -29919,7 +29934,7 @@ function gtCompute(gs, sc, endTs) {
     n: rows.length, done: rows.filter(r => r.status === 'completed').length, pending: rows.filter(r => r.judgePending).length,
     first: starts[0] || null, last: ends[ends.length - 1] || null,
     span: _gtMin(starts[0], ends[ends.length - 1]),
-    cnt: sumOf('cnt'), waitV: sumOf('waitV'), ver: sumOf('ver'), judge: sumOf('judge'), med,
+    cnt: sumOf('cnt'), waitV: sumOf('waitV'), ver: sumOf('ver'), judge: sumOf('judge'), cntAct: sumOf('cntAct'), verAct: sumOf('verAct'), med,
     items: rows.reduce((s, r) => s + r.items, 0)
   };
   return { rows, sum };
@@ -29951,7 +29966,7 @@ async function gtOpen(force) {
   renderVarianceList();
   if (el && el.scrollIntoView) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
-function gtSort(k) { _gtSort = ['total', 'cnt', 'waitV', 'ver', 'judge', 'code'].includes(k) ? k : 'total'; renderVarianceList(); }
+function gtSort(k) { _gtSort = ['total', 'cnt', 'cntAct', 'waitV', 'ver', 'judge', 'code'].includes(k) ? k : 'total'; renderVarianceList(); }
 
 function gtRenderView() {
   const d = _gt; if (!d) return '';
@@ -29972,13 +29987,15 @@ function gtRenderView() {
   const kpis = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;margin-bottom:8px;">'
     + kpi(L('ທັງຮອບ (ເລີ່ມ→ຈົບ)', 'ทั้งรอบ (เริ่ม→จบ)'), _gtHM(s.span), _gtClock(s.first) + ' → ' + _gtClock(s.last))
     + kpi('⏱️ ' + L('ນັບ', 'นับ') + ' · ' + L('ກາງ', 'กลาง'), _gtHM(m.cnt), L('ລວມ ', 'รวม ') + _gtHM(s.cnt) + ' (' + pct(s.cnt) + ')')
+    + kpi('✋ ' + L('ນັບຈິງ', 'นับจริง') + ' · ' + L('ກາງ', 'กลาง'), _gtHM(m.cntAct), L('ລວມ ', 'รวม ') + _gtHM(s.cntAct) + (s.cnt ? ' (' + Math.round(s.cntAct / s.cnt * 100) + L('% ຂອງເວລານັບ)', '% ของเวลานับ)') : ''), 'var(--teal-700, #0f766e)')
     + kpi('⏳ ' + L('ລໍຖ້າກວດ', 'รอตรวจ') + ' · ' + L('ກາງ', 'กลาง'), _gtHM(m.waitV), L('ລວມ ', 'รวม ') + _gtHM(s.waitV) + ' (' + pct(s.waitV) + ')', 'var(--amber-600, #d97706)')
     + kpi('🔍 ' + L('ກວດ', 'ตรวจ') + ' · ' + L('ກາງ', 'กลาง'), _gtHM(m.ver), L('ລວມ ', 'รวม ') + _gtHM(s.ver) + ' (' + pct(s.ver) + ')')
+    + kpi('✋ ' + L('ກວດຈິງ', 'ตรวจจริง') + ' · ' + L('ກາງ', 'กลาง'), _gtHM(m.verAct), L('ລວມ ', 'รวม ') + _gtHM(s.verAct), 'var(--teal-700, #0f766e)')
     + kpi('⚖️ ' + L('ລໍຖ້າຕັດສິນ', 'รอตัดสิน') + ' · ' + L('ກາງ', 'กลาง'), _gtHM(m.judge), L('ລວມ ', 'รวม ') + _gtHM(s.judge) + ' (' + pct(s.judge) + ')', 'var(--amber-600, #d97706)')
     + kpi('Gondola', s.done + ' / ' + s.n, s.pending ? ('⚠️ ' + L('ຄ້າງຕັດສິນ ', 'ค้างตัดสิน ') + s.pending) : L('ຈົບແລ້ວ', 'จบแล้ว'), s.pending ? 'var(--rose-600, #e11d48)' : 'var(--emerald-600, #059669)')
     + '</div>'
-    + '<div style="font-size:10px;color:var(--slate-500);margin-bottom:8px;line-height:1.5;">' + L('ເວລາ = ຊົ່ວໂມງ:ນາທີ · ກາງ = ຄ່າກາງຂອງທຸກ Gondola · 🟥 = ຊ້າກວ່າຄ່າກາງ 2 ເທົ່າ · ລາຍການ/ນາທີ = ລາຍການທີ່ Counter ນັບ ÷ ເວລານັບ', 'เวลา = ชั่วโมง:นาที · กลาง = ค่ากลางของทุก Gondola · 🟥 = ช้ากว่าค่ากลาง 2 เท่า · รายการ/นาที = รายการที่ Counter นับ ÷ เวลานับ') + '</div>';
-  const sorts = [['total', L('ລວມ', 'รวม')], ['cnt', L('ນັບ', 'นับ')], ['waitV', L('ລໍຖ້າກວດ', 'รอตรวจ')], ['ver', L('ກວດ', 'ตรวจ')], ['judge', L('ລໍຖ້າຕັດສິນ', 'รอตัดสิน')], ['code', L('ລະຫັດ', 'รหัส')]];
+    + '<div style="font-size:10px;color:var(--slate-500);margin-bottom:8px;line-height:1.5;">' + L('ເວລາ = ຊົ່ວໂມງ:ນາທີ · ກາງ = ຄ່າກາງຂອງທຸກ Gondola · 🟥 = ຊ້າກວ່າຄ່າກາງ 2 ເທົ່າ · ✋ ນັບຈິງ/ກວດຈິງ = ເວລາສະແກນຕໍ່ເນື່ອງ (ຫ່າງ > 10 ນາທີ = ພັກ ບໍ່ນັບ) · ລາຍການ/ນາທີ = ລາຍການທີ່ Counter ນັບ ÷ ເວລານັບຈິງ', 'เวลา = ชั่วโมง:นาที · กลาง = ค่ากลางของทุก Gondola · 🟥 = ช้ากว่าค่ากลาง 2 เท่า · ✋ นับจริง/ตรวจจริง = เวลาสแกนต่อเนื่อง (ห่าง > 10 นาที = พัก ไม่นับ) · รายการ/นาที = รายการที่ Counter นับ ÷ เวลานับจริง') + '</div>';
+  const sorts = [['total', L('ລວມ', 'รวม')], ['cnt', L('ນັບ', 'นับ')], ['cntAct', L('ນັບຈິງ', 'นับจริง')], ['waitV', L('ລໍຖ້າກວດ', 'รอตรวจ')], ['ver', L('ກວດ', 'ตรวจ')], ['judge', L('ລໍຖ້າຕັດສິນ', 'รอตัดสิน')], ['code', L('ລະຫັດ', 'รหัส')]];
   const sortBar = '<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:7px;"><span style="font-size:10px;font-weight:700;color:var(--slate-500);">' + L('ລຽງ:', 'เรียง:') + '</span>'
     + sorts.map(([k, t]) => '<button onclick="gtSort(\'' + k + '\')" style="background:' + (_gtSort === k ? 'var(--slate-800)' : 'white') + ';color:' + (_gtSort === k ? 'white' : 'var(--slate-600)') + ';border:1px solid var(--slate-300);border-radius:14px;padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer;">' + t + '</button>').join('') + '</div>';
   const rows = d.rows.slice();
@@ -29986,17 +30003,18 @@ function gtRenderView() {
   else rows.sort((a, b) => (b[_gtSort] == null ? -1 : b[_gtSort]) - (a[_gtSort] == null ? -1 : a[_gtSort]) || a.code.localeCompare(b.code));
   const slow = (k, v) => v != null && m[k] != null && m[k] > 0 && v >= m[k] * 2;
   const td = (v, k, extra) => '<td style="padding:6px 7px;text-align:right;font-family:\'Space Grotesk\',monospace;font-size:11px;white-space:nowrap;' + (slow(k, v) ? 'background:var(--rose-100, #ffe4e6);color:var(--rose-700, #be123c);font-weight:800;' : '') + '">' + _gtHM(v) + (extra || '') + '</td>';
+  const tdA = (v, k) => '<td style="padding:6px 7px;text-align:right;font-family:\'Space Grotesk\',monospace;font-size:11px;white-space:nowrap;color:var(--teal-700, #0f766e);font-weight:700;' + (slow(k, v) ? 'background:var(--rose-100, #ffe4e6);color:var(--rose-700, #be123c);font-weight:800;' : 'background:var(--teal-50, #f0fdfa);') + '">' + _gtHM(v) + '</td>';
   const stTag = r => r.status === 'completed' ? '<span style="color:var(--emerald-600, #059669);">✓</span>'
     : (r.judgePending ? '<span style="color:var(--rose-600, #e11d48);">⚖️</span>' : '<span style="color:var(--slate-400);">…</span>');
   const th = t => '<th style="padding:6px 7px;text-align:right;font-size:10px;color:var(--slate-500);white-space:nowrap;border-bottom:1px solid var(--slate-200);">' + t + '</th>';
-  const table = '<div style="overflow-x:auto;border:1px solid var(--slate-200);border-radius:10px;background:white;"><table style="width:100%;border-collapse:collapse;min-width:640px;">'
+  const table = '<div style="overflow-x:auto;border:1px solid var(--slate-200);border-radius:10px;background:white;"><table style="width:100%;border-collapse:collapse;min-width:760px;">'
     + '<tr><th style="padding:6px 7px;text-align:left;font-size:10px;color:var(--slate-500);border-bottom:1px solid var(--slate-200);">Gondola</th>'
-    + th(L('ເລີ່ມ', 'เริ่ม')) + th('⏱️ ' + L('ນັບ', 'นับ')) + th('⏳ ' + L('ລໍຖ້າກວດ', 'รอตรวจ')) + th('🔍 ' + L('ກວດ', 'ตรวจ')) + th('⚖️ ' + L('ລໍຖ້າຕັດສິນ', 'รอตัดสิน')) + th(L('ລວມ', 'รวม'))
+    + th(L('ເລີ່ມ', 'เริ่ม')) + th('⏱️ ' + L('ນັບ', 'นับ')) + th('✋ ' + L('ນັບຈິງ', 'นับจริง')) + th('⏳ ' + L('ລໍຖ້າກວດ', 'รอตรวจ')) + th('🔍 ' + L('ກວດ', 'ตรวจ')) + th('✋ ' + L('ກວດຈິງ', 'ตรวจจริง')) + th('⚖️ ' + L('ລໍຖ້າຕັດສິນ', 'รอตัดสิน')) + th(L('ລວມ', 'รวม'))
     + th(L('ລາຍການ', 'รายการ')) + th(L('ລາຍການ/ນາທີ', 'รายการ/นาที')) + th('C · V') + '</tr>'
     + rows.map(r => '<tr style="border-bottom:1px solid var(--slate-100);">'
       + '<td style="padding:6px 7px;font-weight:800;font-size:12px;font-family:\'Space Grotesk\',monospace;white-space:nowrap;">' + stTag(r) + ' ' + escapeHtml(r.code) + '</td>'
       + '<td style="padding:6px 7px;text-align:right;font-size:11px;color:var(--slate-500);font-family:\'Space Grotesk\',monospace;">' + _gtClock(r.start) + '</td>'
-      + td(r.cnt, 'cnt') + td(r.waitV, 'waitV') + td(r.ver, 'ver') + td(r.judge, 'judge', r.judgePending ? '+' : '') + td(r.total, 'total')
+      + td(r.cnt, 'cnt') + tdA(r.cntAct, 'cntAct') + td(r.waitV, 'waitV') + td(r.ver, 'ver') + tdA(r.verAct, 'verAct') + td(r.judge, 'judge', r.judgePending ? '+' : '') + td(r.total, 'total')
       + '<td style="padding:6px 7px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;">' + r.items + '</td>'
       + '<td style="padding:6px 7px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;">' + (r.rate != null ? r.rate.toFixed(1) : '–') + '</td>'
       + '<td style="padding:6px 7px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;color:var(--slate-500);">' + r.cPeople + ' · ' + r.vPeople + '</td>'
@@ -30011,15 +30029,15 @@ function gtExport() {
   const isLao = lang === 'lo', L = (lo, th) => isLao ? lo : th;
   const r1 = v => v == null ? '' : Math.round(v);
   const head = ['Gondola', L('ສະຖານະ', 'สถานะ'), L('ເລີ່ມນັບ', 'เริ่มนับ'), L('ນັບແລ້ວ', 'นับเสร็จ'), L('ເລີ່ມກວດ', 'เริ่มตรวจ'), L('ກວດແລ້ວ', 'ตรวจเสร็จ'),
-    L('ນັບ (ນາທີ)', 'นับ (นาที)'), L('ລໍຖ້າກວດ (ນາທີ)', 'รอตรวจ (นาที)'), L('ກວດ (ນາທີ)', 'ตรวจ (นาที)'), L('ລໍຖ້າຕັດສິນ (ນາທີ)', 'รอตัดสิน (นาที)'), L('ຄ້າງຕັດສິນ', 'ค้างตัดสิน'), L('ລວມ (ນາທີ)', 'รวม (นาที)'),
+    L('ນັບ (ນາທີ)', 'นับ (นาที)'), L('ນັບຈິງ (ນາທີ)', 'นับจริง (นาที)'), L('ລໍຖ້າກວດ (ນາທີ)', 'รอตรวจ (นาที)'), L('ກວດ (ນາທີ)', 'ตรวจ (นาที)'), L('ກວດຈິງ (ນາທີ)', 'ตรวจจริง (นาที)'), L('ລໍຖ້າຕັດສິນ (ນາທີ)', 'รอตัดสิน (นาที)'), L('ຄ້າງຕັດສິນ', 'ค้างตัดสิน'), L('ລວມ (ນາທີ)', 'รวม (นาที)'),
     L('ລາຍການ Counter', 'รายการ Counter'), L('ລາຍການ Verifier', 'รายการ Verifier'), L('ລາຍການ/ນາທີ', 'รายการ/นาที'), L('ຄົນ Counter', 'คน Counter'), L('ຄົນ Verifier', 'คน Verifier')];
   const tsx = t => { if (!t) return ''; const x = new Date(t); return isNaN(x) ? '' : localDayKey(x) + ' ' + _gtClock(t); };
   const aoa = [head].concat(d.rows.slice().sort((a, b) => (b.total || 0) - (a.total || 0)).map(r => [r.code, r.status, tsx(r.cs), tsx(r.cf), tsx(r.vs), tsx(r.vf),
-    r1(r.cnt), r1(r.waitV), r1(r.ver), r1(r.judge), r.judgePending ? 'Y' : '', r1(r.total), r.items, r.vItems, r.rate != null ? Number(r.rate.toFixed(2)) : '', r.cPeople, r.vPeople]));
+    r1(r.cnt), r1(r.cntAct), r1(r.waitV), r1(r.ver), r1(r.verAct), r1(r.judge), r.judgePending ? 'Y' : '', r1(r.total), r.items, r.vItems, r.rate != null ? Number(r.rate.toFixed(2)) : '', r.cPeople, r.vPeople]));
   const s = d.sum;
   const sumAoa = [[L('ຫົວຂໍ້', 'หัวข้อ'), L('ນາທີ', 'นาที'), 'h:mm'],
     [L('ທັງຮອບ (ເລີ່ມ→ຈົບ)', 'ทั้งรอบ (เริ่ม→จบ)'), r1(s.span), _gtHM(s.span)],
-    [L('ນັບ ລວມ', 'นับ รวม'), r1(s.cnt), _gtHM(s.cnt)], [L('ລໍຖ້າກວດ ລວມ', 'รอตรวจ รวม'), r1(s.waitV), _gtHM(s.waitV)],
+    [L('ນັບ ລວມ', 'นับ รวม'), r1(s.cnt), _gtHM(s.cnt)], [L('ນັບຈິງ ລວມ', 'นับจริง รวม'), r1(s.cntAct), _gtHM(s.cntAct)], [L('ກວດຈິງ ລວມ', 'ตรวจจริง รวม'), r1(s.verAct), _gtHM(s.verAct)], [L('ລໍຖ້າກວດ ລວມ', 'รอตรวจ รวม'), r1(s.waitV), _gtHM(s.waitV)],
     [L('ກວດ ລວມ', 'ตรวจ รวม'), r1(s.ver), _gtHM(s.ver)], [L('ລໍຖ້າຕັດສິນ ລວມ', 'รอตัดสิน รวม'), r1(s.judge), _gtHM(s.judge)],
     [L('ນັບ ຄ່າກາງ', 'นับ ค่ากลาง'), r1(s.med.cnt), _gtHM(s.med.cnt)], [L('ລໍຖ້າກວດ ຄ່າກາງ', 'รอตรวจ ค่ากลาง'), r1(s.med.waitV), _gtHM(s.med.waitV)],
     [L('ກວດ ຄ່າກາງ', 'ตรวจ ค่ากลาง'), r1(s.med.ver), _gtHM(s.med.ver)], [L('ລໍຖ້າຕັດສິນ ຄ່າກາງ', 'รอตัดสิน ค่ากลาง'), r1(s.med.judge), _gtHM(s.med.judge)],
