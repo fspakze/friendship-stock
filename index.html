@@ -25477,6 +25477,12 @@ async function openEditCount(countId) {
     
     <!-- Action buttons -->
     <input type="hidden" id="editCountId" value="${item.id}">
+    ${(canDelete && item.location_code) ? (() => { const _toFl = !isFloorCode(item.location_code); const _isLo = lang === 'lo'; return `
+    <button class="btn" onclick="moveCountShelfFloor('${item.id}')"
+      style="width:100%;padding:12px;font-size:13px;font-weight:800;margin-top:12px;background:${_toFl ? 'var(--amber-500)' : 'var(--violet-500)'};color:white;">
+      🔁 ${_toFl ? (_isLo ? 'ຍ້າຍໄປ ພື້ນ (ສະແກນຜິດໂໝດ)' : 'ย้ายไป พื้น (สแกนผิดโหมด)') : (_isLo ? 'ຍ້າຍໄປ ຊັ້ນວາງ (ສະແກນຜິດໂໝດ)' : 'ย้ายไป ชั้นวาง (สแกนผิดโหมด)')}
+      <span style="display:block;font-size:10px;font-weight:600;opacity:.9;margin-top:2px;font-family:'Space Grotesk',monospace;">${escapeHtml(item.location_code)} → ${escapeHtml(_toFl ? (floorBaseCode(item.location_code) + FLOOR_SUFFIX) : floorBaseCode(item.location_code))}</span>
+    </button>`; })() : ''}
     <!-- ยกเลิกด้านบน (secondary) → ลบ/บันทึก อย่างละครึ่งด้านล่าง -->
     <button class="btn btn-secondary" onclick="closeModal()"
       style="width:100%;padding:12px;font-size:13px;font-weight:700;margin-top:14px;">
@@ -25500,6 +25506,89 @@ async function openEditCount(countId) {
     if (inp) { inp.focus(); inp.select(); }
   }, 100);
 }
+
+// 🔁 ย้ายยอดนับ ชั้น ↔ พื้น (สแกนผิดโหมด) — Ball 2026-11-18
+//   ยอดต่อจุด = แถวล่าสุดต่อ (role, location_code) → ย้ายต้องระวัง 2 อย่าง:
+//   (1) ปลายทางมียอด role เดียวกันอยู่แล้ว → รวมเข้าแถวล่าสุดของปลายทาง (บวกกัน) แล้วลบแถวนี้ ไม่งั้นแถวใดแถวหนึ่งถูกทิ้ง
+//   (2) ต้นทางมีแถวเก่า (นับซ้ำ) ของ role เดียวกัน → ลบด้วย ไม่งั้นยอดเก่าโผล่กลับมาเป็นยอดจุดเดิม
+//   Counter/Verifier ย้ายได้เฉพาะรายการตัวเอง + ตอน Gondola ยังเปิดให้ role นั้นนับ · admin/scc/bcs/ctl/it ย้ายได้เสมอ
+const _MV_ROLE_GROUP = { counter: ['counter', 'staff'], staff: ['counter', 'staff'], verifier: ['verifier', 'audit'], audit: ['verifier', 'audit'], ctl_tiebreaker: ['ctl_tiebreaker'], manager_final: ['manager_final'] };
+function _mvPlan(row, rel) {
+  const src = row.location_code, base = floorBaseCode(src);
+  const toFloor = !isFloorCode(src);
+  const dst = toFloor ? base + FLOOR_SUFFIX : base;
+  const byT = (a, b) => String(b.counted_at).localeCompare(String(a.counted_at));
+  const srcRows = (rel || []).filter(r => r.location_code === src).sort(byT);
+  const dstRows = (rel || []).filter(r => r.location_code === dst).sort(byT);
+  const notLatest = srcRows.length > 0 && String(srcRows[0].id) !== String(row.id);
+  const olderSrc = srcRows.filter(r => String(r.id) !== String(row.id));
+  const qty = Number(row.counted_qty) || 0;
+  const dstQty = dstRows.length ? (Number(dstRows[0].counted_qty) || 0) : null;
+  const delIds = olderSrc.map(r => r.id);
+  if (dstQty !== null) delIds.push(row.id);
+  return { src, base, dst, toFloor, notLatest, qty, dstQty, mergeId: dstQty !== null ? dstRows[0].id : null, olderN: olderSrc.length, delIds };
+}
+async function moveCountShelfFloor(id) {
+  const isLao = lang === 'lo';
+  const L = (lo, th) => isLao ? lo : th;
+  try {
+    const { data: row, error: e1 } = await sb.from('stock_counts').select('id, session_id, product_id, location_code, count_role, counted_qty, counted_at, user_id').eq('id', id).single();
+    if (e1 || !row) throw (e1 || new Error('not found'));
+    if (!row.location_code) { showToast(L('ລາຍການນີ້ບໍ່ມີຕຳແໜ່ງ', 'รายการนี้ไม่มีตำแหน่ง'), 'warning'); return; }
+    const isMgr = ['admin', 'scc', 'bcs', 'ctl', 'it'].includes(user.role);
+    if (!isMgr && row.user_id !== user.id) { showToast(L('ຍ້າຍໄດ້ສະເພາະລາຍການທີ່ຕົນເອງນັບ', 'ย้ายได้เฉพาะรายการที่ตัวเองนับ'), 'error'); return; }
+    const grp = _MV_ROLE_GROUP[row.count_role] || [row.count_role];
+    const base = floorBaseCode(row.location_code);
+
+    // ด่าน Gondola: Counter/Verifier ย้ายได้เฉพาะตอนยังเปิดให้ตัวเองนับ
+    if (!isMgr) {
+      const { data: gs } = await sb.from('gondola_status').select('status').eq('session_id', row.session_id).eq('location_code', base).maybeSingle();
+      const okSt = grp.includes('counter') ? ['open_for_counting', 'counting'] : (grp.includes('verifier') ? ['open_for_verify', 'verifying'] : null);
+      if (okSt && gs && !okSt.includes(gs.status)) {
+        showToast(L('Gondola ສົ່ງຕໍ່ແລ້ວ ຍ້າຍບໍ່ໄດ້ — ໃຫ້ CTL/BCS ຍ້າຍໃຫ້', 'Gondola ส่งต่อแล้ว ย้ายไม่ได้ — ให้ CTL/BCS ย้ายให้') + ' (' + gs.status + ')', 'warning');
+        return;
+      }
+    }
+
+    const src = row.location_code, dst = isFloorCode(src) ? base : base + FLOOR_SUFFIX;
+    const { data: rel, error: e2 } = await sb.from('stock_counts').select('id, location_code, counted_qty, counted_at, count_role')
+      .eq('session_id', row.session_id).eq('product_id', row.product_id).in('location_code', [src, dst]).in('count_role', grp);
+    if (e2) throw e2;
+    const P = _mvPlan(row, rel);
+    if (P.notLatest) { showToast(L('ມີຍອດນັບໃໝ່ກວ່າຢູ່ຈຸດນີ້ — ເປີດລາຍການລ່າສຸດແລ້ວຍ້າຍ', 'มียอดนับใหม่กว่าที่จุดนี้ — เปิดรายการล่าสุดแล้วย้าย'), 'warning'); return; }
+    const dstName = P.toFloor ? L('ພື້ນ', 'พื้น') : L('ຊັ້ນວາງ', 'ชั้นวาง');
+    let msg = L('ຍ້າຍຍອດ ', 'ย้ายยอด ') + P.qty + L(' ໄປ ', ' ไป ') + dstName + ' (' + P.dst + ')?';
+    if (P.dstQty !== null) msg += '\n\n' + L('ຈຸດປາຍທາງມີຍອດຢູ່ແລ້ວ ', 'จุดปลายทางมียอดอยู่แล้ว ') + P.dstQty + '\n→ ' + L('ລວມເປັນ ', 'รวมเป็น ') + (P.dstQty + P.qty);
+    if (P.olderN) msg += '\n\n' + L('ລຶບຍອດນັບຊ້ຳເກົ່າຢູ່ຈຸດເດີມນຳ ', 'ลบยอดนับซ้ำเก่าที่จุดเดิมด้วย ') + P.olderN + L(' ລາຍການ', ' รายการ');
+    if (!confirm(msg)) return;
+
+    const now = new Date().toISOString();
+    if (P.mergeId) {
+      const { data: up, error: e3 } = await sb.from('stock_counts').update({ counted_qty: P.dstQty + P.qty, updated_at: now }).eq('id', P.mergeId).select('id');
+      if (e3) throw e3;
+      if (!up || !up.length) throw new Error(L('ຖານຂໍ້ມູນບໍ່ອະນຸຍາດໃຫ້ແກ້ຍອດຈຸດປາຍທາງ', 'ฐานข้อมูลไม่อนุญาตให้แก้ยอดจุดปลายทาง'));
+    } else {
+      const { data: up, error: e3 } = await sb.from('stock_counts').update({ location_code: P.dst, updated_at: now }).eq('id', row.id).select('id');
+      if (e3) throw e3;
+      if (!up || !up.length) throw new Error(L('ຖານຂໍ້ມູນບໍ່ອະນຸຍາດໃຫ້ຍ້າຍ', 'ฐานข้อมูลไม่อนุญาตให้ย้าย'));
+    }
+    let delFail = 0;
+    if (P.delIds.length) {
+      const { data: dd, error: e4 } = await sb.from('stock_counts').delete().in('id', P.delIds).select('id');
+      if (e4 || !dd || dd.length !== P.delIds.length) delFail = P.delIds.length - ((dd && dd.length) || 0);
+    }
+    logActivity('move_count', 'stock_counts ' + row.id + ' ' + P.src + ' → ' + P.dst + ' qty ' + P.qty + (P.mergeId ? ' merged→' + P.mergeId + '=' + (P.dstQty + P.qty) : '') + (P.delIds.length ? ' del ' + P.delIds.join(',') : ''));
+    if (delFail) showToast(L('⚠️ ຍ້າຍແລ້ວ ແຕ່ລຶບຍອດເກົ່າບໍ່ສຳເລັດ ', '⚠️ ย้ายแล้ว แต่ลบยอดเก่าไม่สำเร็จ ') + delFail + L(' ລາຍການ — ແຈ້ງ BCS', ' รายการ — แจ้ง BCS'), 'warning');
+    else showToast(L('🔁 ຍ້າຍໄປ ', '🔁 ย้ายไป ') + dstName + L(' ແລ້ວ', ' แล้ว'), 'success');
+    try { _myStats = null; _vfState = null; } catch (e) {}
+    closeModal();
+    const activeTab = document.querySelector('.tab.active');
+    if (activeTab) goPage(activeTab.dataset.page);
+  } catch (e) {
+    showToast('Error: ' + (e.message || String(e)) + (e.code ? ' [' + e.code + ']' : ''), 'error');
+  }
+}
+window.moveCountShelfFloor = moveCountShelfFloor;
 
 function adjustEditCount(delta) {
   const inp = document.getElementById('editCountInput');
