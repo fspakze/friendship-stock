@@ -27984,6 +27984,7 @@ window._doConcludePending = _doConcludePending;
 function renderVarianceList() {
   if (!_varianceData) return;
   // 📊 โหมดสรุปผล / ไม่ได้นับ (เต็มความกว้าง แทนรายการ)
+  if (_csumView === 'time' && _gt) { const _el = document.getElementById('varianceList'); if (_el) _el.innerHTML = gtRenderView(); return; }
   if (_csumView && _csum) { const _el = document.getElementById('varianceList'); if (_el) _el.innerHTML = csumRenderView(); return; }
   const isLao = lang === 'lo';
   const fmt = new Intl.NumberFormat('th-TH');
@@ -28869,9 +28870,11 @@ function csumEntryHtml(isLao) {
     + btn('csumOpen(\'gondola\')', 'var(--sky-600, #0284c7)', '📍 ' + (isLao ? 'ສະຫຼຸບຕໍ່ຊັ້ນວາງ' : 'สรุปต่อชั้นวาง'))
     + btn('csumOpen(\'negative\')', 'var(--rose-700, #be123c)', '⚠️ ' + (isLao ? 'POS ຕິດລົບ' : 'POS ติดลบ'))
     + btn('csumOpen(\'track\')', 'var(--violet-600, #7c3aed)', '🎯 ' + (isLao ? 'ຕິດຕາມສິນຄ້ານັບສະຕ໋ອກ' : 'ติดตามสินค้านับสต๊อก'))
+    + btn('csumOpen(\'time\')', 'var(--teal-600, #0d9488)', '⏱️ ' + (isLao ? 'ເວລາຕໍ່ Gondola' : 'เวลาต่อ Gondola'))
     + '</div>';
 }
 async function csumOpen(view) {
+  if (view === 'time') return gtOpen();   // ⏱️ ไม่ต้องโหลดต้นทุน/สินค้าทั้งสาขา
   // ⏳ โชว์สถานะกำลังโหลดทันที (ครั้งแรกต้องดึงต้นทุน/ประเภท/สินค้าทั้งสาขา — สาขาใหญ่ใช้เวลาหลายวินาที)
   const _el0 = document.getElementById('varianceList');
   if (!_csum && _el0) _el0.innerHTML = '<div style="text-align:center;padding:40px 20px;"><div class="loader" style="margin:0 auto 12px;"></div>'
@@ -29078,6 +29081,7 @@ function csumRenderView() {
     + '<button onclick="csumOpen(\'uncounted\')" style="background:' + (_csumView === 'uncounted' ? 'var(--rose-500)' : 'white') + ';color:' + (_csumView === 'uncounted' ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">🔍 ' + L('ບໍ່ໄດ້ນັບ', 'ไม่ได้นับ') + ' (' + (d.uncA.length + d.uncB.length) + ')</button>'
     + '<button onclick="csumOpen(\'gondola\')" style="background:' + (_csumView === 'gondola' ? 'var(--sky-600, #0284c7)' : 'white') + ';color:' + (_csumView === 'gondola' ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">📍 ' + L('ຕໍ່ຊັ້ນວາງ', 'ต่อชั้นวาง') + '</button>'
     + '<button onclick="csumOpen(\'negative\')" style="background:' + (_csumView === 'negative' ? 'var(--rose-700, #be123c)' : 'white') + ';color:' + (_csumView === 'negative' ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">⚠️ ' + L('POS ຕິດລົບ', 'POS ติดลบ') + ' (' + (d.neg || []).length + ')</button>'
+    + '<button onclick="csumOpen(\'time\')" style="background:white;color:var(--slate-700);border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">⏱️ ' + L('ເວລາ', 'เวลา') + '</button>'
     + '<button onclick="csumOpen(\'track\')" style="background:' + (_csumView === 'track' ? 'var(--violet-600, #7c3aed)' : 'white') + ';color:' + (_csumView === 'track' ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">🎯 ' + L('ຕິດຕາມ', 'ติดตาม') + '</button>'
     + '<span style="flex:1;"></span>'
     + '<button onclick="csumRefresh()" style="background:white;color:var(--slate-600);border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;">🔄 ' + L('ໂຫຼດໃໝ່', 'โหลดใหม่') + '</button>'
@@ -29349,6 +29353,177 @@ async function csumConfirmZero(mode, pid) {
 }
 
 // ⬇ Excel สรุปผลนับ
+// ⏱️ เวลาต่อ Gondola (gt*) — Ball 2026-11-18
+//   แหล่ง: gondola_status (1 แถว/Gondola/รอบ: counting_started/finished · verifying_started/finished · completed_at)
+//          + stock_counts (คนนับ · จำนวนรายการ · เวลาตัดสินล่าสุดของ CTL/BCS)
+//   นับ = Counter เริ่ม→นับเสร็จ · รอตรวจ = นับเสร็จ→Verifier เริ่ม · ตรวจ = Verifier เริ่ม→ตรวจเสร็จ
+//   รอตัดสิน = ตรวจเสร็จ→จบ (completed_at · ไม่มีใช้ยอดตัดสินล่าสุด) · ยังค้าง = นับถึงตอนปิดรอบ/ตอนนี้
+let _gt = null;          // { sid, rows, sum, at }
+let _gtSort = 'total';   // total | cnt | waitV | ver | judge | code
+function _gtMin(a, b) { if (!a || !b) return null; const v = (new Date(b) - new Date(a)) / 60000; return isFinite(v) && v >= 0 ? v : null; }
+function _gtHM(m) { if (m == null) return '–'; m = Math.round(m); return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0'); }
+function _gtClock(ts) { if (!ts) return '–'; const d = new Date(ts); return isNaN(d) ? '–' : String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function _gtMed(a) { a = a.filter(x => x != null).sort((x, y) => x - y); return a.length ? a[a.length >> 1] : null; }
+
+// คำนวณล้วน (ไม่แตะ DB) — แยกไว้เทสได้
+function gtCompute(gs, sc, endTs) {
+  const C = ['counter', 'staff'], V = ['verifier', 'audit'], J = ['ctl_tiebreaker', 'manager_final'];
+  const by = {};
+  (sc || []).forEach(c => {
+    const b = floorBaseCode(String(c.location_code || c.gondola_code || '').toUpperCase().trim());
+    if (!b) return;
+    const g = by[b] = by[b] || { cP: new Set(), cU: new Set(), vP: new Set(), vU: new Set(), jLast: null, first: null, last: null };
+    if (C.includes(c.count_role)) { g.cP.add(c.product_id); g.cU.add(c.user_id); }
+    else if (V.includes(c.count_role)) { g.vP.add(c.product_id); g.vU.add(c.user_id); }
+    else if (J.includes(c.count_role)) { if (!g.jLast || c.counted_at > g.jLast) g.jLast = c.counted_at; }
+    if (!g.first || c.counted_at < g.first) g.first = c.counted_at;
+    if (!g.last || c.counted_at > g.last) g.last = c.counted_at;
+  });
+  const rows = (gs || []).map(s => {
+    const code = String(s.location_code || '').toUpperCase().trim();
+    const g = by[code] || { cP: new Set(), cU: new Set(), vP: new Set(), vU: new Set() };
+    const cnt = _gtMin(s.counting_started_at, s.counting_finished_at);
+    const waitV = _gtMin(s.counting_finished_at, s.verifying_started_at);
+    const ver = _gtMin(s.verifying_started_at, s.verifying_finished_at);
+    const done = s.status === 'completed';
+    const judgeEnd = done ? (s.completed_at || g.jLast || s.updated_at) : null;
+    let judge = null, judgePending = false;
+    if (s.verifying_finished_at) {
+      if (judgeEnd) judge = _gtMin(s.verifying_finished_at, judgeEnd);
+      else if (s.status === 'tiebreaker_needed') { judge = _gtMin(s.verifying_finished_at, endTs); judgePending = true; }
+    }
+    const start = s.counting_started_at || g.first || null;
+    const endEv = judgeEnd || (judgePending ? endTs : null) || s.verifying_finished_at || s.counting_finished_at || g.last || null;
+    const items = g.cP.size;
+    return {
+      code, status: s.status, start, end: endEv, cnt, waitV, ver, judge, judgePending,
+      total: _gtMin(start, endEv),
+      items, vItems: g.vP.size, cPeople: g.cU.size, vPeople: g.vU.size,
+      rate: (cnt && cnt > 0 && items) ? items / cnt : null,
+      cs: s.counting_started_at, cf: s.counting_finished_at, vs: s.verifying_started_at, vf: s.verifying_finished_at
+    };
+  });
+  const keys = ['cnt', 'waitV', 'ver', 'judge', 'total'];
+  const med = {}; keys.forEach(k => { med[k] = _gtMed(rows.map(r => r[k])); });
+  const sumOf = k => rows.reduce((s, r) => s + (r[k] || 0), 0);
+  const starts = rows.map(r => r.start).filter(Boolean).sort(), ends = rows.map(r => r.end).filter(Boolean).sort();
+  const sum = {
+    n: rows.length, done: rows.filter(r => r.status === 'completed').length, pending: rows.filter(r => r.judgePending).length,
+    first: starts[0] || null, last: ends[ends.length - 1] || null,
+    span: _gtMin(starts[0], ends[ends.length - 1]),
+    cnt: sumOf('cnt'), waitV: sumOf('waitV'), ver: sumOf('ver'), judge: sumOf('judge'), med,
+    items: rows.reduce((s, r) => s + r.items, 0)
+  };
+  return { rows, sum };
+}
+
+async function gtLoad(force) {
+  const sid = (_varianceFilter && _varianceFilter.period === 'round' && _viewRound) ? _viewRound.id : (session && session.id);
+  if (!sid) throw new Error(lang === 'lo' ? 'ບໍ່ມີຮອບນັບ' : 'ไม่มีรอบนับ');
+  if (!force && _gt && _gt.sid === sid && Date.now() - _gt.at < 180000) return _gt;
+  const gs = await fetchAllQuery(() => sb.from('gondola_status')
+    .select('id, location_code, status, created_at, updated_at, counting_started_at, counting_finished_at, verifying_started_at, verifying_finished_at, completed_at')
+    .eq('session_id', sid).order('id'));
+  const sc = await fetchAllQuery(() => sb.from('stock_counts')
+    .select('id, product_id, user_id, count_role, location_code, gondola_code, counted_at').eq('session_id', sid).order('id'));
+  let endTs = new Date().toISOString();
+  if (_varianceFilter && _varianceFilter.period === 'round' && _viewRound && _viewRound.completed_at) endTs = _viewRound.completed_at;
+  const r = gtCompute(gs, sc, endTs);
+  _gt = Object.assign({ sid, at: Date.now(), endTs }, r);
+  return _gt;
+}
+
+async function gtOpen(force) {
+  const el = document.getElementById('varianceList');
+  if (el) el.innerHTML = '<div style="text-align:center;padding:40px 20px;"><div class="loader" style="margin:0 auto 12px;"></div><div style="font-size:13px;font-weight:800;color:var(--slate-700);">'
+    + (lang === 'lo' ? 'ກຳລັງສະຫຼຸບເວລາຕໍ່ Gondola...' : 'กำลังสรุปเวลาต่อ Gondola...') + '</div></div>';
+  try { await gtLoad(!!force); }
+  catch (e) { if (el) el.innerHTML = '<div style="color:var(--rose-500);font-size:12px;padding:14px;">Error: ' + escapeHtml((e && e.message) || String(e)) + '</div>'; return; }
+  _csumView = 'time';
+  renderVarianceList();
+  if (el && el.scrollIntoView) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+function gtSort(k) { _gtSort = ['total', 'cnt', 'waitV', 'ver', 'judge', 'code'].includes(k) ? k : 'total'; renderVarianceList(); }
+
+function gtRenderView() {
+  const d = _gt; if (!d) return '';
+  const isLao = lang === 'lo', L = (lo, th) => isLao ? lo : th;
+  const s = d.sum, m = s.med;
+  const top = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px;">'
+    + '<button onclick="csumClose()" style="background:var(--slate-100);color:var(--slate-700);border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">← ' + L('ກັບລາຍການ', 'กลับรายการ') + '</button>'
+    + '<span style="font-size:13px;font-weight:800;color:var(--slate-800);">⏱️ ' + L('ເວລາຕໍ່ Gondola', 'เวลาต่อ Gondola') + '</span>'
+    + '<span style="flex:1;"></span>'
+    + '<button onclick="gtOpen(true)" style="background:white;color:var(--slate-600);border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;">🔄 ' + L('ໂຫຼດໃໝ່', 'โหลดใหม่') + '</button>'
+    + '<button onclick="gtExport()" style="background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">⬇ Excel</button>'
+    + '</div>';
+  if (!s.n) return top + '<div style="text-align:center;padding:30px;color:var(--slate-400);font-size:12px;">' + L('ຍັງບໍ່ມີ Gondola ໃນຮອບນີ້', 'ยังไม่มี Gondola ในรอบนี้') + '</div>';
+  const kpi = (t, big, sub, c) => '<div style="background:var(--slate-50);border-radius:9px;padding:8px 10px;"><div style="font-size:10px;font-weight:800;color:var(--slate-500);">' + t + '</div>'
+    + '<div style="font-size:17px;font-weight:800;color:' + (c || 'var(--slate-900)') + ';font-family:\'Space Grotesk\',monospace;">' + big + '</div><div style="font-size:10px;color:var(--slate-500);">' + sub + '</div></div>';
+  const tot = s.cnt + s.waitV + s.ver + s.judge;
+  const pct = v => tot ? Math.round(v / tot * 100) + '%' : '–';
+  const kpis = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;margin-bottom:8px;">'
+    + kpi(L('ທັງຮອບ (ເລີ່ມ→ຈົບ)', 'ทั้งรอบ (เริ่ม→จบ)'), _gtHM(s.span), _gtClock(s.first) + ' → ' + _gtClock(s.last))
+    + kpi('⏱️ ' + L('ນັບ', 'นับ') + ' · ' + L('ກາງ', 'กลาง'), _gtHM(m.cnt), L('ລວມ ', 'รวม ') + _gtHM(s.cnt) + ' (' + pct(s.cnt) + ')')
+    + kpi('⏳ ' + L('ລໍຖ້າກວດ', 'รอตรวจ') + ' · ' + L('ກາງ', 'กลาง'), _gtHM(m.waitV), L('ລວມ ', 'รวม ') + _gtHM(s.waitV) + ' (' + pct(s.waitV) + ')', 'var(--amber-600, #d97706)')
+    + kpi('🔍 ' + L('ກວດ', 'ตรวจ') + ' · ' + L('ກາງ', 'กลาง'), _gtHM(m.ver), L('ລວມ ', 'รวม ') + _gtHM(s.ver) + ' (' + pct(s.ver) + ')')
+    + kpi('⚖️ ' + L('ລໍຖ້າຕັດສິນ', 'รอตัดสิน') + ' · ' + L('ກາງ', 'กลาง'), _gtHM(m.judge), L('ລວມ ', 'รวม ') + _gtHM(s.judge) + ' (' + pct(s.judge) + ')', 'var(--amber-600, #d97706)')
+    + kpi('Gondola', s.done + ' / ' + s.n, s.pending ? ('⚠️ ' + L('ຄ້າງຕັດສິນ ', 'ค้างตัดสิน ') + s.pending) : L('ຈົບແລ້ວ', 'จบแล้ว'), s.pending ? 'var(--rose-600, #e11d48)' : 'var(--emerald-600, #059669)')
+    + '</div>'
+    + '<div style="font-size:10px;color:var(--slate-500);margin-bottom:8px;line-height:1.5;">' + L('ເວລາ = ຊົ່ວໂມງ:ນາທີ · ກາງ = ຄ່າກາງຂອງທຸກ Gondola · 🟥 = ຊ້າກວ່າຄ່າກາງ 2 ເທົ່າ · ລາຍການ/ນາທີ = ລາຍການທີ່ Counter ນັບ ÷ ເວລານັບ', 'เวลา = ชั่วโมง:นาที · กลาง = ค่ากลางของทุก Gondola · 🟥 = ช้ากว่าค่ากลาง 2 เท่า · รายการ/นาที = รายการที่ Counter นับ ÷ เวลานับ') + '</div>';
+  const sorts = [['total', L('ລວມ', 'รวม')], ['cnt', L('ນັບ', 'นับ')], ['waitV', L('ລໍຖ້າກວດ', 'รอตรวจ')], ['ver', L('ກວດ', 'ตรวจ')], ['judge', L('ລໍຖ້າຕັດສິນ', 'รอตัดสิน')], ['code', L('ລະຫັດ', 'รหัส')]];
+  const sortBar = '<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:7px;"><span style="font-size:10px;font-weight:700;color:var(--slate-500);">' + L('ລຽງ:', 'เรียง:') + '</span>'
+    + sorts.map(([k, t]) => '<button onclick="gtSort(\'' + k + '\')" style="background:' + (_gtSort === k ? 'var(--slate-800)' : 'white') + ';color:' + (_gtSort === k ? 'white' : 'var(--slate-600)') + ';border:1px solid var(--slate-300);border-radius:14px;padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer;">' + t + '</button>').join('') + '</div>';
+  const rows = d.rows.slice();
+  if (_gtSort === 'code') rows.sort((a, b) => a.code.localeCompare(b.code));
+  else rows.sort((a, b) => (b[_gtSort] == null ? -1 : b[_gtSort]) - (a[_gtSort] == null ? -1 : a[_gtSort]) || a.code.localeCompare(b.code));
+  const slow = (k, v) => v != null && m[k] != null && m[k] > 0 && v >= m[k] * 2;
+  const td = (v, k, extra) => '<td style="padding:6px 7px;text-align:right;font-family:\'Space Grotesk\',monospace;font-size:11px;white-space:nowrap;' + (slow(k, v) ? 'background:var(--rose-100, #ffe4e6);color:var(--rose-700, #be123c);font-weight:800;' : '') + '">' + _gtHM(v) + (extra || '') + '</td>';
+  const stTag = r => r.status === 'completed' ? '<span style="color:var(--emerald-600, #059669);">✓</span>'
+    : (r.judgePending ? '<span style="color:var(--rose-600, #e11d48);">⚖️</span>' : '<span style="color:var(--slate-400);">…</span>');
+  const th = t => '<th style="padding:6px 7px;text-align:right;font-size:10px;color:var(--slate-500);white-space:nowrap;border-bottom:1px solid var(--slate-200);">' + t + '</th>';
+  const table = '<div style="overflow-x:auto;border:1px solid var(--slate-200);border-radius:10px;background:white;"><table style="width:100%;border-collapse:collapse;min-width:640px;">'
+    + '<tr><th style="padding:6px 7px;text-align:left;font-size:10px;color:var(--slate-500);border-bottom:1px solid var(--slate-200);">Gondola</th>'
+    + th(L('ເລີ່ມ', 'เริ่ม')) + th('⏱️ ' + L('ນັບ', 'นับ')) + th('⏳ ' + L('ລໍຖ້າກວດ', 'รอตรวจ')) + th('🔍 ' + L('ກວດ', 'ตรวจ')) + th('⚖️ ' + L('ລໍຖ້າຕັດສິນ', 'รอตัดสิน')) + th(L('ລວມ', 'รวม'))
+    + th(L('ລາຍການ', 'รายการ')) + th(L('ລາຍການ/ນາທີ', 'รายการ/นาที')) + th('C · V') + '</tr>'
+    + rows.map(r => '<tr style="border-bottom:1px solid var(--slate-100);">'
+      + '<td style="padding:6px 7px;font-weight:800;font-size:12px;font-family:\'Space Grotesk\',monospace;white-space:nowrap;">' + stTag(r) + ' ' + escapeHtml(r.code) + '</td>'
+      + '<td style="padding:6px 7px;text-align:right;font-size:11px;color:var(--slate-500);font-family:\'Space Grotesk\',monospace;">' + _gtClock(r.start) + '</td>'
+      + td(r.cnt, 'cnt') + td(r.waitV, 'waitV') + td(r.ver, 'ver') + td(r.judge, 'judge', r.judgePending ? '+' : '') + td(r.total, 'total')
+      + '<td style="padding:6px 7px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;">' + r.items + '</td>'
+      + '<td style="padding:6px 7px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;">' + (r.rate != null ? r.rate.toFixed(1) : '–') + '</td>'
+      + '<td style="padding:6px 7px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;color:var(--slate-500);">' + r.cPeople + ' · ' + r.vPeople + '</td>'
+      + '</tr>').join('')
+    + '</table></div>'
+    + '<div style="font-size:10px;color:var(--slate-500);margin-top:6px;line-height:1.5;">✓ ' + L('ຈົບແລ້ວ', 'จบแล้ว') + ' · ⚖️ ' + L('ຄ້າງຕັດສິນ (+ = ນັບເຖິງຕອນປິດຮອບ/ຕອນນີ້)', 'ค้างตัดสิน (+ = นับถึงตอนปิดรอบ/ตอนนี้)') + ' · … ' + L('ຍັງບໍ່ຈົບ', 'ยังไม่จบ') + ' · C · V = ' + L('ຈຳນວນຄົນນັບ', 'จำนวนคนนับ') + '</div>';
+  return top + kpis + sortBar + table;
+}
+
+function gtExport() {
+  const d = _gt; if (!d) return;
+  const isLao = lang === 'lo', L = (lo, th) => isLao ? lo : th;
+  const r1 = v => v == null ? '' : Math.round(v);
+  const head = ['Gondola', L('ສະຖານະ', 'สถานะ'), L('ເລີ່ມນັບ', 'เริ่มนับ'), L('ນັບແລ້ວ', 'นับเสร็จ'), L('ເລີ່ມກວດ', 'เริ่มตรวจ'), L('ກວດແລ້ວ', 'ตรวจเสร็จ'),
+    L('ນັບ (ນາທີ)', 'นับ (นาที)'), L('ລໍຖ້າກວດ (ນາທີ)', 'รอตรวจ (นาที)'), L('ກວດ (ນາທີ)', 'ตรวจ (นาที)'), L('ລໍຖ້າຕັດສິນ (ນາທີ)', 'รอตัดสิน (นาที)'), L('ຄ້າງຕັດສິນ', 'ค้างตัดสิน'), L('ລວມ (ນາທີ)', 'รวม (นาที)'),
+    L('ລາຍການ Counter', 'รายการ Counter'), L('ລາຍການ Verifier', 'รายการ Verifier'), L('ລາຍການ/ນາທີ', 'รายการ/นาที'), L('ຄົນ Counter', 'คน Counter'), L('ຄົນ Verifier', 'คน Verifier')];
+  const tsx = t => { if (!t) return ''; const x = new Date(t); return isNaN(x) ? '' : localDayKey(x) + ' ' + _gtClock(t); };
+  const aoa = [head].concat(d.rows.slice().sort((a, b) => (b.total || 0) - (a.total || 0)).map(r => [r.code, r.status, tsx(r.cs), tsx(r.cf), tsx(r.vs), tsx(r.vf),
+    r1(r.cnt), r1(r.waitV), r1(r.ver), r1(r.judge), r.judgePending ? 'Y' : '', r1(r.total), r.items, r.vItems, r.rate != null ? Number(r.rate.toFixed(2)) : '', r.cPeople, r.vPeople]));
+  const s = d.sum;
+  const sumAoa = [[L('ຫົວຂໍ້', 'หัวข้อ'), L('ນາທີ', 'นาที'), 'h:mm'],
+    [L('ທັງຮອບ (ເລີ່ມ→ຈົບ)', 'ทั้งรอบ (เริ่ม→จบ)'), r1(s.span), _gtHM(s.span)],
+    [L('ນັບ ລວມ', 'นับ รวม'), r1(s.cnt), _gtHM(s.cnt)], [L('ລໍຖ້າກວດ ລວມ', 'รอตรวจ รวม'), r1(s.waitV), _gtHM(s.waitV)],
+    [L('ກວດ ລວມ', 'ตรวจ รวม'), r1(s.ver), _gtHM(s.ver)], [L('ລໍຖ້າຕັດສິນ ລວມ', 'รอตัดสิน รวม'), r1(s.judge), _gtHM(s.judge)],
+    [L('ນັບ ຄ່າກາງ', 'นับ ค่ากลาง'), r1(s.med.cnt), _gtHM(s.med.cnt)], [L('ລໍຖ້າກວດ ຄ່າກາງ', 'รอตรวจ ค่ากลาง'), r1(s.med.waitV), _gtHM(s.med.waitV)],
+    [L('ກວດ ຄ່າກາງ', 'ตรวจ ค่ากลาง'), r1(s.med.ver), _gtHM(s.med.ver)], [L('ລໍຖ້າຕັດສິນ ຄ່າກາງ', 'รอตัดสิน ค่ากลาง'), r1(s.med.judge), _gtHM(s.med.judge)],
+    ['Gondola', s.n, ''], [L('ຈົບແລ້ວ', 'จบแล้ว'), s.done, ''], [L('ຄ້າງຕັດສິນ', 'ค้างตัดสิน'), s.pending, '']];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumAoa), L('ສະຫຼຸບ', 'สรุป'));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), L('ເວລາຕໍ່ Gondola', 'เวลาต่อ Gondola'));
+  const bn = (branch && (branch.code || branch.id)) || '';
+  XLSX.writeFile(wb, 'Gondola-Time_' + bn + '_S' + d.sid + '_' + localDayKey(new Date()) + '.xlsx');
+}
+window.gtOpen = gtOpen; window.gtSort = gtSort; window.gtExport = gtExport;
+
 async function csumExport() {
   const d = await csumLoad(false); if (!d) return;
   const L = _csumL;
