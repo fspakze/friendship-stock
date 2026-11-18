@@ -26590,7 +26590,10 @@ function renderTiebreakerList() {
         + 'C <b style="color:var(--slate-800);">' + item.counter_qty + '</b> · V <b style="color:var(--slate-800);">' + item.verifier_qty + '</b>'
         + '<div style="font-weight:800;color:var(--rose-500);">' + (item.cv_diff > 0 ? '+' : '') + item.cv_diff + (valDiff ? ' · ₭' + Math.abs(valDiff).toLocaleString() : '') + '</div></div>'
       : '';
-    return '<div onclick="startTiebreaker(' + item.product_id + ', ' + (item.zone_id || 'null') + ', \'' + loc + '\')" style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-bottom:1px solid var(--slate-100);cursor:pointer;">'
+    const _canJ = typeof varCanJudge === 'function' && varCanJudge();
+    const _scan = 'startTiebreaker(' + item.product_id + ', ' + (item.zone_id || 'null') + ', \'' + loc + '\')';
+    const _go = _canJ ? 'tbJudgeOpen(' + item.product_id + ')' : _scan;
+    return '<div onclick="' + _go + '" style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-bottom:1px solid var(--slate-100);cursor:pointer;">'
       + '<span style="width:8px;height:8px;border-radius:50%;background:' + dot + ';flex-shrink:0;"></span>'
       + '<div style="flex:1;min-width:0;">'
       +   '<div style="font-size:12px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(name || '') + '</div>'
@@ -26598,7 +26601,10 @@ function renderTiebreakerList() {
       + '</div>'
       + nums
       + '<button onclick="event.stopPropagation();showProductLocations(' + item.product_id + ')" title="' + (isLao ? 'ເບິ່ງທີ່ອື່ນ' : 'ดูที่อื่นๆ') + '" style="flex-shrink:0;background:white;border:1px solid var(--slate-300);border-radius:7px;padding:5px 7px;font-size:11px;cursor:pointer;">🗺️</button>'
-      + '<span style="flex-shrink:0;background:var(--violet-500);color:white;border-radius:7px;padding:5px 9px;font-size:11px;font-weight:800;">' + (isLao ? 'ນັບ' : 'นับ') + ' →</span>'
+      + (_canJ
+        ? '<button onclick="event.stopPropagation();' + _scan + '" title="' + (isLao ? 'ສະແກນນັບ' : 'สแกนนับ') + '" style="flex-shrink:0;background:white;border:1px solid var(--slate-300);border-radius:7px;padding:5px 7px;font-size:12px;cursor:pointer;">📷</button>'
+          + '<span style="flex-shrink:0;background:var(--fs-blue, #0E357F);color:white;border-radius:7px;padding:5px 9px;font-size:11px;font-weight:800;">⚖️ ' + (isLao ? 'ໃສ່ຍອດ' : 'ใส่ยอด') + '</span>'
+        : '<span style="flex-shrink:0;background:var(--violet-500);color:white;border-radius:7px;padding:5px 9px;font-size:11px;font-weight:800;">' + (isLao ? 'ນັບ' : 'นับ') + ' →</span>')
       + '</div>';
   };
   const wrap = inner => '<div style="background:white;border:1px solid var(--slate-200);border-radius:10px;overflow:hidden;margin-bottom:6px;">' + inner + '</div>';
@@ -28839,18 +28845,19 @@ async function openVarianceDetail(productId) {
 //   บันทึก count_role = manager_final ต่อจุด (ยอดสูงสุดในลำดับ priority → เป็นยอดสุดท้ายของจุดนั้น)
 //   จุดที่ให้กรอก = ทุกจุดที่มีคนนับ + จุดตาม Pan-O-Gram ที่ยังไม่นับ · เว้นว่าง = ไม่บันทึกจุดนั้น · เพิ่มจุดอื่นได้ 1 ช่อง
 //   CTL ใช้ได้ด้วย (Ball 2026-11-18) → บันทึกเป็น ctl_tiebreaker ตาม _ccMyRole · admin/scc/bcs = manager_final
-function varCanJudge() { return !!user && ['admin', 'scc', 'bcs', 'ctl'].includes(user.role) && !(_varianceFilter && _varianceFilter.period === 'round') && !!session; }
+function varCanJudge() { return !!user && ['admin', 'scc', 'bcs', 'ctl', 'it'].includes(user.role) && !(_varianceFilter && _varianceFilter.period === 'round') && !!session; }
 function _vjLocs(p) {
   const set = new Set();
   [p.counterLocs, p.verifierLocs, p.ctlLocs, p.managerLocs].forEach(m => Object.keys(m || {}).forEach(k => { if (k && k !== '?') set.add(String(k).toUpperCase().trim()); }));
   (p.missingGons || []).forEach(g => { if (g) set.add(String(g).toUpperCase().trim()); });
   return [...set].sort((a, b) => floorBaseCode(a).localeCompare(floorBaseCode(b)) || (isFloorCode(a) ? 1 : 0) - (isFloorCode(b) ? 1 : 0));
 }
-function varJudgeOpen(productId) {
+function varJudgeOpen(productId, pOverride, blind) {
   const isLao = lang === 'lo', L = (lo, th) => isLao ? lo : th;
   if (!varCanJudge()) { showToast(L('ບໍ່ມີສິດ', 'ไม่มีสิทธิ์'), 'error'); return; }
-  const p = (_varianceAllData || []).find(x => Number(x.product_id) === Number(productId));
+  const p = pOverride || (_varianceAllData || []).find(x => Number(x.product_id) === Number(productId));
   if (!p) { showToast(L('ບໍ່ພົບສິນຄ້າ', 'ไม่พบสินค้า'), 'error'); return; }
+  window._vjCur = p;
   const name = isLao ? (p.product?.name_lo || p.product?.name_th || p.barcode) : (p.product?.name_th || p.product?.name_lo || p.barcode);
   const q = (m, k) => (m && m[k] && m[k].counted_qty != null) ? m[k].counted_qty : '—';
   const locs = _vjLocs(p);
@@ -28860,13 +28867,13 @@ function varJudgeOpen(productId) {
     const cur = _mine && _mine[loc] ? _mine[loc].counted_qty : '';
     return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--slate-100);">'
       + '<div style="flex:1;min-width:0;"><div style="font-weight:800;font-size:13px;font-family:\'Space Grotesk\',monospace;">📍 ' + escapeHtml(loc) + (isFloorCode(loc) ? ' <span style="font-size:10px;color:var(--amber-700);">(' + floorTag() + ')</span>' : '') + '</div>'
-      + '<div style="font-size:10px;color:var(--slate-500);">' + (counted ? 'C ' + q(p.counterLocs, loc) + ' · V ' + q(p.verifierLocs, loc) + ' · CTL ' + q(p.ctlLocs, loc) + ' · BCS ' + q(p.managerLocs, loc) : L('⏳ ຍັງບໍ່ມີຄົນນັບຈຸດນີ້', '⏳ ยังไม่มีคนนับจุดนี้')) + '</div></div>'
+      + '<div style="font-size:10px;color:var(--slate-500);">' + (blind ? (counted ? L('✓ ມີຄົນນັບຈຸດນີ້ແລ້ວ', '✓ มีคนนับจุดนี้แล้ว') : L('⏳ ຍັງບໍ່ມີຄົນນັບຈຸດນີ້', '⏳ ยังไม่มีคนนับจุดนี้')) : counted ? 'C ' + q(p.counterLocs, loc) + ' · V ' + q(p.verifierLocs, loc) + ' · CTL ' + q(p.ctlLocs, loc) + ' · BCS ' + q(p.managerLocs, loc) : L('⏳ ຍັງບໍ່ມີຄົນນັບຈຸດນີ້', '⏳ ยังไม่มีคนนับจุดนี้')) + '</div></div>'
       + '<input class="vjQty" data-loc="' + escapeHtml(loc) + '" type="number" inputmode="numeric" min="0" value="' + escapeHtml(String(cur)) + '" placeholder="—" style="width:86px;padding:10px;border:2px solid var(--slate-300);border-radius:9px;font-size:16px;font-weight:800;text-align:center;font-family:\'Space Grotesk\',monospace;">'
       + '</div>';
   }).join('');
   showModal('<h3 style="font-size:16px;margin:0 0 4px;">⚖️ ' + (_ccMyRole() === 'ctl_tiebreaker' ? 'CTL' : 'BCS') + ' ' + L('ໃສ່ຍອດຕັດສິນ', 'ใส่ยอดตัดสิน') + '</h3>'
     + '<div style="font-size:13px;font-weight:700;">' + escapeHtml(name) + '</div>'
-    + '<div style="font-size:11px;color:var(--slate-500);font-family:monospace;margin-bottom:8px;">' + escapeHtml(p.product?.barcode || '') + ' · POS ' + (p.pos_qty || 0) + ' · ' + L('ຍອດຕອນນີ້ ', 'ยอดตอนนี้ ') + (p.final_qty ?? '—') + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-500);font-family:monospace;margin-bottom:8px;">' + escapeHtml(p.product?.barcode || '') + (blind ? '' : ' · POS ' + (p.pos_qty || 0) + (p.final_qty != null ? ' · ' + L('ຍອດຕອນນີ້ ', 'ยอดตอนนี้ ') + p.final_qty : '')) + '</div>'
     + '<div style="font-size:11px;color:var(--slate-600);background:var(--slate-50);border-radius:8px;padding:7px 9px;margin-bottom:6px;line-height:1.5;">'
     + L('ນັບເອງແລ້ວໃສ່ຍອດ <b>ທຸກຈຸດທີ່ມີຂອງ</b> · ຈຸດທີ່ບໍ່ມີຂອງ ໃສ່ 0 · ເວັ້ນວ່າງ = ບໍ່ປ່ຽນຈຸດນັ້ນ', 'นับเองแล้วใส่ยอด <b>ทุกจุดที่มีของ</b> · จุดที่ไม่มีของ ใส่ 0 · เว้นว่าง = ไม่เปลี่ยนจุดนั้น') + '</div>'
     + '<div style="max-height:44vh;overflow-y:auto;">' + rows
@@ -28882,14 +28889,14 @@ function varJudgeOpen(productId) {
     document.querySelectorAll('.vjQty').forEach(i => { if (i.value !== '') { s += Number(i.value) || 0; n++; } });
     const ex = document.getElementById('vjExtraQty'); if (ex && ex.value !== '') { s += Number(ex.value) || 0; n++; }
     const el = document.getElementById('vjSum');
-    if (el) el.innerHTML = n ? (L('ລວມທີ່ໃສ່ ', 'รวมที่ใส่ ') + s + ' · POS ' + (p.pos_qty || 0) + ' → ' + L('ຕ່າງ ', 'ต่าง ') + (s - (p.pos_qty || 0) > 0 ? '+' : '') + (s - (p.pos_qty || 0))) : '';
+    if (el) el.innerHTML = (n && blind) ? (L('ລວມທີ່ໃສ່ ', 'รวมที่ใส่ ') + s) : n ? (L('ລວມທີ່ໃສ່ ', 'รวมที่ใส่ ') + s + ' · POS ' + (p.pos_qty || 0) + ' → ' + L('ຕ່າງ ', 'ต่าง ') + (s - (p.pos_qty || 0) > 0 ? '+' : '') + (s - (p.pos_qty || 0))) : '';
   };
   setTimeout(() => { document.querySelectorAll('#modalContent input').forEach(i => i.addEventListener('input', upd)); upd(); const f = document.querySelector('.vjQty'); if (f) f.focus(); }, 30);
 }
 async function varJudgeSave(productId) {
   const isLao = lang === 'lo', L = (lo, th) => isLao ? lo : th;
   if (!varCanJudge()) return;
-  const p = (_varianceAllData || []).find(x => Number(x.product_id) === Number(productId)); if (!p) return;
+  const p = (window._vjCur && Number(window._vjCur.product_id) === Number(productId)) ? window._vjCur : (_varianceAllData || []).find(x => Number(x.product_id) === Number(productId)); if (!p) return;
   const entries = [];
   document.querySelectorAll('.vjQty').forEach(i => { if (i.value !== '') entries.push({ loc: i.dataset.loc, qty: parseInt(i.value, 10) }); });
   const exLoc = ((document.getElementById('vjExtraLoc') || {}).value || '').toUpperCase().trim();
@@ -28912,9 +28919,36 @@ async function varJudgeSave(productId) {
   logActivity('bcs_judge', _role + ' · product ' + productId + ' · ' + entries.map(e => e.loc + '=' + e.qty).join(', '));
   showToast(L('✓ ບັນທຶກຍອດຕັດສິນແລ້ວ', '✓ บันทึกยอดตัดสินแล้ว'), 'success');
   closeModal();
-  loadVarianceReport();
+  if (document.getElementById('tbList')) loadTiebreakerList(); else loadVarianceReport();
 }
 window.varJudgeOpen = varJudgeOpen; window.varJudgeSave = varJudgeSave;
+
+// ⚖️ เปิดหน้าใส่ยอดตัดสินจากหน้าตัดสิน (Ball 2026-11-19) — ดึงยอดของสินค้านี้ในรอบ แล้วใช้หน้าต่างเดียวกับรายงาน
+//   CTL (ไม่ใช่ผู้จัดการ) = ไม่โชว์ยอด C/V/POS → นับแบบไม่รู้ยอดคนอื่น ตามกติกาหน้าตัดสินเดิม
+async function tbJudgeOpen(productId) {
+  if (!session) return;
+  try {
+    const [cs, pr, pg] = await Promise.all([
+      _sbSel(() => sb.from('stock_counts').select('id, product_id, count_role, counted_qty, location_code, gondola_code, zone_id, counted_at').eq('session_id', session.id).eq('product_id', productId)),
+      _sbSel(() => sb.from('products').select('id, barcode, name_th, name_lo, pos_qty, is_active').eq('id', productId)),
+      _sbSel(() => sb.from('pan_o_grams').select('location_code').eq('branch_id', branch.id).eq('product_id', productId))
+    ]);
+    const RK = r => ['counter', 'staff'].includes(r) ? 'counterLocs' : (['verifier', 'audit'].includes(r) ? 'verifierLocs' : (r === 'ctl_tiebreaker' ? 'ctlLocs' : (r === 'manager_final' ? 'managerLocs' : null)));
+    const p = { product_id: productId, product: (pr || [])[0] || {}, counterLocs: {}, verifierLocs: {}, ctlLocs: {}, managerLocs: {}, missingGons: [], zone_id: null };
+    p.pos_qty = p.product.is_active === false ? 0 : (Number(p.product.pos_qty) || 0);
+    (cs || []).forEach(c => {
+      const k = RK(c.count_role); if (!k) return;
+      const lk = String(c.location_code || c.gondola_code || '?').toUpperCase().trim();
+      const cur = p[k][lk]; if (!cur || c.counted_at > cur.counted_at) p[k][lk] = c;
+      if (!p.zone_id && c.zone_id) p.zone_id = c.zone_id;
+    });
+    const counted = new Set(['counterLocs', 'verifierLocs', 'ctlLocs', 'managerLocs'].flatMap(k => Object.keys(p[k]).map(x => floorBaseCode(x))));
+    (pg || []).forEach(r => { const b = floorBaseCode(String(r.location_code || '').toUpperCase().trim()); if (b && !counted.has(b) && !p.missingGons.includes(b)) p.missingGons.push(b); });
+    varJudgeOpen(productId, p, !['admin', 'scc', 'bcs', 'it'].includes(user.role));
+  } catch (e) { showToast('Error: ' + ((e && e.message) || e), 'error'); }
+}
+window.tbJudgeOpen = tbJudgeOpen;
+
 
 // ==================== EXPORT VARIANCE EXCEL ====================
 async function exportVarianceExcel() {
