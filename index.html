@@ -8018,7 +8018,7 @@ async function trLookup() {
     const [pr, mp, ps] = await Promise.all([
       _sbSel(() => sb.from('products').select('branch_id, barcode, name_th, name_lo, pos_qty, is_active, unit_th, unit_lo').eq('barcode', bc).in('branch_id', [t.from_branch_id, t.to_branch_id])),
       _sbSel(() => sb.from('master_products').select('barcode, internal_code, name_th, name_lo, category').eq('barcode', bc).limit(1)),
-      _sbSel(() => sb.from('product_status').select('barcode, buyer, branch_avg, last_buy, last_sale, aging, in_out').eq('barcode', bc).limit(1))
+      _sbSel(() => sb.from('product_status').select('barcode, buyer, branch_avg, last_buy, last_sale, aging, in_out, top_2026').eq('barcode', bc).limit(1))
     ]);
     const m = (mp || [])[0] || null, s = (ps || [])[0] || null;
     const pFrom = (pr || []).find(p => Number(p.branch_id) === Number(t.from_branch_id)) || null;
@@ -8050,6 +8050,7 @@ function _trRenderProd() {
       + '<div style="font-size:10px;font-weight:800;color:var(--slate-500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + icon + ' ' + title + ' · ' + escapeHtml(_trBrName(brId)) + '</div>'
       + '<div style="font-size:19px;font-weight:800;font-family:\'Space Grotesk\',monospace;color:' + (d.stock != null && d.stock <= 0 ? 'var(--rose-600)' : 'var(--slate-900)') + ';">' + stockTxt + '</div>'
       + (d.closed ? '<div style="font-size:10px;color:var(--rose-600);font-weight:700;">⛔ ' + _trL('ປິດຂາຍໃນ POS', 'ปิดขายใน POS') + '</div>' : '')
+      + '<div style="margin:4px 0 2px;">' + psStatusBadge(psCalcStatus(d.stock || 0, d.avgM || 0)) + '</div>'
       + '<div style="font-size:10px;color:var(--slate-600);margin-top:2px;">AVG ' + (daily ? daily.toFixed(1) : '0') + '/' + _trL('ມື້', 'วัน') + ' · DOH ' + (doh != null ? doh + ' ' + _trL('ມື້', 'วัน') : '–') + '</div></div>';
   };
   const s = p.st || {};
@@ -8061,7 +8062,7 @@ function _trRenderProd() {
     + (p.lvl !== 'unit' && p.scanned !== p.barcode ? ' · ' + _trL('ສະແກນ', 'สแกน') + ' ' + escapeHtml(p.scanned) + ' (' + (p.lvl === 'box' ? _trL('ລັງ', 'ลัง') : _trL('ແພັກ', 'แพ็ค')) + ' = ' + p.mult + ')' : '') + '</div>'
     + '<div style="display:flex;gap:6px;margin-bottom:7px;">' + side(_trL('ຕົ້ນທາງ', 'ต้นทาง'), '📤', p.from, t.from_branch_id) + side(_trL('ປາຍທາງ', 'ปลายทาง'), '📥', p.to, t.to_branch_id) + '</div>'
     + '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:9px;">'
-    + chip(_trL('ຊື້ລ່າສຸດ', 'ซื้อล่าสุด'), s.last_buy) + chip(_trL('ຂາຍລ່າສຸດ', 'ขายล่าสุด'), s.last_sale) + chip('Aging', s.aging) + chip(_trL('ຈັດຊື້', 'จัดซื้อ'), s.buyer) + chip(_trL('ພາຍໃນ/ນອກ', 'ภายใน/นอก'), s.in_out) + '</div>'
+    + (s.top_2026 ? chip('TOP', s.top_2026) : '') + psAgingChip(s.aging) + chip(_trL('ຊື້ລ່າສຸດ', 'ซื้อล่าสุด'), s.last_buy) + chip(_trL('ຂາຍລ່າສຸດ', 'ขายล่าสุด'), s.last_sale) + chip(_trL('ຈັດຊື້', 'จัดซื้อ'), s.buyer) + chip(_trL('ພາຍໃນ/ນອກ', 'ภายใน/นอก'), s.in_out) + '</div>'
     + (have ? '<div style="font-size:11px;color:var(--amber-700, #b45309);font-weight:700;margin-bottom:6px;">⚠️ ' + _trL('ມີໃນໃບແລ້ວ ', 'มีในใบแล้ว ') + _trN(have.qty) + _trL(' — ເພີ່ມ = ລວມ', ' — เพิ่ม = บวกรวม') + '</div>' : '')
     + '<div style="display:flex;gap:6px;align-items:center;">'
     + '<button class="count-btn" onclick="trAdj(-1)">−</button>'
