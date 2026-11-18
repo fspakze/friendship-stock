@@ -30255,7 +30255,7 @@ function renderPerformancePage() {
       <p style="font-size:11px;color:var(--slate-500);margin:0;">
         ${isLao ? 'ສະຖິຕິ 30 ວັນຫຼ້າສຸດ' : 'สถิติ 30 วันล่าสุด'} · 
         ${isLao ? 'ຄະແນນ = ຄວາມແມ່ນຍຳ × 0.5 + ຄວາມໄວ × 0.3 + ປະລິມານ × 0.2' : 'คะแนน = แม่นยำ × 0.5 + ความเร็ว × 0.3 + ปริมาณ × 0.2'}<br>
-        ${isLao ? 'ແມ່ນຍຳ = % ຈຸດທີ່ນັບກົງກັບຍອດສຸດທ້າຍ (BCS / CTL / Counter = Verifier)' : 'แม่นยำ = % จุดที่นับตรงกับยอดสุดท้าย (BCS / CTL / Counter = Verifier)'}
+        ${isLao ? 'ແມ່ນຍຳ = % ຈຸດທີ່ນັບກົງກັບຍອດສຸດທ້າຍ (BCS / CTL ຕັດສິນ · ຫຼື Counter = Verifier) · ຄິດຄະແນນສະເພາະ Counter/Verifier — ຄົນຕັດສິນບໍ່ຄິດ' : 'แม่นยำ = % จุดที่นับตรงกับยอดสุดท้าย (BCS / CTL ตัดสิน · หรือ Counter = Verifier) · คิดคะแนนเฉพาะ Counter/Verifier — คนตัดสินไม่คิด'}
       </p>
     </div>
 
@@ -30348,6 +30348,8 @@ async function loadPerformance() {
     // Aggregate per user
     const perUser = {}; // { userId: { userId, userName, counts:[], dailyTotals: {date: cnt} } }
     items.forEach(c => {
+      // ⚖️ ยอดตัดสิน (CTL/BCS/admin/SCC) = ยอดอ้างอิงที่ใช้วัดความแม่น ไม่ใช่ผลงานนับ → ไม่คิดคะแนน (Ball 2026-11-19)
+      if (c.count_role === 'ctl_tiebreaker' || c.count_role === 'manager_final') return;
       const uid = c.user_id;
       if (!perUser[uid]) {
         perUser[uid] = {
