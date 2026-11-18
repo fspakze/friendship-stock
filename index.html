@@ -26033,7 +26033,7 @@ function renderTiebreakerPage() {
 // ==================== ✅ Verifier นับเฉพาะ Diff + สุ่ม 10% (vf*) — Ball 2026-11-17 ====================
 // Counter นับ (ไม่เห็น POS) แล้วได้ "ตรง POS" = ผ่าน ไม่ต้องให้ Verifier นับซ้ำ · ยกเว้นถูกสุ่ม 10% (ตรวจกันบังเอิญตรง)
 // Counter ≠ POS (Diff) = Verifier ต้องนับทุกตัว · การสุ่มคงที่ต่อ (รอบนับ, สินค้า) → ทุกเครื่องเห็นชุดเดียวกัน ไม่ต้องเก็บใน DB
-const VF_SAMPLE_PCT = 10;
+const VF_SAMPLE_PCT = 0;   // Ball 2026-11-19: Counter ตรง POS = ไม่ต้อง Verify เลย (ยกเลิกสุ่ม 10%) · เปิดสุ่มคืน = ใส่ % ตรงนี้
 function vfSampled(sid, pid) {
   const str = String(sid || 0) + ':' + String(pid || 0);
   let h = 2166136261;
