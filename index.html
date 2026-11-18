@@ -3524,7 +3524,7 @@ async function saveCountMenuBranches() {
 // ปิดรอบ = RPC rpc_close_count_round (admin/scc/it · ยืนยันรหัส) → สำเนา POS ทั้งสาขาลง count_pos_snapshots
 //          + stock_sessions.status='completed' + ปิดเมนูนับสาขานั้น → นับครั้งหน้า ensureSession เปิดรอบใหม่เอง
 // ดูรอบเก่า = _viewRound + computeVarianceItems('round') → ยอดนับรอบนั้น เทียบ POS ตามสำเนาวันปิดรอบ
-// + ไอดีที่ Ball อนุญาตเฉพาะตัว (ปิดได้เฉพาะสาขาตัวเอง · RPC เช็คซ้ำฝั่ง DB) — Ball 2026-11-18
+// + ไอดีที่ Ball อนุญาตเฉพาะตัว (ปิดได้ทุกสาขา · RPC เช็คซ้ำฝั่ง DB) — Ball 2026-11-18
 const CNT_CLOSE_EXTRA_USERS = ['bcs1-suea'];
 function cntRoundCanClose() { return !!user && (['admin', 'scc', 'it'].includes(user.role) || (user.role === 'bcs' && CNT_CLOSE_EXTRA_USERS.includes(String(user.username || '').toLowerCase()))); }
 function _cntL(lo, th) { return lang === 'lo' ? lo : th; }
@@ -3618,7 +3618,7 @@ async function openCloseCountRound() {
       if (error) throw error;
       brs = data || []; window._allBranchesCache = brs;
     }
-    if (!['admin', 'scc', 'it'].includes(user.role)) brs = brs.filter(b => Number(b.id) === Number(user.branch_id));   // 🏪 BCS ที่ได้สิทธิ์ → ปิดได้เฉพาะสาขาตัวเอง (users.branch_id · ตรงกับ RPC)
+    if (!isAllBranch()) brs = brs.filter(b => branch && b.id === branch.id);   // 🏪 ไอดีที่ตั้งเฉพาะสาขาตัวเอง → เห็นแค่สาขาตัวเอง (BCS1-Suea = ทุกสาขา · Ball 2026-11-18)
     const { data: act, error } = await sb.from('stock_sessions').select('id, branch_id, session_name, started_at').eq('status', 'active');
     if (error) throw error;
     const cnt = {};
