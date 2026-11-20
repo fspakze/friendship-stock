@@ -28939,6 +28939,24 @@ function _vjLocs(p) {
   (p.missingGons || []).forEach(g => { if (g) set.add(String(g).toUpperCase().trim()); });
   return [...set].sort((a, b) => floorBaseCode(a).localeCompare(floorBaseCode(b)) || (isFloorCode(a) ? 1 : 0) - (isFloorCode(b) ? 1 : 0));
 }
+// 👤 ไอดีคนนับต่อยอด ในหน้าใส่ยอดตัดสิน (Ball 2026-11-21) — วาง placeholder แล้วเติม username ทีหลัง (cache ในเครื่อง)
+const _vjUserCache = {};
+function _vjWho(m, k) {
+  const r = m && m[k]; if (!r || !r.user_id) return '';
+  const uid = String(r.user_id), known = _vjUserCache[uid];
+  return ' <span class="vjWho" data-uid="' + escapeHtml(uid) + '" style="color:var(--slate-700);font-weight:700;">' + (known ? '(' + escapeHtml(known) + ')' : '') + '</span>';
+}
+async function _vjFillWho() {
+  const els = [...document.querySelectorAll('#modalContent .vjWho')];
+  const need = [...new Set(els.map(e => e.dataset.uid).filter(u => u && !_vjUserCache[u]))];
+  if (need.length) {
+    try {
+      const { data: us } = await sb.from('users').select('id, username, full_name').in('id', need);
+      (us || []).forEach(u => { _vjUserCache[u.id] = u.username || u.full_name || '?'; });
+    } catch (e) {}
+  }
+  els.forEach(e => { const n = _vjUserCache[e.dataset.uid]; if (n) e.textContent = '(' + n + ')'; });
+}
 function varJudgeOpen(productId, pOverride, blind) {
   const isLao = lang === 'lo', L = (lo, th) => isLao ? lo : th;
   if (!varCanJudge()) { showToast(L('ບໍ່ມີສິດ', 'ไม่มีสิทธิ์'), 'error'); return; }
@@ -28954,7 +28972,7 @@ function varJudgeOpen(productId, pOverride, blind) {
     const cur = _mine && _mine[loc] ? _mine[loc].counted_qty : '';
     return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--slate-100);">'
       + '<div style="flex:1;min-width:0;"><div style="font-weight:800;font-size:13px;font-family:\'Space Grotesk\',monospace;">📍 ' + escapeHtml(loc) + (isFloorCode(loc) ? ' <span style="font-size:10px;color:var(--amber-700);">(' + floorTag() + ')</span>' : '') + '</div>'
-      + '<div style="font-size:10px;color:var(--slate-500);">' + (blind ? (counted ? L('✓ ມີຄົນນັບຈຸດນີ້ແລ້ວ', '✓ มีคนนับจุดนี้แล้ว') : L('⏳ ຍັງບໍ່ມີຄົນນັບຈຸດນີ້', '⏳ ยังไม่มีคนนับจุดนี้')) : counted ? 'C ' + q(p.counterLocs, loc) + ' · V ' + q(p.verifierLocs, loc) + ' · CTL ' + q(p.ctlLocs, loc) + ' · BCS ' + q(p.managerLocs, loc) : L('⏳ ຍັງບໍ່ມີຄົນນັບຈຸດນີ້', '⏳ ยังไม่มีคนนับจุดนี้')) + '</div></div>'
+      + '<div style="font-size:10px;color:var(--slate-500);">' + (blind ? (counted ? L('✓ ມີຄົນນັບຈຸດນີ້ແລ້ວ', '✓ มีคนนับจุดนี้แล้ว') : L('⏳ ຍັງບໍ່ມີຄົນນັບຈຸດນີ້', '⏳ ยังไม่มีคนนับจุดนี้')) : counted ? 'C ' + q(p.counterLocs, loc) + _vjWho(p.counterLocs, loc) + ' · V ' + q(p.verifierLocs, loc) + _vjWho(p.verifierLocs, loc) + ' · CTL ' + q(p.ctlLocs, loc) + _vjWho(p.ctlLocs, loc) + ' · BCS ' + q(p.managerLocs, loc) + _vjWho(p.managerLocs, loc) : L('⏳ ຍັງບໍ່ມີຄົນນັບຈຸດນີ້', '⏳ ยังไม่มีคนนับจุดนี้')) + '</div></div>'
       + '<input class="vjQty" data-loc="' + escapeHtml(loc) + '" type="number" inputmode="numeric" min="0" value="' + escapeHtml(String(cur)) + '" placeholder="—" style="width:86px;padding:10px;border:2px solid var(--slate-300);border-radius:9px;font-size:16px;font-weight:800;text-align:center;font-family:\'Space Grotesk\',monospace;">'
       + '</div>';
   }).join('');
@@ -28971,6 +28989,7 @@ function varJudgeOpen(productId, pOverride, blind) {
     + '<div id="vjSum" style="font-size:12px;font-weight:800;margin-top:6px;"></div>'
     + '<div class="action-row" style="margin-top:10px;"><button class="btn btn-secondary" onclick="closeModal()">' + L('ຍົກເລີກ', 'ยกเลิก') + '</button>'
     + '<button class="btn btn-primary" id="vjSaveBtn" onclick="varJudgeSave(' + Number(productId) + ')">💾 ' + L('ບັນທຶກຍອດຕັດສິນ', 'บันทึกยอดตัดสิน') + '</button></div>');
+  _vjFillWho();
   const upd = () => {
     let s = 0, n = 0;
     document.querySelectorAll('.vjQty').forEach(i => { if (i.value !== '') { s += Number(i.value) || 0; n++; } });
@@ -29016,7 +29035,7 @@ async function tbJudgeOpen(productId) {
   if (!session) return;
   try {
     const [cs, pr, pg] = await Promise.all([
-      _sbSel(() => sb.from('stock_counts').select('id, product_id, count_role, counted_qty, location_code, gondola_code, zone_id, counted_at').eq('session_id', session.id).eq('product_id', productId)),
+      _sbSel(() => sb.from('stock_counts').select('id, product_id, user_id, count_role, counted_qty, location_code, gondola_code, zone_id, counted_at').eq('session_id', session.id).eq('product_id', productId)),
       _sbSel(() => sb.from('products').select('id, barcode, name_th, name_lo, pos_qty, is_active').eq('id', productId)),
       _sbSel(() => sb.from('pan_o_grams').select('location_code').eq('branch_id', branch.id).eq('product_id', productId))
     ]);
