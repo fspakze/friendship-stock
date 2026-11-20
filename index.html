@@ -26479,23 +26479,28 @@ function cvFinalCount(roleLocs) {
 //   st: ok = C=V · diff = C≠V (รอ CTL) · wait_v / wait_c = อีกคนยังไม่นับจุดนี้ · judged = CTL/BCS นับแล้ว
 function cvRowsFor(p) {
   const roles = { counter: p.counterLocs, verifier: p.verifierLocs, ctl: p.ctlLocs, manager: p.managerLocs };
-  const byBase = {};
+  const byBase = {}, uBy = {};   // uBy[base][role][lk] = user_id (ไอดีคนนับ · Ball 2026-11-21)
   Object.entries(roles).forEach(([r, m]) => Object.entries(m || {}).forEach(([lk, row]) => {
     const b = _cvBase(lk); const x = byBase[b] = byBase[b] || {};
     (x[r] = x[r] || {})[lk] = Number(row && row.counted_qty) || 0;
+    if (row && row.user_id) { const ub = uBy[b] = uBy[b] || {}; (ub[r] = ub[r] || {})[lk] = row.user_id; }
   }));
   const sum = o => o ? Object.values(o).reduce((a, q) => a + q, 0) : null;
   const val = (o, lk) => (o && o[lk] !== undefined) ? o[lk] : null;
   const out = [];
   Object.keys(byBase).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).forEach(b => {
     const x = byBase[b];
+    const ub = uBy[b] || {};
+    const uOf = (r, lk) => !ub[r] ? [] : (lk === null ? Object.values(ub[r]) : (ub[r][lk] ? [ub[r][lk]] : []));
     const push = (loc, floor, c, v, t, m) => {
+      const lk0 = floor === null ? null : loc;
+      const who = { c: uOf('counter', lk0), v: uOf('verifier', lk0), t: uOf('ctl', lk0), m: uOf('manager', lk0) };
       let st;
       if (m !== null || t !== null) st = 'judged';
       else if (c !== null && v !== null) st = (c === v ? 'ok' : 'diff');
       else if (c !== null) st = 'wait_v';
       else st = 'wait_c';
-      out.push({ base: b, loc, floor, c, v, t, m, st });
+      out.push({ base: b, loc, floor, c, v, t, m, st, who });
     };
     const cK = x.counter ? Object.keys(x.counter).sort().join('|') : null;
     const vK = x.verifier ? Object.keys(x.verifier).sort().join('|') : null;
@@ -28551,6 +28556,7 @@ function renderVarianceList() {
   }
   
   listEl.innerHTML = html;
+  _vjFillWho(listEl);   // fill user ids
 }
 
 // 🗂️ รายการคลาดเคลื่อน: กรองตามขั้นตอน + กลุ่ม Gondola แบบพับ (Ball 2026-11-12 — เดิมยาวต้องเลื่อนนาน)
@@ -28639,10 +28645,10 @@ function varStageHtml(p, isLao) {
     none:     isLao ? '⏳ ຍັງບໍ່ນັບ' : '⏳ ยังไม่นับ'
   };
   const TONE = { ok: ['var(--emerald-100)', 'var(--emerald-700)'], warn: ['var(--amber-100)', 'var(--amber-700)'], bad: ['var(--rose-500)', 'white'], wait: ['var(--sky-100)', 'var(--sky-700)'] };
-  const chip = (lbl, q) => {
+  const chip = (lbl, q, m) => {
     const done = q !== null && q !== undefined;
     return '<span style="padding:1px 6px;border-radius:4px;font-weight:700;' + (done ? 'background:white;color:var(--slate-700);border:1px solid var(--slate-300);' : 'background:transparent;color:var(--slate-400);border:1px dashed var(--slate-300);') + '">'
-      + lbl + ' ' + (done ? q : '—') + '</span>';
+      + lbl + ' ' + (done ? q + _whoSpan(Object.values(m || {}).map(x => x && x.user_id)) : '—') + '</span>';
   };
   const tc = TONE[st.tone];
   const rows = p.cvRows || [];
@@ -28653,7 +28659,8 @@ function varStageHtml(p, isLao) {
     const q = x => (x === null || x === undefined) ? '—' : x;
     chips = rows.map(r => {
       const lbl = escapeHtml(r.base) + ' ' + (r.floor === null ? sh + '+' + fl : (r.floor ? fl : sh));
-      let txt = lbl + ': C ' + q(r.c) + ' · V ' + q(r.v) + (r.t !== null ? ' · CTL ' + r.t : '') + (r.m !== null ? ' · BCS ' + r.m : '');
+      const w = r.who || {};
+      let txt = lbl + ': C ' + q(r.c) + _whoSpan(w.c) + ' · V ' + q(r.v) + _whoSpan(w.v) + (r.t !== null ? ' · CTL ' + r.t + _whoSpan(w.t) : '') + (r.m !== null ? ' · BCS ' + r.m + _whoSpan(w.m) : '');
       let sty = 'background:white;color:var(--slate-700);border:1px solid var(--slate-300);';
       if (r.st === 'diff') { txt += ' ⚠️'; sty = 'background:var(--amber-50);color:var(--amber-700);border:1px solid var(--amber-500);'; }
       else if (r.st === 'wait_v' || r.st === 'wait_c') sty = 'background:transparent;color:var(--slate-500);border:1px dashed var(--slate-300);';
@@ -28664,7 +28671,7 @@ function varStageHtml(p, isLao) {
     if (waitV.length && st.key !== 'wait_v') chips += '<span style="padding:1px 7px;border-radius:10px;font-weight:800;background:var(--sky-100);color:var(--sky-700);">⏳ ' + (isLao ? 'ລໍຖ້າ Verifier ' : 'รอ Verifier ') + waitV.length + (isLao ? ' ຈຸດ (' : ' จุด (') + escapeHtml([...new Set(waitV)].join(', ')) + ')</span>';
     if (waitC.length && st.key !== 'wait_c') chips += '<span style="padding:1px 7px;border-radius:10px;font-weight:800;background:var(--sky-100);color:var(--sky-700);">⏳ ' + (isLao ? 'ລໍຖ້າ Counter ' : 'รอ Counter ') + waitC.length + (isLao ? ' ຈຸດ (' : ' จุด (') + escapeHtml([...new Set(waitC)].join(', ')) + ')</span>';
   } else {
-    chips = chip('Counter', p.counter_qty) + chip('Verifier', p.verifier_qty) + chip('CTL', p.ctl_qty) + chip('BCS', p.manager_qty);
+    chips = chip('Counter', p.counter_qty, p.counterLocs) + chip('Verifier', p.verifier_qty, p.verifierLocs) + chip('CTL', p.ctl_qty, p.ctlLocs) + chip('BCS', p.manager_qty, p.managerLocs);
   }
   return '<div style="font-size:9px;margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">'
     + chips
@@ -28943,19 +28950,28 @@ function _vjLocs(p) {
 const _vjUserCache = {};
 function _vjWho(m, k) {
   const r = m && m[k]; if (!r || !r.user_id) return '';
-  const uid = String(r.user_id), known = _vjUserCache[uid];
-  return ' <span class="vjWho" data-uid="' + escapeHtml(uid) + '" style="color:var(--slate-700);font-weight:700;">' + (known ? '(' + escapeHtml(known) + ')' : '') + '</span>';
+  return _whoSpan([r.user_id]);
 }
-async function _vjFillWho() {
-  const els = [...document.querySelectorAll('#modalContent .vjWho')];
-  const need = [...new Set(els.map(e => e.dataset.uid).filter(u => u && !_vjUserCache[u]))];
+// 👤 span ไอดีคนนับ (หลายคนได้) → เติม username ด้วย _vjFillWho(root)
+function _whoSpan(uids) {
+  const ids = [...new Set((uids || []).filter(Boolean).map(String))];
+  if (!ids.length) return '';
+  const known = ids.every(u => _vjUserCache[u]);
+  return ' <span class="vjWho" data-uid="' + escapeHtml(ids.join(',')) + '" style="color:var(--slate-700);font-weight:700;">' + (known ? '(' + escapeHtml(ids.map(u => _vjUserCache[u]).join(', ')) + ')' : '') + '</span>';
+}
+async function _vjFillWho(root) {
+  const R = root || document.getElementById('modalContent'); if (!R) return;
+  const els = [...R.querySelectorAll('.vjWho')];
+  const need = [...new Set(els.flatMap(e => (e.dataset.uid || '').split(',')).filter(u => u && !_vjUserCache[u]))];
   if (need.length) {
     try {
-      const { data: us } = await sb.from('users').select('id, username, full_name').in('id', need);
-      (us || []).forEach(u => { _vjUserCache[u.id] = u.username || u.full_name || '?'; });
+      for (let i = 0; i < need.length; i += 200) {
+        const { data: us } = await sb.from('users').select('id, username, full_name').in('id', need.slice(i, i + 200));
+        (us || []).forEach(u => { _vjUserCache[u.id] = u.username || u.full_name || '?'; });
+      }
     } catch (e) {}
   }
-  els.forEach(e => { const n = _vjUserCache[e.dataset.uid]; if (n) e.textContent = '(' + n + ')'; });
+  els.forEach(e => { const n = (e.dataset.uid || '').split(',').map(u => _vjUserCache[u]).filter(Boolean); if (n.length) e.textContent = '(' + n.join(', ') + ')'; });
 }
 function varJudgeOpen(productId, pOverride, blind) {
   const isLao = lang === 'lo', L = (lo, th) => isLao ? lo : th;
@@ -37218,18 +37234,19 @@ async function wfIdleCheck() {
       if (!code || /[,()]/.test(code)) return;
       let last = null;
       try {
-        const { data: sc, error: e2 } = await sb.from('stock_counts').select('counted_at')
+        const { data: sc, error: e2 } = await sb.from('stock_counts').select('counted_at, user_id')
           .eq('session_id', session.id)
           .in('count_role', g.status === 'counting' ? ['counter', 'staff'] : ['verifier', 'audit'])
           .or('location_code.eq.' + code + ',location_code.like.' + code + '-*')
           .order('counted_at', { ascending: false }).limit(1);
         if (e2) return;
         last = sc && sc[0] ? sc[0].counted_at : null;
+        g._uid = sc && sc[0] ? sc[0].user_id : null;
       } catch (e) { return; }
       const ref = last || stOf(g);
       if (!ref) return;
       const idle = (now - new Date(ref).getTime()) / 60000;
-      if (idle >= WF_IDLE_MIN) out.push({ code, status: g.status, last, idle });
+      if (idle >= WF_IDLE_MIN) out.push({ code, status: g.status, last, idle, uid: g._uid || null });
     }));
     out.sort((a, b) => b.idle - a.idle);
     wfIdleRender(out);
@@ -37254,7 +37271,8 @@ function wfIdleRender(list) {
       + '<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:800;font-family:\'Space Grotesk\',monospace;color:var(--slate-900);">' + escapeHtml(x.code)
       + ' <span style="font-size:10px;font-weight:700;color:' + (c ? 'var(--teal-700, #0f766e)' : 'var(--violet-600, #7c3aed)') + ';">' + (c ? L('ກຳລັງນັບ', 'กำลังนับ') : L('ກຳລັງກວດ', 'กำลังตรวจ')) + '</span></div>'
       + '<div style="font-size:11px;color:var(--rose-600, #e11d48);font-weight:700;">' + L('ບໍ່ມີການສະແກນ ', 'ไม่มีสแกน ') + Math.round(x.idle) + L(' ນາທີ', ' นาที')
-      + (x.last ? '<span style="color:var(--slate-500);font-weight:600;"> · ' + L('ລ່າສຸດ ', 'ล่าสุด ') + _gtClock(x.last) + '</span>' : '') + '</div></div>'
+      + (x.last ? '<span style="color:var(--slate-500);font-weight:600;"> · ' + L('ລ່າສຸດ ', 'ล่าสุด ') + _gtClock(x.last) + '</span>' : '') + '</div>'
+      + (x.uid ? '<div style="font-size:11px;color:var(--slate-600);">' + (c ? '👤 ' : '🔍 ') + _whoSpan([x.uid]) + '</div>' : '') + '</div>'
       + '<button onclick="wfIdleClose(\'' + enc + '\',\'' + x.status + '\')" style="background:var(--amber-500, #f59e0b);color:white;border:none;border-radius:9px;padding:8px 10px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;">✓ ' + (c ? L('ນັບແລ້ວ', 'นับเสร็จ') : L('ກວດແລ້ວ', 'ตรวจเสร็จ')) + '</button>'
       + '<button onclick="wfIdleSnooze(\'' + enc + '\',\'' + x.status + '\')" style="background:var(--slate-100);color:var(--slate-600);border:1px solid var(--slate-300);border-radius:9px;padding:8px 8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">' + (c ? L('ຍັງນັບຢູ່', 'ยังนับอยู่') : L('ຍັງກວດຢູ່', 'ยังตรวจอยู่')) + '</button>'
       + '</div>';
@@ -37265,6 +37283,7 @@ function wfIdleRender(list) {
     + '<button onclick="wfIdleSnoozeAll()" title="' + L('ເຊື່ອງ 10 ນາທີ', 'ซ่อน 10 นาที') + '" style="background:none;border:none;font-size:16px;color:var(--slate-400);cursor:pointer;padding:0 2px;">✕</button></div>'
     + list.slice(0, 4).map(row).join('')
     + (list.length > 4 ? '<div style="font-size:11px;color:var(--slate-500);padding-top:4px;">+' + (list.length - 4) + L(' ຈຸດ', ' จุด') + '</div>' : '');
+  _vjFillWho(box);   // 👤 ไอดีคนนับ/ตรวจล่าสุด
   if (fresh) { try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {} }
 }
 async function wfIdleClose(enc, status) {
