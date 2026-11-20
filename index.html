@@ -29841,11 +29841,13 @@ function _csumGonHtml(d, isLao) {
 //   แท็บ ขาด (diff−) / เกิน (diff+) / ทั้งหมด · เรียง มูลค่า (ต้นทุน) / จำนวน / % ของ POS · กรองสถานะ ยังไม่จบ / ยืนยันแล้ว
 let _csumDiffDir = 'minus';   // minus | plus | all
 let _csumDiffSort = 'val';    // val | qty | pct
+let _csumDiffHideDone = false; // ซ่อนรายการ ✅ ยืนยันแล้ว (Ball 2026-11-21)
 let _csumDiffSt = 'all';      // all | open | done | unc (ไม่ได้นับ = ขาดเท่า POS · Ball 2026-11-21)
 function csumDiffSet(k, v) {
   if (k === 'dir') _csumDiffDir = ['plus', 'all'].includes(v) ? v : 'minus';
   else if (k === 'sort') _csumDiffSort = ['qty', 'pct'].includes(v) ? v : 'val';
   else if (k === 'st') _csumDiffSt = ['open', 'done', 'unc'].includes(v) ? v : 'all';
+  else if (k === 'hide') _csumDiffHideDone = !_csumDiffHideDone;
   renderVarianceList();
 }
 window.csumDiffSet = csumDiffSet;
@@ -29870,6 +29872,7 @@ function _csumDiffList(d) {
   let list = _csumDiffAll(d);
   if (_csumDiffDir === 'minus') list = list.filter(r => r.diff < 0);
   else if (_csumDiffDir === 'plus') list = list.filter(r => r.diff > 0);
+  if (_csumDiffHideDone && _csumDiffSt !== 'done') list = list.filter(r => r.unc || !_csumDiffStage(r.stageKey).done);
   if (_csumDiffSt === 'unc') list = list.filter(r => r.unc);
   else if (_csumDiffSt !== 'all') list = list.filter(r => !r.unc && _csumDiffStage(r.stageKey).done === (_csumDiffSt === 'done'));
   const key = _csumDiffSort === 'qty' ? (r => Math.abs(r.diff)) : (_csumDiffSort === 'pct' ? (r => r.pct || 0) : (r => Math.abs(r.diffV || 0)));
@@ -29904,6 +29907,7 @@ function _csumDiffHtml(d, isLao) {
     + pill('st', 'open', _csumDiffSt, L('ຍັງບໍ່ຈົບ', 'ยังไม่จบ'), 'var(--sky-700, #0369a1)')
     + pill('st', 'done', _csumDiffSt, L('ຢືນຢັນແລ້ວ', 'ยืนยันแล้ว'), 'var(--emerald-700, #047857)')
     + pill('st', 'unc', _csumDiffSt, '🔍 ' + L('ບໍ່ໄດ້ນັບ', 'ไม่ได้นับ') + ' ' + un.length, 'var(--amber-600, #d97706)')
+    + '<button onclick="csumDiffSet(\'hide\',1)" style="background:' + (_csumDiffHideDone ? 'var(--slate-700)' : 'white') + ';color:' + (_csumDiffHideDone ? 'white' : 'var(--slate-600)') + ';border:1px dashed var(--slate-400);border-radius:14px;padding:5px 11px;font-size:11px;font-weight:800;cursor:pointer;">' + (_csumDiffHideDone ? '🙈 ' + L('ເຊື່ອງ ຢືນຢັນແລ້ວ', 'ซ่อน ยืนยันแล้ว') : '👁 ' + L('ສະແດງ ຢືນຢັນແລ້ວ', 'แสดง ยืนยันแล้ว')) + '</button>'
     + '<span style="flex:1;"></span><button onclick="csumDiffExport()" style="background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:6px 11px;font-size:11px;font-weight:800;cursor:pointer;">⬇ Excel</button></div>'
     + '</div>';
   const list = _csumDiffList(d);
