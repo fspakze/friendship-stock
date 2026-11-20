@@ -30064,9 +30064,9 @@ function _csumUncHtml(d, isLao) {
     + '<button onclick="csumUncCat(null)" style="background:white;border:1px solid var(--slate-300);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:800;color:var(--slate-700);cursor:pointer;">← ' + L('ທຸກປະເພດ', 'ทุกประเภท') + '</button>'
     + '<span style="font-size:13px;font-weight:800;color:var(--slate-900);">' + escapeHtml(_csumUncCat) + '</span>'
     + '<span style="font-size:11px;color:var(--slate-500);">' + list.length + ' SKU · ₭' + N(list.reduce((s, r) => s + r.posV, 0)) + '</span></div>';
-  if (_csumUncTab === 'A' && can && list.length) {
-    html += '<button onclick="csumConfirmZero(\'A\')" style="width:100%;background:var(--rose-50);color:var(--rose-700);border:1px solid var(--rose-300);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;margin-bottom:8px;">🚫 '
-      + L('ຢືນຢັນບໍ່ພົບ = 0 ທັງກຸ່ມ A ປະເພດນີ້', 'ยืนยันไม่พบ = 0 ทั้งกลุ่ม A ประเภทนี้') + ' (' + list.length + ' SKU)</button>';
+  if (can && list.length) {   // A + B (Ball 2026-11-21)
+    html += '<button onclick="csumConfirmZero(\'cat\')" style="width:100%;background:var(--rose-50);color:var(--rose-700);border:1px solid var(--rose-300);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;margin-bottom:8px;">🚫 '
+      + L('ຢືນຢັນບໍ່ພົບ = 0 ທັງກຸ່ມ ', 'ยืนยันไม่พบ = 0 ทั้งกลุ่ม ') + _csumUncTab + L(' ປະເພດນີ້', ' ประเภทนี้') + ' (' + list.length + ' SKU)</button>';
   }
   if (!list.length) return html + '<div style="text-align:center;padding:30px;color:var(--slate-400);font-size:12px;">✅ ' + L('ບໍ່ມີລາຍການ', 'ไม่มีรายการ') + '</div>';
   const shown = list.slice(0, 200);
@@ -30114,7 +30114,8 @@ async function csumConfirmZero(mode, pid) {
   const d = _csum; if (!d) return;
   if (!csumCanConfirm() || !session) { showToast(_csumL('ບໍ່ມີສິດ / ບໍ່ມີ session', 'ไม่มีสิทธิ์ / ไม่มี session'), 'error'); return; }
   const all = d.uncA.concat(d.uncB);
-  const targets = mode === 'allA' ? d.uncA.slice() : (mode === 'allB' ? (_csumBAll ? d.uncB : d.uncB.filter(r => r.avgM > 0)) : (mode === 'A' ? d.uncA.filter(r => _csumUncCat === null || r.cat === _csumUncCat) : all.filter(r => r.pid === pid)));
+  const _Bv = _csumBAll ? d.uncB : d.uncB.filter(r => r.avgM > 0);
+  const targets = mode === 'cat' ? (_csumUncTab === 'A' ? d.uncA : _Bv).filter(r => r.cat === _csumUncCat) : mode === 'allA' ? d.uncA.slice() : (mode === 'allB' ? (_csumBAll ? d.uncB : d.uncB.filter(r => r.avgM > 0)) : (mode === 'A' ? d.uncA.filter(r => _csumUncCat === null || r.cat === _csumUncCat) : all.filter(r => r.pid === pid)));
   if (!targets.length) return;
   const val = targets.reduce((s, r) => s + r.posV, 0);
   const msg = _csumL('ຢືນຢັນບໍ່ພົບສິນຄ້າ ', 'ยืนยันไม่พบสินค้า ') + targets.length + ' SKU (₭' + _csumN(val) + ')?\n\n'
