@@ -26137,13 +26137,18 @@ function vfRequired(p) { return !(p && p.diff === 0 && p.isComplete !== false &&
 //   need = นับเลย · skip = ไม่ต้องนับ · wait = รอ Counter นับที่อื่นก่อน (ย้ายขึ้น need เองเมื่อรู้ผล)
 const VF_C_ACTIVE = ['open_for_counting', 'counting'];
 async function vfCounterPhase(sid) {
-  const rows = await fetchAllQuery(() => sb.from('gondola_status').select('id, location_code, status').eq('session_id', sid).order('id'));
-  const done = new Set(); let active = false;
+  const rows = await fetchAllQuery(() => sb.from('gondola_status').select('id, location_code, status, opened_at, counting_started_at').eq('session_id', sid).order('id'));
+  const done = new Set(), stale = []; let active = false;
+  const now = Date.now();
   (rows || []).forEach(r => {
     const b = floorBaseCode(String(r.location_code || '').toUpperCase().trim());
-    if (VF_C_ACTIVE.includes(r.status)) active = true; else if (r.status) done.add(b);
+    if (VF_C_ACTIVE.includes(r.status)) {
+      // ⏰ เปิดให้นับแต่ไม่มีใครเริ่มสแกนเกิน 10 นาที = จุดค้าง → ไม่ต้องรอ (Ball 2026-11-21 · W006 ค้างทั้งคืน ทำให้สินค้าขาดทุกตัวที่ไม่มี Pan-O-Gram ถูกพักไว้ Verifier ไม่เห็น)
+      if (r.status === 'open_for_counting' && !r.counting_started_at && r.opened_at && now - new Date(r.opened_at).getTime() > WF_IDLE_MIN * 60000) { stale.push(b); return; }
+      active = true;
+    } else if (r.status) done.add(b);
   });
-  return { done, active };
+  return { done, active, stale };
 }
 // cTot = ยอด Counter รวมทุกจุด · pogSet = ชั้นตาม Pan-O-Gram · cBases = ชั้นที่ Counter นับเจอ · phase = vfCounterPhase
 function vfClassify(cTot, pos, sampled, pogSet, cBases, phase) {
@@ -26169,27 +26174,38 @@ async function vfLoadList(force) {
   if (force !== true && _vfState && _vfState.sid === session.id && _vfState.base === base && Date.now() - _vfState.at < 300000) { _vfRender(); return; }
   box.innerHTML = '<div style="font-size:11px;color:var(--slate-500);padding:6px 2px;">⏳ ' + (isLao ? 'ກຳລັງໂຫຼດລາຍການທີ່ຕ້ອງນັບ...' : 'กำลังโหลดรายการที่ต้องนับ...') + '</div>';
   try {
-    const here = await fetchAllQuery(() => sb.from('stock_counts')
-      .select('id, product_id, count_role, counted_qty, location_code, counted_at')
-      .eq('session_id', session.id).in('location_code', [base, base + FLOOR_SUFFIX]).order('id'));
-    const isC = r => r.count_role === 'counter' || r.count_role === 'staff';
-    const isV = r => r.count_role === 'verifier' || r.count_role === 'audit' || r.count_role === 'ctl_tiebreaker' || r.count_role === 'manager_final';
-    const pids = [...new Set((here || []).filter(isC).map(r => r.product_id).filter(Boolean))];
-    if (!pids.length) {
+    const r = await vfComputeFor(session.id, base);
+    if (r.empty) {
       box.innerHTML = '<div style="background:var(--slate-100);border-radius:10px;padding:9px 11px;font-size:11.5px;color:var(--slate-600);margin-bottom:9px;">📋 ' + (isLao ? 'Counter ຍັງບໍ່ໄດ້ນັບ ' : 'Counter ยังไม่ได้นับ ') + escapeHtml(base) + '</div>';
       return;
     }
+    _vfState = Object.assign({ sid: session.id, base, at: Date.now() }, r);
+    _vfRender();
+  } catch (e) {
+    box.innerHTML = '<div style="color:var(--rose-500);font-size:11px;margin-bottom:9px;">Error: ' + escapeHtml(e.message || String(e)) + '</div>';
+  }
+}
+// รายการที่ Verifier ต้องนับในชั้น base → { empty } | { need, wait, active, skip } (throw ถ้าโหลดไม่ครบ)
+async function vfComputeFor(sid, base) {
+  {
+    const here = await fetchAllQuery(() => sb.from('stock_counts')
+      .select('id, product_id, count_role, counted_qty, location_code, counted_at')
+      .eq('session_id', sid).in('location_code', [base, base + FLOOR_SUFFIX]).order('id'));
+    const isC = r => r.count_role === 'counter' || r.count_role === 'staff';
+    const isV = r => r.count_role === 'verifier' || r.count_role === 'audit' || r.count_role === 'ctl_tiebreaker' || r.count_role === 'manager_final';
+    const pids = [...new Set((here || []).filter(isC).map(r => r.product_id).filter(Boolean))];
+    if (!pids.length) return { empty: true };
     const verified = new Set((here || []).filter(isV).map(r => r.product_id));
     const cFirst = {};   // เวลาที่ Counter นับสินค้านี้ครั้งแรกในชั้นนี้ → ลำดับเดินนับ
     (here || []).filter(isC).forEach(r => { if (!cFirst[r.product_id] || r.counted_at < cFirst[r.product_id]) cFirst[r.product_id] = r.counted_at; });
     // ยอด Counter ทุกจุดของสินค้า (ล่าสุดต่อจุด) + POS (ปิดขาย = 0) + Pan-O-Gram + สถานะ Counter ทุกชั้น
     const cTot = {}, prod = {}, cBases = {}, pog = {};
-    const phase = await vfCounterPhase(session.id);
+    const phase = await vfCounterPhase(sid);
     for (let i = 0; i < pids.length; i += 300) {
       const part = pids.slice(i, i + 300);
       const [cs, ps, pg] = await Promise.all([
         fetchAllQuery(() => sb.from('stock_counts').select('id, product_id, count_role, counted_qty, location_code, counted_at')
-          .eq('session_id', session.id).in('product_id', part).in('count_role', ['counter', 'staff']).order('id')),
+          .eq('session_id', sid).in('product_id', part).in('count_role', ['counter', 'staff']).order('id')),
         _sbSel(() => sb.from('products').select('id, barcode, name_th, name_lo, pos_qty, is_active').in('id', part)),
         _sbSel(() => sb.from('pan_o_grams').select('product_id, location_code').eq('branch_id', branch.id).in('product_id', part))
       ]);
@@ -26206,15 +26222,12 @@ async function vfLoadList(force) {
     pids.forEach(pid => {
       const p = prod[pid] || {};
       const pos = p.is_active === false ? 0 : (Number(p.pos_qty) || 0);
-      cls[pid] = vfClassify(cTot[pid] || 0, pos, vfSampled(session.id, pid), pog[pid], cBases[pid] || new Set(), phase);
+      cls[pid] = vfClassify(cTot[pid] || 0, pos, vfSampled(sid, pid), pog[pid], cBases[pid] || new Set(), phase);
     });
     const mk = k => pids.filter(pid => cls[pid] === k).map(pid => ({ pid, p: prod[pid] || {}, done: verified.has(pid), at: cFirst[pid] || '' }))
       .sort((a, b) => String(a.at).localeCompare(String(b.at)));   // ตามลำดับที่ Counter นับ (ซ้าย→ขวา บน→ล่าง)
     const need = mk('need'), wait = mk('wait');
-    _vfState = { sid: session.id, base, at: Date.now(), need, wait, active: phase.active, skip: pids.length - need.length - wait.length };
-    _vfRender();
-  } catch (e) {
-    box.innerHTML = '<div style="color:var(--rose-500);font-size:11px;margin-bottom:9px;">Error: ' + escapeHtml(e.message || String(e)) + '</div>';
+    return { need, wait, active: phase.active, skip: pids.length - need.length - wait.length };
   }
 }
 function _vfRender() {
@@ -27688,12 +27701,15 @@ async function computeVarianceItems(periodOverride) {
     const _gonCounted = new Set();
     (counts || []).forEach(c => { const b = floorBaseCode(String(c.location_code || c.gondola_code || '').toUpperCase().trim()); if (b) _gonCounted.add(b); });
     const _gonOpen = new Set();   // ยังเปิดให้ Counter นับอยู่ = ยังไม่จบ
+    const _vDoneNow = new Set();  // Verifier ปิดจุดแล้ว
+    _varVDone = _vDoneNow;
     if (sessionFilter) {
       try {
         const { data: gp } = await sb.from('v_gondola_progress').select('location_code, status, opened_at').eq('session_id', sessionFilter);
         const lastSt = {};
         (gp || []).forEach(r => { const k = String(r.location_code || ''); if (!lastSt[k] || String(r.opened_at || '') > String(lastSt[k].opened_at || '')) lastSt[k] = r; });
         Object.values(lastSt).forEach(r => { if (r.status === 'open_for_counting') _gonOpen.add(floorBaseCode(String(r.location_code || '').toUpperCase().trim())); });
+        Object.values(lastSt).forEach(r => { if (_COV_VERIFIER_DONE.includes(r.status)) _vDoneNow.add(floorBaseCode(String(r.location_code || '').toUpperCase().trim())); });
       } catch (e) {}
     }
     const _gonDone = g => _gonCounted.has(g) && !_gonOpen.has(g);
@@ -28564,7 +28580,7 @@ let _varStageFilter = 'all';          // all | wait | ctl | bcs | real | done
 const _varOpenGons = new Set();       // Gondola ที่กางอยู่
 function _varStageGroup(k) {
   if (k === 'wait_v' || k === 'wait_c' || k === 'none') return 'wait';
-  if (k === 'need_ctl') return 'ctl';
+  if (k === 'need_ctl' || k === 'v_skip') return 'ctl';
   if (k === 'need_bcs') return 'bcs';
   if (k === 'cv_real') return 'real';
   return 'done';   // cv_match · tb_done · bcs_done
@@ -28611,6 +28627,7 @@ window.varSetStage = varSetStage; window.varToggleGon = varToggleGon; window.var
 
 // 🧭 ขั้นตอนการนับของสินค้า (Counter → Verifier → CTL ตัดสิน → BCS) + ขั้นถัดไป — Ball 2026-11-12
 //    ยอดต่อ role = ผลรวมล่าสุดทุกจุด (เหมือน computeVarianceItems) · null = role นั้นยังไม่นับ
+let _varVDone = new Set();   // ชั้นที่ Verifier ปิดแล้ว (จาก computeVarianceItems รอบล่าสุด)
 function varStage(p) {
   const c = p.counter_qty, v = p.verifier_qty, t = p.ctl_qty, m = p.manager_qty;
   if (m !== null && m !== undefined) return { key: 'bcs_done', tone: 'ok' };
@@ -28621,6 +28638,7 @@ function varStage(p) {
     // ✅ Counter ตรง POS + ไม่ถูกสุ่ม → ไม่ต้องรอ Verifier (Ball 2026-11-17 · นับ V เฉพาะ Diff + สุ่ม 10%)
     if (!rows.some(r => r.st === 'wait_c') && rows.some(r => r.st === 'wait_v') && !vfRequired(p))
       return rows.some(r => r.v !== null) ? { key: 'cv_match', tone: 'ok' } : { key: 'c_match', tone: 'ok' };
+    if (p.diff !== 0 && rows.some(r => r.st === 'wait_v' && _varVDone.has(r.base))) return { key: 'v_skip', tone: 'warn' };   // Verifier ปิดจุดแล้วไม่ได้นับ → CTL
     if (rows.some(r => r.st === 'wait_v')) return { key: 'wait_v', tone: 'wait' };
     if (rows.some(r => r.st === 'wait_c')) return { key: 'wait_c', tone: 'wait' };
     return { key: (p.diff === 0 ? 'cv_match' : 'cv_real'), tone: 'ok' };
@@ -28640,6 +28658,7 @@ function varStageHtml(p, isLao) {
     c_match:  isLao ? '✅ Counter ກົງ POS (ບໍ່ຕ້ອງ Verify)' : '✅ Counter ตรง POS (ไม่ต้อง Verify)',
     cv_real:  isLao ? '✅ Counter=Verifier → Diff ຈິງ' : '✅ Counter=Verifier → Diff จริง',
     need_ctl: isLao ? '⚖️ ບໍ່ກົງ → ລໍຖ້າ CTL ຕັດສິນ' : '⚖️ ไม่ตรง → รอ CTL ตัดสิน',
+    v_skip:   isLao ? '⚠️ Verifier ຂ້າມ (ປິດຈຸດແລ້ວ) → CTL ນັບ/ຕັດສິນ' : '⚠️ Verifier ข้าม (ปิดจุดแล้ว) → CTL นับ/ตัดสิน',
     wait_v:   isLao ? '⏳ ລໍຖ້າ Verifier' : '⏳ รอ Verifier',
     wait_c:   isLao ? '⏳ ລໍຖ້າ Counter' : '⏳ รอ Counter',
     none:     isLao ? '⏳ ຍັງບໍ່ນັບ' : '⏳ ยังไม่นับ'
@@ -29332,6 +29351,8 @@ function _csumHint(r) {
   const buyD = _csumDays(r.lastBuy), saleD = _csumDays(r.lastSale);
   if ((Number(r.pos) || 0) < 0)
     return _csumL('POS ຕິດລົບ — ກວດຮັບເຄື່ອງທີ່ຍັງບໍ່ໄດ້ຄີ / ຂາຍຜິດບາໂຄດ → ແກ້ໃນ POS ກ່ອນປິດຮອບ', 'POS ติดลบ — ตรวจรับของที่ยังไม่ได้คีย์ / ขายผิดบาร์โค้ด → แก้ใน POS ก่อนปิดรอบ');
+  if (r.stageKey === 'v_skip')
+    return _csumL('Verifier ຂ້າມ (ປິດຈຸດແລ້ວ) — CTL ນັບແລ້ວໃສ່ຍອດຕັດສິນ', 'Verifier ข้าม (ปิดจุดแล้ว) — CTL นับแล้วใส่ยอดตัดสิน');
   if (r.stageKey === 'wait_v' || r.stageKey === 'wait_c' || r.stageKey === 'need_ctl')
     return _csumL('ການນັບຍັງບໍ່ຄົບຂັ້ນ — ໃຫ້ນັບ/ຕັດສິນໃຫ້ຈົບກ່ອນ', 'การนับยังไม่ครบขั้น — ให้นับ/ตัดสินให้จบก่อน');
   if (r.diff < 0) {
@@ -29828,7 +29849,7 @@ function _csumDiffStage(k) {
   if (k === 'uncA') return { done: false, unc: true, t: _csumL('🔍 ບໍ່ໄດ້ນັບ (A)', '🔍 ไม่ได้นับ (A)'), c: 'var(--amber-700, #b45309)', b: 'var(--amber-50, #fffbeb)' };
   if (k === 'uncB') return { done: false, unc: true, t: _csumL('🔍 ບໍ່ໄດ້ນັບ (B)', '🔍 ไม่ได้นับ (B)'), c: 'var(--amber-700, #b45309)', b: 'var(--amber-50, #fffbeb)' };
   if (['bcs_done', 'tb_done', 'cv_match', 'cv_real', 'c_match'].includes(k)) return { done: true, t: _csumL('✅ ຢືນຢັນແລ້ວ', '✅ ยืนยันแล้ว'), c: 'var(--emerald-700, #047857)', b: 'var(--emerald-50, #ecfdf5)' };
-  if (k === 'need_bcs' || k === 'need_ctl') return { done: false, t: _csumL('⚖️ ລໍຖ້າຕັດສິນ', '⚖️ รอตัดสิน'), c: 'var(--rose-700, #be123c)', b: 'var(--rose-50, #fff1f2)' };
+  if (k === 'need_bcs' || k === 'need_ctl' || k === 'v_skip') return { done: false, t: _csumL('⚖️ ລໍຖ້າຕັດສິນ', '⚖️ รอตัดสิน'), c: 'var(--rose-700, #be123c)', b: 'var(--rose-50, #fff1f2)' };
   return { done: false, t: _csumL('⏳ ນັບຍັງບໍ່ຄົບ', '⏳ นับยังไม่ครบ'), c: 'var(--sky-700, #0369a1)', b: 'var(--sky-50, #f0f9ff)' };
 }
 function _csumDiffUnc(r) {
@@ -30352,7 +30373,7 @@ async function csumExport() {
     add(L('ຕາມກຸ່ມສິນຄ້າ', 'ตามกลุ่มสินค้า'), [[L('ປະເພດ', 'ประเภท'), L('ກຸ່ມສິນຄ້າ', 'กลุ่มสินค้า')].concat(gh)].concat(
       _csumGroup(d.done, r => r.cat + '\u0001' + r.grp).map(g => g.key.split('\u0001').concat(gv(g)))), [26, 32].concat(gh.map(() => 11)));
     // 4-7) รายการ
-    const stTxt = k => ({ bcs_done: L('BCS ຢືນຢັນແລ້ວ', 'BCS ยืนยันแล้ว'), tb_done: L('ຕັດສິນແລ້ວ', 'ตัดสินแล้ว'), need_bcs: L('3 ຄົນບໍ່ກົງ → BCS', '3 คนไม่ตรง → BCS'), cv_match: L('ນັບກົງກັນ', 'นับตรงกัน'), c_match: L('Counter ກົງ POS', 'Counter ตรง POS'), cv_real: L('C=V → Diff ຈິງ', 'C=V → Diff จริง'), need_ctl: L('ລໍຖ້າ CTL', 'รอ CTL'), wait_v: L('ລໍຖ້າ Verifier', 'รอ Verifier'), wait_c: L('ລໍຖ້າ Counter', 'รอ Counter'), none: '-' }[k] || k);
+    const stTxt = k => ({ bcs_done: L('BCS ຢືນຢັນແລ້ວ', 'BCS ยืนยันแล้ว'), tb_done: L('ຕັດສິນແລ້ວ', 'ตัดสินแล้ว'), need_bcs: L('3 ຄົນບໍ່ກົງ → BCS', '3 คนไม่ตรง → BCS'), cv_match: L('ນັບກົງກັນ', 'นับตรงกัน'), c_match: L('Counter ກົງ POS', 'Counter ตรง POS'), cv_real: L('C=V → Diff ຈິງ', 'C=V → Diff จริง'), need_ctl: L('ລໍຖ້າ CTL', 'รอ CTL'), v_skip: L('Verifier ຂ້າມ → CTL', 'Verifier ข้าม → CTL'), wait_v: L('ລໍຖ້າ Verifier', 'รอ Verifier'), wait_c: L('ລໍຖ້າ Counter', 'รอ Counter'), none: '-' }[k] || k);
     const ih = ['Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ປະເພດ', 'ประเภท'), L('ກຸ່ມສິນຄ້າ', 'กลุ่มสินค้า'), L('ຍີ່ຫໍ້', 'ยี่ห้อ'), 'Gondola', 'POS', L('ນັບໄດ້', 'นับได้'), 'Diff', 'Diff %', L('ຕົ້ນທຶນ ₭', 'ต้นทุน ₭'), 'POS ₭', L('ນັບໄດ້ ₭', 'นับได้ ₭'), 'Diff ₭', L('Diff ₭ (ລາຄາຂາຍ)', 'Diff ₭ (ราคาขาย)'), 'Level', 'Counter', 'Verifier', 'CTL', 'BCS', L('ຂັ້ນຕອນ', 'ขั้นตอน'), L('ປິດຂາຍໃນ POS', 'ปิดขายใน POS'), 'Buyer', L('ຊື້ລ່າສຸດ', 'ซื้อล่าสุด'), L('ຂາຍລ່າສຸດ', 'ขายล่าสุด'), 'AVG/' + L('ເດືອນ', 'เดือน'), 'Aging', L('ແນະນຳຫາສາເຫດ', 'แนะนำหาสาเหตุ')];
     const iv = r => [r.bc, r.name, r.cat, r.grp, r.brand, r.gons, r.pos, r.fin, r.diff, Number(r.pct.toFixed(1)), r.cost, Math.round(r.posV), Math.round(r.finV), Math.round(r.diffV), Math.round(r.diffSellV), r.level,
       r.c ?? '', r.v ?? '', r.t ?? '', r.mgr ?? '', stTxt(r.stageKey), r.posClosed ? '⛔' : '', r.buyer, r.lastBuy, r.lastSale, r.avgM, r.aging, r.hint];
@@ -37443,7 +37464,16 @@ async function wfOpenForVerifier(locCode) {
 
 async function wfCloseVerifier(locCode) {
   if (!wfNeedSession()) return;
-  if (!confirm(`${T('close_verifier')} ${locCode}?`)) return;
+  // 📋 เตือน CTL ถ้า Verifier ยังไม่ได้นับสินค้าที่ต้องนับ (Ball 2026-11-21 · NIVEA 01A01 ปิดไปทั้งที่ V ยังไม่นับ)
+  let _vWarn = '';
+  try {
+    const lo = lang === 'lo';
+    const r = await vfComputeFor(session.id, floorBaseCode(String(locCode).toUpperCase().trim()));
+    const left = r.empty ? [] : r.need.concat(r.wait).filter(x => !x.done);
+    if (left.length) _vWarn = '\n\n⚠️ ' + (lo ? 'Verifier ຍັງບໍ່ໄດ້ນັບ ' : 'Verifier ยังไม่ได้นับ ') + left.length + (lo ? ' ລາຍການ (Counter ນັບບໍ່ກົງ POS):\n' : ' รายการ (Counter นับไม่ตรง POS):\n')
+      + left.slice(0, 8).map(x => '• ' + ((lo ? (x.p.name_lo || x.p.name_th) : (x.p.name_th || x.p.name_lo)) || x.p.barcode || ('#' + x.pid))).join('\n') + (left.length > 8 ? '\n…' : '');
+  } catch (e) {}
+  if (!confirm(`${T('close_verifier')} ${locCode}?` + _vWarn)) return;
   
   log('CTL closing verifier for:', locCode);
   
