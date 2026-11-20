@@ -37365,11 +37365,17 @@ async function wfIdleCheck() {
   if (document.hidden || _wfIdleBusy) return;
   _wfIdleBusy = true;
   try {
-    const { data: gs, error } = await sb.from('gondola_status')
-      .select('location_code, status, counting_started_at, verifying_started_at')
-      .eq('session_id', session.id).in('status', ['counting', 'verifying']).limit(300);
+    let { data: gs, error } = await sb.from('gondola_status')
+      .select('location_code, status, counting_started_at, counting_finished_at, verifying_started_at')
+      .eq('session_id', session.id).in('status', ['counting', 'verifying', 'counted']).limit(300);
     if (error) return;
     const now = Date.now(), out = [];
+    // 🔍 Counter นับเสร็จแล้ว แต่ CTL ยังไม่เปิดให้ Verifier → เตือนทันที (Ball 2026-11-21 · D09/CA04/09B04 ค้าง Verifier เข้าไม่ได้)
+    (gs || []).filter(g => g.status === 'counted' && !(_wfIdleSnooze[g.location_code + '|counted'] > now)).forEach(g => {
+      const code = String(g.location_code || '').trim();
+      if (code) out.push({ code, status: 'counted', last: g.counting_finished_at || null, idle: g.counting_finished_at ? (now - new Date(g.counting_finished_at).getTime()) / 60000 : 0, uid: null });
+    });
+    gs = (gs || []).filter(g => g.status !== 'counted');
     const stOf = g => g.status === 'counting' ? g.counting_started_at : g.verifying_started_at;
     const cand = (gs || []).filter(g => !(_wfIdleSnooze[g.location_code + '|' + g.status] > now))
       .filter(g => { const st = stOf(g); return !st || now - new Date(st).getTime() >= WF_IDLE_MIN * 60000; });
@@ -37392,7 +37398,7 @@ async function wfIdleCheck() {
       const idle = (now - new Date(ref).getTime()) / 60000;
       if (idle >= WF_IDLE_MIN) out.push({ code, status: g.status, last, idle, uid: g._uid || null });
     }));
-    out.sort((a, b) => b.idle - a.idle);
+    out.sort((a, b) => (a.status === 'counted' ? 0 : 1) - (b.status === 'counted' ? 0 : 1) || b.idle - a.idle);
     wfIdleRender(out);
   } catch (e) {} finally { _wfIdleBusy = false; }
 }
@@ -37409,7 +37415,18 @@ function wfIdleRender(list) {
     box.style.cssText = 'position:fixed;left:10px;right:10px;bottom:84px;z-index:8500;max-width:460px;margin:0 auto;background:white;border:2px solid var(--amber-500, #f59e0b);border-radius:14px;box-shadow:0 8px 28px rgba(15,23,42,.25);padding:10px 12px;';
     document.body.appendChild(box);
   }
+  const rowOpen = x => {
+    const enc = encodeURIComponent(x.code).replace(/'/g, '%27');
+    return '<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-top:1px solid var(--slate-100);">'
+      + '<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:800;font-family:\'Space Grotesk\',monospace;color:var(--slate-900);">' + escapeHtml(x.code)
+      + ' <span style="font-size:10px;font-weight:700;color:var(--sky-700, #0369a1);">' + L('ນັບແລ້ວ · ລໍຖ້າເປີດໃຫ້ Verifier', 'นับเสร็จ · รอเปิดให้ Verifier') + '</span></div>'
+      + '<div style="font-size:11px;color:var(--slate-600);font-weight:700;">' + (x.last ? L('ນັບແລ້ວ ', 'นับเสร็จ ') + _gtClock(x.last) + ' · ' + L('ລໍຖ້າ ', 'รอมา ') + Math.round(x.idle) + L(' ນາທີ', ' นาที') : '') + '</div></div>'
+      + '<button onclick="wfIdleClose(\'' + enc + '\',\'counted\')" style="background:var(--violet-600, #7c3aed);color:white;border:none;border-radius:9px;padding:8px 10px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;">🔍 ' + L('ເປີດໃຫ້ Verifier', 'เปิดให้ Verifier') + '</button>'
+      + '<button onclick="wfIdleSnooze(\'' + enc + '\',\'counted\')" style="background:var(--slate-100);color:var(--slate-600);border:1px solid var(--slate-300);border-radius:9px;padding:8px 8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">' + L('ພາຍຫຼັງ', 'ทีหลัง') + '</button>'
+      + '</div>';
+  };
   const row = x => {
+    if (x.status === 'counted') return rowOpen(x);
     const enc = encodeURIComponent(x.code).replace(/'/g, '%27'), c = x.status === 'counting';
     return '<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-top:1px solid var(--slate-100);">'
       + '<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:800;font-family:\'Space Grotesk\',monospace;color:var(--slate-900);">' + escapeHtml(x.code)
@@ -37422,8 +37439,8 @@ function wfIdleRender(list) {
       + '</div>';
   };
   box.innerHTML = '<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px;">'
-    + '<div style="flex:1;"><div style="font-size:13px;font-weight:800;color:var(--amber-700, #b45309);">⏰ ' + L('ຈຸດທີ່ບໍ່ມີການສະແກນເກີນ 10 ນາທີ — ນັບແລ້ວບໍ່?', 'จุดที่ไม่มีสแกนเกิน 10 นาที — นับเสร็จหรือยัง?') + '</div>'
-    + '<div style="font-size:10px;color:var(--slate-500);">' + L('ປິດຈຸດທີ່ນັບແລ້ວ ເພື່ອໃຫ້ Verifier ເລີ່ມກວດໄດ້ທັນທີ', 'ปิดจุดที่นับเสร็จแล้ว เพื่อให้ Verifier เริ่มตรวจได้ทันที') + '</div></div>'
+    + '<div style="flex:1;"><div style="font-size:13px;font-weight:800;color:var(--amber-700, #b45309);">⏰ ' + (list.every(x => x.status === 'counted') ? L('Counter ນັບແລ້ວ — ເປີດໃຫ້ Verifier ກວດ', 'Counter นับเสร็จแล้ว — เปิดให้ Verifier ตรวจ') : L('ຈຸດທີ່ລໍຖ້າ CTL ດຳເນີນການ', 'จุดที่รอ CTL ดำเนินการ')) + '</div>'
+    + '<div style="font-size:10px;color:var(--slate-500);">' + L('ປິດຈຸດທີ່ນັບແລ້ວ / ເປີດໃຫ້ Verifier ເພື່ອໃຫ້ກວດໄດ້ທັນທີ', 'ปิดจุดที่นับเสร็จ / เปิดให้ Verifier เพื่อให้ตรวจได้ทันที') + '</div></div>'
     + '<button onclick="wfIdleSnoozeAll()" title="' + L('ເຊື່ອງ 10 ນາທີ', 'ซ่อน 10 นาที') + '" style="background:none;border:none;font-size:16px;color:var(--slate-400);cursor:pointer;padding:0 2px;">✕</button></div>'
     + list.slice(0, 4).map(row).join('')
     + (list.length > 4 ? '<div style="font-size:11px;color:var(--slate-500);padding-top:4px;">+' + (list.length - 4) + L(' ຈຸດ', ' จุด') + '</div>' : '');
@@ -37432,7 +37449,7 @@ function wfIdleRender(list) {
 }
 async function wfIdleClose(enc, status) {
   const code = decodeURIComponent(enc);
-  if (status === 'counting') await wfCloseCounter(code); else await wfCloseVerifier(code);
+  if (status === 'counting') await wfCloseCounter(code); else if (status === 'counted') await wfOpenForVerifier(code); else await wfCloseVerifier(code);
   if (document.getElementById('floorMapContent')) setTimeout(loadFloorMap, 500);
   setTimeout(() => { wfIdleCheck(); }, 800);
 }
