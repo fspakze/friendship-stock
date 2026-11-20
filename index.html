@@ -1903,6 +1903,12 @@ let loc = null;
 // 📦 โหมดนับ "พื้น (นอกชั้น)" — สินค้าของ gondola ที่ยกมาวางพื้นเพื่อ grouping
 // นับตอน _floorMode=true → บันทึก location_code = <gondola>-FL แต่ gondola_code = <gondola> (ม้วนกลับเข้า gondola เดิม)
 let _floorMode = false;
+// 🛡️ กันลืมสลับชั้น/พื้น (Ball 2026-11-20)
+//   _floorModeGon = Gondola ที่เปิดโหมดพื้นไว้ · ย้ายไป Gondola อื่น → กลับโหมดชั้นวางเอง
+//   _fmSeen[session|gondola] = {shelf, floor, asked} นับในเครื่องนี้ → ย้าย Gondola แล้วยังไม่นับพื้น = ถามก่อน
+let _floorModeGon = null;
+const _fmSeen = {};
+let _fmLastBase = null;
 const FLOOR_SUFFIX = '-FL';
 function isFloorCode(code) { return typeof code === 'string' && code.toUpperCase().endsWith(FLOOR_SUFFIX); }
 function floorBaseCode(code) { return isFloorCode(code) ? code.slice(0, -FLOOR_SUFFIX.length) : code; }
@@ -5936,6 +5942,7 @@ function renderShell() {
 }
 
 function goPage(page) {
+  setTimeout(() => { try { floorModeUiSync(); } catch (e) {} }, 0);
   // 👤 สิทธิ์เฉพาะบุคคล: หน้าที่ถูก "ปิดสิทธิ์" ให้ user คนนี้ → บล็อกเข้า (admin ยกเว้น) แล้วพากลับหน้าแรก
   if (user && user.role !== 'admin' && page && myMenuOverride()[page] === false) {
     const isLao = lang === 'lo';
@@ -18363,6 +18370,8 @@ function subscribePriceCheckRealtime() {
 // ==================== END ISSUE REPORT MANAGER ====================
 
 function renderScanPage() {
+  floorModeGuard();
+  setTimeout(() => { try { floorModeUiSync(); fmAskFloor(); } catch (e) {} }, 250);
   const r = user.role;
   const isLao = lang === 'lo';
   const noZones = branch?.use_zones === false;
@@ -19146,8 +19155,9 @@ function toggleLiteScan() {
   try { const sb2 = document.getElementById('stopScanBtn'); if (typeof stopScan === 'function' && sb2 && sb2.style.display !== 'none') stopScan(); } catch (e) {}
 }
 // 📦 สลับโหมดนับ: ชั้นวาง (false) / พื้น-นอกชั้น (true)
-function setFloorMode(on) {
+function setFloorMode(on, quiet) {
   _floorMode = !!on;
+  _floorModeGon = (_floorMode && loc) ? loc.location_code : null;
   if (curProduct && document.getElementById('ccPrevBox')) ccCheckPrev(curProduct); // ชั้น/พื้น = คนละตำแหน่ง → เช็คใหม่
   const isLao = lang === 'lo';
   const shelfBtn = document.getElementById('floorModeShelfBtn');
@@ -19166,11 +19176,70 @@ function setFloorMode(on) {
   if (gon) gon.textContent = loc ? floorBaseCode(loc.location_code) : '?';
   // อัปเดตป้ายตำแหน่งให้เห็นชัดว่าอยู่โหมดพื้น
   if (typeof updateScanLocBadge === 'function') updateScanLocBadge();
+  floorModeUiSync();
+  if (quiet) return;
   showToast(_floorMode
     ? (isLao ? '📦 ໂໝດ ພື້ນ/ນອກຊັ້ນ' : '📦 โหมด พื้น/นอกชั้น')
     : (isLao ? '🗄️ ໂໝດ ຊັ້ນວາງ' : '🗄️ โหมด ชั้นวาง'), 'info');
 }
 window.setFloorMode = setFloorMode;
+
+// ① ย้าย Gondola แล้วโหมดพื้นยังค้าง → กลับชั้นวางอัตโนมัติ (เรียกก่อน render/บันทึก)
+function floorModeGuard(quiet) {
+  if (!_floorMode || !loc) return;
+  if (_floorModeGon && _floorModeGon !== loc.location_code) {
+    _floorMode = false; _floorModeGon = null;
+    floorModeUiSync();
+    if (!quiet) showToast(lang === 'lo' ? '🗄️ ປ່ຽນ Gondola → ກັບໂໝດຊັ້ນວາງ' : '🗄️ เปลี่ยน Gondola → กลับโหมดชั้นวาง', 'info');
+  }
+}
+// ② โหมดพื้น = กรอบส้มรอบจอ + ป้ายบนสุด (เห็นชัดทุกครั้งที่ก้มสแกน) · แสดงเฉพาะหน้าสแกน
+function floorModeUiSync() {
+  const onScan = !!document.getElementById('floorModeShelfBtn');
+  const show = _floorMode && onScan;
+  let fr = document.getElementById('floorModeFrame');
+  if (!show) { if (fr) fr.remove(); return; }
+  if (!fr) {
+    fr = document.createElement('div');
+    fr.id = 'floorModeFrame';
+    fr.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9000;box-shadow:inset 0 0 0 5px var(--amber-500, #f59e0b);';
+    document.body.appendChild(fr);
+  }
+  const base = loc ? loc.location_code : '?';
+  fr.innerHTML = '<div style="position:absolute;top:5px;left:50%;transform:translateX(-50%);background:var(--amber-500, #f59e0b);color:white;font-size:12px;font-weight:800;padding:4px 14px;border-radius:0 0 10px 10px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.18);">📦 '
+    + (lang === 'lo' ? 'ກຳລັງນັບພື້ນ · ' : 'กำลังนับพื้น · ') + escapeHtml(base) + '</div>';
+}
+// ③ ย้ายไป Gondola ใหม่ ทั้งที่ Gondola เดิมนับชั้นแล้วแต่ยังไม่นับพื้น → ถามก่อน (ลำดับมาตรฐาน: ชั้น → พื้น → Gondola ถัดไป)
+function fmAskFloor() {
+  if (!loc || !session || !user || !['counter', 'verifier', 'audit'].includes(user.role)) return;
+  if (!document.getElementById('floorModeShelfBtn')) return;
+  const cur = loc.location_code, prev = _fmLastBase;
+  if (!prev || prev === cur) return;
+  const st = _fmSeen[session.id + '|' + prev];
+  if (!st || st.asked || st.floor > 0 || st.shelf <= 0) return;
+  st.asked = true;
+  const isLao = lang === 'lo', P = escapeHtml(prev), C = escapeHtml(cur);
+  showModal('<h3 style="font-size:16px;margin:0 0 6px;">📦 ' + P + (isLao ? ' ມີສິນຄ້າວາງພື້ນບໍ່?' : ' มีของวางบนพื้นไหม?') + '</h3>'
+    + '<div style="font-size:13px;color:var(--slate-600);line-height:1.6;margin-bottom:10px;">'
+    + (isLao ? 'ທ່ານນັບຊັ້ນວາງ ' + P + ' ແລ້ວ ' + st.shelf + ' ຄັ້ງ ແຕ່ຍັງບໍ່ໄດ້ນັບພື້ນ · ຖ້າມີສິນຄ້າຍົກມາວາງພື້ນໜ້າຊັ້ນ ໃຫ້ນັບພື້ນໃຫ້ແລ້ວກ່ອນໄປ ' + C
+             : 'คุณนับชั้นวาง ' + P + ' แล้ว ' + st.shelf + ' ครั้ง แต่ยังไม่ได้นับพื้น · ถ้ามีของยกมาวางพื้นหน้าชั้น ให้นับพื้นให้เสร็จก่อนไป ' + C)
+    + '</div>'
+    + '<div style="display:flex;flex-direction:column;gap:8px;">'
+    + '<button class="btn" onclick="fmGoFloor(\'' + encodeURIComponent(prev).replace(/'/g, '%27') + '\')" style="background:var(--amber-500, #f59e0b);color:white;border:none;font-weight:800;padding:12px;">📦 ' + (isLao ? 'ມີ → ນັບພື້ນ ' : 'มี → นับพื้น ') + P + '</button>'
+    + '<button class="btn btn-secondary" onclick="closeModal()" style="padding:12px;">' + (isLao ? 'ບໍ່ມີ → ໄປ ' : 'ไม่มี → ไป ') + C + '</button>'
+    + '</div>');
+}
+function fmGoFloor(codeEnc) {
+  const code = decodeURIComponent(codeEnc);
+  const l = (allLocations || []).find(x => x.location_code === code);
+  closeModal();
+  if (!l) { showToast(lang === 'lo' ? 'ບໍ່ພົບຕຳແໜ່ງ' : 'ไม่พบตำแหน่ง', 'error'); return; }
+  loc = l;
+  try { const ctx = JSON.parse(localStorage.getItem('fs_context') || '{}'); ctx.location = code; localStorage.setItem('fs_context', JSON.stringify(ctx)); } catch (e) {}
+  setFloorMode(true, true);
+  goPage('scan');
+}
+window.floorModeGuard = floorModeGuard; window.floorModeUiSync = floorModeUiSync; window.fmAskFloor = fmAskFloor; window.fmGoFloor = fmGoFloor;
 
 // อัปเดตป้ายตำแหน่งบนหน้าสแกน (โชว์ Gondola + โหมดพื้นถ้าเปิด)
 function updateScanLocBadge() {
@@ -24884,7 +24953,7 @@ function _ccMyRole() {
   if (['admin', 'scc', 'bcs'].includes(r)) return 'manager_final';
   return 'counter';
 }
-function _ccLocCode() { return loc ? (_floorMode ? (loc.location_code + FLOOR_SUFFIX) : loc.location_code) : null; }
+function _ccLocCode() { floorModeGuard(true); return loc ? (_floorMode ? (loc.location_code + FLOOR_SUFFIX) : loc.location_code) : null; }
 async function ccCheckPrev(p) {
   _ccPrev = null; _ccMode = null;
   const box = document.getElementById('ccPrevBox');
@@ -25140,6 +25209,7 @@ async function saveCount() {
   else if (r === 'ctl' || r === 'it') countRole = 'ctl_tiebreaker';   // IT ตัดสิน = ระดับ CTL (เดิมตกเป็น counter)
   else if (['admin', 'scc', 'bcs'].includes(r)) countRole = 'manager_final';
   
+  floorModeGuard(true);
   const insertData = {
     session_id: session.id,
     branch_id: branch?.id || user.branch_id,
@@ -25197,6 +25267,7 @@ async function saveCount() {
   }
 
   log('Saved successfully:', data);
+  try { if (loc && session) { const k = session.id + '|' + loc.location_code; const st = _fmSeen[k] = _fmSeen[k] || { shelf: 0, floor: 0, asked: false }; if (_floorMode) st.floor++; else st.shelf++; _fmLastBase = loc.location_code; } } catch (e) {}
   
   // Show feedback based on workflow_status
   let toastMsg = T('saved');
