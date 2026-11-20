@@ -44440,7 +44440,7 @@ async function calLoad() {
 
 function _calFiltered(list) {
   return list.filter(ev => {
-    if (!_cal.showDone && (ev.status === 'done' || ev.status === 'cancel')) return false;
+    if (!_cal.showDone && ev.status === 'cancel') return false;   // งานเสร็จแสดงเสมอ (Ball 2026-11-20) · ซ่อนเฉพาะยกเลิก
     if (_cal.mine && !_calIsMine(ev)) return false;
     if (_cal.cat && ev.category !== _cal.cat) return false;
     if (_cal.dept) { const dl = _calDeptList(ev.dept); if (!dl.includes('all') && !dl.includes(_cal.dept)) return false; }
@@ -44455,7 +44455,7 @@ function _calEventRow(ev, showDate) {
   const timeTxt = (_span.length > 1)
     ? '📆 ' + _calDateLabel(_span[0]) + ' – ' + _calDateLabel(_span[_span.length - 1]) + ' (' + _span.length + _calL(' ມື້', ' วัน') + ')' + (ev.all_day ? '' : ' · ' + _calTime(ev.start_at) + '–' + _calTime(ev.end_at))
     : (ev.all_day ? _calL('ທັງມື້', 'ทั้งวัน') : _calTime(ev.start_at) + (ev.end_at && _calDayKey(ev.end_at) === _calDayKey(ev.start_at) ? '–' + _calTime(ev.end_at) : ''));
-  return '<div onclick="calOpenDetail(' + ev.id + ')" style="display:flex;gap:9px;align-items:flex-start;padding:9px 10px;background:white;border:1px solid ' + (late ? 'var(--rose-300)' : 'var(--slate-200)') + ';border-radius:10px;margin-bottom:6px;cursor:pointer;' + (ev.status === 'done' || ev.status === 'cancel' ? 'opacity:.6;' : '') + '">'
+  return '<div onclick="calOpenDetail(' + ev.id + ')" style="display:flex;gap:9px;align-items:flex-start;padding:9px 10px;background:white;border:1px solid ' + (late ? 'var(--rose-300)' : 'var(--slate-200)') + ';border-radius:10px;margin-bottom:6px;cursor:pointer;' + (ev.status === 'cancel' ? 'opacity:.6;' : (ev.status === 'done' ? 'background:var(--emerald-50,#ecfdf5);' : '')) + '">'
     + '<div style="width:34px;height:34px;border-radius:9px;background:' + c.color + '1a;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;">' + c.icon + '</div>'
     + '<div style="flex:1;min-width:0;">'
     +   '<div style="font-size:12.5px;font-weight:800;color:var(--slate-900);' + (ev.status === 'done' ? 'text-decoration:line-through;' : '') + '">' + escapeHtml(ev.title) + '</div>'
@@ -44463,7 +44463,7 @@ function _calEventRow(ev, showDate) {
     +     (ev.dept ? ' · ' + escapeHtml(_calDeptNames(ev.dept)) : '') + ((() => { const ids = _calEvBranches(ev); return (ids.length === 1 && ids[0] === branch.id) ? '' : ' · ' + escapeHtml(_calBranchLabel(ev)); })()) + '</div>'
     +   (who.length ? '<div style="font-size:10.5px;color:var(--slate-600);margin-top:2px;">👤 ' + escapeHtml(who.join(', ')) + '</div>' : '')
     + '</div>'
-    + '<span style="flex-shrink:0;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;background:' + (late ? 'var(--rose-500)' : st.color + '1a') + ';color:' + (late ? 'white' : st.color) + ';">' + (late ? '⏰ ' + _calL('ເລີຍກຳນົດ', 'เลยกำหนด') : _calNm(st)) + '</span>'
+    + '<span style="flex-shrink:0;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;background:' + (late ? 'var(--rose-500)' : st.color + '1a') + ';color:' + (late ? 'white' : st.color) + ';">' + (late ? '⏰ ' + _calL('ເລີຍກຳນົດ', 'เลยกำหนด') : (ev.status === 'done' ? '✅ ' : '') + _calNm(st)) + '</span>'
     + '</div>';
 }
 
@@ -44491,7 +44491,7 @@ function calRender() {
     + sel('calCat', _cal.cat, [['', L('ທຸກປະເພດ', 'ทุกประเภท')]].concat(Object.keys(CAL_CATS).map(k => [k, CAL_CATS[k].icon + ' ' + _calNm(CAL_CATS[k])])), 'calSetCat(this.value)')
     + sel('calDept', _cal.dept, [['', L('ທຸກຝ່າຍ', 'ทุกฝ่าย')]].concat((_calDepts || []).map(d => [d.id, _calNm(d)])), 'calSetDept(this.value)')
     + (isAllBranch() ? sel('calBr', _cal.allBranch ? 'all' : 'cur', [['cur', L('ສາຂານີ້', 'สาขานี้') + ' + ' + L('ທຸກສາຂາ', 'ทุกสาขา')], ['all', L('ທຸກສາຂາ (ທັງໝົດ)', 'ทุกสาขา (ทั้งหมด)')]], 'calSetBranch(this.value)') : '')
-    + '<label style="font-size:11px;font-weight:700;color:var(--slate-600);display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" ' + (_cal.showDone ? 'checked' : '') + ' onchange="calSetShowDone(this.checked)">' + L('ສະແດງວຽກທີ່ສຳເລັດ/ຍົກເລີກ', 'แสดงงานที่เสร็จ/ยกเลิก') + '</label>'
+    + '<label style="font-size:11px;font-weight:700;color:var(--slate-600);display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" ' + (_cal.showDone ? 'checked' : '') + ' onchange="calSetShowDone(this.checked)">' + L('ສະແດງວຽກທີ່ຍົກເລີກ', 'แสดงงานที่ยกเลิก') + '</label>'
     + (user && user.role === 'admin' ? btn(false, '⚙️ ' + L('ຝ່າຍ', 'ฝ่าย'), 'calOpenDepts()') : '')
     + '</div>';
   if (_cal.missing) {
@@ -44541,12 +44541,15 @@ function _calMonthGrid(evs, m) {
     g += '<div onclick="calSelDay(\'' + k + '\')" style="min-height:64px;background:' + (sel ? 'var(--sky-50,#f0f9ff)' : 'white') + ';border:' + (sel ? '2px solid var(--sky-500)' : '1px solid var(--slate-200)') + ';border-radius:7px;padding:3px;cursor:pointer;overflow:hidden;min-width:0;">'
       + '<div style="font-size:10.5px;font-weight:800;' + (isToday ? 'background:var(--emerald-500);color:white;border-radius:9px;display:inline-block;padding:0 6px;' : 'color:var(--slate-600);') + '">' + d + '</div>'
       + list.slice(0, 3).map(({ ev, i, n }) => {
-          const c = CAL_CATS[ev.category] || CAL_CATS.other;
-          if (n <= 1) return '<div style="font-size:9.5px;background:' + c.color + '1a;color:' + c.color + ';border-radius:4px;padding:1px 3px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700;">' + c.icon + ' ' + escapeHtml(ev.title) + '</div>';
+          const c0 = CAL_CATS[ev.category] || CAL_CATS.other;
+          const _dn = ev.status === 'done', _cx = ev.status === 'cancel';
+          const c = (_dn || _cx) ? { color: _dn ? '#059669' : '#94a3b8', icon: _dn ? '✅' : '✖️' } : c0;
+          const _deco = (_dn || _cx) ? 'text-decoration:line-through;opacity:.8;' : '';
+          if (n <= 1) return '<div style="font-size:9.5px;background:' + c.color + '1a;color:' + c.color + ';border-radius:4px;padding:1px 3px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700;' + _deco + '">' + c.icon + ' ' + escapeHtml(ev.title) + '</div>';
           // แถบหลายวัน: หัวมน = วันแรก · ท้ายมน = วันสุดท้าย · ยื่นเลยขอบช่องให้ดูต่อกัน
           const first = i === 0, last = i === n - 1;
           const rad = (first ? '4px' : '0') + ' ' + (last ? '4px' : '0') + ' ' + (last ? '4px' : '0') + ' ' + (first ? '4px' : '0');
-          return '<div style="font-size:9.5px;background:' + c.color + '33;color:' + c.color + ';border-radius:' + rad + ';padding:1px 3px;margin-top:2px;margin-left:' + (first ? '0' : '-4px') + ';margin-right:' + (last ? '0' : '-4px') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700;">'
+          return '<div style="font-size:9.5px;background:' + c.color + '33;color:' + c.color + ';border-radius:' + rad + ';padding:1px 3px;margin-top:2px;margin-left:' + (first ? '0' : '-4px') + ';margin-right:' + (last ? '0' : '-4px') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700;' + _deco + '">'
             + (first ? c.icon + ' ' : '→ ') + escapeHtml(ev.title) + ' <span style="font-weight:600;opacity:.75;">' + (i + 1) + '/' + n + '</span></div>';
         }).join('')
       + (list.length > 3 ? '<div style="font-size:9px;color:var(--slate-500);margin-top:1px;">+' + (list.length - 3) + '</div>' : '')
