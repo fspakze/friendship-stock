@@ -30052,7 +30052,13 @@ function _csumUncHtml(d, isLao) {
       + L('ສະແດງທັງໝົດ (ລວມສິນຄ້າທີ່ບໍ່ມີຍອດຂາຍ)', 'แสดงทั้งหมด (รวมสินค้าที่ไม่มียอดขาย)') + ' · ' + L('ທັງໝົດ', 'ทั้งหมด') + ' ' + d.uncB.length + ' SKU</label>';
   }
   // 📂 ยังไม่เลือกประเภท → ตารางสรุปตามประเภทก่อน (Ball 2026-11-12)
-  if (_csumUncCat === null) return html + _csumUncCatTable(d.uncA, B, isLao);
+  if (_csumUncCat === null) {
+    // 🚫 ยืนยันไม่พบทั้งแท็บ (ทุกประเภท) — Ball 2026-11-21 "หาแล้ว ไม่พบ"
+    const allT = _csumUncTab === 'A' ? d.uncA : B;
+    if (can && allT.length) html += '<button onclick="csumConfirmZero(\'all' + _csumUncTab + '\')" style="width:100%;background:var(--rose-50);color:var(--rose-700);border:1px solid var(--rose-300);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;margin-bottom:8px;">🚫 '
+      + L('ຢືນຢັນບໍ່ພົບ = 0 ທັງໝົດກຸ່ມ ', 'ยืนยันไม่พบ = 0 ทั้งหมดกลุ่ม ') + _csumUncTab + ' (' + allT.length + ' SKU · ₭' + N(allT.reduce((s, r) => s + r.posV, 0)) + ')</button>';
+    return html + _csumUncCatTable(d.uncA, B, isLao);
+  }
   list = list.filter(r => r.cat === _csumUncCat);
   html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
     + '<button onclick="csumUncCat(null)" style="background:white;border:1px solid var(--slate-300);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:800;color:var(--slate-700);cursor:pointer;">← ' + L('ທຸກປະເພດ', 'ทุกประเภท') + '</button>'
@@ -30108,7 +30114,7 @@ async function csumConfirmZero(mode, pid) {
   const d = _csum; if (!d) return;
   if (!csumCanConfirm() || !session) { showToast(_csumL('ບໍ່ມີສິດ / ບໍ່ມີ session', 'ไม่มีสิทธิ์ / ไม่มี session'), 'error'); return; }
   const all = d.uncA.concat(d.uncB);
-  const targets = mode === 'A' ? d.uncA.filter(r => _csumUncCat === null || r.cat === _csumUncCat) : all.filter(r => r.pid === pid);
+  const targets = mode === 'allA' ? d.uncA.slice() : (mode === 'allB' ? (_csumBAll ? d.uncB : d.uncB.filter(r => r.avgM > 0)) : (mode === 'A' ? d.uncA.filter(r => _csumUncCat === null || r.cat === _csumUncCat) : all.filter(r => r.pid === pid)));
   if (!targets.length) return;
   const val = targets.reduce((s, r) => s + r.posV, 0);
   const msg = _csumL('ຢືນຢັນບໍ່ພົບສິນຄ້າ ', 'ยืนยันไม่พบสินค้า ') + targets.length + ' SKU (₭' + _csumN(val) + ')?\n\n'
