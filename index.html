@@ -29975,7 +29975,8 @@ function gtActiveMin(byUser) {
   });
   return tot || null;
 }
-function gtCompute(gs, sc, endTs) {
+function gtCompute(gs, sc, endTs, names) {
+  const nm = id => (names && names[id]) || '?';
   const C = ['counter', 'staff'], V = ['verifier', 'audit'], J = ['ctl_tiebreaker', 'manager_final'];
   const by = {};
   (sc || []).forEach(c => {
@@ -30017,6 +30018,7 @@ function gtCompute(gs, sc, endTs) {
       code, status: s.status, start, end: endEv, cnt, closeLag, waitV, ver, judge, judgePending, cntAct, verAct,
       total: _gtMin(start, endEv),
       items, vItems: g.vP.size, cPeople: g.cU.size, vPeople: g.vU.size,
+      cNames: [...g.cU].map(nm).sort(), vNames: [...g.vU].map(nm).sort(),   // 👤 ใครนับ/ตรวจชั้นนี้ (Ball 2026-11-21)
       rate: (cntAct && cntAct > 0 && items) ? items / cntAct : null,   // ต่อนาทีที่นับจริง
       cs: s.counting_started_at, cf: s.counting_finished_at, vs: s.verifying_started_at, vf: s.verifying_finished_at
     };
@@ -30046,7 +30048,15 @@ async function gtLoad(force) {
     .select('id, product_id, user_id, count_role, location_code, gondola_code, counted_at').eq('session_id', sid).order('id'));
   let endTs = new Date().toISOString();
   if (_varianceFilter && _varianceFilter.period === 'round' && _viewRound && _viewRound.completed_at) endTs = _viewRound.completed_at;
-  const r = gtCompute(gs, sc, endTs);
+  const names = {};
+  const uids = [...new Set((sc || []).map(c => c.user_id).filter(Boolean))];
+  for (let i = 0; i < uids.length; i += 200) {
+    try {
+      const { data: us } = await sb.from('users').select('id, full_name, username').in('id', uids.slice(i, i + 200));
+      (us || []).forEach(u => { names[u.id] = u.full_name || u.username || '?'; });
+    } catch (e) {}
+  }
+  const r = gtCompute(gs, sc, endTs, names);
   _gt = Object.assign({ sid, at: Date.now(), endTs }, r);
   return _gt;
 }
@@ -30102,17 +30112,17 @@ function gtRenderView() {
   const stTag = r => r.status === 'completed' ? '<span style="color:var(--emerald-600, #059669);">✓</span>'
     : (r.judgePending ? '<span style="color:var(--rose-600, #e11d48);">⚖️</span>' : '<span style="color:var(--slate-400);">…</span>');
   const th = t => '<th style="padding:6px 7px;text-align:right;font-size:10px;color:var(--slate-500);white-space:nowrap;border-bottom:1px solid var(--slate-200);">' + t + '</th>';
-  const table = '<div style="overflow-x:auto;border:1px solid var(--slate-200);border-radius:10px;background:white;"><table style="width:100%;border-collapse:collapse;min-width:760px;">'
+  const table = '<div style="overflow-x:auto;border:1px solid var(--slate-200);border-radius:10px;background:white;"><table style="width:100%;border-collapse:collapse;min-width:900px;">'
     + '<tr><th style="padding:6px 7px;text-align:left;font-size:10px;color:var(--slate-500);border-bottom:1px solid var(--slate-200);">Gondola</th>'
     + th(L('ເລີ່ມ', 'เริ่ม')) + th('⏱️ ' + L('ນັບ', 'นับ')) + th('✋ ' + L('ນັບຈິງ', 'นับจริง')) + th('⏳ ' + L('ລໍຖ້າກວດ', 'รอตรวจ')) + th('🔍 ' + L('ກວດ', 'ตรวจ')) + th('✋ ' + L('ກວດຈິງ', 'ตรวจจริง')) + th('⚖️ ' + L('ລໍຖ້າຕັດສິນ', 'รอตัดสิน')) + th(L('ລວມ', 'รวม'))
-    + th(L('ລາຍການ', 'รายการ')) + th(L('ລາຍການ/ນາທີ', 'รายการ/นาที')) + th('C · V') + '</tr>'
+    + th(L('ລາຍການ', 'รายการ')) + th(L('ລາຍການ/ນາທີ', 'รายการ/นาที')) + th('👤 Counter · 🔍 Verifier') + '</tr>'
     + rows.map(r => '<tr style="border-bottom:1px solid var(--slate-100);">'
       + '<td style="padding:6px 7px;font-weight:800;font-size:12px;font-family:\'Space Grotesk\',monospace;white-space:nowrap;">' + stTag(r) + ' ' + escapeHtml(r.code) + '</td>'
       + '<td style="padding:6px 7px;text-align:right;font-size:11px;color:var(--slate-500);font-family:\'Space Grotesk\',monospace;">' + _gtClock(r.start) + '</td>'
       + td(r.cnt, 'cnt') + tdA(r.cntAct, 'cntAct') + td(r.waitV, 'waitV', (r.closeLag != null && r.closeLag >= GT_IDLE_MIN) ? '<span title="' + L('ປິດຈຸດຊ້າ ', 'ปิดจุดช้า ') + _gtHM(r.closeLag) + '"> ⏰</span>' : '') + td(r.ver, 'ver') + tdA(r.verAct, 'verAct') + td(r.judge, 'judge', r.judgePending ? '+' : '') + td(r.total, 'total')
       + '<td style="padding:6px 7px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;">' + r.items + '</td>'
       + '<td style="padding:6px 7px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;">' + (r.rate != null ? r.rate.toFixed(1) : '–') + '</td>'
-      + '<td style="padding:6px 7px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;color:var(--slate-500);">' + r.cPeople + ' · ' + r.vPeople + '</td>'
+      + '<td style="padding:6px 7px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;color:var(--slate-600);white-space:normal;min-width:150px;line-height:1.4;">' + (r.cNames.length ? '👤 ' + escapeHtml(r.cNames.join(', ')) : '') + (r.vNames.length ? '<br>🔍 ' + escapeHtml(r.vNames.join(', ')) : '') + (!r.cNames.length && !r.vNames.length ? '–' : '') + '</td>'
       + '</tr>').join('')
     + '</table></div>'
     + '<div style="font-size:10px;color:var(--amber-700, #b45309);margin-top:6px;line-height:1.5;">⏱️ ' + L('ນັບ = ເລີ່ມ → ສະແກນຊິ້ນສຸດທ້າຍ · ⏰ = ສະແກນຈົບແລ້ວແຕ່ກົດນັບແລ້ວຊ້າກວ່າ 10 ນາທີ (ເວລາສ່ວນນີ້ລວມຢູ່ໃນ ລໍຖ້າກວດ)', 'นับ = เริ่ม → สแกนชิ้นสุดท้าย · ⏰ = สแกนจบแล้วแต่กดนับเสร็จช้ากว่า 10 นาที (เวลาส่วนนี้รวมอยู่ใน รอตรวจ)') + '</div>'
@@ -30126,10 +30136,10 @@ function gtExport() {
   const r1 = v => v == null ? '' : Math.round(v);
   const head = ['Gondola', L('ສະຖານະ', 'สถานะ'), L('ເລີ່ມນັບ', 'เริ่มนับ'), L('ນັບແລ້ວ', 'นับเสร็จ'), L('ເລີ່ມກວດ', 'เริ่มตรวจ'), L('ກວດແລ້ວ', 'ตรวจเสร็จ'),
     L('ນັບ (ນາທີ)', 'นับ (นาที)'), L('ນັບຈິງ (ນາທີ)', 'นับจริง (นาที)'), L('ລໍຖ້າກວດ (ນາທີ)', 'รอตรวจ (นาที)'), L('ກວດ (ນາທີ)', 'ตรวจ (นาที)'), L('ກວດຈິງ (ນາທີ)', 'ตรวจจริง (นาที)'), L('ລໍຖ້າຕັດສິນ (ນາທີ)', 'รอตัดสิน (นาที)'), L('ຄ້າງຕັດສິນ', 'ค้างตัดสิน'), L('ລວມ (ນາທີ)', 'รวม (นาที)'),
-    L('ລາຍການ Counter', 'รายการ Counter'), L('ລາຍການ Verifier', 'รายการ Verifier'), L('ລາຍການ/ນາທີ', 'รายการ/นาที'), L('ຄົນ Counter', 'คน Counter'), L('ຄົນ Verifier', 'คน Verifier'), L('ປິດຈຸດຊ້າ (ນາທີ)', 'ปิดจุดช้า (นาที)')];
+    L('ລາຍການ Counter', 'รายการ Counter'), L('ລາຍການ Verifier', 'รายการ Verifier'), L('ລາຍການ/ນາທີ', 'รายการ/นาที'), L('ຄົນ Counter', 'คน Counter'), L('ຄົນ Verifier', 'คน Verifier'), L('ປິດຈຸດຊ້າ (ນາທີ)', 'ปิดจุดช้า (นาที)'), L('ຊື່ Counter', 'ชื่อ Counter'), L('ຊື່ Verifier', 'ชื่อ Verifier')];
   const tsx = t => { if (!t) return ''; const x = new Date(t); return isNaN(x) ? '' : localDayKey(x) + ' ' + _gtClock(t); };
   const aoa = [head].concat(d.rows.slice().sort((a, b) => (b.total || 0) - (a.total || 0)).map(r => [r.code, r.status, tsx(r.cs), tsx(r.cf), tsx(r.vs), tsx(r.vf),
-    r1(r.cnt), r1(r.cntAct), r1(r.waitV), r1(r.ver), r1(r.verAct), r1(r.judge), r.judgePending ? 'Y' : '', r1(r.total), r.items, r.vItems, r.rate != null ? Number(r.rate.toFixed(2)) : '', r.cPeople, r.vPeople, r1(r.closeLag)]));
+    r1(r.cnt), r1(r.cntAct), r1(r.waitV), r1(r.ver), r1(r.verAct), r1(r.judge), r.judgePending ? 'Y' : '', r1(r.total), r.items, r.vItems, r.rate != null ? Number(r.rate.toFixed(2)) : '', r.cPeople, r.vPeople, r1(r.closeLag), (r.cNames || []).join(', '), (r.vNames || []).join(', ')]));
   const s = d.sum;
   const sumAoa = [[L('ຫົວຂໍ້', 'หัวข้อ'), L('ນາທີ', 'นาที'), 'h:mm'],
     [L('ທັງຮອບ (ເລີ່ມ→ຈົບ)', 'ทั้งรอบ (เริ่ม→จบ)'), r1(s.span), _gtHM(s.span)],
@@ -30539,7 +30549,7 @@ async function loadPerformance() {
     const myEntry = scored.find(u => u.userId === user.id);
     const myRank = myEntry ? scored.findIndex(u => u.userId === user.id) + 1 : null;
     
-    _perfData = { scored, myEntry, myRank };
+    _perfData = { scored, myEntry, myRank, accMap };
     
     renderMyCard(myEntry, myRank, scored.length);
     renderLeaderboard(scored);
@@ -30590,7 +30600,11 @@ function perfAccuracy(rows) {
   const credit = (arr, ref) => {
     if (!arr.length) return;
     const q = sum(arr);
-    [...new Set(arr.map(r => r.user_id).filter(Boolean))].forEach(u => { const s = res[u] = res[u] || { ok: 0, n: 0 }; s.n++; if (q === ref) s.ok++; });
+    const gk = arr[0].session_id + '|' + _cvBase(arr[0]._lk);   // ผลต่อ Gondola (หน้ารายคน · Ball 2026-11-21)
+    [...new Set(arr.map(r => r.user_id).filter(Boolean))].forEach(u => {
+      const s = res[u] = res[u] || { ok: 0, n: 0, by: {} }; s.n++; if (q === ref) s.ok++;
+      const b = s.by[gk] = s.by[gk] || { ok: 0, n: 0 }; b.n++; if (q === ref) b.ok++;
+    });
   };
   Object.values(prod).forEach(P => {
     const cOnlyOk = P.pos !== null && P.cTot === P.pos;
@@ -30684,7 +30698,7 @@ function renderLeaderboard(scored) {
     const youLabel = isMe ? `<span style="background:var(--violet-500);color:white;font-size:8px;padding:1px 5px;border-radius:3px;font-weight:800;margin-left:5px;">YOU</span>` : '';
     
     html += `
-      <div style="display:flex;align-items:center;gap:9px;padding:7px 9px;${bgColor}border-bottom:1px solid var(--slate-100);">
+      <div onclick="perfShowUser('${encodeURIComponent(u.userId)}')" style="display:flex;align-items:center;gap:9px;padding:7px 9px;${bgColor}border-bottom:1px solid var(--slate-100);cursor:pointer;">
         <div style="width:28px;text-align:center;font-size:16px;flex-shrink:0;">${rankBadge}</div>
         <div style="flex:1;min-width:0;">
           <div style="font-size:12px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
@@ -30698,11 +30712,65 @@ function renderLeaderboard(scored) {
           <div style="font-size:16px;font-weight:800;color:var(--violet-600);font-family:'Space Grotesk',monospace;line-height:1;">${u.compositeScore.toFixed(1)}</div>
           <div style="font-size:8px;color:var(--slate-400);">/100</div>
         </div>
+        <div style="color:var(--slate-400);font-size:16px;flex-shrink:0;">›</div>
       </div>
     `;
   });
   el.innerHTML = html;
 }
+
+// 👤 แตะชื่อในอันดับ → ชั้นที่คนนั้นนับ/ตรวจใน 30 วัน (Ball 2026-11-21)
+//   แยกตามวัน → Gondola (รวมชั้น+พื้น) · บทบาท · รายการ · เวลาแรก–สุดท้าย · ตรง/วัดได้ (จาก perfAccuracy)
+function perfShowUser(uidEnc) {
+  const uid = decodeURIComponent(uidEnc);
+  const d = _perfData; if (!d) return;
+  const u = (d.scored || []).find(x => x.userId === uid); if (!u) return;
+  const isLao = lang === 'lo', L = (lo, th) => isLao ? lo : th;
+  const acc = (d.accMap && d.accMap[uid] && d.accMap[uid].by) || {};
+  const G = {};
+  (u.counts || []).forEach(c => {
+    const lk = String(c.location_code || c.gondola_code || '?').toUpperCase().trim();
+    const base = _cvBase(lk);
+    const k = c.session_id + '|' + base;
+    const g = G[k] = G[k] || { k, base, sid: c.session_id, br: c.branch_id, roles: new Set(), prods: new Set(), rows: 0, floor: false, first: null, last: null };
+    const role = (c.count_role === 'verifier' || c.count_role === 'audit') ? 'V' : 'C';
+    g.roles.add(role); if (c.product_id) g.prods.add(c.product_id); g.rows++;
+    if (lk !== base) g.floor = true;
+    if (!g.first || c.counted_at < g.first) g.first = c.counted_at;
+    if (!g.last || c.counted_at > g.last) g.last = c.counted_at;
+  });
+  const list = Object.values(G).sort((a, b) => (b.last || '').localeCompare(a.last || ''));
+  const multiBr = new Set(list.map(g => g.br)).size > 1;
+  const byDay = {};
+  list.forEach(g => { const dk = localDayKey(g.first) || '?'; (byDay[dk] = byDay[dk] || []).push(g); });
+  const fmtDay = dk => { const x = new Date(dk + 'T00:00:00'); return isNaN(x) ? dk : x.toLocaleDateString(isLao ? 'lo-LA' : 'th-TH', { weekday: 'short', day: 'numeric', month: 'short' }); };
+  let okT = 0, nT = 0;
+  const rowHtml = g => {
+    const a = acc[g.k]; if (a) { okT += a.ok; nT += a.n; }
+    const accTxt = a && a.n ? '<span style="font-weight:800;color:' + (a.ok === a.n ? 'var(--emerald-600, #059669)' : 'var(--rose-600, #e11d48)') + ';">' + (a.ok === a.n ? '✓ ' : '✗ ') + a.ok + '/' + a.n + '</span>' : '<span style="color:var(--slate-400);">–</span>';
+    const roleTxt = [...g.roles].sort().map(r => r === 'C' ? '<span style="background:var(--teal-50, #f0fdfa);color:var(--teal-700, #0f766e);border-radius:5px;padding:0 5px;font-weight:800;">' + L('ນັບ', 'นับ') + '</span>' : '<span style="background:var(--violet-50, #f5f3ff);color:var(--violet-600, #7c3aed);border-radius:5px;padding:0 5px;font-weight:800;">' + L('ກວດ', 'ตรวจ') + '</span>').join(' ');
+    return '<tr style="border-bottom:1px solid var(--slate-100);">'
+      + '<td style="padding:6px 6px;font-family:\'Space Grotesk\',monospace;font-weight:800;font-size:12px;white-space:nowrap;">' + escapeHtml(g.base) + (g.floor ? ' <span style="font-size:9px;color:var(--amber-600, #d97706);">+' + L('ພື້ນ', 'พื้น') + '</span>' : '') + (multiBr ? '<div style="font-size:9px;color:var(--slate-400);font-weight:600;">#' + escapeHtml(String(g.br)) + '</div>' : '') + '</td>'
+      + '<td style="padding:6px 4px;font-size:10px;white-space:nowrap;">' + roleTxt + '</td>'
+      + '<td style="padding:6px 4px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;">' + g.prods.size + '</td>'
+      + '<td style="padding:6px 4px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;color:var(--slate-500);white-space:nowrap;">' + _gtClock(g.first) + '–' + _gtClock(g.last) + '</td>'
+      + '<td style="padding:6px 6px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;white-space:nowrap;">' + accTxt + '</td></tr>';
+  };
+  const th = (t, al) => '<th style="padding:5px 4px;text-align:' + (al || 'right') + ';font-size:10px;color:var(--slate-500);font-weight:700;border-bottom:1px solid var(--slate-200);">' + t + '</th>';
+  const body = Object.keys(byDay).sort().reverse().map(dk =>
+    '<div style="font-size:11px;font-weight:800;color:var(--slate-700);margin:10px 0 4px;">📅 ' + escapeHtml(fmtDay(dk)) + ' · ' + byDay[dk].length + L(' ຈຸດ', ' จุด') + '</div>'
+    + '<div style="overflow-x:auto;border:1px solid var(--slate-200);border-radius:9px;"><table style="width:100%;border-collapse:collapse;">'
+    + '<tr>' + th('Gondola', 'left') + th(L('ໜ້າທີ່', 'หน้าที่'), 'left') + th(L('ລາຍການ', 'รายการ')) + th(L('ເວລາ', 'เวลา')) + th(L('ກົງ', 'ตรง')) + '</tr>'
+    + byDay[dk].map(rowHtml).join('') + '</table></div>').join('');
+  showModal('<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:4px;"><div style="flex:1;min-width:0;">'
+    + '<h3 style="margin:0;font-size:16px;">👤 ' + escapeHtml(u.userName) + '</h3>'
+    + '<div style="font-size:11px;color:var(--slate-500);margin-top:2px;">' + L('30 ວັນຫຼ້າສຸດ · ', '30 วันล่าสุด · ') + list.length + L(' ຈຸດ · ', ' จุด · ') + u.total + L(' ຄັ້ງ', ' ครั้ง')
+    + (nT ? ' · ' + L('ກົງ ', 'ตรง ') + okT + '/' + nT + ' (' + (okT / nT * 100).toFixed(1) + '%)' : '') + '</div></div>'
+    + '<button onclick="closeModal()" style="background:none;border:none;font-size:20px;color:var(--slate-400);cursor:pointer;">✕</button></div>'
+    + (list.length ? body : '<div style="text-align:center;padding:24px;color:var(--slate-400);font-size:12px;">' + L('ບໍ່ມີການນັບໃນ 30 ວັນ', 'ไม่มีการนับใน 30 วัน') + '</div>')
+    + '<div style="font-size:10px;color:var(--slate-500);margin-top:10px;line-height:1.5;">' + L('ຈຸດ = Gondola (ລວມຊັ້ນ+ພື້ນ) · ລາຍການ = ສິນຄ້າທີ່ສະແກນ · ກົງ = ຍອດ (ສິນຄ້າ × ຊັ້ນ/ພື້ນ) ທີ່ກົງກັບຍອດສຸດທ້າຍ / ຍອດທີ່ວັດໄດ້ (– = ຍັງບໍ່ຕັດສິນ)', 'จุด = Gondola (รวมชั้น+พื้น) · รายการ = สินค้าที่สแกน · ตรง = ยอด (สินค้า × ชั้น/พื้น) ที่ตรงกับยอดสุดท้าย / ยอดที่วัดได้ (– = ยังไม่ตัดสิน)') + '</div>');
+}
+window.perfShowUser = perfShowUser;
 
 /**
  * Render 7-day daily count trend for current user (sparkline-like bar chart)
