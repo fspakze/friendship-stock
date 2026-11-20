@@ -44335,6 +44335,14 @@ function _calDayKey(iso) { return localDayKey(new Date(iso)); }
 function _calTime(iso) { const d = new Date(iso); return d.toLocaleTimeString(lang === 'lo' ? 'lo-LA' : 'th-TH', { hour: '2-digit', minute: '2-digit' }); }
 function _calDateLabel(key) { const d = new Date(key + 'T00:00:00'); return d.toLocaleDateString(lang === 'lo' ? 'lo-LA' : 'th-TH', { weekday: 'short', day: 'numeric', month: 'short' }); }
 function _calEndOf(ev) { return new Date(ev.end_at || ev.start_at); }
+// 📆 งานหลายวัน (Ball 2026-11-20): แสดงทุกช่องวัน ตั้งแต่วันเริ่มถึงวันสิ้นสุด · เดิมโชว์แค่วันเริ่ม = ไม่รู้ว่างานกี่วัน
+function _calSpanKeys(ev) {
+  const s0 = _calDayKey(ev.start_at), e0 = ev.end_at ? _calDayKey(ev.end_at) : s0;
+  const out = [s0]; if (e0 <= s0) return out;
+  const d = new Date(s0 + 'T00:00:00');
+  for (let i = 0; i < 61; i++) { d.setDate(d.getDate() + 1); const k = localDayKey(d); if (k > e0) break; out.push(k); }
+  return out;
+}
 function _calMissingTable(err) { const m = String((err && (err.message || err.code)) || ''); return /42P01|PGRST205|calendar_events/.test(m) && /not exist|could not find|42P01|PGRST205/i.test(m); }
 // 🏪 หลายสาขาต่องาน (Ball 2026-11-13): คอลัมน์ branch_ids (SQL\calendar_branch_ids.sql) · ยังไม่รัน SQL = เลือกได้ทีละสาขา
 let _calHasBranchIds = null, _calBranches = null;
@@ -44443,7 +44451,10 @@ function _calEventRow(ev, showDate) {
   const c = CAL_CATS[ev.category] || CAL_CATS.other, st = CAL_STATUS[ev.status] || CAL_STATUS.todo;
   const late = (ev.status === 'todo' || ev.status === 'doing') && _calEndOf(ev) < new Date();
   const who = (ev.assignees || []).map(a => a.name).filter(Boolean);
-  const timeTxt = ev.all_day ? _calL('ທັງມື້', 'ทั้งวัน') : _calTime(ev.start_at) + (ev.end_at && _calDayKey(ev.end_at) === _calDayKey(ev.start_at) ? '–' + _calTime(ev.end_at) : '');
+  const _span = _calSpanKeys(ev);
+  const timeTxt = (_span.length > 1)
+    ? '📆 ' + _calDateLabel(_span[0]) + ' – ' + _calDateLabel(_span[_span.length - 1]) + ' (' + _span.length + _calL(' ມື້', ' วัน') + ')' + (ev.all_day ? '' : ' · ' + _calTime(ev.start_at) + '–' + _calTime(ev.end_at))
+    : (ev.all_day ? _calL('ທັງມື້', 'ทั้งวัน') : _calTime(ev.start_at) + (ev.end_at && _calDayKey(ev.end_at) === _calDayKey(ev.start_at) ? '–' + _calTime(ev.end_at) : ''));
   return '<div onclick="calOpenDetail(' + ev.id + ')" style="display:flex;gap:9px;align-items:flex-start;padding:9px 10px;background:white;border:1px solid ' + (late ? 'var(--rose-300)' : 'var(--slate-200)') + ';border-radius:10px;margin-bottom:6px;cursor:pointer;' + (ev.status === 'done' || ev.status === 'cancel' ? 'opacity:.6;' : '') + '">'
     + '<div style="width:34px;height:34px;border-radius:9px;background:' + c.color + '1a;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;">' + c.icon + '</div>'
     + '<div style="flex:1;min-width:0;">'
@@ -44518,7 +44529,7 @@ function _calMonthGrid(evs, m) {
   const startOffset = (first.getDay() + 6) % 7;                 // จันทร์ = คอลัมน์แรก
   const days = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
   const byDay = {};
-  evs.forEach(ev => { const k = _calDayKey(ev.start_at); (byDay[k] = byDay[k] || []).push(ev); });
+  evs.forEach(ev => { const ks = _calSpanKeys(ev); ks.forEach((k, i) => (byDay[k] = byDay[k] || []).push({ ev, i, n: ks.length })); });
   const today = localDayKey(new Date());
   const wd = lang === 'lo' ? ['ຈ', 'ອ', 'ພ', 'ພຫ', 'ສ', 'ສ', 'ອາ'] : ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'];
   let g = '<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;">' + wd.map(w => '<div style="text-align:center;font-size:10px;font-weight:800;color:var(--slate-500);padding:3px 0;">' + w + '</div>').join('');
@@ -44529,13 +44540,21 @@ function _calMonthGrid(evs, m) {
     const sel = _cal.selDay === k, isToday = k === today;
     g += '<div onclick="calSelDay(\'' + k + '\')" style="min-height:64px;background:' + (sel ? 'var(--sky-50,#f0f9ff)' : 'white') + ';border:' + (sel ? '2px solid var(--sky-500)' : '1px solid var(--slate-200)') + ';border-radius:7px;padding:3px;cursor:pointer;overflow:hidden;min-width:0;">'
       + '<div style="font-size:10.5px;font-weight:800;' + (isToday ? 'background:var(--emerald-500);color:white;border-radius:9px;display:inline-block;padding:0 6px;' : 'color:var(--slate-600);') + '">' + d + '</div>'
-      + list.slice(0, 3).map(ev => { const c = CAL_CATS[ev.category] || CAL_CATS.other; return '<div style="font-size:9.5px;background:' + c.color + '1a;color:' + c.color + ';border-radius:4px;padding:1px 3px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700;">' + c.icon + ' ' + escapeHtml(ev.title) + '</div>'; }).join('')
+      + list.slice(0, 3).map(({ ev, i, n }) => {
+          const c = CAL_CATS[ev.category] || CAL_CATS.other;
+          if (n <= 1) return '<div style="font-size:9.5px;background:' + c.color + '1a;color:' + c.color + ';border-radius:4px;padding:1px 3px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700;">' + c.icon + ' ' + escapeHtml(ev.title) + '</div>';
+          // แถบหลายวัน: หัวมน = วันแรก · ท้ายมน = วันสุดท้าย · ยื่นเลยขอบช่องให้ดูต่อกัน
+          const first = i === 0, last = i === n - 1;
+          const rad = (first ? '4px' : '0') + ' ' + (last ? '4px' : '0') + ' ' + (last ? '4px' : '0') + ' ' + (first ? '4px' : '0');
+          return '<div style="font-size:9.5px;background:' + c.color + '33;color:' + c.color + ';border-radius:' + rad + ';padding:1px 3px;margin-top:2px;margin-left:' + (first ? '0' : '-4px') + ';margin-right:' + (last ? '0' : '-4px') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700;">'
+            + (first ? c.icon + ' ' : '→ ') + escapeHtml(ev.title) + ' <span style="font-weight:600;opacity:.75;">' + (i + 1) + '/' + n + '</span></div>';
+        }).join('')
       + (list.length > 3 ? '<div style="font-size:9px;color:var(--slate-500);margin-top:1px;">+' + (list.length - 3) + '</div>' : '')
       + '</div>';
   }
   g += '</div>';
   if (_cal.selDay) {
-    const list = byDay[_cal.selDay] || [];
+    const list = (byDay[_cal.selDay] || []).map(x => x.ev);
     g += '<div style="font-size:12px;font-weight:800;color:var(--slate-700);margin:12px 0 6px;">' + escapeHtml(_calDateLabel(_cal.selDay)) + ' (' + list.length + ')</div>'
       + (list.length ? list.map(ev => _calEventRow(ev, false)).join('') : '<div style="font-size:11px;color:var(--slate-400);">' + L('ບໍ່ມີວຽກ', 'ไม่มีงาน') + '</div>');
   }
