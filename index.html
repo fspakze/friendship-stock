@@ -28580,7 +28580,7 @@ let _varStageFilter = 'all';          // all | wait | ctl | bcs | real | done
 const _varOpenGons = new Set();       // Gondola ที่กางอยู่
 function _varStageGroup(k) {
   if (k === 'wait_v' || k === 'wait_c' || k === 'none') return 'wait';
-  if (k === 'need_ctl' || k === 'v_skip') return 'ctl';
+  if (k === 'need_ctl' || k === 'v_skip' || k === 'c_skip') return 'ctl';
   if (k === 'need_bcs') return 'bcs';
   if (k === 'cv_real') return 'real';
   return 'done';   // cv_match · tb_done · bcs_done
@@ -28638,7 +28638,8 @@ function varStage(p) {
     // ✅ Counter ตรง POS + ไม่ถูกสุ่ม → ไม่ต้องรอ Verifier (Ball 2026-11-17 · นับ V เฉพาะ Diff + สุ่ม 10%)
     if (!rows.some(r => r.st === 'wait_c') && rows.some(r => r.st === 'wait_v') && !vfRequired(p))
       return rows.some(r => r.v !== null) ? { key: 'cv_match', tone: 'ok' } : { key: 'c_match', tone: 'ok' };
-    if (p.diff !== 0 && rows.some(r => r.st === 'wait_v' && _varVDone.has(r.base))) return { key: 'v_skip', tone: 'warn' };   // Verifier ปิดจุดแล้วไม่ได้นับ → CTL
+    if (p.diff !== 0 && rows.some(r => r.st === 'wait_v' && _varVDone.has(r.base))) return { key: 'v_skip', tone: 'warn' };
+    if (p.diff !== 0 && rows.some(r => r.st === 'wait_c' && _varVDone.has(r.base))) return { key: 'c_skip', tone: 'warn' };   // V นับแล้ว Counter ข้าม + ปิดจุดแล้ว → CTL   // Verifier ปิดจุดแล้วไม่ได้นับ → CTL
     if (rows.some(r => r.st === 'wait_v')) return { key: 'wait_v', tone: 'wait' };
     if (rows.some(r => r.st === 'wait_c')) return { key: 'wait_c', tone: 'wait' };
     return { key: (p.diff === 0 ? 'cv_match' : 'cv_real'), tone: 'ok' };
@@ -28658,6 +28659,7 @@ function varStageHtml(p, isLao) {
     c_match:  isLao ? '✅ Counter ກົງ POS (ບໍ່ຕ້ອງ Verify)' : '✅ Counter ตรง POS (ไม่ต้อง Verify)',
     cv_real:  isLao ? '✅ Counter=Verifier → Diff ຈິງ' : '✅ Counter=Verifier → Diff จริง',
     need_ctl: isLao ? '⚖️ ບໍ່ກົງ → ລໍຖ້າ CTL ຕັດສິນ' : '⚖️ ไม่ตรง → รอ CTL ตัดสิน',
+    c_skip:   isLao ? '⚠️ Counter ຂ້າມ (ປິດຈຸດແລ້ວ) → CTL ນັບ/ຕັດສິນ' : '⚠️ Counter ข้าม (ปิดจุดแล้ว) → CTL นับ/ตัดสิน',
     v_skip:   isLao ? '⚠️ Verifier ຂ້າມ (ປິດຈຸດແລ້ວ) → CTL ນັບ/ຕັດສິນ' : '⚠️ Verifier ข้าม (ปิดจุดแล้ว) → CTL นับ/ตัดสิน',
     wait_v:   isLao ? '⏳ ລໍຖ້າ Verifier' : '⏳ รอ Verifier',
     wait_c:   isLao ? '⏳ ລໍຖ້າ Counter' : '⏳ รอ Counter',
@@ -29351,6 +29353,8 @@ function _csumHint(r) {
   const buyD = _csumDays(r.lastBuy), saleD = _csumDays(r.lastSale);
   if ((Number(r.pos) || 0) < 0)
     return _csumL('POS ຕິດລົບ — ກວດຮັບເຄື່ອງທີ່ຍັງບໍ່ໄດ້ຄີ / ຂາຍຜິດບາໂຄດ → ແກ້ໃນ POS ກ່ອນປິດຮອບ', 'POS ติดลบ — ตรวจรับของที่ยังไม่ได้คีย์ / ขายผิดบาร์โค้ด → แก้ใน POS ก่อนปิดรอบ');
+  if (r.stageKey === 'c_skip')
+    return _csumL('Counter ຂ້າມ (ປິດຈຸດແລ້ວ) — CTL ນັບແລ້ວໃສ່ຍອດຕັດສິນ', 'Counter ข้าม (ปิดจุดแล้ว) — CTL นับแล้วใส่ยอดตัดสิน');
   if (r.stageKey === 'v_skip')
     return _csumL('Verifier ຂ້າມ (ປິດຈຸດແລ້ວ) — CTL ນັບແລ້ວໃສ່ຍອດຕັດສິນ', 'Verifier ข้าม (ปิดจุดแล้ว) — CTL นับแล้วใส่ยอดตัดสิน');
   if (r.stageKey === 'wait_v' || r.stageKey === 'wait_c' || r.stageKey === 'need_ctl')
@@ -29849,7 +29853,7 @@ function _csumDiffStage(k) {
   if (k === 'uncA') return { done: false, unc: true, t: _csumL('🔍 ບໍ່ໄດ້ນັບ (A)', '🔍 ไม่ได้นับ (A)'), c: 'var(--amber-700, #b45309)', b: 'var(--amber-50, #fffbeb)' };
   if (k === 'uncB') return { done: false, unc: true, t: _csumL('🔍 ບໍ່ໄດ້ນັບ (B)', '🔍 ไม่ได้นับ (B)'), c: 'var(--amber-700, #b45309)', b: 'var(--amber-50, #fffbeb)' };
   if (['bcs_done', 'tb_done', 'cv_match', 'cv_real', 'c_match'].includes(k)) return { done: true, t: _csumL('✅ ຢືນຢັນແລ້ວ', '✅ ยืนยันแล้ว'), c: 'var(--emerald-700, #047857)', b: 'var(--emerald-50, #ecfdf5)' };
-  if (k === 'need_bcs' || k === 'need_ctl' || k === 'v_skip') return { done: false, t: _csumL('⚖️ ລໍຖ້າຕັດສິນ', '⚖️ รอตัดสิน'), c: 'var(--rose-700, #be123c)', b: 'var(--rose-50, #fff1f2)' };
+  if (k === 'need_bcs' || k === 'need_ctl' || k === 'v_skip' || k === 'c_skip') return { done: false, t: _csumL('⚖️ ລໍຖ້າຕັດສິນ', '⚖️ รอตัดสิน'), c: 'var(--rose-700, #be123c)', b: 'var(--rose-50, #fff1f2)' };
   return { done: false, t: _csumL('⏳ ນັບຍັງບໍ່ຄົບ', '⏳ นับยังไม่ครบ'), c: 'var(--sky-700, #0369a1)', b: 'var(--sky-50, #f0f9ff)' };
 }
 function _csumDiffUnc(r) {
@@ -30373,7 +30377,7 @@ async function csumExport() {
     add(L('ຕາມກຸ່ມສິນຄ້າ', 'ตามกลุ่มสินค้า'), [[L('ປະເພດ', 'ประเภท'), L('ກຸ່ມສິນຄ້າ', 'กลุ่มสินค้า')].concat(gh)].concat(
       _csumGroup(d.done, r => r.cat + '\u0001' + r.grp).map(g => g.key.split('\u0001').concat(gv(g)))), [26, 32].concat(gh.map(() => 11)));
     // 4-7) รายการ
-    const stTxt = k => ({ bcs_done: L('BCS ຢືນຢັນແລ້ວ', 'BCS ยืนยันแล้ว'), tb_done: L('ຕັດສິນແລ້ວ', 'ตัดสินแล้ว'), need_bcs: L('3 ຄົນບໍ່ກົງ → BCS', '3 คนไม่ตรง → BCS'), cv_match: L('ນັບກົງກັນ', 'นับตรงกัน'), c_match: L('Counter ກົງ POS', 'Counter ตรง POS'), cv_real: L('C=V → Diff ຈິງ', 'C=V → Diff จริง'), need_ctl: L('ລໍຖ້າ CTL', 'รอ CTL'), v_skip: L('Verifier ຂ້າມ → CTL', 'Verifier ข้าม → CTL'), wait_v: L('ລໍຖ້າ Verifier', 'รอ Verifier'), wait_c: L('ລໍຖ້າ Counter', 'รอ Counter'), none: '-' }[k] || k);
+    const stTxt = k => ({ bcs_done: L('BCS ຢືນຢັນແລ້ວ', 'BCS ยืนยันแล้ว'), tb_done: L('ຕັດສິນແລ້ວ', 'ตัดสินแล้ว'), need_bcs: L('3 ຄົນບໍ່ກົງ → BCS', '3 คนไม่ตรง → BCS'), cv_match: L('ນັບກົງກັນ', 'นับตรงกัน'), c_match: L('Counter ກົງ POS', 'Counter ตรง POS'), cv_real: L('C=V → Diff ຈິງ', 'C=V → Diff จริง'), need_ctl: L('ລໍຖ້າ CTL', 'รอ CTL'), c_skip: L('Counter ຂ້າມ → CTL', 'Counter ข้าม → CTL'), v_skip: L('Verifier ຂ້າມ → CTL', 'Verifier ข้าม → CTL'), wait_v: L('ລໍຖ້າ Verifier', 'รอ Verifier'), wait_c: L('ລໍຖ້າ Counter', 'รอ Counter'), none: '-' }[k] || k);
     const ih = ['Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ປະເພດ', 'ประเภท'), L('ກຸ່ມສິນຄ້າ', 'กลุ่มสินค้า'), L('ຍີ່ຫໍ້', 'ยี่ห้อ'), 'Gondola', 'POS', L('ນັບໄດ້', 'นับได้'), 'Diff', 'Diff %', L('ຕົ້ນທຶນ ₭', 'ต้นทุน ₭'), 'POS ₭', L('ນັບໄດ້ ₭', 'นับได้ ₭'), 'Diff ₭', L('Diff ₭ (ລາຄາຂາຍ)', 'Diff ₭ (ราคาขาย)'), 'Level', 'Counter', 'Verifier', 'CTL', 'BCS', L('ຂັ້ນຕອນ', 'ขั้นตอน'), L('ປິດຂາຍໃນ POS', 'ปิดขายใน POS'), 'Buyer', L('ຊື້ລ່າສຸດ', 'ซื้อล่าสุด'), L('ຂາຍລ່າສຸດ', 'ขายล่าสุด'), 'AVG/' + L('ເດືອນ', 'เดือน'), 'Aging', L('ແນະນຳຫາສາເຫດ', 'แนะนำหาสาเหตุ')];
     const iv = r => [r.bc, r.name, r.cat, r.grp, r.brand, r.gons, r.pos, r.fin, r.diff, Number(r.pct.toFixed(1)), r.cost, Math.round(r.posV), Math.round(r.finV), Math.round(r.diffV), Math.round(r.diffSellV), r.level,
       r.c ?? '', r.v ?? '', r.t ?? '', r.mgr ?? '', stTxt(r.stageKey), r.posClosed ? '⛔' : '', r.buyer, r.lastBuy, r.lastSale, r.avgM, r.aging, r.hint];
