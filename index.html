@@ -29500,6 +29500,7 @@ function csumEntryHtml(isLao) {
     + btn('csumOpen(\'summary\')', 'var(--fs-blue, #0E357F)', '📊 ' + (isLao ? 'ສະຫຼຸບຜົນນັບສະຕ໋ອກ' : 'สรุปผลนับสต๊อก'))
     + btn('csumOpen(\'uncounted\')', 'var(--rose-500)', '🔍 ' + (isLao ? 'ມີສະຕ໋ອກ ແຕ່ບໍ່ໄດ້ນັບ' : 'มีสต๊อกแต่ไม่ได้นับ'))
     + btn('csumOpen(\'gondola\')', 'var(--sky-600, #0284c7)', '📍 ' + (isLao ? 'ສະຫຼຸບຕໍ່ຊັ້ນວາງ' : 'สรุปต่อชั้นวาง'))
+    + btn('csumOpen(\'diffs\')', 'var(--amber-600, #d97706)', '📉📈 ' + (isLao ? 'ລາຍການຂາດ/ເກີນ ສູງ' : 'รายการขาด/เกิน สูง'))
     + btn('csumOpen(\'negative\')', 'var(--rose-700, #be123c)', '⚠️ ' + (isLao ? 'POS ຕິດລົບ' : 'POS ติดลบ'))
     + btn('csumOpen(\'track\')', 'var(--violet-600, #7c3aed)', '🎯 ' + (isLao ? 'ຕິດຕາມສິນຄ້ານັບສະຕ໋ອກ' : 'ติดตามสินค้านับสต๊อก'))
     + btn('csumOpen(\'time\')', 'var(--teal-600, #0d9488)', '⏱️ ' + (isLao ? 'ເວລາຕໍ່ Gondola' : 'เวลาต่อ Gondola'))
@@ -29712,6 +29713,7 @@ function csumRenderView() {
     + '<button onclick="csumOpen(\'summary\')" style="background:' + (_csumView === 'summary' ? 'var(--fs-blue, #0E357F)' : 'white') + ';color:' + (_csumView === 'summary' ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">📊 ' + L('ສະຫຼຸບ', 'สรุป') + '</button>'
     + '<button onclick="csumOpen(\'uncounted\')" style="background:' + (_csumView === 'uncounted' ? 'var(--rose-500)' : 'white') + ';color:' + (_csumView === 'uncounted' ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">🔍 ' + L('ບໍ່ໄດ້ນັບ', 'ไม่ได้นับ') + ' (' + (d.uncA.length + d.uncB.length) + ')</button>'
     + '<button onclick="csumOpen(\'gondola\')" style="background:' + (_csumView === 'gondola' ? 'var(--sky-600, #0284c7)' : 'white') + ';color:' + (_csumView === 'gondola' ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">📍 ' + L('ຕໍ່ຊັ້ນວາງ', 'ต่อชั้นวาง') + '</button>'
+    + '<button onclick="csumOpen(\'diffs\')" style="background:' + (_csumView === 'diffs' ? 'var(--amber-600, #d97706)' : 'white') + ';color:' + (_csumView === 'diffs' ? 'white' : 'var(--slate-700)') + ';border:1px solid ' + (_csumView === 'diffs' ? 'var(--amber-600, #d97706)' : 'var(--slate-300)') + ';border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">📉📈 ' + L('ຂາດ/ເກີນ', 'ขาด/เกิน') + '</button>'
     + '<button onclick="csumOpen(\'negative\')" style="background:' + (_csumView === 'negative' ? 'var(--rose-700, #be123c)' : 'white') + ';color:' + (_csumView === 'negative' ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">⚠️ ' + L('POS ຕິດລົບ', 'POS ติดลบ') + ' (' + (d.neg || []).length + ')</button>'
     + '<button onclick="csumOpen(\'time\')" style="background:white;color:var(--slate-700);border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">⏱️ ' + L('ເວລາ', 'เวลา') + '</button>'
     + '<button onclick="csumOpen(\'track\')" style="background:' + (_csumView === 'track' ? 'var(--violet-600, #7c3aed)' : 'white') + ';color:' + (_csumView === 'track' ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">🎯 ' + L('ຕິດຕາມ', 'ติดตาม') + '</button>'
@@ -29720,6 +29722,7 @@ function csumRenderView() {
     + '<button onclick="csumExport()" style="background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">⬇ Excel ' + L('ສະຫຼຸບຜົນ', 'สรุปผล') + '</button>'
     + '</div>';
   if (_csumView === 'track') return top + _csumTrackHtml(d, isLao);
+  if (_csumView === 'diffs') return top + _csumDiffHtml(d, isLao);
   return top + (_csumView === 'uncounted' ? _csumUncHtml(d, isLao) : (_csumView === 'negative' ? _csumNegHtml(d, isLao) : (_csumView === 'gondola' ? _csumGonHtml(d, isLao) : _csumSumHtml(d, isLao))));
 }
 
@@ -29809,6 +29812,105 @@ function _csumGonHtml(d, isLao) {
 }
 
 // ⚠️ POS ติดลบ — นับแล้ว + ยังไม่ได้นับ (Ball 2026-11-16)
+// 📉📈 รายการขาด/เกิน สูง (Ball 2026-11-21) — ไล่ตรวจสอบ/แก้ไข · เฉพาะสินค้าที่นับแล้ว (ไม่ได้นับ → หน้า 🔍)
+//   แท็บ ขาด (diff−) / เกิน (diff+) / ทั้งหมด · เรียง มูลค่า (ต้นทุน) / จำนวน / % ของ POS · กรองสถานะ ยังไม่จบ / ยืนยันแล้ว
+let _csumDiffDir = 'minus';   // minus | plus | all
+let _csumDiffSort = 'val';    // val | qty | pct
+let _csumDiffSt = 'all';      // all | open | done
+function csumDiffSet(k, v) {
+  if (k === 'dir') _csumDiffDir = ['plus', 'all'].includes(v) ? v : 'minus';
+  else if (k === 'sort') _csumDiffSort = ['qty', 'pct'].includes(v) ? v : 'val';
+  else if (k === 'st') _csumDiffSt = ['open', 'done'].includes(v) ? v : 'all';
+  renderVarianceList();
+}
+window.csumDiffSet = csumDiffSet;
+function _csumDiffStage(k) {
+  if (['bcs_done', 'tb_done', 'cv_match', 'cv_real', 'c_match'].includes(k)) return { done: true, t: _csumL('✅ ຢືນຢັນແລ້ວ', '✅ ยืนยันแล้ว'), c: 'var(--emerald-700, #047857)', b: 'var(--emerald-50, #ecfdf5)' };
+  if (k === 'need_bcs' || k === 'need_ctl') return { done: false, t: _csumL('⚖️ ລໍຖ້າຕັດສິນ', '⚖️ รอตัดสิน'), c: 'var(--rose-700, #be123c)', b: 'var(--rose-50, #fff1f2)' };
+  return { done: false, t: _csumL('⏳ ນັບຍັງບໍ່ຄົບ', '⏳ นับยังไม่ครบ'), c: 'var(--sky-700, #0369a1)', b: 'var(--sky-50, #f0f9ff)' };
+}
+function _csumDiffList(d) {
+  let list = (d.done || []).filter(r => r.diff !== 0 && r.diff != null);
+  if (_csumDiffDir === 'minus') list = list.filter(r => r.diff < 0);
+  else if (_csumDiffDir === 'plus') list = list.filter(r => r.diff > 0);
+  if (_csumDiffSt !== 'all') list = list.filter(r => _csumDiffStage(r.stageKey).done === (_csumDiffSt === 'done'));
+  const key = _csumDiffSort === 'qty' ? (r => Math.abs(r.diff)) : (_csumDiffSort === 'pct' ? (r => r.pct || 0) : (r => Math.abs(r.diffV || 0)));
+  return list.slice().sort((a, b) => key(b) - key(a) || Math.abs(b.diffV || 0) - Math.abs(a.diffV || 0));
+}
+function _csumDiffHtml(d, isLao) {
+  const L = _csumL, N = _csumN;
+  const all = (d.done || []).filter(r => r.diff !== 0 && r.diff != null);
+  const mi = all.filter(r => r.diff < 0), pl = all.filter(r => r.diff > 0);
+  const sq = a => a.reduce((s, r) => s + r.diff, 0), sv = a => a.reduce((s, r) => s + (r.diffV || 0), 0);
+  const card = (label, sku, q, v, color) => '<div style="background:white;border:1px solid var(--slate-200);border-radius:9px;padding:8px 10px;"><div style="font-size:10px;color:var(--slate-500);font-weight:700;">' + label + '</div>'
+    + '<div style="font-size:15px;font-weight:800;color:' + color + ';font-family:\'Space Grotesk\',monospace;">₭' + N(v) + '</div>'
+    + '<div style="font-size:10px;color:var(--slate-500);">' + sku + ' SKU · ' + (q > 0 ? '+' : '') + N(q) + L(' ຊິ້ນ', ' ชิ้น') + '</div></div>';
+  const pill = (k, v, cur, lbl, on) => '<button onclick="csumDiffSet(\'' + k + '\',\'' + v + '\')" style="background:' + (cur === v ? on : 'white') + ';color:' + (cur === v ? 'white' : 'var(--slate-600)') + ';border:1px solid ' + (cur === v ? on : 'var(--slate-300)') + ';border-radius:14px;padding:5px 11px;font-size:11px;font-weight:800;cursor:pointer;">' + lbl + '</button>';
+  const lbl = t => '<span style="font-size:10px;font-weight:700;color:var(--slate-500);min-width:40px;">' + t + '</span>';
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px;margin-bottom:9px;">'
+    + card('📉 ' + L('ຂາດ (Diff −)', 'ขาด (Diff −)'), mi.length, sq(mi), sv(mi), 'var(--rose-600, #e11d48)')
+    + card('📈 ' + L('ເກີນ (Diff +)', 'เกิน (Diff +)'), pl.length, sq(pl), sv(pl), 'var(--emerald-700, #047857)')
+    + card(L('ສຸດທິ', 'สุทธิ'), all.length, sq(all), sv(all), sv(all) < 0 ? 'var(--rose-600, #e11d48)' : 'var(--emerald-700, #047857)')
+    + '</div>'
+    + '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:9px;">'
+    + '<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;">' + lbl(L('ສະແດງ', 'แสดง'))
+    + pill('dir', 'minus', _csumDiffDir, '📉 ' + L('ຂາດ', 'ขาด') + ' ' + mi.length, 'var(--rose-600, #e11d48)')
+    + pill('dir', 'plus', _csumDiffDir, '📈 ' + L('ເກີນ', 'เกิน') + ' ' + pl.length, 'var(--emerald-600, #059669)')
+    + pill('dir', 'all', _csumDiffDir, L('ທັງໝົດ', 'ทั้งหมด') + ' ' + all.length, 'var(--slate-700)') + '</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;">' + lbl(L('ລຽງ', 'เรียง'))
+    + pill('sort', 'val', _csumDiffSort, '₭ ' + L('ມູນຄ່າ', 'มูลค่า'), 'var(--slate-800)')
+    + pill('sort', 'qty', _csumDiffSort, '# ' + L('ຈຳນວນ', 'จำนวน'), 'var(--slate-800)')
+    + pill('sort', 'pct', _csumDiffSort, '% ' + L('ຂອງ POS', 'ของ POS'), 'var(--slate-800)') + '</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;">' + lbl(L('ສະຖານະ', 'สถานะ'))
+    + pill('st', 'all', _csumDiffSt, L('ທັງໝົດ', 'ทั้งหมด'), 'var(--slate-700)')
+    + pill('st', 'open', _csumDiffSt, L('ຍັງບໍ່ຈົບ', 'ยังไม่จบ'), 'var(--sky-700, #0369a1)')
+    + pill('st', 'done', _csumDiffSt, L('ຢືນຢັນແລ້ວ', 'ยืนยันแล้ว'), 'var(--emerald-700, #047857)')
+    + '<span style="flex:1;"></span><button onclick="csumDiffExport()" style="background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:6px 11px;font-size:11px;font-weight:800;cursor:pointer;">⬇ Excel</button></div>'
+    + '</div>';
+  const list = _csumDiffList(d);
+  if (!list.length) return html + '<div style="text-align:center;padding:30px;color:var(--slate-400);font-size:12px;">' + L('ບໍ່ມີລາຍການ', 'ไม่มีรายการ') + '</div>';
+  const canJ = typeof varCanJudge === 'function' && varCanJudge();
+  const shown = list.slice(0, 300);
+  html += shown.map((r, i) => {
+    const st = _csumDiffStage(r.stageKey), neg = r.diff < 0;
+    const col = neg ? 'var(--rose-600, #e11d48)' : 'var(--emerald-700, #047857)';
+    const q = x => (x === null || x === undefined) ? '—' : x;
+    return '<div ' + (canJ ? 'onclick="varJudgeOpen(' + Number(r.pid) + ')" ' : '') + 'style="background:white;border:1px solid var(--slate-200);border-left:4px solid ' + col + ';border-radius:9px;padding:8px 10px;margin-bottom:5px;display:flex;gap:9px;align-items:center;' + (canJ ? 'cursor:pointer;' : '') + '">'
+      + '<div style="width:22px;text-align:center;font-size:10px;font-weight:800;color:var(--slate-400);flex-shrink:0;">' + (i + 1) + '</div>'
+      + '<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:700;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(r.name) + '</div>'
+      + '<div style="font-size:9px;color:var(--slate-500);font-family:monospace;margin-top:1px;">' + escapeHtml(r.bc) + (r.gons ? ' · 📍 ' + escapeHtml(r.gons) : '') + '</div>'
+      + '<div style="font-size:9px;color:var(--slate-500);margin-top:2px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">'
+      + '<span style="background:' + st.b + ';color:' + st.c + ';border-radius:5px;padding:0 5px;font-weight:800;">' + st.t + '</span>'
+      + '<span>C ' + q(r.c) + ' · V ' + q(r.v) + (r.t != null ? ' · CTL ' + r.t : '') + (r.mgr != null ? ' · BCS ' + r.mgr : '') + '</span>'
+      + (r.posClosed ? '<span style="color:var(--rose-600, #e11d48);font-weight:700;">⛔ ' + L('ປິດຂາຍ', 'ปิดขาย') + '</span>' : '') + '</div>'
+      + (r.hint ? '<div style="font-size:9px;color:var(--amber-700, #b45309);margin-top:2px;">💡 ' + escapeHtml(r.hint) + '</div>' : '') + '</div>'
+      + '<div style="text-align:right;flex-shrink:0;font-family:\'Space Grotesk\',monospace;">'
+      + '<div style="font-size:14px;font-weight:800;color:' + col + ';">' + (neg ? '' : '+') + N(r.diff) + '</div>'
+      + '<div style="font-size:10px;color:var(--slate-500);">POS ' + N(r.pos) + ' → ' + N(r.fin) + '</div>'
+      + '<div style="font-size:11px;font-weight:800;color:' + col + ';">' + (r.noCost ? '<span style="color:var(--slate-400);font-weight:600;">' + L('ບໍ່ມີຕົ້ນທຶນ', 'ไม่มีต้นทุน') + '</span>' : '₭' + N(r.diffV)) + '</div>'
+      + '</div></div>';
+  }).join('');
+  if (list.length > shown.length) html += '<div style="text-align:center;font-size:11px;color:var(--slate-500);padding:8px;">+' + (list.length - shown.length) + ' ' + L('ລາຍການ — ເບິ່ງທັງໝົດໃນ Excel', 'รายการ — ดูทั้งหมดใน Excel') + '</div>';
+  html += '<div style="font-size:10px;color:var(--slate-500);margin-top:6px;line-height:1.5;">' + L('ສະເພາະສິນຄ້າທີ່ນັບແລ້ວ (ບໍ່ໄດ້ນັບ → 🔍) · ມູນຄ່າ = Diff × ຕົ້ນທຶນຊື້ລ່າສຸດ · ແຕະລາຍການ = ໃສ່ຍອດຕັດສິນ', 'เฉพาะสินค้าที่นับแล้ว (ไม่ได้นับ → 🔍) · มูลค่า = Diff × ต้นทุนซื้อล่าสุด · แตะรายการ = ใส่ยอดตัดสิน') + '</div>';
+  return html;
+}
+function csumDiffExport() {
+  const d = _csum; if (!d) return;
+  const L = _csumL;
+  const list = _csumDiffList(d);
+  const head = ['#', 'Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ຈຸດທີ່ນັບ', 'จุดที่นับ'), 'POS', L('ນັບໄດ້', 'นับได้'), 'Diff', L('% ຂອງ POS', '% ของ POS'), L('ຕົ້ນທຶນ ₭', 'ต้นทุน ₭'), L('ມູນຄ່າ Diff ₭', 'มูลค่า Diff ₭'),
+    'Counter', 'Verifier', 'CTL', 'BCS', L('ສະຖານະ', 'สถานะ'), L('ປິດຂາຍໃນ POS', 'ปิดขายใน POS'), L('ຄຳແນະນຳ', 'คำแนะนำ')];
+  const aoa = [head].concat(list.map((r, i) => [i + 1, r.bc, r.name, r.gons, r.pos, r.fin, r.diff, Math.round((r.pct || 0) * 10) / 10, r.noCost ? '' : Math.round(r.cost || 0), r.noCost ? '' : Math.round(r.diffV || 0),
+    r.c, r.v, r.t, r.mgr, _csumDiffStage(r.stageKey).t, r.posClosed ? 'Y' : '', r.hint || '']));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [4, 15, 40, 18, 8, 8, 8, 9, 11, 13, 8, 8, 8, 8, 16, 8, 45].map(w => ({ wch: w }));
+  XLSX.utils.book_append_sheet(wb, ws, _csumDiffDir === 'plus' ? L('ເກີນ', 'เกิน') : (_csumDiffDir === 'all' ? L('ຂາດ-ເກີນ', 'ขาด-เกิน') : L('ຂາດ', 'ขาด')));
+  const bn = (branch && (branch.code || branch.id)) || '';
+  XLSX.writeFile(wb, 'Diff-' + _csumDiffDir + '_' + bn + '_' + localDayKey(new Date()) + '.xlsx');
+}
+window.csumDiffExport = csumDiffExport;
+
 function _csumNegHtml(d, isLao) {
   const L = _csumL, N = _csumN;
   const list = d.neg || [];
