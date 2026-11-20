@@ -28953,11 +28953,13 @@ function _vjWho(m, k) {
   return _whoSpan([r.user_id]);
 }
 // 👤 span ไอดีคนนับ (หลายคนได้) → เติม username ด้วย _vjFillWho(root)
-function _whoSpan(uids) {
+const _vjNameCache = {};   // user_id → full_name
+function _whoLbl(u, full) { const id = _vjUserCache[u]; const nm = _vjNameCache[u]; return full && nm && nm !== id ? id + ' · ' + nm : id; }
+function _whoSpan(uids, full) {
   const ids = [...new Set((uids || []).filter(Boolean).map(String))];
   if (!ids.length) return '';
   const known = ids.every(u => _vjUserCache[u]);
-  return ' <span class="vjWho" data-uid="' + escapeHtml(ids.join(',')) + '" style="color:var(--slate-700);font-weight:700;">' + (known ? '(' + escapeHtml(ids.map(u => _vjUserCache[u]).join(', ')) + ')' : '') + '</span>';
+  return ' <span class="vjWho" data-uid="' + escapeHtml(ids.join(',')) + '"' + (full ? ' data-full="1"' : '') + ' style="color:var(--slate-700);font-weight:700;">' + (known ? '(' + escapeHtml(ids.map(u => _whoLbl(u, full)).join(', ')) + ')' : '') + '</span>';
 }
 async function _vjFillWho(root) {
   const R = root || document.getElementById('modalContent'); if (!R) return;
@@ -28967,11 +28969,11 @@ async function _vjFillWho(root) {
     try {
       for (let i = 0; i < need.length; i += 200) {
         const { data: us } = await sb.from('users').select('id, username, full_name').in('id', need.slice(i, i + 200));
-        (us || []).forEach(u => { _vjUserCache[u.id] = u.username || u.full_name || '?'; });
+        (us || []).forEach(u => { _vjUserCache[u.id] = u.username || u.full_name || '?'; if (u.full_name) _vjNameCache[u.id] = u.full_name; });
       }
     } catch (e) {}
   }
-  els.forEach(e => { const n = (e.dataset.uid || '').split(',').map(u => _vjUserCache[u]).filter(Boolean); if (n.length) e.textContent = '(' + n.join(', ') + ')'; });
+  els.forEach(e => { const f = e.dataset.full === '1'; const n = (e.dataset.uid || '').split(',').filter(u => _vjUserCache[u]).map(u => _whoLbl(u, f)); if (n.length) e.textContent = '(' + n.join(', ') + ')'; });
 }
 function varJudgeOpen(productId, pOverride, blind) {
   const isLao = lang === 'lo', L = (lo, th) => isLao ? lo : th;
@@ -37272,7 +37274,7 @@ function wfIdleRender(list) {
       + ' <span style="font-size:10px;font-weight:700;color:' + (c ? 'var(--teal-700, #0f766e)' : 'var(--violet-600, #7c3aed)') + ';">' + (c ? L('ກຳລັງນັບ', 'กำลังนับ') : L('ກຳລັງກວດ', 'กำลังตรวจ')) + '</span></div>'
       + '<div style="font-size:11px;color:var(--rose-600, #e11d48);font-weight:700;">' + L('ບໍ່ມີການສະແກນ ', 'ไม่มีสแกน ') + Math.round(x.idle) + L(' ນາທີ', ' นาที')
       + (x.last ? '<span style="color:var(--slate-500);font-weight:600;"> · ' + L('ລ່າສຸດ ', 'ล่าสุด ') + _gtClock(x.last) + '</span>' : '') + '</div>'
-      + (x.uid ? '<div style="font-size:11px;color:var(--slate-600);">' + (c ? '👤 ' : '🔍 ') + _whoSpan([x.uid]) + '</div>' : '') + '</div>'
+      + (x.uid ? '<div style="font-size:11px;color:var(--slate-600);">' + (c ? '👤 ' : '🔍 ') + _whoSpan([x.uid], true) + '</div>' : '') + '</div>'
       + '<button onclick="wfIdleClose(\'' + enc + '\',\'' + x.status + '\')" style="background:var(--amber-500, #f59e0b);color:white;border:none;border-radius:9px;padding:8px 10px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;">✓ ' + (c ? L('ນັບແລ້ວ', 'นับเสร็จ') : L('ກວດແລ້ວ', 'ตรวจเสร็จ')) + '</button>'
       + '<button onclick="wfIdleSnooze(\'' + enc + '\',\'' + x.status + '\')" style="background:var(--slate-100);color:var(--slate-600);border:1px solid var(--slate-300);border-radius:9px;padding:8px 8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">' + (c ? L('ຍັງນັບຢູ່', 'ยังนับอยู่') : L('ຍັງກວດຢູ່', 'ยังตรวจอยู่')) + '</button>'
       + '</div>';
