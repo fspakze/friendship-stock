@@ -5391,6 +5391,7 @@ function renderApp() {
   // หน้าหลักหลัง login = แท็บแรกที่มองเห็น (ปกติ = ตรวจสต๊อก / ตอนนับสต๊อก counter-verifier = สแกน)
   goPage(getHomePage());
   armBackGuard();
+  wfIdleStart();   // ⏰ เตือน CTL ปิดจุดที่ไม่มีสแกนเกิน 10 นาที
 }
 
 // ==================== กันกดกลับแล้วออกจากแอปทันที ====================
@@ -29991,8 +29992,16 @@ function gtCompute(gs, sc, endTs) {
     const code = String(s.location_code || '').toUpperCase().trim();
     const g = by[code] || { cP: new Set(), cU: new Set(), vP: new Set(), vU: new Set(), cT: {}, vT: {} };
     const cntAct = gtActiveMin(g.cT), verAct = gtActiveMin(g.vT);
-    const cnt = _gtMin(s.counting_started_at, s.counting_finished_at);
-    const waitV = _gtMin(s.counting_finished_at, s.verifying_started_at);
+    // ⏱️ นับ = เริ่ม → สแกนชิ้นสุดท้ายของ Counter (Ball 2026-11-21 · เดิมจบที่เวลากดนับเสร็จ = ถ้ากดช้า เวลานับยาวเกินจริง)
+    //    ช่วงสแกนสุดท้าย→กดนับเสร็จ = closeLag (ปิดจุดช้า) · ไปรวมอยู่ใน "รอตรวจ" แทน
+    const cfMs = s.counting_finished_at ? new Date(s.counting_finished_at).getTime() : null;
+    let lastC = null;
+    if (cfMs != null) Object.values(g.cT).forEach(ts => ts.forEach(t => { const x = new Date(t).getTime(); if (!isNaN(x) && x <= cfMs && (lastC == null || x > lastC)) lastC = x; }));
+    let cEnd = lastC != null ? new Date(lastC).toISOString() : s.counting_finished_at;
+    let cnt = _gtMin(s.counting_started_at, cEnd);
+    if (cnt == null) { cEnd = s.counting_finished_at; cnt = _gtMin(s.counting_started_at, cEnd); }
+    const closeLag = s.counting_finished_at ? _gtMin(cEnd, s.counting_finished_at) : null;
+    const waitV = s.counting_finished_at ? _gtMin(cEnd, s.verifying_started_at) : null;
     const ver = _gtMin(s.verifying_started_at, s.verifying_finished_at);
     const done = s.status === 'completed';
     const judgeEnd = done ? (s.completed_at || g.jLast || s.updated_at) : null;
@@ -30005,7 +30014,7 @@ function gtCompute(gs, sc, endTs) {
     const endEv = judgeEnd || (judgePending ? endTs : null) || s.verifying_finished_at || s.counting_finished_at || g.last || null;
     const items = g.cP.size;
     return {
-      code, status: s.status, start, end: endEv, cnt, waitV, ver, judge, judgePending, cntAct, verAct,
+      code, status: s.status, start, end: endEv, cnt, closeLag, waitV, ver, judge, judgePending, cntAct, verAct,
       total: _gtMin(start, endEv),
       items, vItems: g.vP.size, cPeople: g.cU.size, vPeople: g.vU.size,
       rate: (cntAct && cntAct > 0 && items) ? items / cntAct : null,   // ต่อนาทีที่นับจริง
@@ -30100,12 +30109,13 @@ function gtRenderView() {
     + rows.map(r => '<tr style="border-bottom:1px solid var(--slate-100);">'
       + '<td style="padding:6px 7px;font-weight:800;font-size:12px;font-family:\'Space Grotesk\',monospace;white-space:nowrap;">' + stTag(r) + ' ' + escapeHtml(r.code) + '</td>'
       + '<td style="padding:6px 7px;text-align:right;font-size:11px;color:var(--slate-500);font-family:\'Space Grotesk\',monospace;">' + _gtClock(r.start) + '</td>'
-      + td(r.cnt, 'cnt') + tdA(r.cntAct, 'cntAct') + td(r.waitV, 'waitV') + td(r.ver, 'ver') + tdA(r.verAct, 'verAct') + td(r.judge, 'judge', r.judgePending ? '+' : '') + td(r.total, 'total')
+      + td(r.cnt, 'cnt') + tdA(r.cntAct, 'cntAct') + td(r.waitV, 'waitV', (r.closeLag != null && r.closeLag >= GT_IDLE_MIN) ? '<span title="' + L('ປິດຈຸດຊ້າ ', 'ปิดจุดช้า ') + _gtHM(r.closeLag) + '"> ⏰</span>' : '') + td(r.ver, 'ver') + tdA(r.verAct, 'verAct') + td(r.judge, 'judge', r.judgePending ? '+' : '') + td(r.total, 'total')
       + '<td style="padding:6px 7px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;">' + r.items + '</td>'
       + '<td style="padding:6px 7px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;">' + (r.rate != null ? r.rate.toFixed(1) : '–') + '</td>'
       + '<td style="padding:6px 7px;text-align:right;font-size:11px;font-family:\'Space Grotesk\',monospace;color:var(--slate-500);">' + r.cPeople + ' · ' + r.vPeople + '</td>'
       + '</tr>').join('')
     + '</table></div>'
+    + '<div style="font-size:10px;color:var(--amber-700, #b45309);margin-top:6px;line-height:1.5;">⏱️ ' + L('ນັບ = ເລີ່ມ → ສະແກນຊິ້ນສຸດທ້າຍ · ⏰ = ສະແກນຈົບແລ້ວແຕ່ກົດນັບແລ້ວຊ້າກວ່າ 10 ນາທີ (ເວລາສ່ວນນີ້ລວມຢູ່ໃນ ລໍຖ້າກວດ)', 'นับ = เริ่ม → สแกนชิ้นสุดท้าย · ⏰ = สแกนจบแล้วแต่กดนับเสร็จช้ากว่า 10 นาที (เวลาส่วนนี้รวมอยู่ใน รอตรวจ)') + '</div>'
     + '<div style="font-size:10px;color:var(--slate-500);margin-top:6px;line-height:1.5;">✓ ' + L('ຈົບແລ້ວ', 'จบแล้ว') + ' · ⚖️ ' + L('ຄ້າງຕັດສິນ (+ = ນັບເຖິງຕອນປິດຮອບ/ຕອນນີ້)', 'ค้างตัดสิน (+ = นับถึงตอนปิดรอบ/ตอนนี้)') + ' · … ' + L('ຍັງບໍ່ຈົບ', 'ยังไม่จบ') + ' · C · V = ' + L('ຈຳນວນຄົນນັບ', 'จำนวนคนนับ') + '</div>';
   return top + kpis + sortBar + table;
 }
@@ -30116,10 +30126,10 @@ function gtExport() {
   const r1 = v => v == null ? '' : Math.round(v);
   const head = ['Gondola', L('ສະຖານະ', 'สถานะ'), L('ເລີ່ມນັບ', 'เริ่มนับ'), L('ນັບແລ້ວ', 'นับเสร็จ'), L('ເລີ່ມກວດ', 'เริ่มตรวจ'), L('ກວດແລ້ວ', 'ตรวจเสร็จ'),
     L('ນັບ (ນາທີ)', 'นับ (นาที)'), L('ນັບຈິງ (ນາທີ)', 'นับจริง (นาที)'), L('ລໍຖ້າກວດ (ນາທີ)', 'รอตรวจ (นาที)'), L('ກວດ (ນາທີ)', 'ตรวจ (นาที)'), L('ກວດຈິງ (ນາທີ)', 'ตรวจจริง (นาที)'), L('ລໍຖ້າຕັດສິນ (ນາທີ)', 'รอตัดสิน (นาที)'), L('ຄ້າງຕັດສິນ', 'ค้างตัดสิน'), L('ລວມ (ນາທີ)', 'รวม (นาที)'),
-    L('ລາຍການ Counter', 'รายการ Counter'), L('ລາຍການ Verifier', 'รายการ Verifier'), L('ລາຍການ/ນາທີ', 'รายการ/นาที'), L('ຄົນ Counter', 'คน Counter'), L('ຄົນ Verifier', 'คน Verifier')];
+    L('ລາຍການ Counter', 'รายการ Counter'), L('ລາຍການ Verifier', 'รายการ Verifier'), L('ລາຍການ/ນາທີ', 'รายการ/นาที'), L('ຄົນ Counter', 'คน Counter'), L('ຄົນ Verifier', 'คน Verifier'), L('ປິດຈຸດຊ້າ (ນາທີ)', 'ปิดจุดช้า (นาที)')];
   const tsx = t => { if (!t) return ''; const x = new Date(t); return isNaN(x) ? '' : localDayKey(x) + ' ' + _gtClock(t); };
   const aoa = [head].concat(d.rows.slice().sort((a, b) => (b.total || 0) - (a.total || 0)).map(r => [r.code, r.status, tsx(r.cs), tsx(r.cf), tsx(r.vs), tsx(r.vf),
-    r1(r.cnt), r1(r.cntAct), r1(r.waitV), r1(r.ver), r1(r.verAct), r1(r.judge), r.judgePending ? 'Y' : '', r1(r.total), r.items, r.vItems, r.rate != null ? Number(r.rate.toFixed(2)) : '', r.cPeople, r.vPeople]));
+    r1(r.cnt), r1(r.cntAct), r1(r.waitV), r1(r.ver), r1(r.verAct), r1(r.judge), r.judgePending ? 'Y' : '', r1(r.total), r.items, r.vItems, r.rate != null ? Number(r.rate.toFixed(2)) : '', r.cPeople, r.vPeople, r1(r.closeLag)]));
   const s = d.sum;
   const sumAoa = [[L('ຫົວຂໍ້', 'หัวข้อ'), L('ນາທີ', 'นาที'), 'h:mm'],
     [L('ທັງຮອບ (ເລີ່ມ→ຈົບ)', 'ทั้งรอบ (เริ่ม→จบ)'), r1(s.span), _gtHM(s.span)],
@@ -37091,6 +37101,100 @@ async function wfCloseCounter(locCode) {
   showToast(`✅ ${locCode} ${T('counter_done')}`, 'success');
   loadWorkflowList();
 }
+
+// ⏰ เตือนปิดจุดที่เปิดค้าง (Ball 2026-11-21) — จุด "กำลังนับ/กำลังตรวจ" ที่ไม่มีสแกนเกิน 10 นาที → เด้งเตือนคนที่ปิดจุดได้ (CTL/BCS/Admin/SCC/IT)
+//   เหตุ: 20/11 08A01-08A02 สแกนจบ 21:07 แต่กดนับเสร็จ 23:02 → Verifier เริ่มตรวจไม่ได้ 2 ชม. · Counter ปิดจุดเองไม่ได้ (ปิดผ่าน CTL)
+const WF_IDLE_MIN = 10;
+let _wfIdleTimer = null, _wfIdleBusy = false, _wfIdleSeen = new Set();
+const _wfIdleSnooze = {};   // 'code|status' → เลื่อนเตือนถึงเวลา (ms)
+function wfIdleCanClose() { return !!(user && ['ctl', 'admin', 'scc', 'bcs', 'it'].includes(user.role)); }
+function wfIdleStart() {
+  if (_wfIdleTimer) clearInterval(_wfIdleTimer);
+  _wfIdleTimer = setInterval(() => { wfIdleCheck(); }, 60000);
+  setTimeout(() => { wfIdleCheck(); }, 5000);
+}
+async function wfIdleCheck() {
+  if (!wfIdleCanClose() || !session || !session.id) { const b = document.getElementById('wfIdleBox'); if (b) b.remove(); return; }
+  if (document.hidden || _wfIdleBusy) return;
+  _wfIdleBusy = true;
+  try {
+    const { data: gs, error } = await sb.from('gondola_status')
+      .select('location_code, status, counting_started_at, verifying_started_at')
+      .eq('session_id', session.id).in('status', ['counting', 'verifying']).limit(300);
+    if (error) return;
+    const now = Date.now(), out = [];
+    const stOf = g => g.status === 'counting' ? g.counting_started_at : g.verifying_started_at;
+    const cand = (gs || []).filter(g => !(_wfIdleSnooze[g.location_code + '|' + g.status] > now))
+      .filter(g => { const st = stOf(g); return !st || now - new Date(st).getTime() >= WF_IDLE_MIN * 60000; });
+    await Promise.all(cand.slice(0, 40).map(async g => {
+      const code = String(g.location_code || '').trim();
+      if (!code || /[,()]/.test(code)) return;
+      let last = null;
+      try {
+        const { data: sc, error: e2 } = await sb.from('stock_counts').select('counted_at')
+          .eq('session_id', session.id)
+          .in('count_role', g.status === 'counting' ? ['counter', 'staff'] : ['verifier', 'audit'])
+          .or('location_code.eq.' + code + ',location_code.like.' + code + '-*')
+          .order('counted_at', { ascending: false }).limit(1);
+        if (e2) return;
+        last = sc && sc[0] ? sc[0].counted_at : null;
+      } catch (e) { return; }
+      const ref = last || stOf(g);
+      if (!ref) return;
+      const idle = (now - new Date(ref).getTime()) / 60000;
+      if (idle >= WF_IDLE_MIN) out.push({ code, status: g.status, last, idle });
+    }));
+    out.sort((a, b) => b.idle - a.idle);
+    wfIdleRender(out);
+  } catch (e) {} finally { _wfIdleBusy = false; }
+}
+function wfIdleRender(list) {
+  let box = document.getElementById('wfIdleBox');
+  if (!list.length) { if (box) box.remove(); _wfIdleSeen = new Set(); return; }
+  const isLao = lang === 'lo', L = (lo, th) => isLao ? lo : th;
+  const keys = list.map(x => x.code + '|' + x.status);
+  const fresh = keys.some(k => !_wfIdleSeen.has(k));
+  _wfIdleSeen = new Set(keys);
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'wfIdleBox';
+    box.style.cssText = 'position:fixed;left:10px;right:10px;bottom:84px;z-index:8500;max-width:460px;margin:0 auto;background:white;border:2px solid var(--amber-500, #f59e0b);border-radius:14px;box-shadow:0 8px 28px rgba(15,23,42,.25);padding:10px 12px;';
+    document.body.appendChild(box);
+  }
+  const row = x => {
+    const enc = encodeURIComponent(x.code).replace(/'/g, '%27'), c = x.status === 'counting';
+    return '<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-top:1px solid var(--slate-100);">'
+      + '<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:800;font-family:\'Space Grotesk\',monospace;color:var(--slate-900);">' + escapeHtml(x.code)
+      + ' <span style="font-size:10px;font-weight:700;color:' + (c ? 'var(--teal-700, #0f766e)' : 'var(--violet-600, #7c3aed)') + ';">' + (c ? L('ກຳລັງນັບ', 'กำลังนับ') : L('ກຳລັງກວດ', 'กำลังตรวจ')) + '</span></div>'
+      + '<div style="font-size:11px;color:var(--rose-600, #e11d48);font-weight:700;">' + L('ບໍ່ມີການສະແກນ ', 'ไม่มีสแกน ') + Math.round(x.idle) + L(' ນາທີ', ' นาที')
+      + (x.last ? '<span style="color:var(--slate-500);font-weight:600;"> · ' + L('ລ່າສຸດ ', 'ล่าสุด ') + _gtClock(x.last) + '</span>' : '') + '</div></div>'
+      + '<button onclick="wfIdleClose(\'' + enc + '\',\'' + x.status + '\')" style="background:var(--amber-500, #f59e0b);color:white;border:none;border-radius:9px;padding:8px 10px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;">✓ ' + (c ? L('ນັບແລ້ວ', 'นับเสร็จ') : L('ກວດແລ້ວ', 'ตรวจเสร็จ')) + '</button>'
+      + '<button onclick="wfIdleSnooze(\'' + enc + '\',\'' + x.status + '\')" style="background:var(--slate-100);color:var(--slate-600);border:1px solid var(--slate-300);border-radius:9px;padding:8px 8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">' + (c ? L('ຍັງນັບຢູ່', 'ยังนับอยู่') : L('ຍັງກວດຢູ່', 'ยังตรวจอยู่')) + '</button>'
+      + '</div>';
+  };
+  box.innerHTML = '<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px;">'
+    + '<div style="flex:1;"><div style="font-size:13px;font-weight:800;color:var(--amber-700, #b45309);">⏰ ' + L('ຈຸດທີ່ບໍ່ມີການສະແກນເກີນ 10 ນາທີ — ນັບແລ້ວບໍ່?', 'จุดที่ไม่มีสแกนเกิน 10 นาที — นับเสร็จหรือยัง?') + '</div>'
+    + '<div style="font-size:10px;color:var(--slate-500);">' + L('ປິດຈຸດທີ່ນັບແລ້ວ ເພື່ອໃຫ້ Verifier ເລີ່ມກວດໄດ້ທັນທີ', 'ปิดจุดที่นับเสร็จแล้ว เพื่อให้ Verifier เริ่มตรวจได้ทันที') + '</div></div>'
+    + '<button onclick="wfIdleSnoozeAll()" title="' + L('ເຊື່ອງ 10 ນາທີ', 'ซ่อน 10 นาที') + '" style="background:none;border:none;font-size:16px;color:var(--slate-400);cursor:pointer;padding:0 2px;">✕</button></div>'
+    + list.slice(0, 4).map(row).join('')
+    + (list.length > 4 ? '<div style="font-size:11px;color:var(--slate-500);padding-top:4px;">+' + (list.length - 4) + L(' ຈຸດ', ' จุด') + '</div>' : '');
+  if (fresh) { try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {} }
+}
+async function wfIdleClose(enc, status) {
+  const code = decodeURIComponent(enc);
+  if (status === 'counting') await wfCloseCounter(code); else await wfCloseVerifier(code);
+  if (document.getElementById('floorMapContent')) setTimeout(loadFloorMap, 500);
+  setTimeout(() => { wfIdleCheck(); }, 800);
+}
+function wfIdleSnooze(enc, status) {
+  _wfIdleSnooze[decodeURIComponent(enc) + '|' + status] = Date.now() + WF_IDLE_MIN * 60000;
+  wfIdleCheck();
+}
+function wfIdleSnoozeAll() {
+  [..._wfIdleSeen].forEach(k => { _wfIdleSnooze[k] = Date.now() + WF_IDLE_MIN * 60000; });
+  const b = document.getElementById('wfIdleBox'); if (b) b.remove();
+}
+window.wfIdleClose = wfIdleClose; window.wfIdleSnooze = wfIdleSnooze; window.wfIdleSnoozeAll = wfIdleSnoozeAll;
 
 async function wfOpenForVerifier(locCode) {
   if (!wfNeedSession()) return;
