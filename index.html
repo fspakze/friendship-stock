@@ -5581,6 +5581,7 @@ const PAGE_META = {
   floormap:   { iconSvg: '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>',                                                                                                                            labelTh: 'แผนผัง',       labelLo: 'ແຜນຜັງ',       page: 'floormap' },
   workflow:   { iconSvg: '<rect x="9" y="2" width="6" height="4" rx="1"/><path d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/>',                                                     labelTh: 'Workflow',     labelLo: 'Workflow',     page: 'workflow' },
   hunt:       { iconSvg: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>', labelTh: 'ตามหา', labelLo: 'ຕາມຫາ', page: 'hunt' },
+  countctl:   { iconSvg: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17.5h7M17.5 14v7"/>', labelTh: 'ศูนย์ควบคุมการนับ', labelLo: 'ສູນຄວບຄຸມການນັບ', page: 'countctl' },
   tiebreaker: { iconSvg: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',                                                                                                                                                                             labelTh: 'ตัดสิน',       labelLo: 'ຕັດສິນ',       page: 'tiebreaker',     badge: 'tabTbBadge' },
   dashboard:  { iconSvg: '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',                                                                    labelTh: 'Dashboard',    labelLo: 'Dashboard',    page: 'dashboard' },
   kpi:        { iconSvg: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',                                                                                                                                                                                                                labelTh: 'KPI',          labelLo: 'KPI',          page: 'kpi' },
@@ -5726,7 +5727,7 @@ function wtFilterMenuCfg(cfg, role) {
     if (isCV) bottomTabs = bottomTabs.filter(x => x !== 'stockcheck');
     //   - 🔎 งานตามหา (Ball 2026-11-21)
     if (isCV) { const si = bottomTabs.indexOf('scan'); bottomTabs.splice(si >= 0 ? si + 1 : bottomTabs.length, 0, 'hunt'); }
-    else if (['ctl', 'bcs', 'admin', 'scc', 'it'].includes(role)) drawerGroups = [{ titleTh: 'งานตามหา', titleLo: 'ງານຕາມຫາ', items: ['hunt'] }].concat(drawerGroups);
+    else if (['ctl', 'bcs', 'admin', 'scc', 'it'].includes(role)) drawerGroups = [{ titleTh: 'ศูนย์ควบคุมการนับ', titleLo: 'ສູນຄວບຄຸມການນັບ', items: ['countctl'] }, { titleTh: 'งานตามหา', titleLo: 'ງານຕາມຫາ', items: ['hunt'] }].concat(drawerGroups);
     //   - เพิ่มรายการที่ย้ายเข้าเมนู (กันซ้ำกับที่มีอยู่)
     if (moveItems.length) {
       const already = new Set(drawerGroups.reduce((a, g) => a.concat(g.items), []));
@@ -5999,6 +6000,9 @@ function goPage(page) {
   } else if (page === 'history') {
     c.innerHTML = renderHistoryPage();
     loadHistory();
+  } else if (page === 'countctl') {
+    c.innerHTML = renderCountCtlPage();
+    setTimeout(() => ctrInit(), 30);
   } else if (page === 'hunt') {
     c.innerHTML = renderHuntPage();
     setTimeout(() => huntInit(), 30);
@@ -29071,7 +29075,7 @@ async function varJudgeSave(productId) {
   logActivity('bcs_judge', _role + ' · product ' + productId + ' · ' + entries.map(e => e.loc + '=' + e.qty).join(', '));
   showToast(L('✓ ບັນທຶກຍອດຕັດສິນແລ້ວ', '✓ บันทึกยอดตัดสินแล้ว'), 'success');
   closeModal();
-  if (document.getElementById('tbList')) loadTiebreakerList(); else loadVarianceReport();
+  if (document.getElementById('ctrRoot')) ctrLoad(true); else if (document.getElementById('tbList')) loadTiebreakerList(); else loadVarianceReport();
 }
 window.varJudgeOpen = varJudgeOpen; window.varJudgeSave = varJudgeSave;
 
@@ -37480,6 +37484,435 @@ function wfIdleSnoozeAll() {
   const b = document.getElementById('wfIdleBox'); if (b) b.remove();
 }
 window.wfIdleClose = wfIdleClose; window.wfIdleSnooze = wfIdleSnooze; window.wfIdleSnoozeAll = wfIdleSnoozeAll;
+
+// ==================== 🎛️ ศูนย์ควบคุมการนับ (ctr*) — Ball 2026-11-21 ====================
+// หน้าเดียวให้ CTL/BCS/Admin เห็น ชั้นวาง + สินค้าค้าง + คน + "ต้องทำอะไรตอนนี้" พร้อมปุ่มกดทำได้ทันที
+// ⚠️ หน้าใหม่ "เพิ่ม" เท่านั้น — หน้าเดิม (ควบคุมการนับ/คลาดเคลื่อน/ตัดสิน/ตามหา) ยังอยู่ครบ (Ball: ใช้ได้ดีแล้วค่อยปรับหน้าเดิม)
+// ข้อมูลชุดเดียวกับหน้าคลาดเคลื่อน (computeVarianceItems + varStage) → ตัวเลขตรงกันทุกหน้า [MEMORY 21]
+const CTR_REFRESH_MS = 120000;
+let _ctr = null, _ctrBusy = false, _ctrTimer = null, _ctrErr = null;
+const _ctrMore = {};   // การ์ดที่กด "ดูเพิ่ม"
+const _cL = (lo, th) => lang === 'lo' ? lo : th;
+function ctrCan() { return !!user && ['ctl', 'bcs', 'admin', 'scc', 'it'].includes(user.role); }
+function _ctrN(n) { return Math.round(Number(n) || 0).toLocaleString('en-US'); }
+function _ctrEnc(s) { return encodeURIComponent(String(s)).replace(/'/g, '%27'); }
+function _ctrMin(ts, now) { return ts ? Math.max(0, Math.round(((now || Date.now()) - new Date(ts).getTime()) / 60000)) : null; }
+function _ctrDur(min) { if (min == null) return '–'; const h = Math.floor(min / 60), m = min % 60; return h ? h + _cL(' ຊມ. ', ' ชม. ') + m + _cL(' ນ.', ' น.') : m + _cL(' ນາທີ', ' นาที'); }
+function _ctrBase(k) { return floorBaseCode(String(k || '').toUpperCase().trim()); }
+const _CTR_ST = {
+  notopen:   ['var(--slate-300)', () => _cL('ຍັງບໍ່ເປີດ', 'ยังไม่เปิด')],
+  waitstart: ['var(--teal-300, #5eead4)', () => _cL('ເປີດແລ້ວ ຍັງບໍ່ເລີ່ມ', 'เปิดแล้ว ยังไม่เริ่ม')],
+  counting:  ['var(--sky-500)', () => _cL('ກຳລັງນັບ', 'กำลังนับ')],
+  counted:   ['var(--rose-500)', () => _cL('ນັບແລ້ວ ລໍຖ້າເປີດ V', 'นับเสร็จ รอเปิด V')],
+  waitv:     ['var(--amber-300, #fcd34d)', () => _cL('ເປີດໃຫ້ V ແລ້ວ', 'เปิดให้ V แล้ว')],
+  verifying: ['var(--amber-500)', () => _cL('ກຳລັງກວດ', 'กำลังตรวจ')],
+  judging:   ['var(--violet-500)', () => _cL('ລໍຖ້າຕັດສິນ', 'รอตัดสิน')],
+  done:      ['var(--emerald-500)', () => _cL('ສຳເລັດ', 'เสร็จ')]
+};
+function _ctrPhase(g) {
+  const s = g.status;
+  if (s === 'open_for_counting') return g.counting_started_at ? 'counting' : 'waitstart';
+  if (s === 'counting') return 'counting';
+  if (s === 'counted') return 'counted';
+  if (s === 'open_for_verify') return g.verifying_started_at ? 'verifying' : 'waitv';
+  if (s === 'verifying') return 'verifying';
+  if (s === 'verified' || s === 'tiebreaker_needed' || s === 'tiebreaker') return 'judging';
+  if (s === 'completed') return 'done';
+  return 'notopen';
+}
+
+function renderCountCtlPage() {
+  return '<div id="ctrRoot">'
+    + '<div class="page-header" style="margin-bottom:8px;display:flex;align-items:flex-start;gap:8px;"><div style="flex:1;min-width:0;">'
+    + '<div class="page-title">🎛️ ' + _cL('ສູນຄວບຄຸມການນັບ', 'ศูนย์ควบคุมการนับ') + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-500);">' + _cL('ເບິ່ງທຸກຢ່າງໃນໜ້າດຽວ · ເຮັດຕາມລຳດັບ "ຕ້ອງເຮັດຕອນນີ້"', 'ดูทุกอย่างในหน้าเดียว · ทำตามลำดับ "ต้องทำตอนนี้"') + '</div></div>'
+    + '<button id="ctrRefreshBtn" onclick="ctrLoad()" style="flex-shrink:0;background:white;border:1px solid var(--slate-300);border-radius:9px;padding:7px 11px;font-size:12px;font-weight:800;color:var(--slate-700);cursor:pointer;">🔄 ' + _cL('ອັບເດດ', 'อัปเดต') + '</button></div>'
+    + '<div id="ctrBody"><div style="text-align:center;padding:40px 10px;color:var(--slate-400);font-size:12px;">⏳ ' + _cL('ກຳລັງໂຫຼດ...', 'กำลังโหลด...') + '</div></div></div>';
+}
+function ctrInit() {
+  if (_ctrTimer) { clearInterval(_ctrTimer); _ctrTimer = null; }
+  ctrLoad();
+  _ctrTimer = setInterval(() => {
+    if (!document.getElementById('ctrRoot')) { clearInterval(_ctrTimer); _ctrTimer = null; return; }
+    if (document.hidden || document.getElementById('modalOverlay')?.classList.contains('show')) return;
+    ctrLoad(true);
+  }, CTR_REFRESH_MS);
+}
+
+async function ctrLoad(quiet) {
+  const body = document.getElementById('ctrBody');
+  if (!body) return;
+  if (!ctrCan()) { body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--slate-500);font-size:12px;">' + _cL('ບໍ່ມີສິດ', 'ไม่มีสิทธิ์') + '</div>'; return; }
+  if (!session || !session.id) { body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--slate-500);font-size:12px;">' + _cL('ບໍ່ມີຮອບນັບທີ່ເປີດຢູ່', 'ไม่มีรอบนับที่เปิดอยู่') + '</div>'; return; }
+  if (_ctrBusy) return;
+  _ctrBusy = true;
+  const btn = document.getElementById('ctrRefreshBtn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '.5'; }
+  const sid = session.id, now = Date.now();
+  const partial = [];   // ส่วนเสริมที่ดึงไม่สำเร็จ → ขึ้นเตือน (ไม่โชว์เลขหลอกว่าครบ · MEMORY 27)
+  const opt = (p, name) => p.then(v => v, e => { partial.push(name); log('ctr ' + name + ' error', e); return null; });
+  try {
+    const since = new Date(now - 60 * 60000).toISOString();
+    const [gs, vAll, posIds, pogRows, recent, locRows, huntRes] = await Promise.all([
+      fetchAllQuery(() => sb.from('gondola_status').select('id, location_code, status, opened_at, counting_started_at, counting_finished_at, verifying_started_at, verifying_finished_at, completed_at, active_counter_id, active_verifier_id').eq('session_id', sid).order('id')),
+      computeVarianceItems('session'),
+      opt(fetchAllQuery(() => sb.from('products').select('id').eq('branch_id', branch.id).eq('is_active', true).gt('pos_qty', 0).order('id')), _cL('ສິນຄ້າບໍ່ໄດ້ນັບ', 'สินค้าไม่ได้นับ')),
+      opt(fetchAllQuery(() => sb.from('pan_o_grams').select('product_id, location_code').eq('branch_id', branch.id).order('id')), 'Pan-O-Gram'),
+      opt(fetchAllQuery(() => sb.from('stock_counts').select('id, user_id, count_role, location_code, counted_at').eq('session_id', sid).gte('counted_at', since).order('id')), _cL('ພະນັກງານ', 'พนักงาน')),
+      opt(fetchAllQuery(() => sb.from('location_master').select('location_code').eq('branch_id', branch.id).eq('is_active', true).order('id')), _cL('ລາຍຊື່ຊັ້ນວາງ', 'รายชื่อชั้นวาง')),
+      (async () => { try { return await sb.from('count_hunts').select('id, status, product_id, diff_val, assigned_name, submitted_at').eq('session_id', sid); } catch (e) { return { data: null, error: e }; } })()
+    ]);
+    _ctr = ctrCompute({ gs, vAll, posIds, pogRows, recent, locRows, huntRes, now });
+    _ctr.partial = partial;
+    _ctr.at = now;
+    _ctrErr = null;
+    ctrRender();
+  } catch (e) {
+    _ctrErr = e;
+    log('ctr load error', e);
+    if (!_ctr) body.innerHTML = '<div style="padding:24px;text-align:center;color:var(--rose-600);font-size:12px;font-weight:700;">❌ ' + escapeHtml(e.message || String(e)) + '<br><button onclick="ctrLoad()" style="margin-top:10px;background:var(--fs-blue, #0E357F);color:white;border:none;border-radius:9px;padding:8px 14px;font-weight:800;cursor:pointer;">' + _cL('ລອງໃໝ່', 'ลองใหม่') + '</button></div>';
+    else { ctrRender(); if (!quiet) showToast(_cL('ອັບເດດບໍ່ສຳເລັດ — ສະແດງຂໍ້ມູນເກົ່າ', 'อัปเดตไม่สำเร็จ — แสดงข้อมูลเดิม'), 'warning'); }
+  } finally {
+    _ctrBusy = false;
+    const b2 = document.getElementById('ctrRefreshBtn');
+    if (b2) { b2.disabled = false; b2.style.opacity = '1'; }
+  }
+}
+
+function ctrCompute(x) {
+  const now = x.now;
+  // ---- ชั้นวาง: แถวล่าสุดต่อ location (เปิดซ้ำได้หลายแถว) ----
+  const latest = {};
+  (x.gs || []).forEach(g => { const k = String(g.location_code || '').toUpperCase().trim(); if (k) latest[k] = g; });
+  const G = Object.keys(latest).map(k => Object.assign({ code: k }, latest[k])).filter(g => g.status !== 'closed');
+  const stOf = {}, phOf = {};
+  G.forEach(g => { stOf[g.code] = g.status; g.phase = _ctrPhase(g); phOf[g.code] = g.phase; });
+  const masterBases = new Set((x.locRows || []).map(r => _ctrBase(r.location_code)).filter(b => b && b !== '?'));
+  const notOpen = [...masterBases].filter(b => !phOf[b]).sort();
+  const phaseCnt = { notopen: notOpen.length };
+  G.forEach(g => { phaseCnt[g.phase] = (phaseCnt[g.phase] || 0) + 1; });
+
+  // ---- สแกนล่าสุดต่อชั้น / ต่อคน (60 นาทีล่าสุด) ----
+  const lastC = {}, lastV = {}, people = {};
+  (x.recent || []).forEach(r => {
+    const b = _ctrBase(r.location_code), isV = ['verifier', 'audit'].includes(r.count_role), isC = ['counter', 'staff'].includes(r.count_role);
+    if (b) { const m = isV ? lastV : (isC ? lastC : null); if (m && (!m[b] || r.counted_at > m[b])) m[b] = r.counted_at; }
+    if (!r.user_id) return;
+    const grp = isV ? 'V' : (isC ? 'C' : (r.count_role === 'ctl_tiebreaker' ? 'CTL' : 'BCS'));
+    const p = people[r.user_id] = people[r.user_id] || { uid: r.user_id, grp, last: r.counted_at, loc: r.location_code, n30: 0 };
+    if (r.counted_at > p.last) { p.last = r.counted_at; p.loc = r.location_code; p.grp = grp; }
+    if (now - new Date(r.counted_at).getTime() <= 30 * 60000) p.n30++;
+  });
+  G.forEach(g => {
+    if (g.phase === 'counting') { const ref = lastC[g.code] || g.counting_started_at || g.opened_at; g.idle = _ctrMin(ref, now); g.holder = g.active_counter_id || null; }
+    else if (g.phase === 'verifying') { const ref = lastV[g.code] || g.verifying_started_at; g.idle = _ctrMin(ref, now); g.holder = g.active_verifier_id || null; }
+    else if (g.phase === 'waitstart') g.idle = _ctrMin(g.opened_at, now);
+    else if (g.phase === 'counted') g.idle = _ctrMin(g.counting_finished_at, now);
+    else if (g.phase === 'waitv') g.idle = _ctrMin(g.counting_finished_at, now);
+  });
+  const byPhase = ph => G.filter(g => g.phase === ph).sort((a, b) => (b.idle || 0) - (a.idle || 0));
+
+  // ---- สินค้า: ชุดเดียวกับหน้าคลาดเคลื่อน ----
+  const valid = (x.vAll || []).filter(it => !it.isOrphan);
+  const complete = valid.filter(it => it.isComplete), pending = valid.filter(it => !it.isComplete);
+  _varianceAllData = x.vAll; _varianceData = complete; _variancePending = pending; _csum = null;   // varJudgeOpen ใช้ชุดเดียวกัน
+  const st = {};
+  complete.forEach(it => { const k = varStage(it).key; it._ctrStage = k; (st[k] = st[k] || []).push(it); });
+  const L = k => st[k] || [];
+  const byVal = (a, b) => Math.abs(b.value || 0) - Math.abs(a.value || 0);
+  const judgeCtl = L('need_ctl').concat(L('v_skip'), L('c_skip')).sort(byVal);
+  const judgeBcs = L('need_bcs').slice().sort(byVal);
+  // รอ Verifier / รอ Counter → ชั้นนั้นอยู่ขั้นไหน (รอเปิด V = ต้องทำ · ที่เหลือ = รอตามปกติ)
+  const waitBases = (it, s) => {
+    const rows = it.cvRows || [];
+    if (rows.length) return [...new Set(rows.filter(r => r.st === s).map(r => _ctrBase(r.base)))];
+    const m = s === 'wait_v' ? it.counterLocs : it.verifierLocs;
+    return [...new Set(Object.keys(m || {}).map(_ctrBase))];
+  };
+  const waitSplit = (list, s) => {
+    const o = { needOpen: 0, inV: 0, inC: 0, other: 0 };
+    list.forEach(it => {
+      const ph = waitBases(it, s).map(b => phOf[b] || 'notopen');
+      if (ph.includes('counted')) o.needOpen++;
+      else if (ph.some(p => p === 'waitv' || p === 'verifying')) o.inV++;
+      else if (ph.some(p => p === 'counting' || p === 'waitstart')) o.inC++;
+      else o.other++;
+    });
+    return o;
+  };
+  const waitV = L('wait_v'), waitC = L('wait_c').concat(L('none'));
+  const doneN = ['cv_match', 'c_match', 'tb_done', 'bcs_done'].reduce((s, k) => s + L(k).length, 0);
+
+  // ---- สินค้ารอนับครบทุกจุด → ชั้นที่ยังขาด ----
+  const missG = {};
+  pending.forEach(it => (it.missingGons || []).forEach(g => { const b = _ctrBase(g); if (!b) return; const o = missG[b] = missG[b] || { code: b, n: 0, ph: phOf[b] || 'notopen', inMaster: masterBases.has(b) }; o.n++; }));
+  const missList = Object.values(missG).sort((a, b) => b.n - a.n);
+
+  // ---- มีสต๊อก POS แต่ไม่มีใครนับ (A = อยู่ใน Pan-O-Gram ของชั้นที่นับแล้ว · B = อื่นๆ) ----
+  let uncA = null, uncB = null; const uncAGon = {};
+  if (x.posIds) {
+    const counted = new Set(valid.map(it => it.product_id));
+    const countedGons = new Set();
+    valid.forEach(it => [it.counterLocs, it.verifierLocs, it.ctlLocs, it.managerLocs].forEach(m => Object.keys(m || {}).forEach(k => { const b = _ctrBase(k); if (b && b !== '?') countedGons.add(b); })));
+    const pog = {};
+    (x.pogRows || []).forEach(r => { const b = _ctrBase(r.location_code); if (r.product_id && b) (pog[r.product_id] = pog[r.product_id] || new Set()).add(b); });
+    uncA = 0; uncB = 0;
+    x.posIds.forEach(p => {
+      if (counted.has(p.id)) return;
+      const hit = [...(pog[p.id] || [])].filter(g => countedGons.has(g));
+      if (hit.length) { uncA++; hit.forEach(g => { uncAGon[g] = (uncAGon[g] || 0) + 1; }); } else uncB++;
+    });
+  }
+  const uncAList = Object.keys(uncAGon).map(code => ({ code, n: uncAGon[code], ph: phOf[code] || 'notopen' })).sort((a, b) => b.n - a.n);
+
+  // ---- งานตามหา ----
+  let hunt = null;
+  const hr = x.huntRes || {};
+  if (hr.error) hunt = { missing: /PGRST205|42P01|does not exist|Could not find/i.test((hr.error.code || '') + ' ' + (hr.error.message || '')), err: true };
+  else {
+    const rows = hr.data || [];
+    hunt = { open: 0, claimed: 0, submitted: 0, notfound: 0, done: 0, rows };
+    rows.forEach(h => { if (h.status === 'approved' || h.status === 'closed') hunt.done++; else if (h.status in hunt) hunt[h.status]++; });
+  }
+
+  const ppl = Object.values(people).sort((a, b) => (a.last < b.last ? 1 : -1));
+  return {
+    G, phaseCnt, notOpen, total: G.length + notOpen.length, startTs: G.map(g => g.opened_at).filter(Boolean).sort()[0] || null,
+    counted: byPhase('counted'), waitstart: byPhase('waitstart'), waitv: byPhase('waitv'),
+    idleC: byPhase('counting').filter(g => (g.idle || 0) >= WF_IDLE_MIN), idleV: byPhase('verifying').filter(g => (g.idle || 0) >= WF_IDLE_MIN),
+    judgeGon: byPhase('judging').filter(g => g.status === 'tiebreaker_needed'),
+    items: { total: valid.length, done: doneN, real: L('cv_real').length, judgeCtl, judgeBcs, waitV, waitC, waitVs: waitSplit(waitV, 'wait_v'), waitCs: waitSplit(waitC, 'wait_c'), pending: pending.length },
+    missList, uncA, uncB, uncAList, hunt, ppl
+  };
+}
+
+// ---------- แสดงผล ----------
+function _ctrBtn(label, onclick, bg, fg) {
+  return '<button onclick="' + onclick + '" style="background:' + (bg || 'var(--fs-blue, #0E357F)') + ';color:' + (fg || 'white') + ';border:' + (fg ? '1px solid var(--slate-300)' : 'none') + ';border-radius:9px;padding:7px 10px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">' + label + '</button>';
+}
+function _ctrRow(main, sub, btns) {
+  return '<div style="display:flex;align-items:center;gap:6px;padding:7px 0;border-top:1px solid var(--slate-100);">'
+    + '<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:800;color:var(--slate-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + main + '</div>'
+    + (sub ? '<div style="font-size:11px;color:var(--slate-600);font-weight:600;">' + sub + '</div>' : '') + '</div>'
+    + (btns || '') + '</div>';
+}
+function _ctrCode(c) { return '<span style="font-family:\'Space Grotesk\',monospace;">' + escapeHtml(c) + '</span>'; }
+// การ์ดงาน: tone = bad (ต้องทำทันที) | warn | info
+function _ctrCard(key, tone, icon, title, n, why, rows, footer) {
+  const C = { bad: ['var(--rose-500)', 'var(--rose-50, #fff1f2)'], warn: ['var(--amber-500)', 'var(--amber-50, #fffbeb)'], info: ['var(--sky-500)', 'var(--sky-50, #f0f9ff)'] }[tone];
+  const more = !!_ctrMore[key], LIM = 5;
+  const shown = more ? rows : rows.slice(0, LIM);
+  return '<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ' + C[0] + ';border-radius:12px;padding:10px 12px;margin-bottom:9px;">'
+    + '<div style="display:flex;align-items:center;gap:8px;">'
+    + '<span style="font-size:18px;">' + icon + '</span>'
+    + '<div style="flex:1;min-width:0;font-size:13px;font-weight:800;color:var(--slate-900);">' + title + '</div>'
+    + '<span style="background:' + C[1] + ';color:' + C[0] + ';border-radius:10px;padding:2px 10px;font-size:15px;font-weight:800;font-family:\'Space Grotesk\',monospace;">' + n + '</span></div>'
+    + (why ? '<div style="font-size:11px;color:var(--slate-500);margin:3px 0 4px 26px;line-height:1.45;">' + why + '</div>' : '')
+    + shown.join('')
+    + (rows.length > LIM ? '<div style="padding-top:6px;"><span onclick="ctrMore(\'' + key + '\')" style="font-size:11px;font-weight:800;color:var(--sky-700);cursor:pointer;">' + (more ? _cL('▴ ຫຍໍ້', '▴ ย่อ') : _cL('▾ ເບິ່ງເພີ່ມ ', '▾ ดูเพิ่ม ') + (rows.length - LIM) + _cL(' ລາຍການ', ' รายการ')) + '</span></div>' : '')
+    + (footer ? '<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--slate-100);margin-top:4px;">' + footer + '</div>' : '')
+    + '</div>';
+}
+function _ctrItemName(it) { return escapeHtml((lang === 'lo' ? (it.product?.name_lo || it.product?.name_th) : (it.product?.name_th || it.product?.name_lo)) || it.barcode || ('#' + it.product_id)); }
+function _ctrPhLabel(ph) { return (_CTR_ST[ph] || _CTR_ST.notopen)[1](); }
+
+function ctrRender() {
+  const body = document.getElementById('ctrBody');
+  if (!body || !_ctr) return;
+  const d = _ctr, I = d.items, now = Date.now();
+  const canJ = typeof varCanJudge === 'function' && varCanJudge();
+  const isBcsUp = ['bcs', 'admin', 'scc'].includes(user.role);
+  let h = '';
+
+  // ===== 1) ภาพรวม =====
+  const elapsed = _ctrMin(d.startTs || session.started_at, now);   // รอบนี้เริ่มจากชั้นแรกที่เปิด (session อาจใช้ต่อเนื่องหลายเดือน)
+  const doneG = d.phaseCnt.done || 0, pctG = d.total ? Math.round(doneG / d.total * 100) : 0;
+  const itemsLeft = I.judgeCtl.length + I.judgeBcs.length + I.waitV.length + I.waitC.length + I.pending;
+  h += '<div style="background:white;border:1px solid var(--slate-200);border-radius:12px;padding:11px 12px;margin-bottom:10px;">'
+    + '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px;">'
+    + '<span style="font-size:26px;font-weight:800;color:var(--emerald-600);font-family:\'Space Grotesk\',monospace;">' + pctG + '%</span>'
+    + '<span style="font-size:12px;font-weight:700;color:var(--slate-600);">' + doneG + ' / ' + d.total + _cL(' ຊັ້ນວາງສຳເລັດ', ' ชั้นวางเสร็จ') + '</span>'
+    + '<span style="margin-left:auto;font-size:11px;color:var(--slate-500);">⏱ ' + _cL('ໃຊ້ເວລາ ', 'ใช้เวลา ') + _ctrDur(elapsed) + ' · ' + _cL('ອັບເດດ ', 'อัปเดต ') + _gtClock(new Date(d.at).toISOString()) + '</span></div>';
+  // แถบชั้นวางตามขั้น
+  const order = ['done', 'judging', 'verifying', 'waitv', 'counted', 'counting', 'waitstart', 'notopen'];
+  h += '<div style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--slate-100);margin-bottom:7px;">'
+    + order.map(k => d.phaseCnt[k] ? '<div title="' + _ctrPhLabel(k) + '" style="flex:' + d.phaseCnt[k] + ';background:' + _CTR_ST[k][0] + ';"></div>' : '').join('') + '</div>';
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:4px 8px;font-size:11px;margin-bottom:8px;">'
+    + order.slice().reverse().map(k => '<div style="display:flex;align-items:center;gap:5px;' + (d.phaseCnt[k] ? '' : 'opacity:.4;') + '"><span style="width:9px;height:9px;border-radius:2px;background:' + _CTR_ST[k][0] + ';flex-shrink:0;"></span><span style="color:var(--slate-600);flex:1;">' + _ctrPhLabel(k) + '</span><b style="font-family:\'Space Grotesk\',monospace;color:var(--slate-900);">' + (d.phaseCnt[k] || 0) + '</b></div>').join('') + '</div>';
+  // สินค้า
+  const chip = (lbl, n, c, onclick) => '<div ' + (onclick && n ? 'onclick="' + onclick + '" ' : '') + 'style="background:var(--slate-50);border-radius:9px;padding:6px 8px;' + (onclick && n ? 'cursor:pointer;' : '') + (n ? '' : 'opacity:.5;') + '"><div style="font-size:15px;font-weight:800;color:' + c + ';font-family:\'Space Grotesk\',monospace;">' + n + '</div><div style="font-size:10px;color:var(--slate-600);font-weight:700;">' + lbl + '</div></div>';
+  h += '<div style="font-size:11px;font-weight:800;color:var(--slate-500);margin-bottom:4px;">' + _cL('ສິນຄ້າທີ່ນັບແລ້ວ ', 'สินค้าที่นับแล้ว ') + _ctrN(I.total) + ' SKU · ' + _cL('ຍັງບໍ່ຈົບ ', 'ยังไม่จบ ') + '<span style="color:' + (itemsLeft ? 'var(--amber-700)' : 'var(--emerald-600)') + ';">' + _ctrN(itemsLeft) + '</span></div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:5px;">'
+    + chip(_cL('✅ ຈົບແລ້ວ', '✅ จบแล้ว'), I.done, 'var(--emerald-600)', "ctrGo('variance','stage:done')")
+    + chip(_cL('Diff ຈິງ', 'Diff จริง'), I.real, 'var(--violet-600)', "ctrGo('variance','stage:real')")
+    + chip(_cL('⏳ ລໍຖ້າ V', '⏳ รอ V'), I.waitV.length, 'var(--sky-600)', "ctrGo('variance','stage:wait')")
+    + chip(_cL('⏳ ລໍຖ້າ C', '⏳ รอ C'), I.waitC.length, 'var(--sky-600)', "ctrGo('variance','stage:wait')")
+    + chip(_cL('⏳ ນັບບໍ່ຄົບຈຸດ', '⏳ นับไม่ครบจุด'), I.pending, 'var(--amber-600)', "ctrGo('variance')")
+    + chip(_cL('⚖️ ລໍຖ້າ CTL', '⚖️ รอ CTL'), I.judgeCtl.length, 'var(--amber-600)', "ctrGo('variance','stage:ctl')")
+    + chip(_cL('🚨 BCS', '🚨 BCS'), I.judgeBcs.length, 'var(--rose-500)', "ctrGo('variance','stage:bcs')")
+    + chip(_cL('ບໍ່ໄດ້ນັບ A', 'ไม่ได้นับ A'), d.uncA == null ? '?' : d.uncA, 'var(--rose-500)', "ctrGo('variance','csum:uncounted')")
+    + chip(_cL('ບໍ່ໄດ້ນັບ B', 'ไม่ได้นับ B'), d.uncB == null ? '?' : d.uncB, 'var(--slate-700)', "ctrGo('variance','csum:uncounted')")
+    + '</div>';
+  if (d.partial && d.partial.length) h += '<div style="margin-top:8px;font-size:11px;font-weight:700;color:var(--rose-600);background:var(--rose-50, #fff1f2);border-radius:8px;padding:6px 8px;">⚠️ ' + _cL('ດຶງບໍ່ຄົບ: ', 'ดึงข้อมูลไม่ครบ: ') + escapeHtml(d.partial.join(', ')) + _cL(' — ຕົວເລກສ່ວນນີ້ອາດບໍ່ຖືກ ກົດອັບເດດ', ' — ตัวเลขส่วนนี้อาจไม่ถูก กดอัปเดต') + '</div>';
+  if (_ctrErr) h += '<div style="margin-top:8px;font-size:11px;font-weight:700;color:var(--rose-600);">⚠️ ' + _cL('ອັບເດດລ່າສຸດບໍ່ສຳເລັດ — ສະແດງຂໍ້ມູນເກົ່າ', 'อัปเดตล่าสุดไม่สำเร็จ — แสดงข้อมูลเดิม') + '</div>';
+  h += '</div>';
+
+  // ===== 2) ต้องทำตอนนี้ (เรียงตามความด่วน) =====
+  const cards = [];
+  // 2.1 นับเสร็จ → เปิดให้ Verifier
+  if (d.counted.length) cards.push(_ctrCard('counted', 'bad', '🔍', _cL('Counter ນັບແລ້ວ — ເປີດໃຫ້ Verifier', 'Counter นับเสร็จ — เปิดให้ Verifier'), d.counted.length,
+    _cL('ຊັ້ນເຫຼົ່ານີ້ Verifier ຍັງເຂົ້າບໍ່ໄດ້ ຈົນກວ່າຈະກົດເປີດ', 'ชั้นเหล่านี้ Verifier ยังเข้าไม่ได้จนกว่าจะกดเปิด'),
+    d.counted.map(g => _ctrRow(_ctrCode(g.code), _cL('ລໍຖ້າມາ ', 'รอมา ') + _ctrDur(g.idle), _ctrBtn('🔍 ' + _cL('ເປີດໃຫ້ V', 'เปิดให้ V'), "ctrDo('openV','" + _ctrEnc(g.code) + "')", 'var(--violet-600, #7c3aed)'))),
+    d.counted.length > 1 ? _ctrBtn('🔍 ' + _cL('ເປີດໃຫ້ Verifier ທັງໝົດ ', 'เปิดให้ Verifier ทั้งหมด ') + d.counted.length + _cL(' ຊັ້ນ', ' ชั้น'), 'ctrOpenAllV()', 'var(--violet-600, #7c3aed)') : ''));
+  // 2.2 เปิดค้าง ไม่มีสแกน
+  const idle = d.idleC.concat(d.idleV);
+  if (idle.length) cards.push(_ctrCard('idle', 'bad', '⏰', _cL('ຈຸດເປີດຄ້າງ ບໍ່ມີການສະແກນ ', 'จุดเปิดค้าง ไม่มีสแกน ') + WF_IDLE_MIN + _cL('+ ນາທີ', '+ นาที'), idle.length,
+    _cL('ນັບ/ກວດແລ້ວແຕ່ລືມປິດ = ຂັ້ນຕໍ່ໄປລໍຖ້າ · ຖ້າຍັງນັບຢູ່ ໃຫ້ໂທຖາມຄົນທີ່ຖືຈຸດ', 'นับ/ตรวจเสร็จแต่ลืมปิด = ขั้นต่อไปรอ · ถ้ายังนับอยู่ ให้ถามคนที่ถือจุด'),
+    idle.map(g => { const c = g.phase === 'counting'; return _ctrRow(_ctrCode(g.code) + ' <span style="font-size:10px;color:' + (c ? 'var(--sky-700)' : 'var(--amber-700)') + ';">' + (c ? _cL('ກຳລັງນັບ', 'กำลังนับ') : _cL('ກຳລັງກວດ', 'กำลังตรวจ')) + '</span>',
+      '<span style="color:var(--rose-600);">' + _cL('ບໍ່ມີສະແກນ ', 'ไม่มีสแกน ') + (g.idle >= 60 ? '60+' : g.idle) + _cL(' ນາທີ', ' นาที') + '</span>' + (g.holder ? ' · ' + (c ? '👤 ' : '🔍 ') + _whoSpan([g.holder], true) : ''),
+      _ctrBtn('✓ ' + (c ? _cL('ປິດ Counter', 'ปิด Counter') : _cL('ປິດ Verifier', 'ปิด Verifier')), "ctrDo('" + (c ? 'closeC' : 'closeV') + "','" + _ctrEnc(g.code) + "')", 'var(--amber-500, #f59e0b)')); })));
+  // 2.3 รอ CTL ตัดสิน (รวม V/C ข้าม)
+  if (I.judgeCtl.length) cards.push(_ctrCard('judgeCtl', 'warn', '⚖️', _cL('ລໍຖ້າ CTL ຕັດສິນ', 'รอ CTL ตัดสิน'), I.judgeCtl.length,
+    _cL('ເຮັດໂຕມູນຄ່າສູງກ່ອນ · ລວມ Counter/Verifier ຂ້າມ (ປິດຈຸດແລ້ວ ແຕ່ຍັງບໍ່ໄດ້ນັບ)', 'ทำตัวมูลค่าสูงก่อน · รวม Counter/Verifier ข้าม (ปิดจุดแล้วแต่ยังไม่ได้นับ)'),
+    I.judgeCtl.map(it => _ctrRow(_ctrItemName(it), _ctrStageTxt(it._ctrStage) + ' · POS ' + _ctrN(it.pos_qty) + ' · ₭' + _ctrN(Math.abs(it.value || 0)),
+      canJ ? _ctrBtn('⚖️ ' + _cL('ຕັດສິນ', 'ตัดสิน'), 'varJudgeOpen(' + Number(it.product_id) + ')') : '')),
+    _ctrBtn(_cL('ເປີດໜ້າຕັດສິນເຕັມ ›', 'เปิดหน้าตัดสินเต็ม ›'), "ctrGo('variance','stage:ctl')", 'white', 'var(--slate-700)')));
+  // 2.4 BCS ลงตรวจ
+  if (I.judgeBcs.length) cards.push(_ctrCard('judgeBcs', 'bad', '🚨', _cL('3 ຄົນນັບບໍ່ກົງ — BCS ລົງກວດ', '3 คนนับไม่ตรง — BCS ลงตรวจ'), I.judgeBcs.length,
+    _cL('Counter / Verifier / CTL ບໍ່ກົງກັນເລີຍ — ໃຫ້ BCS ຫຼື Admin ນັບເອງ', 'Counter / Verifier / CTL ไม่ตรงกันเลย — ให้ BCS หรือ Admin นับเอง'),
+    I.judgeBcs.map(it => _ctrRow(_ctrItemName(it), 'C ' + (it.counter_qty ?? '—') + ' · V ' + (it.verifier_qty ?? '—') + ' · CTL ' + (it.ctl_qty ?? '—') + ' · POS ' + _ctrN(it.pos_qty),
+      canJ && isBcsUp ? _ctrBtn('🚨 ' + _cL('ໃສ່ຍອດ', 'ใส่ยอด'), 'varJudgeOpen(' + Number(it.product_id) + ')', 'var(--rose-500)') : ''))));
+  // 2.5 ตามหา: รออนุมัติ
+  const H = d.hunt;
+  if (H && !H.err && (H.submitted + H.notfound)) cards.push(_ctrCard('hunt', 'warn', '🔎', _cL('ງານຕາມຫາ ລໍຖ້າອະນຸມັດ', 'งานตามหา รออนุมัติ'), H.submitted + H.notfound,
+    _cL('ພະນັກງານສົ່ງຍອດທີ່ເຈີແລ້ວ ', 'พนักงานส่งยอดที่เจอแล้ว ') + H.submitted + _cL(' · ບໍ່ພົບ 2 ຄົນ ', ' · ไม่พบ 2 คน ') + H.notfound, [],
+    _ctrBtn('🔎 ' + _cL('ໄປອະນຸມັດ', 'ไปอนุมัติ'), "ctrGo('hunt','review')")));
+  // 2.6 สินค้ารอนับครบ → ชั้นที่ยังไม่มีใครนับ
+  const _MISS_ACTIVE = ['counting', 'waitv', 'verifying'];
+  const missAct = d.missList.filter(m => !_MISS_ACTIVE.includes(m.ph));
+  if (missAct.length) cards.push(_ctrCard('miss', 'warn', '📍', _cL('ຊັ້ນທີ່ສິນຄ້າລໍຖ້ານັບ ແຕ່ຍັງບໍ່ມີໃຜນັບ', 'ชั้นที่สินค้ารอนับ แต่ยังไม่มีใครนับ'), missAct.length,
+    _cL('ສິນຄ້າວາງຫຼາຍຈຸດ ຈະສະຫຼຸບບໍ່ໄດ້ຈົນກວ່າຈະນັບຄົບ · ຖ້າຊັ້ນບໍ່ມີຈິງ = ແກ້ Pan-O-Gram', 'สินค้าวางหลายจุด สรุปไม่ได้จนกว่าจะนับครบ · ถ้าชั้นไม่มีจริง = แก้ Pan-O-Gram'),
+    missAct.map(m => _ctrRow(_ctrCode(m.code) + ' <span style="font-size:10px;color:var(--slate-500);">' + _ctrPhLabel(m.ph) + '</span>',
+      _cL('ສິນຄ້າລໍຖ້າ ', 'สินค้ารอ ') + m.n + (['done', 'judging', 'counted'].includes(m.ph) ? ' · <span style="color:var(--rose-600);">' + _cL('ປິດຊັ້ນແລ້ວ ແຕ່ບໍ່ມີໃຜສະແກນສິນຄ້າເຫຼົ່ານີ້', 'ปิดชั้นแล้ว แต่ไม่มีใครสแกนสินค้าเหล่านี้') + '</span>' : '') + (m.inMaster ? '' : ' · <span style="color:var(--rose-600);">' + _cL('ບໍ່ມີໃນລາຍຊື່ຊັ້ນວາງ — ກວດ Pan-O-Gram', 'ไม่มีในรายชื่อชั้นวาง — ตรวจ Pan-O-Gram') + '</span>'),
+      m.ph === 'notopen' && m.inMaster ? _ctrBtn(_cL('ເປີດໃຫ້ Counter', 'เปิดให้ Counter'), "ctrDo('openC','" + _ctrEnc(m.code) + "')", 'var(--teal-600, #0d9488)') : '')),
+    _ctrBtn(_cL('ເບິ່ງສິນຄ້າລໍຖ້ານັບ / ສະຫຼຸບເລີຍ ›', 'ดูสินค้ารอนับ / สรุปเลย ›'), "ctrGo('variance')", 'white', 'var(--slate-700)')));
+  // 2.7 ไม่ได้นับ A → ชั้นที่ Counter ข้ามสินค้า
+  if (d.uncAList.length) cards.push(_ctrCard('uncA', 'warn', '📦', _cL('ມີສະຕ໋ອກແຕ່ບໍ່ໄດ້ນັບ (A) — ຕາມຊັ້ນ', 'มีสต๊อกแต่ไม่ได้นับ (A) — แยกตามชั้น'), d.uncA,
+    _cL('ສິນຄ້າຕາມ Pan-O-Gram ຂອງຊັ້ນທີ່ນັບແລ້ວ ແຕ່ບໍ່ມີໃຜສະແກນ → ສົ່ງເຂົ້າງານຕາມຫາ ຫຼື ຢືນຢັນບໍ່ພົບ', 'สินค้าตาม Pan-O-Gram ของชั้นที่นับแล้ว แต่ไม่มีใครสแกน → ส่งเข้างานตามหา หรือยืนยันไม่พบ'),
+    d.uncAList.map(m => _ctrRow(_ctrCode(m.code) + ' <span style="font-size:10px;color:var(--slate-500);">' + _ctrPhLabel(m.ph) + '</span>', _cL('ບໍ່ໄດ້ນັບ ', 'ไม่ได้นับ ') + m.n + _cL(' ລາຍການ', ' รายการ'), '')),
+    _ctrBtn(_cL('ເບິ່ງລາຍການ / ຢືນຢັນບໍ່ພົບ ›', 'ดูรายการ / ยืนยันไม่พบ ›'), "ctrGo('variance','csum:uncounted')", 'white', 'var(--slate-700)')
+    + (H && !H.err ? _ctrBtn('🔎 ' + _cL('ສົ່ງເຂົ້າງານຕາມຫາ', 'ส่งเข้างานตามหา'), "ctrGo('hunt','queue')") : '')));
+  // 2.8 เปิดแล้วไม่มีคนเริ่ม
+  const noStart = d.waitstart.filter(g => (g.idle || 0) >= WF_IDLE_MIN).concat(d.waitv.filter(g => (g.idle || 0) >= WF_IDLE_MIN));
+  if (noStart.length) cards.push(_ctrCard('nostart', 'info', '🚶', _cL('ເປີດແລ້ວ ແຕ່ຍັງບໍ່ມີໃຜເລີ່ມ', 'เปิดแล้ว แต่ยังไม่มีใครเริ่ม'), noStart.length,
+    _cL('ສົ່ງຄົນທີ່ຫວ່າງ (ເບິ່ງລາຍຊື່ພະນັກງານດ້ານລຸ່ມ) ໄປນັບ/ກວດ', 'ส่งคนที่ว่าง (ดูรายชื่อพนักงานด้านล่าง) ไปนับ/ตรวจ'),
+    noStart.map(g => _ctrRow(_ctrCode(g.code) + ' <span style="font-size:10px;color:var(--slate-500);">' + (g.phase === 'waitv' ? _cL('ລໍຖ້າ Verifier', 'รอ Verifier') : _cL('ລໍຖ້າ Counter', 'รอ Counter')) + '</span>', _cL('ເປີດມາ ', 'เปิดมา ') + _ctrDur(g.idle), ''))));
+  // 2.9 ไม่ได้นับ B
+  if (d.uncB) cards.push(_ctrCard('uncB', 'info', '❓', _cL('ມີສະຕ໋ອກແຕ່ບໍ່ໄດ້ນັບ (B) — ບໍ່ຮູ້ຕຳແໜ່ງ', 'มีสต๊อกแต่ไม่ได้นับ (B) — ไม่รู้ตำแหน่ง'), d.uncB,
+    _cL('ບໍ່ມີ Pan-O-Gram ຫຼື ຊັ້ນຍັງບໍ່ໄດ້ນັບ — ເຮັດຫຼັງສຸດ (ຫຼັງ Verifier ຈົບ)', 'ไม่มี Pan-O-Gram หรือชั้นยังไม่ได้นับ — ทำหลังสุด (หลัง Verifier จบ)'), [],
+    _ctrBtn(_cL('ເບິ່ງລາຍການ ›', 'ดูรายการ ›'), "ctrGo('variance','csum:uncounted')", 'white', 'var(--slate-700)')));
+
+  h += '<div style="font-size:13px;font-weight:800;color:var(--slate-800);margin:4px 2px 7px;">📋 ' + _cL('ຕ້ອງເຮັດຕອນນີ້', 'ต้องทำตอนนี้') + ' <span style="font-size:11px;color:var(--slate-500);font-weight:700;">(' + _cL('ລຽງຕາມຄວາມດ່ວນ', 'เรียงตามความด่วน') + ')</span></div>';
+  if (cards.length) h += cards.join('');
+  else {
+    const allDone = d.total && doneG === d.total;
+    h += '<div style="background:var(--emerald-50, #ecfdf5);border:1px solid var(--emerald-200, #a7f3d0);border-radius:12px;padding:14px;text-align:center;margin-bottom:9px;">'
+      + '<div style="font-size:22px;">✅</div><div style="font-size:13px;font-weight:800;color:var(--emerald-700);">' + (allDone ? _cL('ທຸກຊັ້ນສຳເລັດ — ພ້ອມປິດຮອບ', 'ทุกชั้นเสร็จ — พร้อมปิดรอบ') : _cL('ຕອນນີ້ບໍ່ມີງານຄ້າງ', 'ตอนนี้ไม่มีงานค้าง')) + '</div>'
+      + '<div style="font-size:11px;color:var(--slate-600);">' + (allDone ? _cL('ກວດສະຫຼຸບຜົນ ແລ້ວປິດຮອບໃນໜ້າຕັ້ງຄ່າ', 'ตรวจสรุปผล แล้วปิดรอบในหน้าตั้งค่า') : _cL('ລໍຖ້າ Counter / Verifier ນັບຕາມປົກກະຕິ', 'รอ Counter / Verifier นับตามปกติ')) + '</div></div>';
+  }
+
+  // ===== 3) กำลังรอตามปกติ (ไม่ต้องทำอะไร) =====
+  const wv = I.waitVs, wc = I.waitCs;
+  h += '<div style="background:white;border:1px solid var(--slate-200);border-radius:12px;padding:10px 12px;margin-bottom:10px;">'
+    + '<div style="font-size:12px;font-weight:800;color:var(--slate-700);margin-bottom:5px;">⏳ ' + _cL('ກຳລັງລໍຖ້າຕາມປົກກະຕິ', 'กำลังรอตามปกติ') + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-600);line-height:1.7;">'
+    + '• ' + _cL('ລໍຖ້າ Verifier ', 'รอ Verifier ') + '<b>' + I.waitV.length + '</b>: ' + _cL('V ກຳລັງກວດ ', 'V กำลังตรวจ ') + wv.inV + ' · ' + _cL('ຊັ້ນຍັງນັບຢູ່ ', 'ชั้นยังนับอยู่ ') + wv.inC
+    + (wv.needOpen ? ' · <b style="color:var(--rose-600);">' + _cL('ລໍຖ້າເປີດ V ', 'รอเปิด V ') + wv.needOpen + '</b>' : '') + (wv.other ? ' · ' + _cL('ອື່ນໆ ', 'อื่นๆ ') + wv.other : '') + '<br>'
+    + '• ' + _cL('ລໍຖ້າ Counter ', 'รอ Counter ') + '<b>' + I.waitC.length + '</b>: ' + _cL('ຊັ້ນກຳລັງນັບ ', 'ชั้นกำลังนับ ') + wc.inC + ' · ' + _cL('ອື່ນໆ ', 'อื่นๆ ') + (wc.inV + wc.needOpen + wc.other) + '<br>'
+    + '• ' + _cL('ນັບບໍ່ຄົບທຸກຈຸດ ', 'นับไม่ครบทุกจุด ') + '<b>' + I.pending + '</b>: ' + _cL('ຊັ້ນທີ່ກຳລັງນັບ ', 'ชั้นที่กำลังนับ ') + d.missList.filter(m => ['counting', 'waitv', 'verifying'].includes(m.ph)).length + _cL(' ຊັ້ນ', ' ชั้น')
+    + (H && !H.err ? '<br>• ' + _cL('ງານຕາມຫາ: ລໍຖ້າຄົນຮັບ ', 'งานตามหา: รอคนรับ ') + H.open + ' · ' + _cL('ກຳລັງຫາ ', 'กำลังหา ') + H.claimed + ' · ' + _cL('ຈົບແລ້ວ ', 'จบแล้ว ') + H.done : '')
+    + (H && H.missing ? '<br>• <span style="color:var(--amber-700);">' + _cL('ງານຕາມຫາ: ຍັງບໍ່ໄດ້ຣັນ SQL count_hunts', 'งานตามหา: ยังไม่ได้รัน SQL count_hunts') + '</span>' : '')
+    + '</div></div>';
+
+  // ===== 4) พนักงาน (สแกนใน 60 นาทีล่าสุด) =====
+  const act = d.ppl.filter(p => _ctrMin(p.last, now) < WF_IDLE_MIN), idl = d.ppl.filter(p => _ctrMin(p.last, now) >= WF_IDLE_MIN);
+  const pRow = p => { const m = _ctrMin(p.last, now), idleP = m >= WF_IDLE_MIN;
+    return '<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid var(--slate-100);font-size:11px;">'
+      + '<span style="background:var(--slate-100);border-radius:5px;padding:1px 5px;font-weight:800;font-size:10px;color:var(--slate-600);min-width:30px;text-align:center;">' + p.grp + '</span>'
+      + '<span style="flex:1;min-width:0;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _whoSpan([p.uid], true) + '</span>'
+      + '<span style="color:var(--slate-500);font-family:\'Space Grotesk\',monospace;">' + escapeHtml(p.loc || '') + '</span>'
+      + '<span style="min-width:62px;text-align:right;font-weight:800;color:' + (idleP ? 'var(--amber-700)' : 'var(--emerald-600)') + ';">' + (idleP ? m + _cL(' ນ. ກ່ອນ', ' น.ก่อน') : _cL('ກຳລັງເຮັດ', 'กำลังทำ')) + '</span>'
+      + '<span style="min-width:34px;text-align:right;color:var(--slate-500);" title="' + _cL('ສະແກນ 30 ນາທີ', 'สแกน 30 นาที') + '">' + p.n30 + '</span></div>'; };
+  h += '<div style="background:white;border:1px solid var(--slate-200);border-radius:12px;padding:10px 12px;margin-bottom:10px;">'
+    + '<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:3px;"><span style="font-size:12px;font-weight:800;color:var(--slate-700);">👥 ' + _cL('ພະນັກງານ', 'พนักงาน') + '</span>'
+    + '<span style="font-size:11px;color:var(--emerald-600);font-weight:800;">' + _cL('ກຳລັງເຮັດ ', 'กำลังทำ ') + act.length + '</span>'
+    + '<span style="font-size:11px;color:var(--amber-700);font-weight:800;">' + _cL('· ຫວ່າງ/ຢຸດ ', '· ว่าง/หยุด ') + idl.length + '</span>'
+    + '<span style="margin-left:auto;font-size:10px;color:var(--slate-400);">' + _cL('ໂຕເລກຂວາ = ສະແກນ 30 ນາທີ', 'เลขขวา = สแกนใน 30 นาที') + '</span></div>'
+    + (idl.length && (d.counted.length || noStart.length || (H && !H.err && H.open)) ? '<div style="font-size:11px;color:var(--amber-700);font-weight:700;margin-bottom:3px;">💡 ' + _cL('ມີຄົນຫວ່າງ — ສົ່ງໄປຊັ້ນທີ່ລໍຖ້າ ຫຼື ໃຫ້ຮັບງານຕາມຫາ', 'มีคนว่าง — ส่งไปชั้นที่รอ หรือให้รับงานตามหา') + '</div>' : '')
+    + (d.ppl.length ? idl.concat(act).map(pRow).join('') : '<div style="font-size:11px;color:var(--slate-400);padding:4px 0;">' + _cL('ບໍ່ມີການສະແກນໃນ 60 ນາທີ', 'ไม่มีการสแกนใน 60 นาที') + '</div>')
+    + '</div>';
+
+  // ===== 5) ลิงก์หน้าเดิม =====
+  const lk = (lbl, onclick) => '<button onclick="' + onclick + '" style="background:white;border:1px solid var(--slate-300);border-radius:9px;padding:7px 10px;font-size:11px;font-weight:700;color:var(--slate-700);cursor:pointer;">' + lbl + '</button>';
+  h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">'
+    + lk('🗂️ ' + _cL('ຄວບຄຸມການນັບ', 'ควบคุมการนับ'), "ctrGo('workflow')")
+    + lk('🗺️ ' + _cL('ແຜນຜັງ', 'แผนผัง'), "ctrGo('floormap')")
+    + lk('📊 ' + _cL('ຄາດເຄື່ອນ', 'คลาดเคลื่อน'), "ctrGo('variance')")
+    + lk('🔎 ' + _cL('ຕາມຫາ', 'ตามหา'), "ctrGo('hunt')")
+    + '</div>';
+
+  body.innerHTML = h;
+  _vjFillWho(body);
+}
+function _ctrStageTxt(k) {
+  return ({
+    need_ctl: _cL('C ≠ V', 'C ≠ V'),
+    v_skip: _cL('Verifier ຂ້າມ', 'Verifier ข้าม'),
+    c_skip: _cL('Counter ຂ້າມ', 'Counter ข้าม')
+  })[k] || k;
+}
+
+// ---------- การกระทำ ----------
+function ctrMore(k) { _ctrMore[k] = !_ctrMore[k]; ctrRender(); }
+async function ctrDo(kind, enc) {
+  const code = decodeURIComponent(enc);
+  if (kind === 'openV') await wfOpenForVerifier(code);
+  else if (kind === 'closeC') await wfCloseCounter(code);
+  else if (kind === 'closeV') await wfCloseVerifier(code);
+  else if (kind === 'openC') { if (!confirm(_cL('ເປີດໃຫ້ Counter ', 'เปิดให้ Counter ') + code + ' ?')) return; await wfOpenForCounter(code); }
+  setTimeout(() => { ctrLoad(true); }, 500);
+  setTimeout(() => { if (typeof wfIdleCheck === 'function') wfIdleCheck(); }, 900);
+}
+async function ctrOpenAllV() {
+  const list = (_ctr && _ctr.counted || []).map(g => g.code);
+  if (!list.length || !wfNeedSession()) return;
+  if (!confirm(_cL('ເປີດໃຫ້ Verifier ທັງໝົດ ', 'เปิดให้ Verifier ทั้งหมด ') + list.length + _cL(' ຊັ້ນ?\n', ' ชั้น?\n') + list.join(', '))) return;
+  let ok = 0; const fail = [];
+  for (const code of list) {
+    try {
+      const { error } = await sb.rpc('open_gondola_for_verifier', { p_session_id: session.id, p_location_code: code, p_ctl_user_id: user.id, p_verifier_id: null });
+      if (error) fail.push(code + ': ' + error.message); else ok++;
+    } catch (e) { fail.push(code + ': ' + (e.message || e)); }
+  }
+  if (fail.length) showToast(_cL('ເປີດໄດ້ ', 'เปิดได้ ') + ok + _cL(' · ບໍ່ສຳເລັດ ', ' · ไม่สำเร็จ ') + fail.length + ': ' + fail[0], 'error');
+  else showToast('✅ ' + _cL('ເປີດໃຫ້ Verifier ', 'เปิดให้ Verifier ') + ok + _cL(' ຊັ້ນ', ' ชั้น'), 'success');
+  ctrLoad(true);
+  setTimeout(() => { if (typeof wfIdleCheck === 'function') wfIdleCheck(); }, 900);
+}
+// ไปหน้าเดิม + ปุ่ม "กลับศูนย์ควบคุม"
+function ctrGo(page, after) {
+  if (page === 'hunt') { if (after) _huntTab = after; window._dashAfter = null; }
+  else window._dashAfter = after || null;
+  goPage(page);
+  const c = document.getElementById('appContent');
+  if (!c || document.getElementById('ctrBackBar')) return;
+  const b = document.createElement('div');
+  b.id = 'ctrBackBar';
+  b.style.cssText = 'margin-bottom:10px;';
+  b.innerHTML = '<button onclick="goPage(\'countctl\')" style="background:white;border:1px solid var(--slate-300);border-radius:9px;padding:8px 13px;font-size:12px;font-weight:800;color:var(--slate-700);cursor:pointer;">← ' + _cL('ກັບສູນຄວບຄຸມ', 'กลับศูนย์ควบคุม') + '</button>';
+  c.insertBefore(b, c.firstChild);
+}
+window.ctrLoad = ctrLoad; window.ctrMore = ctrMore; window.ctrDo = ctrDo; window.ctrOpenAllV = ctrOpenAllV; window.ctrGo = ctrGo;
 
 // ==================== 🔎 งานตามหา (hunt*) — Ball 2026-11-21 ====================
 // สินค้าผลต่างสูง (|₭| ≥ เกณฑ์) เข้าคิว → Counter/Verifier กดรับงาน → ไปหา + ใส่ยอดที่เจอทีละจุด → CTL/BCS/Admin อนุมัติ
