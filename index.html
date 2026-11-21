@@ -5580,6 +5580,7 @@ const PAGE_META = {
   history:    { iconSvg: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><polyline points="3 3 3 8 8 8"/><polyline points="12 7 12 12 15 14"/>',                                                                                                                                   labelTh: 'ประวัติ',      labelLo: 'ປະຫວັດ',       page: 'history' },
   floormap:   { iconSvg: '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>',                                                                                                                            labelTh: 'แผนผัง',       labelLo: 'ແຜນຜັງ',       page: 'floormap' },
   workflow:   { iconSvg: '<rect x="9" y="2" width="6" height="4" rx="1"/><path d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/>',                                                     labelTh: 'Workflow',     labelLo: 'Workflow',     page: 'workflow' },
+  hunt:       { iconSvg: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>', labelTh: 'ตามหา', labelLo: 'ຕາມຫາ', page: 'hunt' },
   tiebreaker: { iconSvg: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',                                                                                                                                                                             labelTh: 'ตัดสิน',       labelLo: 'ຕັດສິນ',       page: 'tiebreaker',     badge: 'tabTbBadge' },
   dashboard:  { iconSvg: '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',                                                                    labelTh: 'Dashboard',    labelLo: 'Dashboard',    page: 'dashboard' },
   kpi:        { iconSvg: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',                                                                                                                                                                                                                labelTh: 'KPI',          labelLo: 'KPI',          page: 'kpi' },
@@ -5723,6 +5724,9 @@ function wtFilterMenuCfg(cfg, role) {
     bottomTabs = bottomTabs.filter(x => !moveItems.includes(x));
     //   - counter/verifier: ซ่อน "ตรวจสต๊อก" กันเปิดดูสต๊อกระหว่างนับ
     if (isCV) bottomTabs = bottomTabs.filter(x => x !== 'stockcheck');
+    //   - 🔎 งานตามหา (Ball 2026-11-21)
+    if (isCV) { const si = bottomTabs.indexOf('scan'); bottomTabs.splice(si >= 0 ? si + 1 : bottomTabs.length, 0, 'hunt'); }
+    else if (['ctl', 'bcs', 'admin', 'scc', 'it'].includes(role)) drawerGroups = [{ titleTh: 'งานตามหา', titleLo: 'ງານຕາມຫາ', items: ['hunt'] }].concat(drawerGroups);
     //   - เพิ่มรายการที่ย้ายเข้าเมนู (กันซ้ำกับที่มีอยู่)
     if (moveItems.length) {
       const already = new Set(drawerGroups.reduce((a, g) => a.concat(g.items), []));
@@ -5995,6 +5999,9 @@ function goPage(page) {
   } else if (page === 'history') {
     c.innerHTML = renderHistoryPage();
     loadHistory();
+  } else if (page === 'hunt') {
+    c.innerHTML = renderHuntPage();
+    setTimeout(() => huntInit(), 30);
   } else if (page === 'tiebreaker') {
     c.innerHTML = renderTiebreakerPage();
     loadTiebreakerList();
@@ -37473,6 +37480,570 @@ function wfIdleSnoozeAll() {
   const b = document.getElementById('wfIdleBox'); if (b) b.remove();
 }
 window.wfIdleClose = wfIdleClose; window.wfIdleSnooze = wfIdleSnooze; window.wfIdleSnoozeAll = wfIdleSnoozeAll;
+
+// ==================== 🔎 งานตามหา (hunt*) — Ball 2026-11-21 ====================
+// สินค้าผลต่างสูง (|₭| ≥ เกณฑ์) เข้าคิว → Counter/Verifier กดรับงาน → ไปหา + ใส่ยอดที่เจอทีละจุด → CTL/BCS/Admin อนุมัติ
+// อนุมัติ = เขียน stock_counts เป็นยอดตัดสิน (ctl_tiebreaker / manager_final ตามคนอนุมัติ) แบบเดียวกับ varJudgeSave → สูตรยอดเดิมไม่เปลี่ยน
+// ตาราง count_hunts (SQL\count_hunts.sql) · คิวสร้าง/อัปเดตจากเครื่องหัวหน้า (huntSync) ทุกครั้งที่เปิดหน้า + ทุก 3 นาที
+// ไม่ได้นับ (unc_a/unc_b): "ไม่พบ" ครบ 2 คน → รอหัวหน้ายืนยัน 0 · สินค้าที่นับแล้ว: "ไม่เจอเพิ่ม" = ส่งยอดเดิม
+const HUNT_MAX_CLAIM = 3, HUNT_NOTFOUND_N = 2, HUNT_STALE_MIN = 15, HUNT_SYNC_MS = 180000;
+let _huntMin = 100000;          // เกณฑ์มูลค่า (app_settings.hunt_min_value)
+let _huntRows = [], _huntProd = {}, _huntTab = null, _huntTimer = null, _huntBusy = false, _huntMissing = false, _huntSyncAt = 0;
+let _huntWork = null;           // { h, p, locs, cur, scanned }
+let _huntPeople = null;         // [{id, name}] พนักงานที่นับในรอบนี้ (มอบหมายงาน)
+const _hL = (lo, th) => lang === 'lo' ? lo : th;
+function huntIsMgr() { return !!user && ['ctl', 'bcs', 'admin', 'scc', 'it'].includes(user.role); }
+function huntIsStaff() { return !!user && ['counter', 'verifier', 'audit'].includes(user.role); }
+function _huntN(n) { return Math.round(Number(n) || 0).toLocaleString('en-US'); }
+function _huntKind(k) {
+  return ({
+    need_ctl: ['⚖️', _hL('ນັບບໍ່ກົງກັນ', 'นับไม่ตรงกัน'), 'var(--amber-700, #b45309)'],
+    need_bcs: ['🚨', _hL('3 ຄົນນັບບໍ່ກົງ', '3 คนนับไม่ตรง'), 'var(--rose-700, #be123c)'],
+    v_skip: ['⚠️', _hL('ນັບບໍ່ຄົບ', 'นับไม่ครบ'), 'var(--amber-700, #b45309)'],
+    c_skip: ['⚠️', _hL('ນັບບໍ່ຄົບ', 'นับไม่ครบ'), 'var(--amber-700, #b45309)'],
+    cv_real: ['🔍', _hL('ອາດຢູ່ບ່ອນອື່ນ', 'อาจอยู่ที่อื่น'), 'var(--sky-700, #0369a1)'],
+    unc_a: ['📍', _hL('ບໍ່ໄດ້ນັບ · ຄວນຢູ່ຊັ້ນນີ້', 'ไม่ได้นับ · ควรอยู่ชั้นนี้'), 'var(--violet-700, #6d28d9)'],
+    unc_b: ['❓', _hL('ບໍ່ໄດ້ນັບ · ບໍ່ຮູ້ຕຳແໜ່ງ', 'ไม่ได้นับ · ไม่รู้ตำแหน่ง'), 'var(--slate-700)']
+  })[k] || ['•', k || '', 'var(--slate-700)'];
+}
+function _huntIsUnc(h) { return h && (h.kind === 'unc_a' || h.kind === 'unc_b'); }
+function _huntHint(h) {
+  let x = {}; try { x = JSON.parse(h.hint || '{}') || {}; } catch (e) { x = {}; }
+  const out = [];
+  if (x.gons) out.push('📍 ' + _hL('ນັບທີ່ ', 'นับที่ ') + x.gons);
+  if (x.pog) out.push('🗺️ Pan-O-Gram ' + x.pog);
+  else if (_huntIsUnc(h)) out.push('🗺️ ' + _hL('ບໍ່ມີ Pan-O-Gram — ຫາທົ່ວຮ້ານ / ສາງ', 'ไม่มี Pan-O-Gram — หาทั่วร้าน / โกดัง'));
+  if (x.buy) out.push('🚚 ' + _hL('ຊື້ເຂົ້າລ່າສຸດ ', 'ซื้อเข้าล่าสุด ') + x.buy + (x.buyNew ? _hL(' — ເບິ່ງສາງ / ຍັງບໍ່ຂຶ້ນຊັ້ນ', ' — ดูโกดัง / ยังไม่ขึ้นชั้น') : ''));
+  if (x.swap) out.push('🔀 ' + _hL('ອາດຂາຍສະຫຼັບລະຫັດກັບ ', 'อาจขายสลับรหัสกับ ') + x.swap);
+  return out;
+}
+function _huntName(h) { const p = _huntProd[h.product_id] || {}; return (lang === 'lo' ? (p.name_lo || p.name_th) : (p.name_th || p.name_lo)) || p.barcode || ('#' + h.product_id); }
+function _huntMins(ts) { return ts ? Math.round((Date.now() - new Date(ts).getTime()) / 60000) : null; }
+
+function renderHuntPage() {
+  return '<div class="page-header" style="margin-bottom:10px;"><div><div class="page-title">🔎 ' + _hL('ງານຕາມຫາ', 'งานตามหา') + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-500);">' + (huntIsMgr() ? _hL('ແຈກງານໃຫ້ພະນັກງານຊ່ວຍກັນຫາ · ອະນຸມັດຍອດທີ່ເຈີ', 'แจกงานให้พนักงานช่วยกันหา · อนุมัติยอดที่เจอ') : _hL('ຮັບງານ → ໄປຫາ → ສະແກນ → ໃສ່ຍອດທີ່ເຈີ', 'รับงาน → ไปหา → สแกน → ใส่ยอดที่เจอ')) + '</div></div></div>'
+    + '<div id="huntRoot"><div style="text-align:center;padding:30px;color:var(--slate-400);font-size:12px;">⏳</div></div>';
+}
+async function huntInit() {
+  if (_huntTimer) { clearInterval(_huntTimer); _huntTimer = null; }
+  _huntTab = _huntTab || (huntIsMgr() ? 'review' : 'mine');
+  try {
+    const { data } = await sb.from('app_settings').select('value').eq('key', 'hunt_min_value').maybeSingle();
+    const v = Number(data && data.value); if (v >= 0 && isFinite(v) && data) _huntMin = v;
+  } catch (e) {}
+  await huntReload(huntIsMgr());
+  _huntTimer = setInterval(() => {
+    if (!document.getElementById('huntRoot')) { clearInterval(_huntTimer); _huntTimer = null; return; }
+    if (document.hidden || document.getElementById('modalOverlay')?.classList.contains('show')) return;
+    huntReload(huntIsMgr() && Date.now() - _huntSyncAt > HUNT_SYNC_MS);
+  }, 30000);
+}
+async function huntReload(doSync) {
+  const root = document.getElementById('huntRoot'); if (!root) return;
+  if (!session || !session.id) { root.innerHTML = '<div style="text-align:center;padding:30px;color:var(--slate-500);font-size:13px;">' + _hL('ຍັງບໍ່ມີຮອບນັບ', 'ยังไม่มีรอบนับ') + '</div>'; return; }
+  if (_huntBusy) return; _huntBusy = true;
+  try {
+    if (doSync) await huntSync(true);
+    await huntFetch();
+    huntRender();
+  } catch (e) {
+    root.innerHTML = _huntMissing
+      ? '<div style="background:var(--amber-50, #fffbeb);border:1px solid var(--amber-300, #fcd34d);border-radius:10px;padding:12px;font-size:12px;color:var(--amber-800, #92400e);">⚠️ ' + _hL('ຍັງບໍ່ໄດ້ແລ່ນ SQL count_hunts — ແຈ້ງ Admin', 'ยังไม่ได้รัน SQL count_hunts — แจ้ง Admin') + '</div>'
+      : '<div style="color:var(--rose-600);font-size:12px;padding:10px;">Error: ' + escapeHtml(e.message || String(e)) + '</div>';
+  } finally { _huntBusy = false; }
+}
+async function huntFetch() {
+  const res = await sb.from('count_hunts').select('*').eq('session_id', session.id).order('id').limit(2000);
+  if (res.error) { _huntMissing = /count_hunts|PGRST205|42P01/i.test(String(res.error.code || '') + ' ' + String(res.error.message || '')); throw res.error; }
+  _huntMissing = false;
+  _huntRows = res.data || [];
+  const need = [...new Set(_huntRows.map(h => h.product_id))].filter(id => !_huntProd[id]);
+  for (let i = 0; i < need.length; i += 300) {
+    const ps = await _sbSel(() => sb.from('products').select('id, barcode, name_th, name_lo').in('id', need.slice(i, i + 300)));
+    (ps || []).forEach(p => { _huntProd[p.id] = p; });
+  }
+}
+
+// ---- คิว: สร้าง/ปิด จากผลรายงานคลาดเคลื่อน (เครื่องหัวหน้า) ----
+async function huntSync(quiet) {
+  if (!huntIsMgr() || !session) return;
+  _huntSyncAt = Date.now();
+  if (typeof _varianceFilter !== 'undefined' && _varianceFilter && _varianceFilter.period === 'round') _varianceFilter.period = 'session';
+  const items = await computeVarianceItems('session');
+  _varianceAllData = items;
+  const valid = items.filter(i => !i.isOrphan);
+  _varianceData = valid.filter(i => i.isComplete); _variancePending = valid.filter(i => !i.isComplete);
+  _csum = null;
+  const d = await csumLoad(true);
+  if (!d) throw new Error(_hL('ສະຫຼຸບຂໍ້ມູນບໍ່ສຳເລັດ', 'สรุปข้อมูลไม่สำเร็จ'));
+  const KINDS = ['need_ctl', 'need_bcs', 'v_skip', 'c_skip', 'cv_real'];
+  const min = Number(_huntMin) || 0;
+  const recent = s => { if (!s) return false; const t = new Date(s).getTime(); return isFinite(t) && Date.now() - t < 30 * 86400000; };
+  const cand = [];
+  (d.done || []).forEach(r => {
+    if (!r.diff || !KINDS.includes(r.stageKey) || Math.abs(r.diffV || 0) < min || r.noCost) return;
+    cand.push({ pid: r.pid, kind: r.stageKey, pos: r.pos, cur: r.fin, diff: r.diff, val: r.diffV, name: r.name, hint: { gons: r.gons, buy: r.lastBuy || '', buyNew: r.diff < 0 && recent(r.lastBuy) } });
+  });
+  (d.uncA || []).concat(d.uncB || []).forEach(r => {
+    if (!(r.pos > 0) || r.posV < min || r.noCost) return;
+    cand.push({ pid: r.pid, kind: r.grpKey === 'A' ? 'unc_a' : 'unc_b', pos: r.pos, cur: null, diff: -r.pos, val: -r.posV, name: r.name, hint: { pog: (r.grpKey === 'A' ? r.hitGons.join(', ') : r.pogGons) || '', buy: r.lastBuy || '', buyNew: recent(r.lastBuy) } });
+  });
+  // 🔀 ขายสลับรหัส: ขาด X = เกิน X ของอีกตัว (ชื่อขึ้นต้นเหมือนกัน)
+  const brand = s => String(s || '').trim().split(/\s+/)[0].toUpperCase();
+  const over = (d.done || []).filter(r => r.diff > 0);
+  cand.forEach(c => { if (c.diff >= 0) return; const m = over.find(o => o.diff === -c.diff && o.pid !== c.pid && brand(o.name) === brand(c.name)); if (m) c.hint.swap = m.name + ' (+' + m.diff + ')'; });
+  const have = new Set(_huntRows.map(h => h.product_id));
+  const rows = cand.filter(c => !have.has(c.pid)).map(c => ({
+    session_id: session.id, branch_id: branch?.id || user.branch_id, product_id: c.pid, kind: c.kind,
+    pos_qty: c.pos, cur_qty: c.cur, diff_qty: c.diff, diff_val: Math.round(c.val), hint: JSON.stringify(c.hint), status: 'open'
+  }));
+  for (let i = 0; i < rows.length; i += 300) {
+    const { error } = await sb.from('count_hunts').upsert(rows.slice(i, i + 300), { onConflict: 'session_id,product_id', ignoreDuplicates: true });
+    if (error) { _huntMissing = /count_hunts|PGRST205|42P01/i.test(String(error.code || '') + ' ' + String(error.message || '')); throw error; }
+  }
+  // งานว่างที่ไม่อยู่ในเกณฑ์แล้ว (ตัดสินทางอื่น/ยอดตรงแล้ว) → ปิด
+  const keep = new Set(cand.map(c => c.pid));
+  const stale = _huntRows.filter(h => h.status === 'open' && !keep.has(h.product_id)).map(h => h.id);
+  for (let i = 0; i < stale.length; i += 200) {
+    await sb.from('count_hunts').update({ status: 'closed', updated_at: new Date().toISOString() }).in('id', stale.slice(i, i + 200)).eq('status', 'open');
+  }
+  if (!quiet) showToast('✓ ' + _hL('ອັບເດດຄິວ', 'อัปเดตคิว') + ' +' + rows.length + (stale.length ? ' · ' + _hL('ປິດ ', 'ปิด ') + stale.length : ''), 'success');
+}
+async function huntSyncNow() { await huntReload(false); _huntBusy = true; try { await huntSync(false); await huntFetch(); } catch (e) { showToast('Error: ' + (e.message || e), 'error'); } finally { _huntBusy = false; } huntRender(); }
+async function huntSetMin() {
+  const v = prompt(_hL('ເກນມູນຄ່າ (₭) — ສິນຄ້າທີ່ຜົນຕ່າງ ≥ ຄ່ານີ້ ຈຶ່ງເຂົ້າຄິວ', 'เกณฑ์มูลค่า (₭) — สินค้าที่ผลต่าง ≥ ค่านี้ จึงเข้าคิว'), String(_huntMin));
+  if (v === null) return;
+  const n = Number(String(v).replace(/[,\s₭]/g, ''));
+  if (!isFinite(n) || n < 0) { showToast(_hL('ຕົວເລກບໍ່ຖືກ', 'ตัวเลขไม่ถูก'), 'warning'); return; }
+  const { error } = await sb.from('app_settings').upsert({ key: 'hunt_min_value', value: String(Math.round(n)), updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: 'key' });
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  _huntMin = Math.round(n); huntSyncNow();
+}
+
+// ---- หน้าจอ ----
+function huntSetTab(t) { _huntTab = t; huntRender(); }
+function _huntCard(h, actions, extra) {
+  const k = _huntKind(h.kind), neg = Number(h.diff_qty) < 0;
+  const col = neg ? 'var(--rose-600, #e11d48)' : 'var(--emerald-700, #047857)';
+  return '<div style="background:white;border:1px solid var(--slate-200);border-left:4px solid ' + col + ';border-radius:10px;padding:9px 11px;margin-bottom:7px;">'
+    + '<div style="display:flex;gap:8px;align-items:flex-start;">'
+    + '<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:800;color:var(--slate-900);line-height:1.35;">' + escapeHtml(_huntName(h)) + '</div>'
+    + '<div style="font-size:10px;color:var(--slate-500);font-family:monospace;">' + escapeHtml((_huntProd[h.product_id] || {}).barcode || '') + '</div>'
+    + '<div style="margin-top:3px;"><span style="font-size:10px;font-weight:800;color:' + k[2] + ';background:var(--slate-50, #f8fafc);border:1px solid var(--slate-200);border-radius:6px;padding:1px 6px;">' + k[0] + ' ' + k[1] + '</span></div></div>'
+    + '<div style="text-align:right;flex-shrink:0;font-family:\'Space Grotesk\',monospace;">'
+    + '<div style="font-size:16px;font-weight:800;color:' + col + ';">' + (neg ? '' : '+') + _huntN(h.diff_qty) + '</div>'
+    + '<div style="font-size:10px;color:var(--slate-500);">POS ' + _huntN(h.pos_qty) + ' → ' + (h.cur_qty == null ? '0' : _huntN(h.cur_qty)) + '</div>'
+    + '<div style="font-size:11px;font-weight:800;color:' + col + ';">₭' + _huntN(h.diff_val) + '</div></div></div>'
+    + _huntHint(h).map(t => '<div style="font-size:11px;color:var(--slate-600);margin-top:2px;">' + escapeHtml(t) + '</div>').join('')
+    + (extra || '')
+    + (actions ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;">' + actions + '</div>' : '')
+    + '</div>';
+}
+function _huntBtn(label, onclick, bg, fg, border) {
+  return '<button onclick="' + onclick + '" style="flex:1;min-width:90px;background:' + bg + ';color:' + (fg || 'white') + ';border:' + (border || 'none') + ';border-radius:9px;padding:9px 10px;font-size:12px;font-weight:800;cursor:pointer;">' + label + '</button>';
+}
+function _huntSort(a) { return a.slice().sort((x, y) => Math.abs(Number(y.diff_val) || 0) - Math.abs(Number(x.diff_val) || 0)); }
+function _huntNf(h) { return Array.isArray(h.notfound_by) ? h.notfound_by : []; }
+function huntRender() {
+  const root = document.getElementById('huntRoot'); if (!root) return;
+  root.innerHTML = huntIsMgr() ? _huntMgrHtml() : _huntStaffHtml();
+  if (huntIsMgr()) _vjFillWho(root);
+}
+function _huntTabs(defs) {
+  return '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px;">' + defs.map(([k, lbl, n]) =>
+    '<button onclick="huntSetTab(\'' + k + '\')" style="background:' + (_huntTab === k ? 'var(--slate-800)' : 'white') + ';color:' + (_huntTab === k ? 'white' : 'var(--slate-700)') + ';border:1px solid var(--slate-300);border-radius:16px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">' + lbl + ' ' + n + '</button>').join('') + '</div>';
+}
+function _huntStaffHtml() {
+  const me = user.id;
+  const mine = _huntSort(_huntRows.filter(h => h.assigned_to === me && h.status === 'claimed'));
+  const wait = _huntRows.filter(h => h.assigned_to === me && h.status === 'submitted');
+  const free = _huntSort(_huntRows.filter(h => h.status === 'open' && !_huntNf(h).some(x => x.id === me)));
+  if (!['mine', 'free'].includes(_huntTab)) _huntTab = mine.length ? 'mine' : 'free';
+  let html = _huntTabs([['mine', '🧺 ' + _hL('ງານຂອງຂ້ອຍ', 'งานของฉัน'), mine.length], ['free', '📋 ' + _hL('ງານທີ່ວ່າງ', 'งานว่าง'), free.length]])
+    + (wait.length ? '<div style="font-size:11px;color:var(--sky-700, #0369a1);font-weight:700;margin-bottom:8px;">⏳ ' + _hL('ສົ່ງຍອດແລ້ວ ລໍຖ້າອະນຸມັດ ', 'ส่งยอดแล้ว รออนุมัติ ') + wait.length + '</div>' : '');
+  if (_huntTab === 'mine') {
+    if (!mine.length) return html + '<div style="text-align:center;padding:26px;color:var(--slate-500);font-size:12px;">' + _hL('ຍັງບໍ່ມີງານ — ໄປທີ່ "ງານທີ່ວ່າງ" ແລ້ວກົດຮັບງານ', 'ยังไม่มีงาน — ไปที่ "งานว่าง" แล้วกดรับงาน') + '</div>';
+    return html + mine.map(h => _huntCard(h, _huntBtn('🔎 ' + _hL('ໄປຫາ / ໃສ່ຍອດ', 'ไปหา / ใส่ยอด'), 'huntOpenWork(' + h.id + ')', 'var(--violet-600, #7c3aed)'))).join('');
+  }
+  const full = mine.length >= HUNT_MAX_CLAIM;
+  html += '<div style="font-size:11px;color:var(--slate-500);margin-bottom:7px;">' + _hL('ຮຽງຕາມມູນຄ່າ · ຮັບໄດ້ສູງສຸດ ', 'เรียงตามมูลค่า · รับได้สูงสุด ') + HUNT_MAX_CLAIM + _hL(' ງານ', ' งาน') + (full ? ' · <b style="color:var(--rose-600);">' + _hL('ຄົບແລ້ວ — ສົ່ງງານກ່ອນ', 'ครบแล้ว — ส่งงานก่อน') + '</b>' : '') + '</div>';
+  if (!free.length) return html + '<div style="text-align:center;padding:26px;color:var(--emerald-600);font-size:12px;font-weight:700;">✅ ' + _hL('ບໍ່ມີງານວ່າງ', 'ไม่มีงานว่าง') + '</div>';
+  return html + free.slice(0, 150).map(h => _huntCard(h, full ? '' : _huntBtn('✋ ' + _hL('ຮັບງານ', 'รับงาน'), 'huntClaim(' + h.id + ')', 'var(--emerald-600, #059669)'),
+    _huntNf(h).length ? '<div style="font-size:10px;color:var(--amber-700);margin-top:3px;">' + _hL('ຄົນທີ 1 ບໍ່ພົບ', 'คนที่ 1 ไม่พบ') + '</div>' : '')).join('');
+}
+function _huntMgrHtml() {
+  const R = _huntRows;
+  const rev = _huntSort(R.filter(h => h.status === 'submitted' || h.status === 'notfound'));
+  const q = _huntSort(R.filter(h => h.status === 'open' || h.status === 'claimed'));
+  const done = R.filter(h => h.status === 'approved' || h.status === 'closed');
+  const left = q.concat(rev).reduce((s, h) => s + Math.abs(Number(h.diff_val) || 0), 0);
+  const stuck = q.filter(h => h.status === 'claimed' && _huntMins(h.claimed_at) >= HUNT_STALE_MIN).length;
+  if (!['review', 'queue', 'done', 'people'].includes(_huntTab)) _huntTab = 'review';
+  const card = (lbl, v, c) => '<div style="background:white;border:1px solid var(--slate-200);border-radius:9px;padding:7px 9px;"><div style="font-size:10px;color:var(--slate-500);font-weight:700;">' + lbl + '</div><div style="font-size:16px;font-weight:800;color:' + c + ';font-family:\'Space Grotesk\',monospace;">' + v + '</div></div>';
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:6px;margin-bottom:8px;">'
+    + card(_hL('ວ່າງ', 'ว่าง'), q.filter(h => h.status === 'open').length, 'var(--slate-800)')
+    + card(_hL('ກຳລັງຫາ', 'กำลังหา'), q.filter(h => h.status === 'claimed').length + (stuck ? ' <span style="font-size:11px;color:var(--rose-600);">⏰' + stuck + '</span>' : ''), 'var(--violet-700, #6d28d9)')
+    + card(_hL('ລໍຖ້າອະນຸມັດ', 'รออนุมัติ'), rev.length, 'var(--amber-700, #b45309)')
+    + card(_hL('ຈົບແລ້ວ', 'จบแล้ว'), done.length, 'var(--emerald-700, #047857)')
+    + card(_hL('ມູນຄ່າຄ້າງ', 'มูลค่าค้าง'), '₭' + _huntN(left), 'var(--rose-600, #e11d48)')
+    + '</div>'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">'
+    + '<button onclick="huntSyncNow()" style="background:var(--sky-600, #0284c7);color:white;border:none;border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">🔄 ' + _hL('ອັບເດດຄິວ', 'อัปเดตคิว') + '</button>'
+    + '<button onclick="huntSetMin()" style="background:white;color:var(--slate-700);border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">⚙️ ' + _hL('ເກນ ≥ ₭', 'เกณฑ์ ≥ ₭') + _huntN(_huntMin) + '</button>'
+    + '<span style="font-size:10px;color:var(--slate-500);">' + (_huntSyncAt ? _hL('ອັບເດດ ', 'อัปเดต ') + _gtClock(new Date(_huntSyncAt).toISOString()) + ' · ' : '') + _hL('ອັບເດດເອງທຸກ 3 ນາທີ ຂະນະເປີດໜ້ານີ້', 'อัปเดตเองทุก 3 นาที ขณะเปิดหน้านี้') + '</span></div>'
+    + _huntTabs([['review', '✅ ' + _hL('ລໍຖ້າອະນຸມັດ', 'รออนุมัติ'), rev.length], ['queue', '📋 ' + _hL('ຄິວ', 'คิว'), q.length], ['done', '🏁 ' + _hL('ຈົບແລ້ວ', 'จบแล้ว'), done.length], ['people', '👥 ' + _hL('ພະນັກງານ', 'พนักงาน'), '']]);
+  if (_huntTab === 'review') {
+    if (!rev.length) return html + '<div style="text-align:center;padding:26px;color:var(--slate-500);font-size:12px;">' + _hL('ບໍ່ມີງານລໍຖ້າອະນຸມັດ', 'ไม่มีงานรออนุมัติ') + '</div>';
+    const eq = rev.filter(h => h.status === 'submitted' && Number(h.found_total) === Number(h.pos_qty));
+    if (eq.length) html += '<button onclick="huntApproveEq()" style="width:100%;background:var(--emerald-50, #ecfdf5);color:var(--emerald-700, #047857);border:1px solid var(--emerald-300, #6ee7b7);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;margin-bottom:8px;">✅ ' + _hL('ອະນຸມັດທັງໝົດທີ່ຍອດໃໝ່ = POS', 'อนุมัติทั้งหมดที่ยอดใหม่ = POS') + ' (' + eq.length + ')</button>';
+    return html + rev.map(h => {
+      const f = Array.isArray(h.found) ? h.found : [];
+      const who = '<div style="font-size:11px;color:var(--slate-700);margin-top:4px;">👤 ' + escapeHtml(h.assigned_name || '') + (h.submitted_at ? ' · ' + _gtClock(h.submitted_at) : '') + '</div>';
+      const body = h.status === 'notfound'
+        ? '<div style="font-size:12px;font-weight:800;color:var(--rose-700, #be123c);margin-top:4px;">🚫 ' + _hL('ບໍ່ພົບ ', 'ไม่พบ ') + _huntNf(h).length + _hL(' ຄົນ: ', ' คน: ') + escapeHtml(_huntNf(h).map(x => x.name).join(', ')) + '</div>'
+        : who + '<div style="font-size:12px;margin-top:3px;">' + (f.length ? f.map(e => '<span style="display:inline-block;background:var(--slate-100);border-radius:6px;padding:2px 7px;margin:2px 4px 0 0;font-weight:700;font-family:\'Space Grotesk\',monospace;">📍' + escapeHtml(e.loc) + ' = ' + _huntN(e.qty) + '</span>').join('') : '<b>' + _hL('ບໍ່ເຈີເພີ່ມ (ຍອດເດີມ)', 'ไม่เจอเพิ่ม (ยอดเดิม)') + '</b>')
+          + '</div><div style="font-size:12px;font-weight:800;margin-top:3px;">' + _hL('ຍອດໃໝ່ ', 'ยอดใหม่ ') + _huntN(h.found_total) + ' · POS ' + _huntN(h.pos_qty) + ' → ' + _hL('ຕ່າງ ', 'ต่าง ') + ((Number(h.found_total) - Number(h.pos_qty)) > 0 ? '+' : '') + _huntN(Number(h.found_total) - Number(h.pos_qty)) + '</div>';
+      return _huntCard(h, _huntBtn('✅ ' + (h.status === 'notfound' ? _hL('ຢືນຢັນ 0', 'ยืนยัน 0') : _hL('ກວດ / ອະນຸມັດ', 'ตรวจ / อนุมัติ')), 'huntReview(' + h.id + ')', 'var(--emerald-600, #059669)')
+        + _huntBtn('🔁 ' + _hL('ສົ່ງກັບ', 'ส่งกลับ'), 'huntSendBack(' + h.id + ')', 'white', 'var(--slate-700)', '1px solid var(--slate-300)'), body);
+    }).join('');
+  }
+  if (_huntTab === 'queue') {
+    if (!q.length) return html + '<div style="text-align:center;padding:26px;color:var(--emerald-600);font-size:12px;font-weight:700;">✅ ' + _hL('ບໍ່ມີງານໃນຄິວ', 'ไม่มีงานในคิว') + '</div>';
+    return html + q.slice(0, 200).map(h => {
+      const m = _huntMins(h.claimed_at), late = h.status === 'claimed' && m >= HUNT_STALE_MIN;
+      const st = h.status === 'claimed'
+        ? '<div style="font-size:11px;margin-top:4px;color:' + (late ? 'var(--rose-600)' : 'var(--violet-700, #6d28d9)') + ';font-weight:700;">' + (late ? '⏰ ' : '🔎 ') + escapeHtml(h.assigned_name || '') + ' · ' + _hL('ຮັບມາ ', 'รับมา ') + m + _hL(' ນາທີ', ' นาที') + '</div>'
+        : '<div style="font-size:11px;margin-top:4px;color:var(--slate-500);">' + _hL('ລໍຖ້າຄົນຮັບ', 'รอคนรับ') + (_huntNf(h).length ? ' · ' + _hL('ຄົນທີ 1 ບໍ່ພົບ: ', 'คนที่ 1 ไม่พบ: ') + escapeHtml(_huntNf(h).map(x => x.name).join(', ')) : '') + '</div>';
+      return _huntCard(h, _huntBtn('👤 ' + _hL('ມອບໝາຍ', 'มอบหมาย'), 'huntAssign(' + h.id + ')', 'var(--sky-600, #0284c7)')
+        + (h.status === 'claimed' ? _huntBtn('↩ ' + _hL('ດຶງຄືນ', 'ดึงคืน'), 'huntRelease(' + h.id + ')', 'white', 'var(--slate-700)', '1px solid var(--slate-300)') : ''), st);
+    }).join('');
+  }
+  if (_huntTab === 'done') {
+    const ap = done.filter(h => h.status === 'approved');
+    return html + '<div style="font-size:11px;color:var(--slate-500);margin-bottom:6px;">' + _hL('ອະນຸມັດ ', 'อนุมัติ ') + ap.length + ' · ' + _hL('ລະບົບປິດເອງ (ຕັດສິນທາງອື່ນແລ້ວ) ', 'ระบบปิดเอง (ตัดสินทางอื่นแล้ว) ') + (done.length - ap.length) + '</div>'
+      + _huntSort(ap).slice(0, 150).map(h => _huntCard(h, '', '<div style="font-size:11px;color:var(--emerald-700, #047857);margin-top:4px;font-weight:700;">✅ ' + _hL('ຍອດໃໝ່ ', 'ยอดใหม่ ') + _huntN(h.found_total) + ' · 👤 ' + escapeHtml(h.assigned_name || '-') + ' · ' + _hL('ອະນຸມັດ ', 'อนุมัติ ') + escapeHtml(h.reviewed_name || '') + '</div>')).join('');
+  }
+  // 👥 ผลงานต่อคน
+  const P = {};
+  R.forEach(h => {
+    if (h.assigned_name) { const o = P[h.assigned_name] = P[h.assigned_name] || { a: 0, s: 0, ok: 0 }; if (h.status === 'claimed') o.a++; if (h.status === 'submitted') o.s++; if (h.status === 'approved') o.ok++; }
+    _huntNf(h).forEach(x => { const o = P[x.name] = P[x.name] || { a: 0, s: 0, ok: 0 }; o.nf = (o.nf || 0) + 1; });
+  });
+  const names = Object.keys(P).sort((a, b) => (P[b].ok - P[a].ok) || a.localeCompare(b));
+  if (!names.length) return html + '<div style="text-align:center;padding:26px;color:var(--slate-500);font-size:12px;">-</div>';
+  return html + '<div style="background:white;border:1px solid var(--slate-200);border-radius:10px;overflow:hidden;">'
+    + '<div style="display:grid;grid-template-columns:1fr 60px 60px 60px 60px;font-size:10px;font-weight:800;color:var(--slate-500);padding:7px 10px;background:var(--slate-50, #f8fafc);"><span>' + _hL('ພະນັກງານ', 'พนักงาน') + '</span><span style="text-align:right;">' + _hL('ກຳລັງຫາ', 'กำลังหา') + '</span><span style="text-align:right;">' + _hL('ລໍຖ້າ', 'รอ') + '</span><span style="text-align:right;">' + _hL('ອະນຸມັດ', 'อนุมัติ') + '</span><span style="text-align:right;">' + _hL('ບໍ່ພົບ', 'ไม่พบ') + '</span></div>'
+    + names.map(n => '<div style="display:grid;grid-template-columns:1fr 60px 60px 60px 60px;font-size:12px;padding:7px 10px;border-top:1px solid var(--slate-100);font-family:\'Space Grotesk\',monospace;"><span style="font-weight:700;">' + escapeHtml(n) + '</span><span style="text-align:right;">' + P[n].a + '</span><span style="text-align:right;">' + P[n].s + '</span><span style="text-align:right;color:var(--emerald-700, #047857);font-weight:800;">' + P[n].ok + '</span><span style="text-align:right;">' + (P[n].nf || 0) + '</span></div>').join('')
+    + '</div>';
+}
+
+// ---- พนักงาน: รับงาน / ทำงาน ----
+async function huntClaim(id) {
+  const mine = _huntRows.filter(h => h.assigned_to === user.id && h.status === 'claimed').length;
+  if (mine >= HUNT_MAX_CLAIM) { showToast(_hL('ຮັບໄດ້ສູງສຸດ ', 'รับได้สูงสุด ') + HUNT_MAX_CLAIM + _hL(' ງານ', ' งาน'), 'warning'); return; }
+  const now = new Date().toISOString();
+  const { data, error } = await sb.from('count_hunts').update({ status: 'claimed', assigned_to: user.id, assigned_name: user.username || user.full_name || '', assigned_by: user.id, claimed_at: now, updated_at: now })
+    .eq('id', id).eq('status', 'open').select('id');
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  if (!data || !data.length) { showToast(_hL('ມີຄົນຮັບໄປແລ້ວ', 'มีคนรับไปแล้ว'), 'warning'); await huntReload(false); return; }
+  showToast('✓ ' + _hL('ຮັບງານແລ້ວ', 'รับงานแล้ว'), 'success');
+  _huntTab = 'mine';
+  await huntReload(false);
+  huntOpenWork(id);
+}
+// ยอดล่าสุดต่อ (role, จุด) ของสินค้านี้ในรอบ → ยอดอ้างอิงต่อจุด (BCS > CTL > V > C)
+async function _huntLocState(pid) {
+  const rows = await fetchAllQuery(() => sb.from('stock_counts').select('id, location_code, count_role, counted_qty, counted_at')
+    .eq('session_id', session.id).eq('product_id', pid).order('id'));
+  const G = r => ['manager_final'].includes(r) ? 'M' : r === 'ctl_tiebreaker' ? 'T' : ['verifier', 'audit'].includes(r) ? 'V' : 'C';
+  const last = {};
+  (rows || []).forEach(r => { const lk = String(r.location_code || '').toUpperCase().trim(); if (!lk) return; const k = G(r.count_role) + '|' + lk; if (!last[k] || r.counted_at > last[k].counted_at) last[k] = r; });
+  const cur = {};
+  const locs = [...new Set(Object.keys(last).map(k => k.split('|')[1]))];
+  locs.forEach(lk => { const r = ['M', 'T', 'V', 'C'].map(g => last[g + '|' + lk]).find(Boolean); cur[lk] = r ? Number(r.counted_qty) || 0 : 0; });
+  return cur;
+}
+async function huntOpenWork(id) {
+  const h = _huntRows.find(x => x.id === id); if (!h) return;
+  let cur = {};
+  try { cur = await _huntLocState(h.product_id); } catch (e) { showToast('Error: ' + (e.message || e), 'error'); return; }
+  let hint = {}; try { hint = JSON.parse(h.hint || '{}') || {}; } catch (e) {}
+  const set = new Set(Object.keys(cur));
+  String(hint.pog || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean).forEach(g => set.add(g));
+  const locs = [...set].sort((a, b) => floorBaseCode(a).localeCompare(floorBaseCode(b)) || (isFloorCode(a) ? 1 : 0) - (isFloorCode(b) ? 1 : 0));
+  _huntWork = { h, cur, locs, scanned: false, extra: 1 };
+  _huntWorkRender();
+}
+function _huntWorkRender() {
+  const w = _huntWork; if (!w) return;
+  const h = w.h, unc = _huntIsUnc(h), bc = (_huntProd[h.product_id] || {}).barcode || '';
+  const locRow = (lk, i) => '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--slate-100);">'
+    + '<div style="flex:1;min-width:0;"><div style="font-weight:800;font-size:13px;font-family:\'Space Grotesk\',monospace;">📍 ' + escapeHtml(lk) + (isFloorCode(lk) ? ' <span style="font-size:10px;color:var(--amber-700);">(' + floorTag() + ')</span>' : '') + '</div>'
+    + '<div style="font-size:10px;color:var(--slate-500);">' + (lk in w.cur ? _hL('ຍອດເດີມ ', 'ยอดเดิม ') + _huntN(w.cur[lk]) : _hL('ຕາມ Pan-O-Gram · ຍັງບໍ່ມີຍອດ', 'ตาม Pan-O-Gram · ยังไม่มียอด')) + '</div></div>'
+    + '<input class="hwQty" data-loc="' + escapeHtml(lk) + '" type="number" inputmode="numeric" min="0" placeholder="—" style="width:86px;padding:10px;border:2px solid var(--slate-300);border-radius:9px;font-size:16px;font-weight:800;text-align:center;font-family:\'Space Grotesk\',monospace;"></div>';
+  let extra = '';
+  for (let i = 0; i < w.extra; i++) extra += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;">'
+    + '<input class="hwXLoc" type="text" placeholder="' + _hL('+ ຈຸດອື່ນ ເຊັ່ນ WH05 / 03A01-FL', '+ จุดอื่น เช่น WH05 / 03A01-FL') + '" style="flex:1;min-width:0;padding:10px;border:1px dashed var(--slate-300);border-radius:9px;font-size:13px;text-transform:uppercase;font-family:\'Space Grotesk\',monospace;">'
+    + '<input class="hwXQty" type="number" inputmode="numeric" min="0" placeholder="—" style="width:86px;padding:10px;border:2px dashed var(--slate-300);border-radius:9px;font-size:16px;font-weight:800;text-align:center;"></div>';
+  showModal('<h3 style="font-size:16px;margin:0 0 4px;">🔎 ' + _hL('ງານຕາມຫາ', 'งานตามหา') + '</h3>'
+    + '<div style="font-size:14px;font-weight:800;line-height:1.35;">' + escapeHtml(_huntName(h)) + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-500);font-family:monospace;">' + escapeHtml(bc) + ' · POS ' + _huntN(h.pos_qty) + ' · ' + _hL('ນັບໄດ້ ', 'นับได้ ') + (h.cur_qty == null ? '0' : _huntN(h.cur_qty)) + ' · <b style="color:' + (h.diff_qty < 0 ? 'var(--rose-600)' : 'var(--emerald-700)') + ';">' + (h.diff_qty < 0 ? _hL('ຂາດ ', 'ขาด ') : _hL('ເກີນ ', 'เกิน ')) + _huntN(Math.abs(h.diff_qty)) + '</b></div>'
+    + _huntHint(h).map(t => '<div style="font-size:11px;color:var(--slate-700);margin-top:2px;">' + escapeHtml(t) + '</div>').join('')
+    + '<div id="hwScanBox" style="margin:9px 0 6px;"></div>'
+    + '<div style="font-size:11px;color:var(--slate-600);background:var(--slate-50, #f8fafc);border-radius:8px;padding:7px 9px;margin-bottom:4px;line-height:1.5;">'
+    + _hL('ໃສ່ຍອດ <b>ທຸກຈຸດທີ່ໄປນັບມາ</b> (ລວມຍອດເດີມທີ່ຍັງຢູ່) · ຈຸດທີ່ບໍ່ມີຂອງ ໃສ່ 0 · ຈຸດທີ່ບໍ່ໄດ້ໄປເບິ່ງ ເວັ້ນວ່າງ', 'ใส่ยอด <b>ทุกจุดที่ไปนับมา</b> (รวมของเดิมที่ยังอยู่) · จุดที่ไม่มีของ ใส่ 0 · จุดที่ไม่ได้ไปดู เว้นว่าง') + '</div>'
+    + '<div style="max-height:36vh;overflow-y:auto;">' + w.locs.map(locRow).join('') + extra
+    + '<button onclick="huntAddLoc()" style="background:none;border:none;color:var(--sky-700, #0369a1);font-size:12px;font-weight:800;cursor:pointer;padding:6px 0;">＋ ' + _hL('ເພີ່ມຈຸດ', 'เพิ่มจุด') + '</button></div>'
+    + '<div id="hwSum" style="font-size:12px;font-weight:800;margin-top:6px;"></div>'
+    + '<div style="display:flex;flex-direction:column;gap:6px;margin-top:10px;">'
+    + '<button class="btn btn-primary" id="hwSubmit" onclick="huntSubmit()">📤 ' + _hL('ສົ່ງຍອດ', 'ส่งยอด') + '</button>'
+    + '<div style="display:flex;gap:6px;">'
+    + (unc ? _huntBtn('🚫 ' + _hL('ບໍ່ພົບ', 'ไม่พบ'), 'huntNotFound()', 'white', 'var(--rose-600)', '1px solid var(--rose-300, #fda4af)')
+      : _huntBtn('➖ ' + _hL('ບໍ່ເຈີເພີ່ມ', 'ไม่เจอเพิ่ม'), 'huntNoMore()', 'white', 'var(--slate-700)', '1px solid var(--slate-300)'))
+    + _huntBtn('↩ ' + _hL('ຄືນງານ', 'คืนงาน'), 'huntGiveBack()', 'white', 'var(--slate-600)', '1px solid var(--slate-300)')
+    + _huntBtn(_hL('ປິດ', 'ปิด'), 'closeModal()', 'var(--slate-100)', 'var(--slate-700)', '1px solid var(--slate-200)')
+    + '</div></div>');
+  _huntScanBoxRender();
+  setTimeout(() => { document.querySelectorAll('#modalContent input').forEach(i => i.addEventListener('input', _huntSum)); _huntSum(); }, 30);
+}
+function huntAddLoc() {
+  // เก็บค่าที่กรอกไว้ก่อน render ใหม่
+  const keep = _huntReadInputs();
+  _huntWork.extra++; _huntWorkRender();
+  setTimeout(() => {
+    document.querySelectorAll('.hwQty').forEach(i => { if (keep.main[i.dataset.loc] != null) i.value = keep.main[i.dataset.loc]; });
+    const xl = document.querySelectorAll('.hwXLoc'), xq = document.querySelectorAll('.hwXQty');
+    keep.extra.forEach((e, i) => { if (xl[i]) xl[i].value = e.loc; if (xq[i]) xq[i].value = e.qty; });
+    _huntSum();
+  }, 40);
+}
+function _huntReadInputs() {
+  const main = {}; document.querySelectorAll('.hwQty').forEach(i => { if (i.value !== '') main[i.dataset.loc] = i.value; });
+  const xl = [...document.querySelectorAll('.hwXLoc')], xq = [...document.querySelectorAll('.hwXQty')];
+  const extra = xl.map((el, i) => ({ loc: el.value, qty: xq[i] ? xq[i].value : '' }));
+  return { main, extra };
+}
+function _huntEntries() {
+  const out = [], bad = [];
+  document.querySelectorAll('.hwQty').forEach(i => { if (i.value !== '') out.push({ loc: i.dataset.loc, qty: parseInt(i.value, 10) }); });
+  const xl = [...document.querySelectorAll('.hwXLoc')], xq = [...document.querySelectorAll('.hwXQty')];
+  xl.forEach((el, i) => {
+    const loc = String(el.value || '').toUpperCase().replace(/\s+/g, '').trim(), q = xq[i] ? xq[i].value : '';
+    if (loc && q !== '') out.push({ loc, qty: parseInt(q, 10) }); else if (loc || q !== '') bad.push(i);
+  });
+  const m = {}; out.forEach(e => { m[e.loc] = e.qty; });   // จุดซ้ำ = ใช้ค่าหลังสุด
+  return { list: Object.entries(m).map(([loc, qty]) => ({ loc, qty })), bad };
+}
+function _huntNewTotal(entries) {
+  const w = _huntWork; const m = Object.assign({}, w.cur); entries.forEach(e => { m[e.loc] = e.qty; });
+  return Object.values(m).reduce((s, v) => s + (Number(v) || 0), 0);
+}
+function _huntSum() {
+  const el = document.getElementById('hwSum'); if (!el || !_huntWork) return;
+  const { list } = _huntEntries();
+  if (!list.length) { el.innerHTML = ''; return; }
+  const tot = _huntNewTotal(list), pos = Number(_huntWork.h.pos_qty) || 0, d = tot - pos;
+  el.innerHTML = _hL('ຍອດໃໝ່ທັງໝົດ ', 'ยอดใหม่ทั้งหมด ') + _huntN(tot) + ' · POS ' + _huntN(pos) + ' → <span style="color:' + (d === 0 ? 'var(--emerald-700)' : (d < 0 ? 'var(--rose-600)' : 'var(--amber-700)')) + ';">' + (d === 0 ? _hL('ກົງ ✓', 'ตรง ✓') : ((d > 0 ? '+' : '') + _huntN(d))) + '</span>';
+}
+function _huntScanBoxRender() {
+  const box = document.getElementById('hwScanBox'); if (!box || !_huntWork) return;
+  box.innerHTML = _huntWork.scanned
+    ? '<div style="background:var(--emerald-50, #ecfdf5);border:1px solid var(--emerald-300, #6ee7b7);border-radius:9px;padding:8px 10px;font-size:12px;font-weight:800;color:var(--emerald-700, #047857);">✅ ' + _hL('ສະແກນແລ້ວ — ສິນຄ້າຖືກຕ້ອງ', 'สแกนแล้ว — สินค้าถูกต้อง') + '</div>'
+    : '<div style="display:flex;gap:6px;"><button onclick="huntScan()" style="flex:1;background:var(--slate-800);color:white;border:none;border-radius:9px;padding:10px;font-size:13px;font-weight:800;cursor:pointer;">📷 ' + _hL('ສະແກນຢືນຢັນສິນຄ້າ', 'สแกนยืนยันสินค้า') + '</button>'
+      + '<input id="hwBc" type="text" inputmode="numeric" placeholder="' + _hL('ຫຼື ພິມບາໂຄດ', 'หรือพิมพ์บาร์โค้ด') + '" onkeydown="if(event.key===\'Enter\')huntCheckCode(this.value)" style="width:130px;padding:9px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;"></div>';
+}
+function huntScan() { window._scanCallback = code => huntCheckCode(code); triggerPhotoScan('hunt'); }
+async function huntCheckCode(code) {
+  const w = _huntWork; if (!w) return;
+  const c = String(code || '').trim(); if (!c) return;
+  const bc = String((_huntProd[w.h.product_id] || {}).barcode || '').trim();
+  let ok = c === bc;
+  if (!ok) { try { const rec = await bpLookup(c); ok = !!(rec && [rec.barcode_unit, rec.barcode_pack, rec.barcode_box, rec.barcode_other].map(x => String(x || '').trim()).includes(bc)); } catch (e) {} }
+  if (!ok) { showToast('❌ ' + _hL('ບາໂຄດບໍ່ກົງກັບງານນີ້', 'บาร์โค้ดไม่ตรงกับงานนี้') + ' (' + c + ')', 'error'); return; }
+  const keep = _huntReadInputs();
+  w.scanned = true; _huntScanBoxRender();
+  document.querySelectorAll('.hwQty').forEach(i => { if (keep.main[i.dataset.loc] != null) i.value = keep.main[i.dataset.loc]; });
+  showToast('✅ ' + _hL('ສິນຄ້າຖືກຕ້ອງ', 'สินค้าถูกต้อง'), 'success');
+  const f = document.querySelector('.hwQty'); if (f) f.focus();
+}
+async function _huntUpdate(id, patch, mustStatus) {
+  let q = sb.from('count_hunts').update(Object.assign({ updated_at: new Date().toISOString() }, patch)).eq('id', id);
+  if (mustStatus) q = q.in('status', [].concat(mustStatus));
+  const { data, error } = await q.select('id');
+  if (error) { showToast('Error: ' + error.message, 'error'); return false; }
+  if (!data || !data.length) { showToast(_hL('ງານນີ້ຖືກປ່ຽນແລ້ວ — ໂຫຼດໃໝ່', 'งานนี้ถูกเปลี่ยนแล้ว — โหลดใหม่'), 'warning'); await huntReload(false); return false; }
+  return true;
+}
+async function huntSubmit() {
+  const w = _huntWork; if (!w) return;
+  if (!w.scanned) { showToast(_hL('ສະແກນຢືນຢັນສິນຄ້າກ່ອນ', 'สแกนยืนยันสินค้าก่อน'), 'warning'); return; }
+  const { list, bad } = _huntEntries();
+  if (bad.length) { showToast(_hL('ຈຸດອື່ນ: ໃສ່ທັງລະຫັດຈຸດ ແລະ ຈຳນວນ', 'จุดอื่น: ใส่ทั้งรหัสจุดและจำนวน'), 'warning'); return; }
+  if (!list.length) { showToast(_hL('ໃສ່ຍອດຢ່າງໜ້ອຍ 1 ຈຸດ', 'ใส่ยอดอย่างน้อย 1 จุด'), 'warning'); return; }
+  if (list.some(e => isNaN(e.qty) || e.qty < 0)) { showToast(_hL('ຈຳນວນບໍ່ຖືກ', 'จำนวนไม่ถูก'), 'warning'); return; }
+  const btn = document.getElementById('hwSubmit'); if (btn) btn.disabled = true;
+  const ok = await _huntUpdate(w.h.id, { status: 'submitted', found: list, found_total: _huntNewTotal(list), submitted_at: new Date().toISOString() }, ['claimed']);
+  if (btn) btn.disabled = false;
+  if (!ok) return;
+  logActivity('hunt_submit', 'product ' + w.h.product_id + ' · ' + list.map(e => e.loc + '=' + e.qty).join(', '));
+  showToast('📤 ' + _hL('ສົ່ງຍອດແລ້ວ — ລໍຖ້າອະນຸມັດ', 'ส่งยอดแล้ว — รออนุมัติ'), 'success');
+  closeModal(); _huntWork = null; huntReload(false);
+}
+async function huntNoMore() {
+  const w = _huntWork; if (!w) return;
+  if (!confirm(_hL('ຫາແລ້ວ ບໍ່ເຈີເພີ່ມ — ສົ່ງຍອດເດີມ ', 'หาแล้ว ไม่เจอเพิ่ม — ส่งยอดเดิม ') + _huntN(_huntNewTotal([])) + '?')) return;
+  const ok = await _huntUpdate(w.h.id, { status: 'submitted', found: [], found_total: _huntNewTotal([]), submitted_at: new Date().toISOString() }, ['claimed']);
+  if (!ok) return;
+  logActivity('hunt_submit', 'product ' + w.h.product_id + ' · no more');
+  closeModal(); _huntWork = null; huntReload(false);
+}
+async function huntNotFound() {
+  const w = _huntWork; if (!w) return;
+  if (!confirm(_hL('ຢືນຢັນວ່າ ຫາແລ້ວບໍ່ພົບ?', 'ยืนยันว่า หาแล้วไม่พบ?'))) return;
+  const nf = _huntNf(w.h).filter(x => x.id !== user.id).concat([{ id: user.id, name: user.username || user.full_name || '', at: new Date().toISOString() }]);
+  const last = nf.length >= HUNT_NOTFOUND_N;
+  const ok = await _huntUpdate(w.h.id, last
+    ? { status: 'notfound', notfound_by: nf, found: [], found_total: 0, submitted_at: new Date().toISOString() }
+    : { status: 'open', notfound_by: nf, assigned_to: null, assigned_name: null, claimed_at: null }, ['claimed']);
+  if (!ok) return;
+  logActivity('hunt_notfound', 'product ' + w.h.product_id + ' · ' + nf.length);
+  showToast(last ? _hL('ບໍ່ພົບ ຄົບ 2 ຄົນ — ສົ່ງໃຫ້ຫົວໜ້າຢືນຢັນ', 'ไม่พบครบ 2 คน — ส่งให้หัวหน้ายืนยัน') : _hL('ສົ່ງໃຫ້ຄົນທີ 2 ຫາຕໍ່', 'ส่งให้คนที่ 2 หาต่อ'), 'info');
+  closeModal(); _huntWork = null; huntReload(false);
+}
+async function huntGiveBack() {
+  const w = _huntWork; if (!w) return;
+  const ok = await _huntUpdate(w.h.id, { status: 'open', assigned_to: null, assigned_name: null, claimed_at: null }, ['claimed']);
+  if (!ok) return;
+  closeModal(); _huntWork = null; huntReload(false);
+}
+
+// ---- หัวหน้า: มอบหมาย / ดึงคืน / อนุมัติ ----
+async function _huntLoadPeople() {
+  if (_huntPeople && _huntPeople.sid === session.id && Date.now() - _huntPeople.at < 300000) return _huntPeople.list;
+  const rows = await fetchAllQuery(() => sb.from('stock_counts').select('id, user_id, count_role').eq('session_id', session.id).in('count_role', ['counter', 'staff', 'verifier', 'audit']).order('id'));
+  const ids = [...new Set((rows || []).map(r => r.user_id).filter(Boolean))];
+  const list = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data } = await sb.from('users').select('id, username, full_name, is_active').in('id', ids.slice(i, i + 200));
+    (data || []).forEach(u => { if (u.is_active !== false) list.push({ id: u.id, name: u.username || u.full_name || '?', full: u.full_name || '' }); });
+  }
+  list.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  _huntPeople = { sid: session.id, at: Date.now(), list };
+  return list;
+}
+async function huntAssign(id) {
+  const h = _huntRows.find(x => x.id === id); if (!h) return;
+  let list = [];
+  try { list = await _huntLoadPeople(); } catch (e) { showToast('Error: ' + (e.message || e), 'error'); return; }
+  const busy = {}; _huntRows.forEach(x => { if (x.status === 'claimed' && x.assigned_to) busy[x.assigned_to] = (busy[x.assigned_to] || 0) + 1; });
+  showModal('<h3 style="font-size:16px;margin:0 0 6px;">👤 ' + _hL('ມອບໝາຍງານ', 'มอบหมายงาน') + '</h3>'
+    + '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">' + escapeHtml(_huntName(h)) + '</div>'
+    + '<div style="max-height:52vh;overflow-y:auto;display:flex;flex-direction:column;gap:5px;">'
+    + list.map(u => '<button onclick="huntAssignTo(' + id + ',\'' + escapeHtml(u.id) + '\',\'' + encodeURIComponent(u.name).replace(/'/g, '%27') + '\')" style="text-align:left;background:white;border:1px solid var(--slate-200);border-radius:9px;padding:9px 11px;font-size:13px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;">'
+      + '<span><b>' + escapeHtml(u.name) + '</b>' + (u.full && u.full !== u.name ? ' <span style="color:var(--slate-500);font-size:11px;">' + escapeHtml(u.full) + '</span>' : '') + '</span>'
+      + '<span style="font-size:11px;color:' + (busy[u.id] ? 'var(--violet-700, #6d28d9)' : 'var(--emerald-700, #047857)') + ';font-weight:700;">' + (busy[u.id] ? _hL('ມີງານ ', 'มีงาน ') + busy[u.id] : _hL('ວ່າງ', 'ว่าง')) + '</span></button>').join('')
+    + '</div><div class="action-row" style="margin-top:10px;"><button class="btn btn-secondary" onclick="closeModal()">' + _hL('ຍົກເລີກ', 'ยกเลิก') + '</button></div>');
+}
+async function huntAssignTo(id, uid, encName) {
+  const now = new Date().toISOString();
+  const ok = await _huntUpdate(id, { status: 'claimed', assigned_to: uid, assigned_name: decodeURIComponent(encName), assigned_by: user.id, claimed_at: now }, ['open', 'claimed']);
+  if (!ok) return;
+  closeModal(); showToast('✓ ' + _hL('ມອບໝາຍແລ້ວ', 'มอบหมายแล้ว'), 'success'); huntReload(false);
+}
+async function huntRelease(id) {
+  if (!confirm(_hL('ດຶງງານຄືນເຂົ້າຄິວ?', 'ดึงงานคืนเข้าคิว?'))) return;
+  const ok = await _huntUpdate(id, { status: 'open', assigned_to: null, assigned_name: null, claimed_at: null }, ['claimed']);
+  if (ok) huntReload(false);
+}
+async function huntSendBack(id) {
+  const note = prompt(_hL('ເຫດຜົນ / ສິ່ງທີ່ໃຫ້ຫາເພີ່ມ (ບໍ່ບັງຄັບ)', 'เหตุผล / สิ่งที่ให้หาเพิ่ม (ไม่บังคับ)'), '');
+  if (note === null) return;
+  const ok = await _huntUpdate(id, { status: 'open', assigned_to: null, assigned_name: null, claimed_at: null, review_note: note || null, reviewed_by: user.id, reviewed_name: user.username || '', reviewed_at: new Date().toISOString() }, ['submitted', 'notfound']);
+  if (ok) { showToast('🔁 ' + _hL('ສົ່ງກັບເຂົ້າຄິວແລ້ວ', 'ส่งกลับเข้าคิวแล้ว'), 'info'); huntReload(false); }
+}
+async function huntReview(id) {
+  const h = _huntRows.find(x => x.id === id); if (!h) return;
+  let cur = {};
+  try { cur = await _huntLocState(h.product_id); } catch (e) { showToast('Error: ' + (e.message || e), 'error'); return; }
+  const f = Array.isArray(h.found) ? h.found : [];
+  const nf = h.status === 'notfound';
+  let hint = {}; try { hint = JSON.parse(h.hint || '{}') || {}; } catch (e) {}
+  const zeroLoc = String(hint.pog || '').split(',')[0].trim().toUpperCase() || (Object.keys(cur)[0] || '');
+  // ค่าเริ่มต้นในช่อง = ที่พนักงานส่งมา · ไม่เจอเพิ่ม = ยอดเดิมทุกจุด · ไม่พบ = 0
+  const init = {};
+  if (nf) { if (zeroLoc) init[zeroLoc] = 0; }
+  else if (!f.length) Object.entries(cur).forEach(([k, v]) => { init[k] = v; });
+  f.forEach(e => { init[e.loc] = e.qty; });
+  const locs = [...new Set(Object.keys(cur).concat(Object.keys(init)))].sort((a, b) => floorBaseCode(a).localeCompare(floorBaseCode(b)) || (isFloorCode(a) ? 1 : 0) - (isFloorCode(b) ? 1 : 0));
+  _huntWork = { h, cur, locs, scanned: true, extra: 1, review: true };
+  showModal('<h3 style="font-size:16px;margin:0 0 4px;">✅ ' + (_ccMyRole() === 'ctl_tiebreaker' ? 'CTL' : 'BCS') + ' ' + _hL('ອະນຸມັດຍອດຕາມຫາ', 'อนุมัติยอดตามหา') + '</h3>'
+    + '<div style="font-size:14px;font-weight:800;">' + escapeHtml(_huntName(h)) + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-500);font-family:monospace;">' + escapeHtml((_huntProd[h.product_id] || {}).barcode || '') + ' · POS ' + _huntN(h.pos_qty) + ' · 👤 ' + escapeHtml(nf ? _huntNf(h).map(x => x.name).join(', ') : (h.assigned_name || '')) + '</div>'
+    + '<div style="font-size:11px;color:var(--slate-600);background:var(--slate-50, #f8fafc);border-radius:8px;padding:7px 9px;margin:6px 0 4px;line-height:1.5;">'
+    + (nf ? _hL('ບໍ່ພົບ 2 ຄົນ → ບັນທຶກ 0 (ບໍ່ມີຈຸດ = ບັນທຶກແບບບໍ່ລະບຸຈຸດ)', 'ไม่พบ 2 คน → บันทึก 0 (ไม่มีจุด = บันทึกแบบไม่ระบุจุด)') : _hL('ຍອດທີ່ພະນັກງານສົ່ງ (ແກ້ໄດ້ກ່ອນອະນຸມັດ) · ເວັ້ນວ່າງ = ບໍ່ປ່ຽນຈຸດນັ້ນ', 'ยอดที่พนักงานส่ง (แก้ได้ก่อนอนุมัติ) · เว้นว่าง = ไม่เปลี่ยนจุดนั้น')) + '</div>'
+    + '<div style="max-height:40vh;overflow-y:auto;">' + locs.map(lk => '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--slate-100);">'
+      + '<div style="flex:1;min-width:0;"><div style="font-weight:800;font-size:13px;font-family:\'Space Grotesk\',monospace;">📍 ' + escapeHtml(lk) + '</div>'
+      + '<div style="font-size:10px;color:var(--slate-500);">' + (lk in cur ? _hL('ຍອດເດີມ ', 'ยอดเดิม ') + _huntN(cur[lk]) : _hL('ຈຸດໃໝ່', 'จุดใหม่')) + '</div></div>'
+      + '<input class="hwQty" data-loc="' + escapeHtml(lk) + '" type="number" inputmode="numeric" min="0" value="' + (lk in init ? escapeHtml(String(init[lk])) : '') + '" placeholder="—" style="width:86px;padding:10px;border:2px solid var(--slate-300);border-radius:9px;font-size:16px;font-weight:800;text-align:center;font-family:\'Space Grotesk\',monospace;"></div>').join('')
+    + '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;"><input class="hwXLoc" type="text" placeholder="' + _hL('+ ຈຸດອື່ນ', '+ จุดอื่น') + '" style="flex:1;min-width:0;padding:10px;border:1px dashed var(--slate-300);border-radius:9px;font-size:13px;text-transform:uppercase;"><input class="hwXQty" type="number" inputmode="numeric" min="0" placeholder="—" style="width:86px;padding:10px;border:2px dashed var(--slate-300);border-radius:9px;font-size:16px;font-weight:800;text-align:center;"></div></div>'
+    + '<div id="hwSum" style="font-size:12px;font-weight:800;margin-top:6px;"></div>'
+    + '<div class="action-row" style="margin-top:10px;"><button class="btn btn-secondary" onclick="closeModal()">' + _hL('ຍົກເລີກ', 'ยกเลิก') + '</button>'
+    + '<button class="btn btn-primary" id="hwApprove" onclick="huntApprove(' + id + ')">✅ ' + _hL('ອະນຸມັດ', 'อนุมัติ') + '</button></div>');
+  setTimeout(() => { document.querySelectorAll('#modalContent input').forEach(i => i.addEventListener('input', _huntSum)); _huntSum(); }, 30);
+}
+// เขียนยอดตัดสินลง stock_counts (กลไกเดียวกับ varJudgeSave) แล้วปิดงาน
+async function _huntWrite(h, entries) {
+  const role = _ccMyRole();   // ctl/it → ctl_tiebreaker · admin/scc/bcs → manager_final
+  if (!['ctl_tiebreaker', 'manager_final'].includes(role)) { showToast(_hL('ບໍ່ມີສິດອະນຸມັດ', 'ไม่มีสิทธิ์อนุมัติ'), 'error'); return false; }
+  const who = h.status === 'notfound' ? _huntNf(h).map(x => x.name).join(', ') : (h.assigned_name || '');
+  const note = _hL('ຕາມຫາ: ', 'ตามหา: ') + who + (h.status === 'notfound' ? _hL(' (ບໍ່ພົບ)', ' (ไม่พบ)') : '');
+  const rows = entries.map(e => ({
+    session_id: session.id, branch_id: branch?.id || user.branch_id, product_id: h.product_id, zone_id: null,
+    location_code: e.loc || null, gondola_code: e.loc ? floorBaseCode(e.loc) : null, user_id: user.id, counted_qty: e.qty,
+    pos_qty_snapshot: Number(h.pos_qty) || 0, count_role: role, is_markdown: false, note
+  }));
+  let error = null;
+  try { const r = await sb.from('stock_counts').insert(rows); error = r.error; } catch (e) { error = e; }
+  if (error) { showToast('Error: ' + (error.message || error), 'error'); return false; }
+  const tot = _huntNewTotalFor(h, entries);
+  const ok = await _huntUpdate(h.id, { status: 'approved', found_total: tot, reviewed_by: user.id, reviewed_name: user.username || '', reviewed_at: new Date().toISOString() }, ['submitted', 'notfound']);
+  logActivity('hunt_approve', role + ' · product ' + h.product_id + ' · ' + entries.map(e => e.loc + '=' + e.qty).join(', '));
+  return ok;
+}
+function _huntNewTotalFor(h, entries) { const m = Object.assign({}, (_huntWork && _huntWork.h.id === h.id) ? _huntWork.cur : {}); entries.forEach(e => { m[e.loc] = e.qty; }); return Object.values(m).reduce((s, v) => s + (Number(v) || 0), 0); }
+async function huntApprove(id) {
+  const h = _huntRows.find(x => x.id === id); if (!h) return;
+  const { list, bad } = _huntEntries();
+  if (bad.length) { showToast(_hL('ຈຸດອື່ນ: ໃສ່ທັງລະຫັດຈຸດ ແລະ ຈຳນວນ', 'จุดอื่น: ใส่ทั้งรหัสจุดและจำนวน'), 'warning'); return; }
+  if (!list.length && h.status === 'notfound') list.push({ loc: '', qty: 0 });   // ไม่พบ + ไม่มีจุด → บันทึก 0 ไม่ระบุจุด (แบบ csumConfirmZero)
+  if (!list.length) { showToast(_hL('ໃສ່ຍອດຢ່າງໜ້ອຍ 1 ຈຸດ', 'ใส่ยอดอย่างน้อย 1 จุด'), 'warning'); return; }
+  if (list.some(e => isNaN(e.qty) || e.qty < 0)) { showToast(_hL('ຈຳນວນບໍ່ຖືກ', 'จำนวนไม่ถูก'), 'warning'); return; }
+  const btn = document.getElementById('hwApprove'); if (btn) btn.disabled = true;
+  const ok = await _huntWrite(h, list);
+  if (btn) btn.disabled = false;
+  if (!ok) return;
+  showToast('✅ ' + _hL('ອະນຸມັດແລ້ວ', 'อนุมัติแล้ว'), 'success');
+  closeModal(); _huntWork = null; huntReload(false);
+}
+async function huntApproveEq() {
+  const list = _huntRows.filter(h => h.status === 'submitted' && Number(h.found_total) === Number(h.pos_qty));
+  if (!list.length) return;
+  if (!confirm(_hL('ອະນຸມັດ ', 'อนุมัติ ') + list.length + _hL(' ງານ ທີ່ຍອດໃໝ່ = POS?', ' งาน ที่ยอดใหม่ = POS?'))) return;
+  let n = 0;
+  for (const h of list) {
+    const f = Array.isArray(h.found) ? h.found : [];
+    let entries = f;
+    if (!f.length) { try { const cur = await _huntLocState(h.product_id); entries = Object.entries(cur).map(([loc, qty]) => ({ loc, qty })); } catch (e) { continue; } }
+    if (!entries.length) continue;
+    _huntWork = null;
+    if (await _huntWrite(h, entries)) n++;
+  }
+  showToast('✅ ' + _hL('ອະນຸມັດ ', 'อนุมัติ ') + n + '/' + list.length, n === list.length ? 'success' : 'warning');
+  huntReload(false);
+}
+Object.assign(window, { huntInit, huntSetTab, huntSyncNow, huntSetMin, huntClaim, huntOpenWork, huntAddLoc, huntScan, huntCheckCode, huntSubmit, huntNoMore, huntNotFound, huntGiveBack, huntAssign, huntAssignTo, huntRelease, huntSendBack, huntReview, huntApprove, huntApproveEq });
+
 
 async function wfOpenForVerifier(locCode) {
   if (!wfNeedSession()) return;
