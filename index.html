@@ -38389,7 +38389,7 @@ function _huntMgrHtml() {
   const done = R.filter(h => h.status === 'approved' || h.status === 'closed');
   const left = q.concat(rev).reduce((s, h) => s + Math.abs(Number(h.diff_val) || 0), 0);
   const stuck = q.filter(h => h.status === 'claimed' && _huntMins(h.claimed_at) >= HUNT_STALE_MIN).length;
-  if (!['review', 'queue', 'done', 'people'].includes(_huntTab)) _huntTab = 'review';
+  if (!['review', 'queue', 'done', 'sum', 'people'].includes(_huntTab)) _huntTab = 'review';
   const card = (lbl, v, c) => '<div style="background:white;border:1px solid var(--slate-200);border-radius:9px;padding:7px 9px;"><div style="font-size:10px;color:var(--slate-500);font-weight:700;">' + lbl + '</div><div style="font-size:16px;font-weight:800;color:' + c + ';font-family:\'Space Grotesk\',monospace;">' + v + '</div></div>';
   let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:6px;margin-bottom:8px;">'
     + card(_hL('ວ່າງ', 'ว่าง'), q.filter(h => h.status === 'open').length, 'var(--slate-800)')
@@ -38402,7 +38402,7 @@ function _huntMgrHtml() {
     + '<button onclick="huntSyncNow()" style="background:var(--sky-600, #0284c7);color:white;border:none;border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">🔄 ' + _hL('ອັບເດດຄິວ', 'อัปเดตคิว') + '</button>'
     + '<button onclick="huntSetMin()" style="background:white;color:var(--slate-700);border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">⚙️ ' + _hL('ເກນ ≥ ₭', 'เกณฑ์ ≥ ₭') + _huntN(_huntMin) + '</button>'
     + '<span style="font-size:10px;color:var(--slate-500);">' + (_huntSyncAt ? _hL('ອັບເດດ ', 'อัปเดต ') + _gtClock(new Date(_huntSyncAt).toISOString()) + ' · ' : '') + _hL('ອັບເດດເອງທຸກ 3 ນາທີ ຂະນະເປີດໜ້ານີ້', 'อัปเดตเองทุก 3 นาที ขณะเปิดหน้านี้') + '</span></div>'
-    + _huntTabs([['review', '✅ ' + _hL('ລໍຖ້າອະນຸມັດ', 'รออนุมัติ'), rev.length], ['queue', '📋 ' + _hL('ຄິວ', 'คิว'), q.length], ['done', '🏁 ' + _hL('ຈົບແລ້ວ', 'จบแล้ว'), done.filter(h => h.status === 'approved').length], ['people', '👥 ' + _hL('ພະນັກງານ', 'พนักงาน'), '']]);
+    + _huntTabs([['review', '✅ ' + _hL('ລໍຖ້າອະນຸມັດ', 'รออนุมัติ'), rev.length], ['queue', '📋 ' + _hL('ຄິວ', 'คิว'), q.length], ['done', '🏁 ' + _hL('ຈົບແລ້ວ', 'จบแล้ว'), done.filter(h => h.status === 'approved').length], ['sum', '📊 ' + _hL('ສະຫຼຸບຜົນ', 'สรุปผล'), ''], ['people', '👥 ' + _hL('ພະນັກງານ', 'พนักงาน'), '']]);
   if (_huntTab === 'review') {
     if (!rev.length) return html + '<div style="text-align:center;padding:26px;color:var(--slate-500);font-size:12px;">' + _hL('ບໍ່ມີງານລໍຖ້າອະນຸມັດ', 'ไม่มีงานรออนุมัติ') + '</div>';
     const eq = rev.filter(h => h.status === 'submitted' && Number(h.found_total) === Number(h.pos_qty));
@@ -38440,6 +38440,7 @@ function _huntMgrHtml() {
     return html + '<div style="font-size:11px;color:var(--slate-500);margin-bottom:6px;">' + _hL('ອະນຸມັດ ', 'อนุมัติ ') + ap.length + ' · ' + _hL('ລະບົບເອົາອອກຈາກຄິວ (ຍັງບໍ່ຮອດເວລາ / ຕັດສິນທາງອື່ນແລ້ວ — ກັບເຂົ້າຄິວເອງເມື່ອຮອດເວລາ) ', 'ระบบเอาออกจากคิว (ยังไม่ถึงเวลา / ตัดสินทางอื่นแล้ว — กลับเข้าคิวเองเมื่อถึงเวลา) ') + (done.length - ap.length) + '</div>'
       + _huntSort(ap).slice(0, 150).map(h => _huntCard(h, '', '<div style="font-size:11px;color:var(--emerald-700, #047857);margin-top:4px;font-weight:700;">✅ ' + _hL('ຍອດໃໝ່ ', 'ยอดใหม่ ') + _huntN(h.found_total) + ' · 👤 ' + escapeHtml(h.assigned_name || '-') + ' · ' + _hL('ອະນຸມັດ ', 'อนุมัติ ') + escapeHtml(h.reviewed_name || '') + '</div>')).join('');
   }
+  if (_huntTab === 'sum') return html + _huntSumHtml();
   // 👥 ผลงานต่อคน
   const P = {};
   R.forEach(h => {
@@ -38453,6 +38454,77 @@ function _huntMgrHtml() {
     + names.map(n => '<div style="display:grid;grid-template-columns:1fr 60px 60px 60px 60px;font-size:12px;padding:7px 10px;border-top:1px solid var(--slate-100);font-family:\'Space Grotesk\',monospace;"><span style="font-weight:700;">' + escapeHtml(n) + '</span><span style="text-align:right;">' + P[n].a + '</span><span style="text-align:right;">' + P[n].s + '</span><span style="text-align:right;color:var(--emerald-700, #047857);font-weight:800;">' + P[n].ok + '</span><span style="text-align:right;">' + (P[n].nf || 0) + '</span></div>').join('')
     + '</div>';
 }
+
+// 📊 สรุปผลตามหา (Ball 2026-11-23): สินค้าขาดที่ตามหาแล้วยืนยัน 0 / เจอไม่ครบ · ใครเป็นคนหา · ใครอนุมัติ
+function _huntWho(h) {
+  const s = _huntNf(h).map(x => x && x.name).filter(Boolean);
+  if (h.assigned_name && !s.includes(h.assigned_name)) s.push(h.assigned_name);
+  return [...new Set(s)];
+}
+function _huntUnit(h) { const q = Math.abs(Number(h.diff_qty) || 0); return q ? Math.abs(Number(h.diff_val) || 0) / q : 0; }
+function _huntSumData() {
+  const ap = _huntRows.filter(h => h.status === 'approved');
+  const z = [], short = [], ok = [];
+  ap.forEach(h => {
+    const ft = Number(h.found_total) || 0, pos = Number(h.pos_qty) || 0;
+    const miss = Math.max(0, pos - ft), r = { h, ft, pos, miss, val: miss * _huntUnit(h), who: _huntWho(h) };
+    if (ft <= 0 && pos > 0) z.push(r); else if (miss > 0) short.push(r); else ok.push(r);
+  });
+  const byVal = (a, b) => b.val - a.val;
+  z.sort(byVal); short.sort(byVal);
+  const P = {};
+  z.concat(short).forEach(r => r.who.forEach(n => { const o = P[n] = P[n] || { z: 0, s: 0, v: 0 }; if (r.ft <= 0) o.z++; else o.s++; o.v += r.val; }));
+  const pend = _huntRows.filter(h => h.status === 'notfound' || (h.status === 'submitted' && !(Number(h.found_total) > 0))).length;
+  return { ap, z, short, ok, P, pend };
+}
+function _huntSumHtml() {
+  const d = _huntSumData();
+  const sv = a => a.reduce((s, r) => s + r.val, 0);
+  const card = (lbl, v, sub, c) => '<div style="background:white;border:1px solid var(--slate-200);border-radius:9px;padding:7px 9px;"><div style="font-size:10px;color:var(--slate-500);font-weight:700;">' + lbl + '</div><div style="font-size:16px;font-weight:800;color:' + c + ';font-family:\'Space Grotesk\',monospace;">' + v + '</div>' + (sub ? '<div style="font-size:10px;font-weight:700;color:' + c + ';">' + sub + '</div>' : '') + '</div>';
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:6px;margin-bottom:8px;">'
+    + card(_hL('ອະນຸມັດແລ້ວ', 'อนุมัติแล้ว'), d.ap.length, '', 'var(--slate-800)')
+    + card('🚫 ' + _hL('ຢືນຢັນ 0 (ບໍ່ພົບ)', 'ยืนยัน 0 (ไม่พบ)'), d.z.length, '₭' + _huntN(sv(d.z)), 'var(--rose-700, #be123c)')
+    + card('📉 ' + _hL('ເຈີບາງສ່ວນ ຍັງຂາດ', 'เจอบางส่วน ยังขาด'), d.short.length, '₭' + _huntN(sv(d.short)), 'var(--amber-700, #b45309)')
+    + card('✅ ' + _hL('ເຈີຄົບ / ເກີນ', 'เจอครบ / เกิน'), d.ok.length, '', 'var(--emerald-700, #047857)')
+    + '</div>'
+    + '<div style="font-size:10px;color:var(--slate-500);margin-bottom:8px;line-height:1.5;">' + _hL('ນັບສະເພາະງານທີ່ອະນຸມັດແລ້ວ · ມູນຄ່າ = ຈຳນວນທີ່ຍັງຂາດ × ຕົ້ນທຶນ', 'นับเฉพาะงานที่อนุมัติแล้ว · มูลค่า = จำนวนที่ยังขาด × ต้นทุน')
+    + (d.pend ? ' · <b style="color:var(--amber-700, #b45309);">' + _hL('ຍັງລໍຖ້າອະນຸມັດ (ບໍ່ພົບ) ', 'ยังรออนุมัติ (ไม่พบ) ') + d.pend + '</b>' : '') + '</div>'
+    + '<button onclick="huntSumExcel()" style="width:100%;background:white;color:var(--emerald-700, #047857);border:1px solid var(--emerald-300, #6ee7b7);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;margin-bottom:10px;">📥 ' + _hL('ດາວໂຫຼດ Excel', 'ดาวน์โหลด Excel') + '</button>';
+  // 👤 ต่อคน
+  const names = Object.keys(d.P).sort((a, b) => (d.P[b].z - d.P[a].z) || (d.P[b].v - d.P[a].v));
+  if (names.length) {
+    html += '<div style="font-size:12px;font-weight:800;color:var(--slate-700);margin:4px 2px 5px;">👤 ' + _hL('ຄົນຫາ (ສິນຄ້າທີ່ຍັງຂາດຫຼັງຫາ)', 'คนหา (สินค้าที่ยังขาดหลังหา)') + '</div>'
+      + '<div style="background:white;border:1px solid var(--slate-200);border-radius:10px;overflow:hidden;margin-bottom:10px;">'
+      + '<div style="display:grid;grid-template-columns:1fr 56px 56px 90px;font-size:10px;font-weight:800;color:var(--slate-500);padding:7px 10px;background:var(--slate-50, #f8fafc);"><span>' + _hL('ພະນັກງານ', 'พนักงาน') + '</span><span style="text-align:right;">' + _hL('ຢືນຢັນ 0', 'ยืนยัน 0') + '</span><span style="text-align:right;">' + _hL('ຍັງຂາດ', 'ยังขาด') + '</span><span style="text-align:right;">' + _hL('ມູນຄ່າ', 'มูลค่า') + '</span></div>'
+      + names.map(n => '<div style="display:grid;grid-template-columns:1fr 56px 56px 90px;font-size:12px;padding:7px 10px;border-top:1px solid var(--slate-100);font-family:\'Space Grotesk\',monospace;"><span style="font-weight:700;">' + escapeHtml(n) + '</span><span style="text-align:right;color:var(--rose-700, #be123c);font-weight:800;">' + d.P[n].z + '</span><span style="text-align:right;">' + d.P[n].s + '</span><span style="text-align:right;">₭' + _huntN(d.P[n].v) + '</span></div>').join('')
+      + '</div>';
+  }
+  const row = r => _huntCard(r.h, '', '<div style="font-size:11px;margin-top:4px;line-height:1.5;">'
+    + '<b style="color:' + (r.ft <= 0 ? 'var(--rose-700, #be123c)' : 'var(--amber-700, #b45309)') + ';">' + _hL('ເຈີ ', 'เจอ ') + _huntN(r.ft) + ' / POS ' + _huntN(r.pos) + ' → ' + _hL('ຂາດ ', 'ขาด ') + _huntN(r.miss) + ' · ₭' + _huntN(r.val) + '</b><br>'
+    + '🔎 ' + _hL('ຄົນຫາ: ', 'คนหา: ') + '<b>' + escapeHtml(r.who.join(', ') || '-') + '</b> · ✅ ' + _hL('ອະນຸມັດ: ', 'อนุมัติ: ') + escapeHtml(r.h.reviewed_name || '-') + (r.h.reviewed_at ? ' · ' + _gtClock(r.h.reviewed_at) : '') + '</div>');
+  const sec = (t, arr) => arr.length ? '<div style="font-size:12px;font-weight:800;color:var(--slate-700);margin:10px 2px 5px;">' + t + ' (' + arr.length + ')</div>' + arr.slice(0, 200).map(row).join('') : '';
+  html += sec('🚫 ' + _hL('ສິນຄ້າຂາດ — ຕາມຫາແລ້ວຢືນຢັນ 0', 'สินค้าขาด — ตามหาแล้วยืนยัน 0'), d.z)
+    + sec('📉 ' + _hL('ເຈີບາງສ່ວນ ຍັງຂາດ', 'เจอบางส่วน ยังขาด'), d.short);
+  if (!d.z.length && !d.short.length) html += '<div style="text-align:center;padding:26px;color:var(--slate-500);font-size:12px;">' + _hL('ຍັງບໍ່ມີສິນຄ້າຂາດທີ່ອະນຸມັດແລ້ວ', 'ยังไม่มีสินค้าขาดที่อนุมัติแล้ว') + '</div>';
+  return html;
+}
+function huntSumExcel() {
+  if (typeof XLSX === 'undefined') { showToast('Excel library not loaded', 'error'); return; }
+  const d = _huntSumData();
+  const toRow = r => { const p = _huntProd[r.h.product_id] || {}; return {
+    [_hL('ຜົນ', 'ผล')]: r.ft <= 0 ? _hL('ຢືນຢັນ 0', 'ยืนยัน 0') : _hL('ຍັງຂາດ', 'ยังขาด'),
+    Barcode: p.barcode || '', [_hL('ຊື່ສິນຄ້າ', 'ชื่อสินค้า')]: (lang === 'lo' ? (p.name_lo || p.name_th) : (p.name_th || p.name_lo)) || '',
+    [_hL('ປະເພດ', 'ประเภท')]: _huntKind(r.h.kind)[1], POS: r.pos, [_hL('ເຈີ', 'เจอ')]: r.ft, [_hL('ຂາດ', 'ขาด')]: r.miss, [_hL('ມູນຄ່າຂາດ (₭)', 'มูลค่าขาด (₭)')]: Math.round(r.val),
+    [_hL('ຄົນຫາ', 'คนหา')]: r.who.join(', '), [_hL('ຜູ້ອະນຸມັດ', 'ผู้อนุมัติ')]: r.h.reviewed_name || '', [_hL('ເວລາອະນຸມັດ', 'เวลาอนุมัติ')]: r.h.reviewed_at ? new Date(r.h.reviewed_at).toLocaleString('en-GB') : '' }; };
+  const rows = d.z.concat(d.short).map(toRow);
+  if (!rows.length) { showToast(_hL('ບໍ່ມີຂໍ້ມູນ', 'ไม่มีข้อมูล'), 'info'); return; }
+  const ppl = Object.keys(d.P).map(n => ({ [_hL('ພະນັກງານ', 'พนักงาน')]: n, [_hL('ຢືນຢັນ 0', 'ยืนยัน 0')]: d.P[n].z, [_hL('ຍັງຂາດ', 'ยังขาด')]: d.P[n].s, [_hL('ມູນຄ່າ (₭)', 'มูลค่า (₭)')]: Math.round(d.P[n].v) }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Items');
+  if (ppl.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ppl), 'People');
+  XLSX.writeFile(wb, 'hunt-summary-' + ((branch && branch.code) || '') + '-' + localDayKey(new Date()) + '.xlsx');
+}
+window.huntSumExcel = huntSumExcel;
 
 // ---- พนักงาน: รับงาน / ทำงาน ----
 async function huntClaim(id) {
