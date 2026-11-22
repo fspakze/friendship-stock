@@ -38170,6 +38170,7 @@ async function huntReload(doSync) {
   try {
     if (doSync) await huntSync(true);
     await huntFetch();
+    if (await _huntConvertNf()) await huntFetch();
     huntRender();
   } catch (e) {
     root.innerHTML = _huntMissing
@@ -38213,18 +38214,24 @@ function _huntGateNote() {
     + '<br><span style="font-weight:600;color:var(--slate-600);">' + _hL('ຫຼັງນັບຄົບ: ບໍ່ໄດ້ນັບ A ເຂົ້າຄິວເມື່ອ Verifier ປິດຊັ້ນນັ້ນແລ້ວ', 'หลังนับครบ: ไม่ได้นับ A เข้าคิวเมื่อ Verifier ปิดชั้นนั้นแล้ว') + '</span></div>';
 }
 
+// 🚫 งานว่างที่มีคน "ไม่พบ" ครบตามเกณฑ์ (ตอนนี้ 1 คน) → รออนุมัติ · เรียกทุกครั้งที่หัวหน้าโหลดหน้า (ไม่ต้องรอ sync 3 นาที · Ball 2026-11-23)
+async function _huntConvertNf() {
+  if (!huntIsMgr()) return 0;
+  const nfIds = _huntRows.filter(x => x.status === 'open' && _huntNf(x).length >= HUNT_NOTFOUND_N).map(x => x.id);
+  for (let i = 0; i < nfIds.length; i += 200) {
+    const { error: ne } = await sb.from('count_hunts').update({ status: 'notfound', found: [], found_total: 0, submitted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).in('id', nfIds.slice(i, i + 200)).eq('status', 'open');
+    if (ne) throw ne;
+  }
+  return nfIds.length;
+}
+
 // ---- คิว: สร้าง/ปิด จากผลรายงานคลาดเคลื่อน (เครื่องหัวหน้า) ----
 async function huntSync(quiet) {
   if (!huntIsMgr() || !session) return;
   _huntSyncAt = Date.now();
   await huntFetch();   // งานเดิมล่าสุด → ใช้กันซ้ำ + ปิดงานที่ไม่เข้าเกณฑ์ (Ball 2026-11-22: เดิมเปิดหน้าครั้งแรกปิดไม่ได้ คิวค้าง 1,575)
   // 🚫 งานว่างที่มีคน "ไม่พบ" ครบตามเกณฑ์แล้ว (เดิมต้อง 2 คน · ตอนนี้ 1 คน) → ส่งให้หัวหน้ายืนยัน 0
-  { const nfIds = _huntRows.filter(x => x.status === 'open' && _huntNf(x).length >= HUNT_NOTFOUND_N).map(x => x.id);
-    for (let i = 0; i < nfIds.length; i += 200) {
-      const { error: ne } = await sb.from('count_hunts').update({ status: 'notfound', found: [], found_total: 0, submitted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).in('id', nfIds.slice(i, i + 200)).eq('status', 'open');
-      if (ne) throw ne;
-    }
-    if (nfIds.length) await huntFetch(); }
+  if (await _huntConvertNf()) await huntFetch();
   if (typeof _varianceFilter !== 'undefined' && _varianceFilter && _varianceFilter.period === 'round') _varianceFilter.period = 'session';
   const items = await computeVarianceItems('session');
   _varianceAllData = items;
