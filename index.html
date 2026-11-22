@@ -36075,6 +36075,14 @@ async function wfResetTo(locCode, targetStatus) {
   }
   
   showToast(`✅ ${locCode} → ${T('status_' + targetStatus)}`, 'success');
+  // 🔁 เปิดกลับให้ Verifier = นับเป็น V รอบ 2 (ปุ่มนี้กับปุ่มในศูนย์ควบคุมผลเหมือนกัน · Ball 2026-11-22)
+  if (targetStatus === 'open_for_verify') {
+    try {
+      const code = floorBaseCode(String(locCode || '').toUpperCase().trim());
+      const cur = new Set(await _v2Load(session.id)); cur.add(code);
+      await sb.from('app_settings').upsert({ key: 'count_v2_' + session.id, value: JSON.stringify([...cur]), updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: 'key' });
+    } catch (e) {}
+  }
   if (typeof loadWorkflowList === 'function') loadWorkflowList();
 }
 
@@ -38608,8 +38616,9 @@ async function wfOpenForVerifierV2(locCode, quiet) {
   const cur = new Set(await _v2Load(session.id)); cur.add(code);
   const { error: se } = await sb.from('app_settings').upsert({ key: 'count_v2_' + session.id, value: JSON.stringify([...cur]), updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: 'key' });
   if (se) { showToast('Error: ' + se.message, 'error'); return false; }
-  // 2) เปิดชั้นให้ Verifier — ใช้ RPC เดิมก่อน · ไม่ได้ (ชั้นตรวจเสร็จแล้ว) → ตั้งสถานะแถวล่าสุดกลับเป็น "เปิดให้ Verifier"
-  let { error } = await sb.rpc('open_gondola_for_verifier', { p_session_id: session.id, p_location_code: code, p_ctl_user_id: user.id, p_verifier_id: null });
+  // 2) เปิดชั้นให้ Verifier — RPC reopen_gondola (ตัวเดียวกับปุ่ม "⟲ กลับไป Verify ใหม่" ในแผนผัง) · สำรอง: open_gondola_for_verifier → update ตรง
+  let { error } = await sb.rpc('reopen_gondola', { p_session_id: session.id, p_location_code: code, p_ctl_user_id: user.id, p_target_status: 'open_for_verify' });
+  if (error) ({ error } = await sb.rpc('open_gondola_for_verifier', { p_session_id: session.id, p_location_code: code, p_ctl_user_id: user.id, p_verifier_id: null }));
   if (error) {
     const { data: g } = await sb.from('gondola_status').select('id').eq('session_id', session.id).eq('location_code', code).order('id', { ascending: false }).limit(1).maybeSingle();
     if (g && g.id) {
