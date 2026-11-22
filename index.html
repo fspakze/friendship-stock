@@ -37722,7 +37722,8 @@ function ctrRender() {
   const d = _ctr, I = d.items, now = Date.now();
   const canJ = typeof varCanJudge === 'function' && varCanJudge();
   const isBcsUp = ['bcs', 'admin', 'scc'].includes(user.role);
-  let h = '';
+  // 🖥️ desktop: ซ้าย = ภาพรวม/รอตามปกติ/พนักงาน · ขวา = การ์ดงานเรียงข้างกัน (Ball 2026-11-22) · มือถือเรียงเหมือนเดิม (display สลับใน <style> ไม่ใส่ inline · MEMORY 31)
+  let h = '<style>@media (min-width:1000px){.ctrWrap{display:grid;grid-template-columns:minmax(300px,340px) 1fr;grid-template-areas:"ov main" "rest main";grid-template-rows:auto 1fr;gap:0 14px;align-items:start}.ctrOv{grid-area:ov}.ctrMain{grid-area:main}.ctrRest{grid-area:rest}.ctrGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;align-items:start}.ctrGrid>div{margin-bottom:0 !important}}</style><div class="ctrWrap"><div class="ctrOv">';
 
   // ===== 1) ภาพรวม =====
   const elapsed = _ctrMin(d.startTs || session.started_at, now);   // รอบนี้เริ่มจากชั้นแรกที่เปิด (session อาจใช้ต่อเนื่องหลายเดือน)
@@ -37757,6 +37758,7 @@ function ctrRender() {
   if (_ctrErr) h += '<div style="margin-top:8px;font-size:11px;font-weight:700;color:var(--rose-600);">⚠️ ' + _cL('ອັບເດດລ່າສຸດບໍ່ສຳເລັດ — ສະແດງຂໍ້ມູນເກົ່າ', 'อัปเดตล่าสุดไม่สำเร็จ — แสดงข้อมูลเดิม') + '</div>';
   h += '</div>';
 
+  h += '</div><div class="ctrMain">';
   // ===== 2) ต้องทำตอนนี้ (เรียงตามความด่วน) =====
   const cards = [];
   // 2.1 นับเสร็จ → เปิดให้ Verifier
@@ -37813,7 +37815,7 @@ function ctrRender() {
     _ctrBtn(_cL('ເບິ່ງລາຍການ ›', 'ดูรายการ ›'), "ctrGo('variance','csum:uncounted')", 'white', 'var(--slate-700)')));
 
   h += '<div style="font-size:13px;font-weight:800;color:var(--slate-800);margin:4px 2px 7px;">📋 ' + _cL('ຕ້ອງເຮັດຕອນນີ້', 'ต้องทำตอนนี้') + ' <span style="font-size:11px;color:var(--slate-500);font-weight:700;">(' + _cL('ລຽງຕາມຄວາມດ່ວນ', 'เรียงตามความด่วน') + ')</span></div>';
-  if (cards.length) h += cards.join('');
+  if (cards.length) h += '<div class="ctrGrid">' + cards.join('') + '</div>';
   else {
     const allDone = d.total && doneG === d.total;
     h += '<div style="background:var(--emerald-50, #ecfdf5);border:1px solid var(--emerald-200, #a7f3d0);border-radius:12px;padding:14px;text-align:center;margin-bottom:9px;">'
@@ -37821,6 +37823,7 @@ function ctrRender() {
       + '<div style="font-size:11px;color:var(--slate-600);">' + (allDone ? _cL('ກວດສະຫຼຸບຜົນ ແລ້ວປິດຮອບໃນໜ້າຕັ້ງຄ່າ', 'ตรวจสรุปผล แล้วปิดรอบในหน้าตั้งค่า') : _cL('ລໍຖ້າ Counter / Verifier ນັບຕາມປົກກະຕິ', 'รอ Counter / Verifier นับตามปกติ')) + '</div></div>';
   }
 
+  h += '</div><div class="ctrRest">';
   // ===== 3) กำลังรอตามปกติ (ไม่ต้องทำอะไร) =====
   const wv = I.waitVs, wc = I.waitCs;
   h += '<div style="background:white;border:1px solid var(--slate-200);border-radius:12px;padding:10px 12px;margin-bottom:10px;">'
@@ -37861,6 +37864,7 @@ function ctrRender() {
     + lk('🔎 ' + _cL('ຕາມຫາ', 'ตามหา'), "ctrGo('hunt')")
     + '</div>';
 
+  h += '</div></div>';
   body.innerHTML = h;
   _vjFillWho(body);
 }
