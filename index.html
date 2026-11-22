@@ -38473,7 +38473,7 @@ async function huntOpenWork(id) {
   const set = new Set(Object.keys(cur));
   String(hint.pog || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean).forEach(g => set.add(g));
   const locs = [...set].sort((a, b) => floorBaseCode(a).localeCompare(floorBaseCode(b)) || (isFloorCode(a) ? 1 : 0) - (isFloorCode(b) ? 1 : 0));
-  _huntWork = { h, cur, locs, scanned: false, extra: 1 };
+  _huntWork = { h, cur, locs, scanned: false, extra: 1, noScan: h.kind === 'unc_a' };   // 📍 A: รู้ชั้นตาม Pan-O-Gram → ไม่บังคับสแกน (Ball 2026-11-23)
   _huntWorkRender();
 }
 function _huntWorkRender() {
@@ -38549,7 +38549,9 @@ function _huntSum() {
 }
 function _huntScanBoxRender() {
   const box = document.getElementById('hwScanBox'); if (!box || !_huntWork) return;
-  box.innerHTML = _huntWork.scanned
+  box.innerHTML = (_huntWork.noScan && !_huntWork.scanned)
+    ? '<div style="background:var(--violet-50, #f5f3ff);border:1px solid var(--violet-200, #ddd6fe);border-radius:9px;padding:8px 10px;font-size:12px;font-weight:700;color:var(--violet-700, #6d28d9);line-height:1.5;">📍 ' + _hL('ສິນຄ້າ A — ບໍ່ຕ້ອງສະແກນ · ໃສ່ຈຳນວນຕາມ Gondola ໄດ້ເລີຍ', 'สินค้า A — ไม่ต้องสแกน · ใส่จำนวนตาม Gondola ได้เลย') + '<br><span style="font-weight:600;color:var(--slate-600);font-size:11px;">' + _hL('ກວດຊື່ / ຮູບແບບສິນຄ້າໃຫ້ກົງກ່ອນໃສ່ຍອດ', 'ตรวจชื่อ / ขนาดสินค้าให้ตรงก่อนใส่ยอด') + '</span></div>'
+    : _huntWork.scanned
     ? '<div style="background:var(--emerald-50, #ecfdf5);border:1px solid var(--emerald-300, #6ee7b7);border-radius:9px;padding:8px 10px;font-size:12px;font-weight:800;color:var(--emerald-700, #047857);">✅ ' + _hL('ສະແກນແລ້ວ — ສິນຄ້າຖືກຕ້ອງ', 'สแกนแล้ว — สินค้าถูกต้อง') + '</div>'
     : '<div style="display:flex;gap:6px;"><button onclick="huntScan()" style="flex:1;background:var(--slate-800);color:white;border:none;border-radius:9px;padding:10px;font-size:13px;font-weight:800;cursor:pointer;">📷 ' + _hL('ສະແກນຢືນຢັນສິນຄ້າ', 'สแกนยืนยันสินค้า') + '</button>'
       + '<input id="hwBc" type="text" inputmode="numeric" placeholder="' + _hL('ຫຼື ພິມບາໂຄດ', 'หรือพิมพ์บาร์โค้ด') + '" onkeydown="if(event.key===\'Enter\')huntCheckCode(this.value)" style="width:130px;padding:9px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;"></div>';
@@ -38578,7 +38580,7 @@ async function _huntUpdate(id, patch, mustStatus) {
 }
 async function huntSubmit() {
   const w = _huntWork; if (!w) return;
-  if (!w.scanned) { showToast(_hL('ສະແກນຢືນຢັນສິນຄ້າກ່ອນ', 'สแกนยืนยันสินค้าก่อน'), 'warning'); return; }
+  if (!w.scanned && !w.noScan) { showToast(_hL('ສະແກນຢືນຢັນສິນຄ້າກ່ອນ', 'สแกนยืนยันสินค้าก่อน'), 'warning'); return; }
   const { list, bad } = _huntEntries();
   if (bad.length) { showToast(_hL('ຈຸດອື່ນ: ໃສ່ທັງລະຫັດຈຸດ ແລະ ຈຳນວນ', 'จุดอื่น: ใส่ทั้งรหัสจุดและจำนวน'), 'warning'); return; }
   if (!list.length) { showToast(_hL('ໃສ່ຍອດຢ່າງໜ້ອຍ 1 ຈຸດ', 'ใส่ยอดอย่างน้อย 1 จุด'), 'warning'); return; }
