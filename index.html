@@ -38395,7 +38395,7 @@ function _huntMgrHtml() {
     if (eq.length) html += '<button onclick="huntApproveEq()" style="width:100%;background:var(--emerald-50, #ecfdf5);color:var(--emerald-700, #047857);border:1px solid var(--emerald-300, #6ee7b7);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;margin-bottom:8px;">✅ ' + _hL('ອະນຸມັດທັງໝົດທີ່ຍອດໃໝ່ = POS', 'อนุมัติทั้งหมดที่ยอดใหม่ = POS') + ' (' + eq.length + ')</button>';
     return html + rev.map(h => {
       const f = Array.isArray(h.found) ? h.found : [];
-      const who = '<div style="font-size:11px;color:var(--slate-700);margin-top:4px;">👤 ' + escapeHtml(h.assigned_name || '') + (h.submitted_at ? ' · ' + _gtClock(h.submitted_at) : '') + '</div>';
+      const who = '<div style="font-size:11px;color:var(--slate-700);margin-top:4px;">👤 ' + escapeHtml(h.assigned_name || '') + (h.submitted_at ? ' · ' + _gtClock(h.submitted_at) : '') + (h.review_note === 'NOSCAN' ? ' <span style="background:var(--amber-100);color:var(--amber-800, #92400e);border-radius:6px;padding:0 6px;font-weight:800;">✋ ' + _hL('ບໍ່ໄດ້ສະແກນ — ຢືນຢັນຈາກຊື່', 'ไม่ได้สแกน — ยืนยันจากชื่อ') + '</span>' : '') + '</div>';
       const body = h.status === 'notfound'
         ? '<div style="font-size:12px;font-weight:800;color:var(--rose-700, #be123c);margin-top:4px;">🚫 ' + _hL('ບໍ່ພົບ ', 'ไม่พบ ') + _huntNf(h).length + _hL(' ຄົນ: ', ' คน: ') + escapeHtml(_huntNf(h).map(x => x.name).join(', ')) + '</div>'
         : who + '<div style="font-size:12px;margin-top:3px;">' + (f.length ? f.map(e => '<span style="display:inline-block;background:var(--slate-100);border-radius:6px;padding:2px 7px;margin:2px 4px 0 0;font-weight:700;font-family:\'Space Grotesk\',monospace;">📍' + escapeHtml(e.loc) + ' = ' + _huntN(e.qty) + '</span>').join('') : '<b>' + _hL('ບໍ່ເຈີເພີ່ມ (ຍອດເດີມ)', 'ไม่เจอเพิ่ม (ยอดเดิม)') + '</b>')
@@ -38552,16 +38552,28 @@ function _huntScanBoxRender() {
   box.innerHTML = (_huntWork.noScan && !_huntWork.scanned)
     ? '<div style="background:var(--violet-50, #f5f3ff);border:1px solid var(--violet-200, #ddd6fe);border-radius:9px;padding:8px 10px;font-size:12px;font-weight:700;color:var(--violet-700, #6d28d9);line-height:1.5;">📍 ' + _hL('ສິນຄ້າ A — ບໍ່ຕ້ອງສະແກນ · ໃສ່ຈຳນວນຕາມ Gondola ໄດ້ເລີຍ', 'สินค้า A — ไม่ต้องสแกน · ใส่จำนวนตาม Gondola ได้เลย') + '<br><span style="font-weight:600;color:var(--slate-600);font-size:11px;">' + _hL('ກວດຊື່ / ຮູບແບບສິນຄ້າໃຫ້ກົງກ່ອນໃສ່ຍອດ', 'ตรวจชื่อ / ขนาดสินค้าให้ตรงก่อนใส่ยอด') + '</span></div>'
     : _huntWork.scanned
-    ? '<div style="background:var(--emerald-50, #ecfdf5);border:1px solid var(--emerald-300, #6ee7b7);border-radius:9px;padding:8px 10px;font-size:12px;font-weight:800;color:var(--emerald-700, #047857);">✅ ' + _hL('ສະແກນແລ້ວ — ສິນຄ້າຖືກຕ້ອງ', 'สแกนแล้ว — สินค้าถูกต้อง') + '</div>'
+    ? (_huntWork.manualConfirm ? '<div style="background:var(--amber-50, #fffbeb);border:1px solid var(--amber-300, #fcd34d);border-radius:9px;padding:8px 10px;font-size:12px;font-weight:800;color:var(--amber-700, #b45309);">✋ ' + _hL('ຢືນຢັນຈາກຊື່ (ບໍ່ໄດ້ສະແກນ)', 'ยืนยันจากชื่อ (ไม่ได้สแกน)') + '</div>' : '') + (_huntWork.manualConfirm ? '' : '<div style="background:var(--emerald-50, #ecfdf5);border:1px solid var(--emerald-300, #6ee7b7);border-radius:9px;padding:8px 10px;font-size:12px;font-weight:800;color:var(--emerald-700, #047857);">✅ ' + _hL('ສະແກນແລ້ວ — ສິນຄ້າຖືກຕ້ອງ', 'สแกนแล้ว — สินค้าถูกต้อง') + '</div>')
     : '<div style="display:flex;gap:6px;"><button onclick="huntScan()" style="flex:1;background:var(--slate-800);color:white;border:none;border-radius:9px;padding:10px;font-size:13px;font-weight:800;cursor:pointer;">📷 ' + _hL('ສະແກນຢືນຢັນສິນຄ້າ', 'สแกนยืนยันสินค้า') + '</button>'
-      + '<input id="hwBc" type="text" inputmode="numeric" placeholder="' + _hL('ຫຼື ພິມບາໂຄດ', 'หรือพิมพ์บาร์โค้ด') + '" onkeydown="if(event.key===\'Enter\')huntCheckCode(this.value)" style="width:130px;padding:9px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;"></div>';
+      + '<input id="hwBc" type="text" inputmode="numeric" placeholder="' + _hL('ຫຼື ພິມບາໂຄດ', 'หรือพิมพ์บาร์โค้ด') + '" onkeydown="if(event.key===\'Enter\')huntCheckCode(this.value)" style="width:130px;padding:9px;border:1px solid var(--slate-300);border-radius:9px;font-size:13px;"></div>'
+      + '<button onclick="huntConfirmNoScan()" style="width:100%;margin-top:6px;background:white;color:var(--slate-600);border:1px dashed var(--slate-400);border-radius:9px;padding:7px;font-size:11px;font-weight:700;cursor:pointer;">✋ ' + _hL('ສະແກນບໍ່ໄດ້ — ຢືນຢັນຈາກຊື່ / ຂະໜາດສິນຄ້າ', 'สแกนไม่ได้ — ยืนยันจากชื่อ / ขนาดสินค้า') + '</button>';
 }
 function huntScan() { window._scanCallback = code => huntCheckCode(code); triggerPhotoScan('hunt'); }
+// ✋ สแกนไม่ได้ (ป้ายชำรุด/บาร์โค้ดต่างรุ่น) → ยืนยันจากชื่อ/ขนาดสินค้า · บันทึกว่า "ไม่ได้สแกน" ให้หัวหน้าเห็นตอนอนุมัติ (Ball 2026-11-23)
+function huntConfirmNoScan() {
+  const w = _huntWork; if (!w) return;
+  if (!confirm(_hL('ຢືນຢັນວ່າສິນຄ້າທີ່ເຈີ ຊື່ ແລະ ຂະໜາດກົງກັບງານນີ້ແທ້? (ຫົວໜ້າຈະເຫັນວ່າບໍ່ໄດ້ສະແກນ)', 'ยืนยันว่าสินค้าที่เจอ ชื่อและขนาดตรงกับงานนี้จริง? (หัวหน้าจะเห็นว่าไม่ได้สแกน)'))) return;
+  const keep = _huntReadInputs();
+  w.scanned = true; w.manualConfirm = true; _huntScanBoxRender();
+  document.querySelectorAll('.hwQty').forEach(i => { if (keep.main[i.dataset.loc] != null) i.value = keep.main[i.dataset.loc]; });
+}
+window.huntConfirmNoScan = huntConfirmNoScan;
 async function huntCheckCode(code) {
   const w = _huntWork; if (!w) return;
   const c = String(code || '').trim(); if (!c) return;
   const bc = String((_huntProd[w.h.product_id] || {}).barcode || '').trim();
-  let ok = c === bc;
+  const _n = x => String(x || '').replace(/^0+/, '');
+  const _base = x => (x.length > 8 && x.startsWith('888')) ? x.slice(3) : x;   // 🏷️ รหัส MD = 888 + บาร์โค้ดเดิม (ของจริงบนชั้นยังเป็นบาร์โค้ดเดิม)
+  let ok = c === bc || _n(c) === _n(bc) || _n(_base(c)) === _n(_base(bc));
   if (!ok) { try { const rec = await bpLookup(c); ok = !!(rec && [rec.barcode_unit, rec.barcode_pack, rec.barcode_box, rec.barcode_other].map(x => String(x || '').trim()).includes(bc)); } catch (e) {} }
   if (!ok) { showToast('❌ ' + _hL('ບາໂຄດບໍ່ກົງກັບງານນີ້', 'บาร์โค้ดไม่ตรงกับงานนี้') + ' (' + c + ')', 'error'); return; }
   const keep = _huntReadInputs();
@@ -38586,7 +38598,7 @@ async function huntSubmit() {
   if (!list.length) { showToast(_hL('ໃສ່ຍອດຢ່າງໜ້ອຍ 1 ຈຸດ', 'ใส่ยอดอย่างน้อย 1 จุด'), 'warning'); return; }
   if (list.some(e => isNaN(e.qty) || e.qty < 0)) { showToast(_hL('ຈຳນວນບໍ່ຖືກ', 'จำนวนไม่ถูก'), 'warning'); return; }
   const btn = document.getElementById('hwSubmit'); if (btn) btn.disabled = true;
-  const ok = await _huntUpdate(w.h.id, { status: 'submitted', found: list, found_total: _huntNewTotal(list), submitted_at: new Date().toISOString() }, ['claimed']);
+  const ok = await _huntUpdate(w.h.id, { status: 'submitted', found: list, found_total: _huntNewTotal(list), submitted_at: new Date().toISOString(), review_note: w.manualConfirm ? 'NOSCAN' : (w.noScan && !w.scanned ? 'NOSCAN_A' : null) }, ['claimed']);
   if (btn) btn.disabled = false;
   if (!ok) return;
   logActivity('hunt_submit', 'product ' + w.h.product_id + ' · ' + list.map(e => e.loc + '=' + e.qty).join(', '));
