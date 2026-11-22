@@ -26325,6 +26325,24 @@ async function vfCountsByGondola(sid) {
   _vfMapCache = { sid, at: Date.now(), map };
   return map;
 }
+// 🔁 ป้าย "ต้องเปิด V รอบ 2" บนแผนผัง (Ball 2026-11-22) — ใช้ผลคำนวณล่าสุดที่ไม่เกิน 3 นาทีซ้ำ (ศูนย์ควบคุม/คลาดเคลื่อน/ตามหา) · ไม่มีค่อยคำนวณครั้งเดียว
+let _fmV2Busy = false;
+async function fmFillV2Badges() {
+  if (!session || !user || !['ctl', 'bcs', 'admin', 'scc', 'it'].includes(user.role) || _fmV2Busy) return;
+  _fmV2Busy = true;
+  try {
+    let items = (_varCalc && _varCalc.sid === session.id && Date.now() - _varCalc.at < 180000) ? _varCalc.items : null;
+    if (!items) items = await computeVarianceItems('session');
+    const m = {};
+    (items || []).filter(it => !it.isOrphan && it.isComplete && varStage(it).key === 'v2_need')
+      .forEach(it => _v2PendingBases(it).forEach(b => { const k = floorBaseCode(String(b || '').toUpperCase().trim()); m[k] = (m[k] || 0) + 1; }));
+    document.querySelectorAll('.fm-v2[data-loc]').forEach(el => {
+      const n = m[floorBaseCode(String(el.dataset.loc || '').toUpperCase())];
+      el.innerHTML = n ? '<span title="' + (lang === 'lo' ? 'ຕ້ອງເປີດ Verifier ຮອບ 2 · ສິນຄ້າ ' : 'ต้องเปิด Verifier รอบ 2 · สินค้า ') + n + '" style="display:inline-block;padding:0 5px;border-radius:6px;font-size:9px;font-weight:800;background:var(--violet-600, #7c3aed);color:white;box-shadow:0 1px 3px rgba(124,58,237,.4);">🔁' + n + '</span>' : '';
+    });
+  } catch (e) { log('fm v2 badge error', e); } finally { _fmV2Busy = false; }
+}
+
 async function fmFillVerifyBadges() {
   if (!session || ['counter', 'staff'].includes(user.role)) return;   // Counter ไม่ต้องเห็น (กันเดาว่าตัวไหนไม่ตรง)
   let map;
@@ -27836,9 +27854,11 @@ async function computeVarianceItems(periodOverride) {
       };
     });
     
+    if (sessionFilter && _vp === 'session') _varCalc = { sid: sessionFilter, at: Date.now(), items };   // 🗺️ แผนผังใช้ซ้ำ (ประหยัดข้อมูล)
     return items;
   }
 }
+let _varCalc = null;   // { sid, at, items } ผลคำนวณรอบล่าสุด
 
 async function loadVarianceReport() {
   if (!session && _varianceFilter.period === 'session') {
@@ -34768,6 +34788,7 @@ async function loadFloorMap() {
   log('Floor map data:', fmRes.data, 'PoG locations:', Object.keys(window._pogCountByLoc).length, 'Gap locations:', Object.keys(window._gapCountByLoc).length);
   renderFloorMapContent(fmRes.data || {});
   fmFillVerifyBadges();   // 🗺️ V ต้องนับ/นับแล้ว ต่อ Gondola (async ไม่หน่วงแผนผัง)
+  fmFillV2Badges();       // 🔁 ชั้นที่ต้องเปิด Verifier รอบ 2
 }
 
 function renderFloorMapContent(data) {
@@ -34823,6 +34844,7 @@ function renderFloorMapContent(data) {
         <div class="fm-code">${item.location_code}</div>
         ${progress}
         <div class="fm-vf" data-loc="${escapeHtml(String(item.location_code || '').toUpperCase())}"></div>
+        <div class="fm-v2" data-loc="${escapeHtml(String(item.location_code || '').toUpperCase())}" style="position:absolute;bottom:2px;right:2px;z-index:2;"></div>
       </div>
     `;
   };
