@@ -36307,6 +36307,21 @@ async function showLocationDetail(locationCode) {
       pr._multiLoc = !!(s && s.size >= 2);
     });
   } catch (e) { log('locDetail expLoc err', e); }
+  // 📍 ยอดรวมทุกชั้น + ขั้นตอน จากชุดคำนวณเดียวกับรายงานคลาดเคลื่อน (แคช ≤3 นาที · Ball 2026-11-23: 04B02 ขึ้น Diff −37 ทั้งที่รวม 3 ชั้น = POS)
+  try {
+    if (session && session.id) {
+      const its = (_varCalc && _varCalc.sid === session.id && Date.now() - _varCalc.at < 180000) ? _varCalc.items : await computeVarianceItems('session');
+      const vm = {}; (its || []).forEach(i => { vm[i.product_id] = i; });
+      pivoted.forEach(pr => {
+        const v = vm[pr.product_id]; if (!v) return;
+        const rows = v.cvRows || [];
+        const bases = new Set(rows.map(r => r.base));
+        if (bases.size >= 2) { pr._multiLoc = true; pr._locCount = Math.max(pr._locCount || 1, bases.size); }
+        pr._tot = { fin: v.final_qty, pos: v.pos_qty, diff: v.diff, complete: v.isComplete !== false, stage: varStage(v).key,
+          locs: rows.map(r => ({ b: r.base + (r.floor ? FLOOR_SUFFIX : ''), q: r.m ?? r.t ?? r.v ?? r.c })) };
+      });
+    }
+  } catch (e) { log('locDetail total err', e); }
   
   // Calculate summary
   const totalItems = items.length;
@@ -36426,7 +36441,9 @@ function renderPivotRow(prod) {
     'verifier_only': { text: T('verifier_only') || 'Verifier เท่านั้น', color: 'var(--amber-600)', bg: 'var(--amber-100)' },
     'pending': { text: 'Pending', color: 'var(--slate-500)', bg: 'var(--slate-100)' }
   };
-  const stat = statusLabels[prod.status] || statusLabels.pending;
+  let stat = statusLabels[prod.status] || statusLabels.pending;
+  // ✅ Counter ตรง POS (รวมทุกชั้น) → ไม่ต้องรอ Verifier
+  if (prod._tot && prod._tot.stage === 'c_match' && prod.status === 'counter_only') stat = { text: lang === 'lo' ? '✓ C ກົງ POS (ບໍ່ຕ້ອງ Verify)' : '✓ C ตรง POS (ไม่ต้อง Verify)', color: 'var(--emerald-700)', bg: 'var(--emerald-100)' };
   
   const diff = prod.diff;
   let diffColor = 'var(--slate-500)', diffBg = 'var(--slate-100)', diffText = '—';
@@ -36514,7 +36531,9 @@ function renderPivotRow(prod) {
           <div style="font-size:15px;font-weight:800;color:var(--teal-700);font-family:'Space Grotesk',monospace;">${prod.final_qty !== null ? prod.final_qty : '—'}</div>
         </div>
         <div style="flex:1;font-size:9px;color:#92400e;font-weight:600;line-height:1.4;">
-          📍 ${lang === 'lo' ? 'ຢູ່' : 'อยู่'} ${prod._locCount} ${lang === 'lo' ? 'ຈຸດ — Diff ເບິ່ງທີ່ລາຍງານຄາດເຄື່ອນ' : 'จุด — Diff ดูที่รายงานคลาดเคลื่อน'}
+          ${prod._tot ? `📍 ${lang === 'lo' ? 'ລວມທຸກຊັ້ນ' : 'รวมทุกชั้น'} <b style="font-size:12px;color:var(--slate-900);">${prod._tot.fin}</b> · POS <b style="font-size:12px;color:var(--slate-900);">${prod._tot.pos}</b> → ${!prod._tot.complete ? (lang === 'lo' ? '⏳ ຍັງນັບບໍ່ຄົບທຸກຈຸດ' : '⏳ ยังนับไม่ครบทุกจุด') : (prod._tot.diff === 0 ? '<b style="color:var(--emerald-700);">✓ ' + (lang === 'lo' ? 'ກົງ' : 'ตรง') + '</b>' : '<b style="color:' + (prod._tot.diff < 0 ? 'var(--rose-600)' : 'var(--sky-700)') + ';">Diff ' + (prod._tot.diff > 0 ? '+' : '') + prod._tot.diff + '</b>')}
+            <div style="color:var(--slate-600);font-weight:600;margin-top:2px;">${prod._tot.locs.map(l => escapeHtml(l.b) + ' = ' + (l.q ?? '—')).join(' · ')}</div>`
+          : `📍 ${lang === 'lo' ? 'ຢູ່' : 'อยู่'} ${prod._locCount} ${lang === 'lo' ? 'ຈຸດ — Diff ເບິ່ງທີ່ລາຍງານຄາດເຄື່ອນ' : 'จุด — Diff ดูที่รายงานคลาดเคลื่อน'}`}
         </div>
       </div>
       ` : `
@@ -38574,12 +38593,19 @@ async function _huntLoadPeople() {
   if (_huntPeople && _huntPeople.sid === session.id && Date.now() - _huntPeople.at < 300000) return _huntPeople.list;
   const rows = await fetchAllQuery(() => sb.from('stock_counts').select('id, user_id, count_role').eq('session_id', session.id).in('count_role', ['counter', 'staff', 'verifier', 'audit']).order('id'));
   const ids = [...new Set((rows || []).map(r => r.user_id).filter(Boolean))];
-  const list = [];
+  const scanned = new Set(ids);
+  const list = [], seen = new Set();
+  const add = u => { if (!u || seen.has(u.id) || u.is_active === false) return; seen.add(u.id); list.push({ id: u.id, name: u.username || u.full_name || '?', full: u.full_name || '', scanned: scanned.has(u.id) }); };
   for (let i = 0; i < ids.length; i += 200) {
     const { data } = await sb.from('users').select('id, username, full_name, is_active').in('id', ids.slice(i, i + 200));
-    (data || []).forEach(u => { if (u.is_active !== false) list.push({ id: u.id, name: u.username || u.full_name || '?', full: u.full_name || '' }); });
+    (data || []).forEach(add);
   }
-  list.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  // 👥 คนที่ยังไม่ได้สแกนในรอบนี้ (เช่น Ver14 เพิ่งมา) ก็มอบหมายได้ (Ball 2026-11-23)
+  try {
+    const { data: more } = await sb.from('users').select('id, username, full_name, is_active, role').in('role', ['counter', 'verifier', 'audit']).eq('is_active', true).limit(1000);
+    (more || []).forEach(add);
+  } catch (e) {}
+  list.sort((a, b) => (b.scanned - a.scanned) || a.name.localeCompare(b.name, undefined, { numeric: true }));
   _huntPeople = { sid: session.id, at: Date.now(), list };
   return list;
 }
