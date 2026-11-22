@@ -6024,7 +6024,7 @@ function goPage(page) {
     loadHealth();
   } else if (page === 'variance') {
     // เข้าหน้าตามปกติ (ไม่ได้มาจากลิงก์ Dashboard) → ล้างตัวกรองขั้นตอน กันค้างจากครั้งก่อน
-    if (!window._dashAfter && typeof _varStageFilter !== 'undefined') _varStageFilter = 'all';
+    if (!window._dashAfter && typeof _varStageFilter !== 'undefined') { _varStageFilter = 'all'; _varAllLv = false; }
     c.innerHTML = renderVariancePage();
     loadVarianceReport();
   } else if (page === 'gapscan') {
@@ -27889,7 +27889,7 @@ async function loadVarianceReport() {
     // 🎛️ มาจาก Dashboard → เปิดมุมมองที่กดมา
     const _da = window._dashAfter; window._dashAfter = null;
     if (_da && _da.indexOf('stage:') === 0) {
-      _varStageFilter = _da.slice(6); renderVarianceList();
+      _varStageFilter = _da.slice(6); _varAllLv = true; renderVarianceList();
       const _anc = document.getElementById('varStageAnchor'); if (_anc && _anc.scrollIntoView) setTimeout(() => _anc.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60);
     }
     else if (_da && _da.indexOf('csum:') === 0) { csumOpen(_da.slice(5)); }
@@ -28549,12 +28549,15 @@ function renderVarianceList() {
   // Sort: highest diff first (absolute)
   items.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
 
-  // 🧭 ตัวกรองตามขั้นตอนการนับ — ชิปนับจากทุก Level · "ทั้งหมด" = Level ที่เลือก
+  // 🧭 ตัวกรองตามขั้นตอนการนับ — ทุกชิปนับใน Level ที่เลือก · "ทั้งหมด" = ยังไม่จบ (✅ จบแล้ว แยกไปชิปของมัน)
+  //    Ball 2026-11-23: BCS ยืนยันแล้วยังโผล่ใน "ทั้งหมด" + ทั้งหมด 52 (Level เดียว) vs จบแล้ว 3,235 (ทุก Level) ดูขัดกัน
+  //    มาจากลิงก์ Dashboard/ศูนย์ควบคุม (stage:...) = ทุก Level เหมือนเดิม (ตัวเลขตรงกับที่กดมา) · กดแท็บ Level = กลับมานับใน Level
+  const _lvItems = _varAllLv ? items : items.filter(p => p.level === _varianceFilter.level);
   const _stCount = {};
-  items.forEach(p => { const g = _varStageGroup(varStage(p).key); _stCount[g] = (_stCount[g] || 0) + 1; });
-  const _byLevel = items.filter(p => p.level === _varianceFilter.level);
-  const _stTotal = _byLevel.length;
-  items = (_varStageFilter !== 'all') ? items.filter(p => _varStageGroup(varStage(p).key) === _varStageFilter) : _byLevel;
+  _lvItems.forEach(p => { const g = _varStageGroup(varStage(p).key); _stCount[g] = (_stCount[g] || 0) + 1; });
+  const _stTotal = _lvItems.length - (_stCount.done || 0);
+  items = _lvItems.filter(p => { const g = _varStageGroup(varStage(p).key); return _varStageFilter === 'all' ? g !== 'done' : g === _varStageFilter; });
+  const _chipsHtml = _lvItems.length ? _varStageChipsHtml(_stCount, _stTotal, isLao) : '';
 
   const listEl = document.getElementById('varianceList');
 
@@ -28566,11 +28569,13 @@ function renderVarianceList() {
     : _pendBox) + '<div id="varStageAnchor"></div>';
 
   if (items.length === 0) {
-    listEl.innerHTML = pendingHtml + `
+    listEl.innerHTML = pendingHtml + _chipsHtml + `
       <div style="text-align:center;padding:40px 20px;color:var(--slate-400);">
         <div style="font-size:48px;margin-bottom:11px;">${_varianceFilter.level === 'L1' ? '✅' : '🎉'}</div>
         <div style="font-size:13px;font-weight:700;color:var(--slate-600);">
-          ${_varianceFilter.level === 'L1'
+          ${(_varStageFilter === 'all' && _stCount.done)
+            ? (isLao ? `ບໍ່ມີລາຍການຄ້າງ · ຈົບແລ້ວ ${_stCount.done} (ກົດ ✅ ຈົບແລ້ວ ເພື່ອເບິ່ງ)` : `ไม่มีรายการค้าง · จบแล้ว ${_stCount.done} (กด ✅ จบแล้ว เพื่อดู)`)
+            : _varianceFilter.level === 'L1'
             ? (isLao ? 'ບໍ່ມີສິນຄ້າທີ່ສະຕ໋ອກຕົງ' : 'ไม่มีสินค้าที่สต๊อกตรง')
             : (isLao ? `ບໍ່ມີສິນຄ້າໃນລະດັບ ${_varianceFilter.level}` : `ไม่มีสินค้าในระดับ ${_varianceFilter.level}`)}
         </div>
@@ -28580,8 +28585,9 @@ function renderVarianceList() {
   }
 
   // Group by gondola?
-  let html = pendingHtml + _varStageChipsHtml(_stCount, _stTotal, isLao)
-    + (_varStageFilter !== 'all' ? '<div style="font-size:10.5px;color:var(--slate-500);margin:-2px 0 6px;">ℹ️ ' + (isLao ? 'ສະແດງທຸກ Level (L1–L4) ຂອງຂັ້ນຕອນນີ້' : 'แสดงทุก Level (L1–L4) ของขั้นตอนนี้') + '</div>' : '');
+  let html = pendingHtml + _chipsHtml
+    + '<div style="font-size:10.5px;color:var(--slate-500);margin:-2px 0 6px;">ℹ️ ' + (_varAllLv ? (isLao ? 'ສະແດງທຸກ Level (L1–L4)' : 'แสดงทุก Level (L1–L4)') : (isLao ? 'ນັບໃນ Level ' : 'นับใน Level ') + _varianceFilter.level)
+    + (_varStageFilter === 'all' ? (isLao ? ' · "ທັງໝົດ" = ຍັງບໍ່ຈົບ (ຕົວທີ່ຈົບແລ້ວ ເບິ່ງ ✅ ຈົບແລ້ວ)' : ' · "ทั้งหมด" = ยังไม่จบ (ตัวที่จบแล้ว ดู ✅ จบแล้ว)') : '') + '</div>';
   
   if (_varianceFilter.groupBy === 'gondola') {
     // Group
@@ -28620,6 +28626,7 @@ function renderVarianceList() {
 
 // 🗂️ รายการคลาดเคลื่อน: กรองตามขั้นตอน + กลุ่ม Gondola แบบพับ (Ball 2026-11-12 — เดิมยาวต้องเลื่อนนาน)
 let _varStageFilter = 'all';          // all | wait | ctl | bcs | real | done
+let _varAllLv = false;                // true = มาจากลิงก์ stage: (Dashboard/ศูนย์ควบคุม) → แสดงทุก Level
 const _varOpenGons = new Set();       // Gondola ที่กางอยู่
 function _varStageGroup(k) {
   if (k === 'v2_wait' || k === 'v2_need') return 'v2';
@@ -28826,6 +28833,7 @@ function renderVarianceItem(p, fmt, isLao) {
 // ==================== VARIANCE FILTERS ====================
 function setVarianceLevel(level) {
   _varianceFilter.level = level;
+  _varAllLv = false;   // กดแท็บ Level = นับใน Level นี้
   
   // Update tab styling
   ['L1', 'L2', 'L3', 'L4'].forEach(lv => {
