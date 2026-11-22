@@ -38186,12 +38186,30 @@ async function huntReload(doSync) {
       : '<div style="color:var(--rose-600);font-size:12px;padding:10px;">Error: ' + escapeHtml(e.message || String(e)) + '</div>';
   } finally { _huntBusy = false; }
 }
-async function huntFetch() {
+// 📉 ลด Disk IO (Ball 2026-11-23 · Supabase เตือน Disk IO · กราฟพุ่งช่วงตามหา): เดิมทุกเครื่องดึงทั้งตาราง (2,110 งาน) ทุก 30 วิ
+//    ตอนนี้: ดึงเต็มครั้งแรก + ทุก 5 นาที (กันพลาด) · ระหว่างนั้นดึงเฉพาะงานที่ updated_at เปลี่ยน (ย้อน 2 นาที กันนาฬิกามือถือคลาด · คลาดมากกว่านั้น = ได้ตอนดึงเต็มรอบ 5 นาที)
+//    พนักงาน: ดึงเต็มเฉพาะสถานะที่หน้าพนักงานใช้ (ว่าง/กำลังหา/ส่งแล้ว) ไม่ต้องดึงงานที่จบแล้ว
+let _huntWm = 0, _huntFullAt = 0, _huntSid = null;
+const HUNT_FULL_MS = 5 * 60000, HUNT_OVERLAP_MS = 2 * 60000, HUNT_STAFF_ST = ['open', 'claimed', 'submitted'];
+async function huntFetch(forceFull) {
+  const staffOnly = !huntIsMgr();
+  const full = !!forceFull || _huntSid !== session.id || !_huntWm || Date.now() - _huntFullAt > HUNT_FULL_MS;
   let rowsAll;
-  try { rowsAll = await fetchAllQuery(() => sb.from('count_hunts').select('*').eq('session_id', session.id).order('id')); }   // เกิน 1,000 งานได้ → fetchAll
+  try {
+    if (full) rowsAll = await fetchAllQuery(() => { let q = sb.from('count_hunts').select('*').eq('session_id', session.id); if (staffOnly) q = q.in('status', HUNT_STAFF_ST); return q.order('id'); });   // เกิน 1,000 งานได้ → fetchAll
+    else rowsAll = await fetchAllQuery(() => sb.from('count_hunts').select('*').eq('session_id', session.id).gt('updated_at', new Date(_huntWm - HUNT_OVERLAP_MS).toISOString()).order('id'));
+  }
   catch (e) { _huntMissing = /count_hunts|PGRST205|42P01/i.test(String(e && e.code || '') + ' ' + String(e && e.message || e)); throw e; }
   _huntMissing = false;
-  _huntRows = rowsAll || [];
+  rowsAll = rowsAll || [];
+  if (full) { _huntRows = rowsAll; _huntFullAt = Date.now(); _huntSid = session.id; _huntWm = 0; }
+  else if (rowsAll.length) {
+    const m = new Map(_huntRows.map(x => [x.id, x]));
+    rowsAll.forEach(x => m.set(x.id, x));
+    _huntRows = [...m.values()].filter(x => !staffOnly || HUNT_STAFF_ST.includes(x.status)).sort((a, b) => a.id - b.id);
+  }
+  rowsAll.forEach(x => { const t = x.updated_at ? new Date(x.updated_at).getTime() : 0; if (t > _huntWm) _huntWm = t; });
+  if (!_huntWm) _huntWm = Date.now();
   const need = [...new Set(_huntRows.map(h => h.product_id))].filter(id => !_huntProd[id]);
   for (let i = 0; i < need.length; i += 300) {
     const ps = await _sbSel(() => sb.from('products').select('id, barcode, name_th, name_lo').in('id', need.slice(i, i + 300)));
@@ -38237,7 +38255,7 @@ async function _huntConvertNf() {
 async function huntSync(quiet) {
   if (!huntIsMgr() || !session) return;
   _huntSyncAt = Date.now();
-  await huntFetch();   // งานเดิมล่าสุด → ใช้กันซ้ำ + ปิดงานที่ไม่เข้าเกณฑ์ (Ball 2026-11-22: เดิมเปิดหน้าครั้งแรกปิดไม่ได้ คิวค้าง 1,575)
+  await huntFetch(true);   // งานเดิมล่าสุด (เต็ม) → ใช้กันซ้ำ + ปิดงานที่ไม่เข้าเกณฑ์ (Ball 2026-11-22: เดิมเปิดหน้าครั้งแรกปิดไม่ได้ คิวค้าง 1,575)
   // 🚫 งานว่างที่มีคน "ไม่พบ" ครบตามเกณฑ์แล้ว (เดิมต้อง 2 คน · ตอนนี้ 1 คน) → ส่งให้หัวหน้ายืนยัน 0
   if (await _huntConvertNf()) await huntFetch();
   if (typeof _varianceFilter !== 'undefined' && _varianceFilter && _varianceFilter.period === 'round') _varianceFilter.period = 'session';
@@ -38299,7 +38317,7 @@ async function huntSync(quiet) {
   }
   if (!quiet) showToast('✓ ' + _hL('ອັບເດດຄິວ', 'อัปเดตคิว') + ' +' + (rows.length + reopen.length) + (stale.length ? ' · ' + _hL('ປິດ ', 'ปิด ') + stale.length : ''), 'success');
 }
-async function huntSyncNow() { await huntReload(false); _huntBusy = true; try { await huntSync(false); await huntFetch(); } catch (e) { showToast('Error: ' + (e.message || e), 'error'); } finally { _huntBusy = false; } huntRender(); }
+async function huntSyncNow() { await huntReload(false); _huntBusy = true; try { await huntSync(false); await huntFetch(true); } catch (e) { showToast('Error: ' + (e.message || e), 'error'); } finally { _huntBusy = false; } huntRender(); }
 async function huntSetMin() {
   const v = prompt(_hL('ເກນມູນຄ່າ (₭) — ໃຊ້ກັບສິນຄ້າທີ່ນັບແລ້ວມີຜົນຕ່າງ (ບໍ່ໄດ້ນັບ = ເຂົ້າຄິວທຸກໂຕ) · ສິນຄ້າທີ່ຜົນຕ່າງ ≥ ຄ່ານີ້ ຈຶ່ງເຂົ້າຄິວ', 'เกณฑ์มูลค่า (₭) — ใช้กับสินค้าที่นับแล้วมีผลต่าง (ไม่ได้นับ = เข้าคิวทุกตัว) · สินค้าที่ผลต่าง ≥ ค่านี้ จึงเข้าคิว'), String(_huntMin));
   if (v === null) return;
