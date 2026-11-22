@@ -38592,7 +38592,8 @@ async function _huntUpdate(id, patch, mustStatus) {
 }
 async function huntSubmit() {
   const w = _huntWork; if (!w) return;
-  if (!w.scanned && !w.noScan) { showToast(_hL('ສະແກນຢືນຢັນສິນຄ້າກ່ອນ', 'สแกนยืนยันสินค้าก่อน'), 'warning'); return; }
+  // ไม่บล็อกการส่งยอดแล้ว (Ball 2026-11-23) — ยังไม่สแกน = ถามยืนยันจากชื่อ แล้วติดป้าย ✋ ให้หัวหน้าเห็น
+  if (!w.scanned && !w.noScan) { if (!confirm(_hL('ຍັງບໍ່ໄດ້ສະແກນ — ຢືນຢັນວ່າຊື່ ແລະ ຂະໜາດສິນຄ້າກົງກັບງານນີ້ ແລ້ວສົ່ງຍອດ?', 'ยังไม่ได้สแกน — ยืนยันว่าชื่อและขนาดสินค้าตรงกับงานนี้ แล้วส่งยอด?'))) return; w.manualConfirm = true; }
   const { list, bad } = _huntEntries();
   if (bad.length) { showToast(_hL('ຈຸດອື່ນ: ໃສ່ທັງລະຫັດຈຸດ ແລະ ຈຳນວນ', 'จุดอื่น: ใส่ทั้งรหัสจุดและจำนวน'), 'warning'); return; }
   if (!list.length) { showToast(_hL('ໃສ່ຍອດຢ່າງໜ້ອຍ 1 ຈຸດ', 'ใส่ยอดอย่างน้อย 1 จุด'), 'warning'); return; }
