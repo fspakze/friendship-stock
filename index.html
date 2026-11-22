@@ -37957,6 +37957,23 @@ function _huntHint(h) {
 function _huntName(h) { const p = _huntProd[h.product_id] || {}; return (lang === 'lo' ? (p.name_lo || p.name_th) : (p.name_th || p.name_lo)) || p.barcode || ('#' + h.product_id); }
 function _huntMins(ts) { return ts ? Math.round((Date.now() - new Date(ts).getTime()) / 60000) : null; }
 
+// 🏷️ แยกประเภทงานในคิว (Ball 2026-11-22): นับแล้วมีปัญหา / ไม่ได้นับ A / ไม่ได้นับ B
+let _huntQKind = 'all';
+function _huntKindGrp(h) { return h.kind === 'unc_a' ? 'a' : (h.kind === 'unc_b' ? 'b' : 'prob'); }
+function _huntKindOk(h) { return _huntQKind === 'all' || _huntKindGrp(h) === _huntQKind; }
+function _huntKindChips(list) {
+  const n = { all: list.length, prob: 0, a: 0, b: 0 };
+  list.forEach(h => { n[_huntKindGrp(h)]++; });
+  const defs = [['all', _hL('ທັງໝົດ', 'ทั้งหมด'), 'var(--slate-700)'], ['prob', '⚠️ ' + _hL('ນັບແລ້ວ ມີບັນຫາ', 'นับแล้ว มีปัญหา'), 'var(--amber-700, #b45309)'],
+    ['a', '📍 ' + _hL('ບໍ່ໄດ້ນັບ A', 'ไม่ได้นับ A'), 'var(--violet-700, #6d28d9)'], ['b', '❓ ' + _hL('ບໍ່ໄດ້ນັບ B', 'ไม่ได้นับ B'), 'var(--slate-600)']];
+  return '<div style="display:flex;gap:5px;overflow-x:auto;padding-bottom:3px;margin-bottom:8px;">' + defs.map(([k, l, c]) => {
+    const on = _huntQKind === k;
+    return '<button onclick="huntSetKind(\'' + k + '\')" style="flex-shrink:0;background:' + (on ? c : 'white') + ';color:' + (on ? 'white' : c) + ';border:1px solid ' + c + ';border-radius:16px;padding:5px 11px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;' + (!n[k] && !on ? 'opacity:.45;' : '') + '">' + l + ' ' + n[k] + '</button>';
+  }).join('') + '</div>';
+}
+function huntSetKind(k) { _huntQKind = k; huntRender(); }
+window.huntSetKind = huntSetKind;
+
 function renderHuntPage() {
   return '<div class="page-header" style="margin-bottom:10px;"><div><div class="page-title">🔎 ' + _hL('ງານຕາມຫາ', 'งานตามหา') + '</div>'
     + '<div style="font-size:11px;color:var(--slate-500);">' + (huntIsMgr() ? _hL('ແຈກງານໃຫ້ພະນັກງານຊ່ວຍກັນຫາ · ອະນຸມັດຍອດທີ່ເຈີ', 'แจกงานให้พนักงานช่วยกันหา · อนุมัติยอดที่เจอ') : _hL('ຮັບງານ → ໄປຫາ → ສະແກນ → ໃສ່ຍອດທີ່ເຈີ', 'รับงาน → ไปหา → สแกน → ใส่ยอดที่เจอ')) + '</div></div></div>'
@@ -38030,6 +38047,7 @@ function _huntGateNote() {
 async function huntSync(quiet) {
   if (!huntIsMgr() || !session) return;
   _huntSyncAt = Date.now();
+  await huntFetch();   // งานเดิมล่าสุด → ใช้กันซ้ำ + ปิดงานที่ไม่เข้าเกณฑ์ (Ball 2026-11-22: เดิมเปิดหน้าครั้งแรกปิดไม่ได้ คิวค้าง 1,575)
   if (typeof _varianceFilter !== 'undefined' && _varianceFilter && _varianceFilter.period === 'round') _varianceFilter.period = 'session';
   const items = await computeVarianceItems('session');
   _varianceAllData = items;
@@ -38072,7 +38090,8 @@ async function huntSync(quiet) {
   const keep = new Set(cand.map(c => c.pid));
   const stale = _huntRows.filter(h => h.status === 'open' && !keep.has(h.product_id)).map(h => h.id);
   for (let i = 0; i < stale.length; i += 200) {
-    await sb.from('count_hunts').update({ status: 'closed', updated_at: new Date().toISOString() }).in('id', stale.slice(i, i + 200)).eq('status', 'open');
+    const { error: ce } = await sb.from('count_hunts').update({ status: 'closed', updated_at: new Date().toISOString() }).in('id', stale.slice(i, i + 200)).eq('status', 'open');
+    if (ce) throw ce;
   }
   if (!quiet) showToast('✓ ' + _hL('ອັບເດດຄິວ', 'อัปเดตคิว') + ' +' + rows.length + (stale.length ? ' · ' + _hL('ປິດ ', 'ปิด ') + stale.length : ''), 'success');
 }
@@ -38141,7 +38160,7 @@ function _huntStaffHtml() {
 function _huntMgrHtml() {
   const R = _huntRows;
   const rev = _huntSort(R.filter(h => h.status === 'submitted' || h.status === 'notfound'));
-  const q = _huntSort(R.filter(h => h.status === 'open' || h.status === 'claimed'));
+  let q = _huntSort(R.filter(h => h.status === 'open' || h.status === 'claimed'));
   const done = R.filter(h => h.status === 'approved' || h.status === 'closed');
   const left = q.concat(rev).reduce((s, h) => s + Math.abs(Number(h.diff_val) || 0), 0);
   const stuck = q.filter(h => h.status === 'claimed' && _huntMins(h.claimed_at) >= HUNT_STALE_MIN).length;
@@ -38175,7 +38194,9 @@ function _huntMgrHtml() {
     }).join('');
   }
   if (_huntTab === 'queue') {
-    html += _huntGateNote();
+    html += _huntGateNote() + _huntKindChips(q);
+    if (q.length && !q.some(_huntKindOk)) return html + '<div style="text-align:center;padding:26px;color:var(--slate-500);font-size:12px;">' + _hL('ບໍ່ມີງານປະເພດນີ້', 'ไม่มีงานประเภทนี้') + '</div>';
+    q = q.filter(_huntKindOk);
     if (!q.length) return html + '<div style="text-align:center;padding:26px;color:var(--emerald-600);font-size:12px;font-weight:700;">✅ ' + _hL('ບໍ່ມີງານໃນຄິວ', 'ไม่มีงานในคิว') + '</div>';
     return html + q.slice(0, 200).map(h => {
       const m = _huntMins(h.claimed_at), late = h.status === 'claimed' && m >= HUNT_STALE_MIN;
