@@ -37800,10 +37800,10 @@ function ctrRender() {
     _ctrBtn(_cL('ເບິ່ງສິນຄ້າລໍຖ້ານັບ / ສະຫຼຸບເລີຍ ›', 'ดูสินค้ารอนับ / สรุปเลย ›'), "ctrGo('variance')", 'white', 'var(--slate-700)')));
   // 2.7 ไม่ได้นับ A → ชั้นที่ Counter ข้ามสินค้า
   if (d.uncAList.length) cards.push(_ctrCard('uncA', 'warn', '📦', _cL('ມີສະຕ໋ອກແຕ່ບໍ່ໄດ້ນັບ (A) — ຕາມຊັ້ນ', 'มีสต๊อกแต่ไม่ได้นับ (A) — แยกตามชั้น'), d.uncA,
-    _cL('ສິນຄ້າຕາມ Pan-O-Gram ຂອງຊັ້ນທີ່ນັບແລ້ວ ແຕ່ບໍ່ມີໃຜສະແກນ → ສົ່ງເຂົ້າງານຕາມຫາ ຫຼື ຢືນຢັນບໍ່ພົບ', 'สินค้าตาม Pan-O-Gram ของชั้นที่นับแล้ว แต่ไม่มีใครสแกน → ส่งเข้างานตามหา หรือยืนยันไม่พบ'),
+    _cL('ສິນຄ້າຕາມ Pan-O-Gram ຂອງຊັ້ນທີ່ນັບແລ້ວ ແຕ່ບໍ່ມີໃຜສະແກນ → ເຂົ້າງານຕາມຫາເອງຫຼັງນັບຄົບທັງຮ້ານ ຫຼື ຢືນຢັນບໍ່ພົບ', 'สินค้าตาม Pan-O-Gram ของชั้นที่นับแล้ว แต่ไม่มีใครสแกน → เข้างานตามหาเองหลังนับครบทั้งร้าน หรือยืนยันไม่พบ'),
     d.uncAList.map(m => _ctrRow(_ctrCode(m.code) + ' <span style="font-size:10px;color:var(--slate-500);">' + _ctrPhLabel(m.ph) + '</span>', _cL('ບໍ່ໄດ້ນັບ ', 'ไม่ได้นับ ') + m.n + _cL(' ລາຍການ', ' รายการ'), '')),
     _ctrBtn(_cL('ເບິ່ງລາຍການ / ຢືນຢັນບໍ່ພົບ ›', 'ดูรายการ / ยืนยันไม่พบ ›'), "ctrGo('variance','csum:uncounted')", 'white', 'var(--slate-700)')
-    + (H && !H.err ? _ctrBtn('🔎 ' + _cL('ສົ່ງເຂົ້າງານຕາມຫາ', 'ส่งเข้างานตามหา'), "ctrGo('hunt','queue')") : '')));
+    + (H && !H.err ? _ctrBtn('🔎 ' + _cL('ເບິ່ງຄິວຕາມຫາ', 'ดูคิวตามหา'), "ctrGo('hunt','queue')") : '')));
   // 2.8 เปิดแล้วไม่มีคนเริ่ม
   const noStart = d.waitstart.filter(g => (g.idle || 0) >= WF_IDLE_MIN).concat(d.waitv.filter(g => (g.idle || 0) >= WF_IDLE_MIN));
   if (noStart.length) cards.push(_ctrCard('nostart', 'info', '🚶', _cL('ເປີດແລ້ວ ແຕ່ຍັງບໍ່ມີໃຜເລີ່ມ', 'เปิดแล้ว แต่ยังไม่มีใครเริ่ม'), noStart.length,
