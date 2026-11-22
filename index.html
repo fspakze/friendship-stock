@@ -35652,6 +35652,12 @@ async function showGondolaActions(locationCode, status) {
       color: 'var(--amber-500)'
     });
   } else if (curStatus === 'completed') {
+    // 🔁 ชั้นสำเร็จแล้วแต่ Verifier ยังนับไม่ครบ → เปิดกลับให้ Verifier (V รอบ 2) · ไม่ต้อง Reopen ให้ Counter นับใหม่ทั้งชั้น (Ball 2026-11-22)
+    secondaryActions.push({
+      label: '🔁 ' + (lang === 'lo' ? 'ເປີດ Verifier ຮອບ 2 (ກັບໄປ Verify)' : 'เปิด Verifier รอบ 2 (กลับไป Verify)'),
+      action: `wfOpenForVerifierV2('${locationCode}').then(()=>{closeModal();setTimeout(loadFloorMap,500);});`,
+      color: 'var(--violet-600, #7c3aed)'
+    });
     secondaryActions.push({
       label: '⟲ เปิดใหม่ (Reopen)',
       action: `wfResetTo('${locationCode}', 'open_for_counting');closeModal();setTimeout(loadFloorMap,500);`,
