@@ -37895,7 +37895,7 @@ function ctrRender() {
   // 2.5 ตามหา: รออนุมัติ
   const H = d.hunt;
   if (H && !H.err && (H.submitted + H.notfound)) cards.push(_ctrCard('hunt', 'warn', '🔎', _cL('ງານຕາມຫາ ລໍຖ້າອະນຸມັດ', 'งานตามหา รออนุมัติ'), H.submitted + H.notfound,
-    _cL('ພະນັກງານສົ່ງຍອດທີ່ເຈີແລ້ວ ', 'พนักงานส่งยอดที่เจอแล้ว ') + H.submitted + _cL(' · ບໍ່ພົບ 2 ຄົນ ', ' · ไม่พบ 2 คน ') + H.notfound, [],
+    _cL('ພະນັກງານສົ່ງຍອດທີ່ເຈີແລ້ວ ', 'พนักงานส่งยอดที่เจอแล้ว ') + H.submitted + _cL(' · ບໍ່ພົບ ', ' · ไม่พบ ') + H.notfound, [],
     _ctrBtn('🔎 ' + _cL('ໄປອະນຸມັດ', 'ไปอนุมัติ'), "ctrGo('hunt','review')")));
   // 2.6 สินค้ารอนับครบ → ชั้นที่ยังไม่มีใครนับ
   const _MISS_ACTIVE = ['counting', 'waitv', 'verifying'];
@@ -38093,7 +38093,7 @@ window.ctrLoad = ctrLoad; window.ctrMore = ctrMore; window.ctrDo = ctrDo; window
 // อนุมัติ = เขียน stock_counts เป็นยอดตัดสิน (ctl_tiebreaker / manager_final ตามคนอนุมัติ) แบบเดียวกับ varJudgeSave → สูตรยอดเดิมไม่เปลี่ยน
 // ตาราง count_hunts (SQL\count_hunts.sql) · คิวสร้าง/อัปเดตจากเครื่องหัวหน้า (huntSync) ทุกครั้งที่เปิดหน้า + ทุก 3 นาที
 // ไม่ได้นับ (unc_a/unc_b): "ไม่พบ" ครบ 2 คน → รอหัวหน้ายืนยัน 0 · สินค้าที่นับแล้ว: "ไม่เจอเพิ่ม" = ส่งยอดเดิม
-const HUNT_MAX_CLAIM = 3, HUNT_NOTFOUND_N = 2, HUNT_STALE_MIN = 15, HUNT_SYNC_MS = 180000;
+const HUNT_MAX_CLAIM = 3, HUNT_NOTFOUND_N = 1, HUNT_STALE_MIN = 15, HUNT_SYNC_MS = 180000;
 let _huntMin = 100000;          // เกณฑ์มูลค่า (app_settings.hunt_min_value)
 let _huntRows = [], _huntProd = {}, _huntTab = null, _huntTimer = null, _huntBusy = false, _huntMissing = false, _huntSyncAt = 0;
 let _huntWork = null;           // { h, p, locs, cur, scanned }
@@ -38218,6 +38218,13 @@ async function huntSync(quiet) {
   if (!huntIsMgr() || !session) return;
   _huntSyncAt = Date.now();
   await huntFetch();   // งานเดิมล่าสุด → ใช้กันซ้ำ + ปิดงานที่ไม่เข้าเกณฑ์ (Ball 2026-11-22: เดิมเปิดหน้าครั้งแรกปิดไม่ได้ คิวค้าง 1,575)
+  // 🚫 งานว่างที่มีคน "ไม่พบ" ครบตามเกณฑ์แล้ว (เดิมต้อง 2 คน · ตอนนี้ 1 คน) → ส่งให้หัวหน้ายืนยัน 0
+  { const nfIds = _huntRows.filter(x => x.status === 'open' && _huntNf(x).length >= HUNT_NOTFOUND_N).map(x => x.id);
+    for (let i = 0; i < nfIds.length; i += 200) {
+      const { error: ne } = await sb.from('count_hunts').update({ status: 'notfound', found: [], found_total: 0, submitted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).in('id', nfIds.slice(i, i + 200)).eq('status', 'open');
+      if (ne) throw ne;
+    }
+    if (nfIds.length) await huntFetch(); }
   if (typeof _varianceFilter !== 'undefined' && _varianceFilter && _varianceFilter.period === 'round') _varianceFilter.period = 'session';
   const items = await computeVarianceItems('session');
   _varianceAllData = items;
@@ -38392,6 +38399,7 @@ function _huntMgrHtml() {
   if (_huntTab === 'review') {
     if (!rev.length) return html + '<div style="text-align:center;padding:26px;color:var(--slate-500);font-size:12px;">' + _hL('ບໍ່ມີງານລໍຖ້າອະນຸມັດ', 'ไม่มีงานรออนุมัติ') + '</div>';
     const eq = rev.filter(h => h.status === 'submitted' && Number(h.found_total) === Number(h.pos_qty));
+    html += '<button onclick="huntApproveAll()" style="width:100%;background:var(--emerald-600, #059669);color:white;border:none;border-radius:9px;padding:10px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:6px;">✅ ' + _hL('ອະນຸມັດທັງໝົດ', 'อนุมัติทั้งหมด') + ' (' + rev.length + ')</button>';
     if (eq.length) html += '<button onclick="huntApproveEq()" style="width:100%;background:var(--emerald-50, #ecfdf5);color:var(--emerald-700, #047857);border:1px solid var(--emerald-300, #6ee7b7);border-radius:9px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;margin-bottom:8px;">✅ ' + _hL('ອະນຸມັດທັງໝົດທີ່ຍອດໃໝ່ = POS', 'อนุมัติทั้งหมดที่ยอดใหม่ = POS') + ' (' + eq.length + ')</button>';
     return html + rev.map(h => {
       const f = Array.isArray(h.found) ? h.found : [];
@@ -38624,7 +38632,7 @@ async function huntNotFound() {
     : { status: 'open', notfound_by: nf, assigned_to: null, assigned_name: null, claimed_at: null }, ['claimed']);
   if (!ok) return;
   logActivity('hunt_notfound', 'product ' + w.h.product_id + ' · ' + nf.length);
-  showToast(last ? _hL('ບໍ່ພົບ ຄົບ 2 ຄົນ — ສົ່ງໃຫ້ຫົວໜ້າຢືນຢັນ', 'ไม่พบครบ 2 คน — ส่งให้หัวหน้ายืนยัน') : _hL('ສົ່ງໃຫ້ຄົນທີ 2 ຫາຕໍ່', 'ส่งให้คนที่ 2 หาต่อ'), 'info');
+  showToast(last ? _hL('ບໍ່ພົບ — ສົ່ງໃຫ້ຫົວໜ້າຢືນຢັນ', 'ไม่พบ — ส่งให้หัวหน้ายืนยัน') : _hL('ສົ່ງໃຫ້ຄົນທີ 2 ຫາຕໍ່', 'ส่งให้คนที่ 2 หาต่อ'), 'info');
   closeModal(); _huntWork = null; huntReload(false);
 }
 async function huntGiveBack() {
@@ -38672,7 +38680,9 @@ async function huntAssignTo(id, uid, encName) {
   const now = new Date().toISOString();
   const ok = await _huntUpdate(id, { status: 'claimed', assigned_to: uid, assigned_name: decodeURIComponent(encName), assigned_by: user.id, claimed_at: now }, ['open', 'claimed']);
   if (!ok) return;
-  closeModal(); showToast('✓ ' + _hL('ມອບໝາຍແລ້ວ', 'มอบหมายแล้ว'), 'success'); huntReload(false);
+  const r = _huntRows.find(x => x.id === id); if (r) Object.assign(r, { status: 'claimed', assigned_to: uid, assigned_name: decodeURIComponent(encName), claimed_at: now });
+  closeModal(); showToast('✓ ' + _hL('ມອບໝາຍແລ້ວ', 'มอบหมายแล้ว'), 'success'); huntRender();   // ⚡ อัปเดตจอทันที
+  setTimeout(() => huntReload(false), 300);
 }
 async function huntRelease(id) {
   if (!confirm(_hL('ດຶງງານຄືນເຂົ້າຄິວ?', 'ดึงงานคืนเข้าคิว?'))) return;
@@ -38704,7 +38714,7 @@ async function huntReview(id) {
     + '<div style="font-size:14px;font-weight:800;">' + escapeHtml(_huntName(h)) + '</div>'
     + '<div style="font-size:11px;color:var(--slate-500);font-family:monospace;">' + escapeHtml((_huntProd[h.product_id] || {}).barcode || '') + ' · POS ' + _huntN(h.pos_qty) + ' · 👤 ' + escapeHtml(nf ? _huntNf(h).map(x => x.name).join(', ') : (h.assigned_name || '')) + '</div>'
     + '<div style="font-size:11px;color:var(--slate-600);background:var(--slate-50, #f8fafc);border-radius:8px;padding:7px 9px;margin:6px 0 4px;line-height:1.5;">'
-    + (nf ? _hL('ບໍ່ພົບ 2 ຄົນ → ບັນທຶກ 0 (ບໍ່ມີຈຸດ = ບັນທຶກແບບບໍ່ລະບຸຈຸດ)', 'ไม่พบ 2 คน → บันทึก 0 (ไม่มีจุด = บันทึกแบบไม่ระบุจุด)') : _hL('ຍອດທີ່ພະນັກງານສົ່ງ (ແກ້ໄດ້ກ່ອນອະນຸມັດ) · ເວັ້ນວ່າງ = ບໍ່ປ່ຽນຈຸດນັ້ນ', 'ยอดที่พนักงานส่ง (แก้ได้ก่อนอนุมัติ) · เว้นว่าง = ไม่เปลี่ยนจุดนั้น')) + '</div>'
+    + (nf ? _hL('ບໍ່ພົບ → ບັນທຶກ 0 (ບໍ່ມີຈຸດ = ບັນທຶກແບບບໍ່ລະບຸຈຸດ)', 'ไม่พบ → บันทึก 0 (ไม่มีจุด = บันทึกแบบไม่ระบุจุด)') : _hL('ຍອດທີ່ພະນັກງານສົ່ງ (ແກ້ໄດ້ກ່ອນອະນຸມັດ) · ເວັ້ນວ່າງ = ບໍ່ປ່ຽນຈຸດນັ້ນ', 'ยอดที่พนักงานส่ง (แก้ได้ก่อนอนุมัติ) · เว้นว่าง = ไม่เปลี่ยนจุดนั้น')) + '</div>'
     + '<div style="max-height:40vh;overflow-y:auto;">' + locs.map(lk => '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--slate-100);">'
       + '<div style="flex:1;min-width:0;"><div style="font-weight:800;font-size:13px;font-family:\'Space Grotesk\',monospace;">📍 ' + escapeHtml(lk) + '</div>'
       + '<div style="font-size:10px;color:var(--slate-500);">' + (lk in cur ? _hL('ຍອດເດີມ ', 'ยอดเดิม ') + _huntN(cur[lk]) : _hL('ຈຸດໃໝ່', 'จุดใหม่')) + '</div></div>'
@@ -38749,6 +38759,27 @@ async function huntApprove(id) {
   showToast('✅ ' + _hL('ອະນຸມັດແລ້ວ', 'อนุมัติแล้ว'), 'success');
   closeModal(); _huntWork = null; huntReload(false);
 }
+// ✅ อนุมัติทุกงานที่รออนุมัติ (ส่งยอด + ไม่พบ) — Ball 2026-11-23 "หาแล้ว กดอนุมัติทั้งหมดได้เลย"
+async function huntApproveAll() {
+  const list = _huntRows.filter(h => h.status === 'submitted' || h.status === 'notfound');
+  if (!list.length) return;
+  if (!confirm(_hL('ອະນຸມັດທັງໝົດ ', 'อนุมัติทั้งหมด ') + list.length + _hL(' ງານ? (ບໍ່ພົບ = ບັນທຶກ 0)', ' งาน? (ไม่พบ = บันทึก 0)'))) return;
+  let n = 0, i = 0;
+  for (const h of list) {
+    i++;
+    if (i % 10 === 1) showToast('⏳ ' + _hL('ກຳລັງອະນຸມັດ ', 'กำลังอนุมัติ ') + i + '/' + list.length, 'info');
+    let entries = Array.isArray(h.found) ? h.found.filter(e => e && e.qty != null) : [];
+    if (!entries.length && h.status === 'submitted') { try { const cur = await _huntLocState(h.product_id); entries = Object.entries(cur).map(([loc, qty]) => ({ loc, qty })); } catch (e) { continue; } }
+    if (!entries.length && h.status === 'notfound') entries = [{ loc: '', qty: 0 }];
+    if (!entries.length) continue;
+    _huntWork = null;
+    if (await _huntWrite(h, entries)) n++;
+  }
+  showToast('✅ ' + _hL('ອະນຸມັດ ', 'อนุมัติ ') + n + '/' + list.length, n === list.length ? 'success' : 'warning');
+  huntReload(false);
+}
+window.huntApproveAll = huntApproveAll;
+
 async function huntApproveEq() {
   const list = _huntRows.filter(h => h.status === 'submitted' && Number(h.found_total) === Number(h.pos_qty));
   if (!list.length) return;
