@@ -38216,7 +38216,7 @@ async function huntSync(quiet) {
   });
   // ⏳ สินค้า "ไม่ได้นับ": รอนับรอบแรกครบทั้งร้าน (เดิม SALAKHAM ขึ้น 1,499 งานตั้งแต่ยังไม่เปิด 59 ชั้น) · A ต้องให้ Verifier ปิดชั้นที่ควรอยู่ด้วย
   (d.uncA || []).concat(d.uncB || []).forEach(r => {
-    if (!(r.pos > 0) || r.posV < min || r.noCost) return;
+    if (!(r.pos > 0)) return;   // 📦 ไม่ได้นับ = ตามหาทุกตัวที่มีสต๊อก ไม่ดูเกณฑ์มูลค่า/ต้นทุน (Ball 2026-11-22)
     if (!gate.bOpen || (r.grpKey === 'A' && !(r.hitGons || []).every(g => gate.vDone.has(g)))) return;
     cand.push({ pid: r.pid, kind: r.grpKey === 'A' ? 'unc_a' : 'unc_b', pos: r.pos, cur: null, diff: -r.pos, val: -r.posV, name: r.name, hint: { pog: (r.grpKey === 'A' ? r.hitGons.join(', ') : r.pogGons) || '', buy: r.lastBuy || '', buyNew: recent(r.lastBuy) } });
   });
@@ -38254,7 +38254,7 @@ async function huntSync(quiet) {
 }
 async function huntSyncNow() { await huntReload(false); _huntBusy = true; try { await huntSync(false); await huntFetch(); } catch (e) { showToast('Error: ' + (e.message || e), 'error'); } finally { _huntBusy = false; } huntRender(); }
 async function huntSetMin() {
-  const v = prompt(_hL('ເກນມູນຄ່າ (₭) — ສິນຄ້າທີ່ຜົນຕ່າງ ≥ ຄ່ານີ້ ຈຶ່ງເຂົ້າຄິວ', 'เกณฑ์มูลค่า (₭) — สินค้าที่ผลต่าง ≥ ค่านี้ จึงเข้าคิว'), String(_huntMin));
+  const v = prompt(_hL('ເກນມູນຄ່າ (₭) — ໃຊ້ກັບສິນຄ້າທີ່ນັບແລ້ວມີຜົນຕ່າງ (ບໍ່ໄດ້ນັບ = ເຂົ້າຄິວທຸກໂຕ) · ສິນຄ້າທີ່ຜົນຕ່າງ ≥ ຄ່ານີ້ ຈຶ່ງເຂົ້າຄິວ', 'เกณฑ์มูลค่า (₭) — ใช้กับสินค้าที่นับแล้วมีผลต่าง (ไม่ได้นับ = เข้าคิวทุกตัว) · สินค้าที่ผลต่าง ≥ ค่านี้ จึงเข้าคิว'), String(_huntMin));
   if (v === null) return;
   const n = Number(String(v).replace(/[,\s₭]/g, ''));
   if (!isFinite(n) || n < 0) { showToast(_hL('ຕົວເລກບໍ່ຖືກ', 'ตัวเลขไม่ถูก'), 'warning'); return; }
