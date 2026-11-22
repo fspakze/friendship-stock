@@ -37392,6 +37392,16 @@ async function wfCloseCounter(locCode) {
     if (missing.length) _cnWarn = '\n\n⚠️ ' + (lang === 'lo' ? 'ຍັງມີສິນຄ້າຕາມ Pan-O-Gram ທີ່ບໍ່ມີໃຜສະແກນ ' : 'ยังมีสินค้าตาม Pan-O-Gram ที่ไม่มีใครสแกน ') + missing.length + (lang === 'lo' ? ' ລາຍການ:\n' : ' รายการ:\n')
       + missing.slice(0, 8).map(x => '• ' + ((lang === 'lo' ? (x.name_lo || x.name_th) : (x.name_th || x.name_lo)) || x.barcode)).join('\n') + (missing.length > 8 ? '\n…' : '');
   } catch (e) {}
+  // 🚫 ชั้นที่ Counter ไม่มีสแกนเลย → เตือนแรงก่อน (Ball 2026-11-22 · WH06/W006 ปิดไปทั้งที่ 0 สแกน → สินค้าค้างสรุปไม่ได้)
+  try {
+    const _b = floorBaseCode(String(locCode).toUpperCase().trim());
+    const { count: _n, error: _ce } = await sb.from('stock_counts').select('id', { count: 'exact', head: true })
+      .eq('session_id', session.id).in('count_role', ['counter', 'staff']).in('location_code', [_b, _b + FLOOR_SUFFIX]);
+    if (!_ce && (_n || 0) === 0) {
+      const _L = (lo, th) => lang === 'lo' ? lo : th;
+      if (!confirm('🚫 ' + _b + _L(' ຍັງບໍ່ມີການສະແກນຈາກ Counter ເລີຍ!\n\nຖ້າປິດຕອນນີ້ ສິນຄ້າຕາມ Pan-O-Gram ຂອງຊັ້ນນີ້ຈະສະຫຼຸບຜົນບໍ່ໄດ້\n→ ກວດໃຫ້ແນ່ໃຈວ່າຊັ້ນນີ້ບໍ່ມີສິນຄ້າແທ້ ຫຼື ເປັນຊັ້ນທີ່ບໍ່ໃຊ້ແລ້ວ\n\nປິດ Counter ຊັ້ນທີ່ບໍ່ມີການສະແກນ?', ' ยังไม่มีสแกนจาก Counter เลย!\n\nถ้าปิดตอนนี้ สินค้าตาม Pan-O-Gram ของชั้นนี้จะสรุปผลไม่ได้\n→ ตรวจให้แน่ใจว่าชั้นนี้ไม่มีสินค้าจริง หรือเป็นชั้นที่ไม่ใช้แล้ว\n\nปิด Counter ชั้นที่ไม่มีสแกน?'))) return;
+    }
+  } catch (e) {}
   if (!confirm(`${T('close_counter')} ${locCode}?` + _cnWarn)) return;
 
   log('CTL closing counter for:', locCode);
