@@ -38077,14 +38077,22 @@ async function huntSync(quiet) {
   const brand = s => String(s || '').trim().split(/\s+/)[0].toUpperCase();
   const over = (d.done || []).filter(r => r.diff > 0);
   cand.forEach(c => { if (c.diff >= 0) return; const m = over.find(o => o.diff === -c.diff && o.pid !== c.pid && brand(o.name) === brand(c.name)); if (m) c.hint.swap = m.name + ' (+' + m.diff + ')'; });
-  const have = new Set(_huntRows.map(h => h.product_id));
-  const rows = cand.filter(c => !have.has(c.pid)).map(c => ({
+  const byPid = {}; _huntRows.forEach(h => { byPid[h.product_id] = h; });
+  const toRow = c => ({
     session_id: session.id, branch_id: branch?.id || user.branch_id, product_id: c.pid, kind: c.kind,
     pos_qty: c.pos, cur_qty: c.cur, diff_qty: c.diff, diff_val: Math.round(c.val), hint: JSON.stringify(c.hint), status: 'open'
-  }));
+  });
+  const rows = cand.filter(c => !byPid[c.pid]).map(toRow);
   for (let i = 0; i < rows.length; i += 300) {
     const { error } = await sb.from('count_hunts').upsert(rows.slice(i, i + 300), { onConflict: 'session_id,product_id', ignoreDuplicates: true });
     if (error) { _huntMissing = /count_hunts|PGRST205|42P01/i.test(String(error.code || '') + ' ' + String(error.message || '')); throw error; }
+  }
+  // ♻️ งานที่ระบบเอาออกจากคิวไว้ (closed · ยังไม่ถึงเวลา/ตัดสินทางอื่น) แล้วกลับมาเข้าเกณฑ์ → เปิดกลับพร้อมยอดล่าสุด (Ball 2026-11-22)
+  const nowIso = new Date().toISOString();
+  const reopen = cand.filter(c => byPid[c.pid] && byPid[c.pid].status === 'closed').map(c => Object.assign(toRow(c), { updated_at: nowIso }));
+  for (let i = 0; i < reopen.length; i += 300) {
+    const { error } = await sb.from('count_hunts').upsert(reopen.slice(i, i + 300), { onConflict: 'session_id,product_id' });
+    if (error) throw error;
   }
   // งานว่างที่ไม่อยู่ในเกณฑ์แล้ว (ตัดสินทางอื่น/ยอดตรงแล้ว) → ปิด
   const keep = new Set(cand.map(c => c.pid));
@@ -38093,7 +38101,7 @@ async function huntSync(quiet) {
     const { error: ce } = await sb.from('count_hunts').update({ status: 'closed', updated_at: new Date().toISOString() }).in('id', stale.slice(i, i + 200)).eq('status', 'open');
     if (ce) throw ce;
   }
-  if (!quiet) showToast('✓ ' + _hL('ອັບເດດຄິວ', 'อัปเดตคิว') + ' +' + rows.length + (stale.length ? ' · ' + _hL('ປິດ ', 'ปิด ') + stale.length : ''), 'success');
+  if (!quiet) showToast('✓ ' + _hL('ອັບເດດຄິວ', 'อัปเดตคิว') + ' +' + (rows.length + reopen.length) + (stale.length ? ' · ' + _hL('ປິດ ', 'ปิด ') + stale.length : ''), 'success');
 }
 async function huntSyncNow() { await huntReload(false); _huntBusy = true; try { await huntSync(false); await huntFetch(); } catch (e) { showToast('Error: ' + (e.message || e), 'error'); } finally { _huntBusy = false; } huntRender(); }
 async function huntSetMin() {
@@ -38170,14 +38178,14 @@ function _huntMgrHtml() {
     + card(_hL('ວ່າງ', 'ว่าง'), q.filter(h => h.status === 'open').length, 'var(--slate-800)')
     + card(_hL('ກຳລັງຫາ', 'กำลังหา'), q.filter(h => h.status === 'claimed').length + (stuck ? ' <span style="font-size:11px;color:var(--rose-600);">⏰' + stuck + '</span>' : ''), 'var(--violet-700, #6d28d9)')
     + card(_hL('ລໍຖ້າອະນຸມັດ', 'รออนุมัติ'), rev.length, 'var(--amber-700, #b45309)')
-    + card(_hL('ຈົບແລ້ວ', 'จบแล้ว'), done.length, 'var(--emerald-700, #047857)')
+    + card(_hL('ຈົບແລ້ວ (ອະນຸມັດ)', 'จบแล้ว (อนุมัติ)'), done.filter(h => h.status === 'approved').length + (done.some(h => h.status === 'closed') ? ' <span style="font-size:10px;font-weight:700;color:var(--slate-500);">· ' + _hL('ລະບົບເອົາອອກ ', 'ระบบเอาออก ') + done.filter(h => h.status === 'closed').length + '</span>' : ''), 'var(--emerald-700, #047857)')
     + card(_hL('ມູນຄ່າຄ້າງ', 'มูลค่าค้าง'), '₭' + _huntN(left), 'var(--rose-600, #e11d48)')
     + '</div>'
     + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">'
     + '<button onclick="huntSyncNow()" style="background:var(--sky-600, #0284c7);color:white;border:none;border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">🔄 ' + _hL('ອັບເດດຄິວ', 'อัปเดตคิว') + '</button>'
     + '<button onclick="huntSetMin()" style="background:white;color:var(--slate-700);border:1px solid var(--slate-300);border-radius:8px;padding:7px 11px;font-size:11px;font-weight:800;cursor:pointer;">⚙️ ' + _hL('ເກນ ≥ ₭', 'เกณฑ์ ≥ ₭') + _huntN(_huntMin) + '</button>'
     + '<span style="font-size:10px;color:var(--slate-500);">' + (_huntSyncAt ? _hL('ອັບເດດ ', 'อัปเดต ') + _gtClock(new Date(_huntSyncAt).toISOString()) + ' · ' : '') + _hL('ອັບເດດເອງທຸກ 3 ນາທີ ຂະນະເປີດໜ້ານີ້', 'อัปเดตเองทุก 3 นาที ขณะเปิดหน้านี้') + '</span></div>'
-    + _huntTabs([['review', '✅ ' + _hL('ລໍຖ້າອະນຸມັດ', 'รออนุมัติ'), rev.length], ['queue', '📋 ' + _hL('ຄິວ', 'คิว'), q.length], ['done', '🏁 ' + _hL('ຈົບແລ້ວ', 'จบแล้ว'), done.length], ['people', '👥 ' + _hL('ພະນັກງານ', 'พนักงาน'), '']]);
+    + _huntTabs([['review', '✅ ' + _hL('ລໍຖ້າອະນຸມັດ', 'รออนุมัติ'), rev.length], ['queue', '📋 ' + _hL('ຄິວ', 'คิว'), q.length], ['done', '🏁 ' + _hL('ຈົບແລ້ວ', 'จบแล้ว'), done.filter(h => h.status === 'approved').length], ['people', '👥 ' + _hL('ພະນັກງານ', 'พนักงาน'), '']]);
   if (_huntTab === 'review') {
     if (!rev.length) return html + '<div style="text-align:center;padding:26px;color:var(--slate-500);font-size:12px;">' + _hL('ບໍ່ມີງານລໍຖ້າອະນຸມັດ', 'ไม่มีงานรออนุมัติ') + '</div>';
     const eq = rev.filter(h => h.status === 'submitted' && Number(h.found_total) === Number(h.pos_qty));
@@ -38209,7 +38217,7 @@ function _huntMgrHtml() {
   }
   if (_huntTab === 'done') {
     const ap = done.filter(h => h.status === 'approved');
-    return html + '<div style="font-size:11px;color:var(--slate-500);margin-bottom:6px;">' + _hL('ອະນຸມັດ ', 'อนุมัติ ') + ap.length + ' · ' + _hL('ລະບົບປິດເອງ (ຕັດສິນທາງອື່ນແລ້ວ) ', 'ระบบปิดเอง (ตัดสินทางอื่นแล้ว) ') + (done.length - ap.length) + '</div>'
+    return html + '<div style="font-size:11px;color:var(--slate-500);margin-bottom:6px;">' + _hL('ອະນຸມັດ ', 'อนุมัติ ') + ap.length + ' · ' + _hL('ລະບົບເອົາອອກຈາກຄິວ (ຍັງບໍ່ຮອດເວລາ / ຕັດສິນທາງອື່ນແລ້ວ — ກັບເຂົ້າຄິວເອງເມື່ອຮອດເວລາ) ', 'ระบบเอาออกจากคิว (ยังไม่ถึงเวลา / ตัดสินทางอื่นแล้ว — กลับเข้าคิวเองเมื่อถึงเวลา) ') + (done.length - ap.length) + '</div>'
       + _huntSort(ap).slice(0, 150).map(h => _huntCard(h, '', '<div style="font-size:11px;color:var(--emerald-700, #047857);margin-top:4px;font-weight:700;">✅ ' + _hL('ຍອດໃໝ່ ', 'ยอดใหม่ ') + _huntN(h.found_total) + ' · 👤 ' + escapeHtml(h.assigned_name || '-') + ' · ' + _hL('ອະນຸມັດ ', 'อนุมัติ ') + escapeHtml(h.reviewed_name || '') + '</div>')).join('');
   }
   // 👥 ผลงานต่อคน
