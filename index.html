@@ -37682,7 +37682,7 @@ function ctrCompute(x) {
 
   // ---- สินค้ารอนับครบทุกจุด → ชั้นที่ยังขาด ----
   const missG = {};
-  pending.forEach(it => (it.missingGons || []).forEach(g => { const b = _ctrBase(g); if (!b) return; const o = missG[b] = missG[b] || { code: b, n: 0, ph: phOf[b] || 'notopen', inMaster: masterBases.has(b) }; o.n++; }));
+  pending.forEach(it => (it.missingGons || []).forEach(g => { const b = _ctrBase(g); if (!b) return; const o = missG[b] = missG[b] || { code: b, n: 0, ph: phOf[b] || 'notopen', inMaster: masterBases.has(b), items: [] }; o.n++; o.items.push(it); }));
   const missList = Object.values(missG).sort((a, b) => b.n - a.n);
 
   // ---- มีสต๊อก POS แต่ไม่มีใครนับ (A = อยู่ใน Pan-O-Gram ของชั้นที่นับแล้ว · B = อื่นๆ) ----
@@ -37840,7 +37840,8 @@ function ctrRender() {
     _cL('ສິນຄ້າວາງຫຼາຍຈຸດ ຈະສະຫຼຸບບໍ່ໄດ້ຈົນກວ່າຈະນັບຄົບ · ຖ້າຊັ້ນບໍ່ມີຈິງ = ແກ້ Pan-O-Gram', 'สินค้าวางหลายจุด สรุปไม่ได้จนกว่าจะนับครบ · ถ้าชั้นไม่มีจริง = แก้ Pan-O-Gram'),
     missAct.map(m => _ctrRow(_ctrCode(m.code) + ' <span style="font-size:10px;color:var(--slate-500);">' + _ctrPhLabel(m.ph) + '</span>',
       _cL('ສິນຄ້າລໍຖ້າ ', 'สินค้ารอ ') + m.n + (['done', 'judging', 'counted'].includes(m.ph) ? ' · <span style="color:var(--rose-600);">' + _cL('ປິດຊັ້ນແລ້ວ ແຕ່ບໍ່ມີໃຜສະແກນສິນຄ້າເຫຼົ່ານີ້', 'ปิดชั้นแล้ว แต่ไม่มีใครสแกนสินค้าเหล่านี้') + '</span>' : '') + (m.inMaster ? '' : ' · <span style="color:var(--rose-600);">' + _cL('ບໍ່ມີໃນລາຍຊື່ຊັ້ນວາງ — ກວດ Pan-O-Gram', 'ไม่มีในรายชื่อชั้นวาง — ตรวจ Pan-O-Gram') + '</span>'),
-      m.ph === 'notopen' && m.inMaster ? _ctrBtn(_cL('ເປີດໃຫ້ Counter', 'เปิดให้ Counter'), "ctrDo('openC','" + _ctrEnc(m.code) + "')", 'var(--teal-600, #0d9488)') : '')),
+      m.ph === 'notopen' && m.inMaster ? _ctrBtn(_cL('ເປີດໃຫ້ Counter', 'เปิดให้ Counter'), "ctrDo('openC','" + _ctrEnc(m.code) + "')", 'var(--teal-600, #0d9488)')
+        : _ctrBtn('📋 ' + _cL('ເບິ່ງລາຍການ / ເຮັດຕໍ່', 'ดูรายการ / ทำต่อ'), "ctrMissOpen('" + _ctrEnc(m.code) + "')", 'var(--amber-600, #d97706)'))),
     _ctrBtn(_cL('ເບິ່ງສິນຄ້າລໍຖ້ານັບ / ສະຫຼຸບເລີຍ ›', 'ดูสินค้ารอนับ / สรุปเลย ›'), "ctrGo('variance')", 'white', 'var(--slate-700)')));
   // 2.7 ไม่ได้นับ A → ชั้นที่ Counter ข้ามสินค้า
   if (d.uncAList.length) cards.push(_ctrCard('uncA', 'warn', '📦', _cL('ມີສະຕ໋ອກແຕ່ບໍ່ໄດ້ນັບ (A) — ຕາມຊັ້ນ', 'มีสต๊อกแต่ไม่ได้นับ (A) — แยกตามชั้น'), d.uncA,
@@ -37933,6 +37934,55 @@ async function ctrDo(kind, enc) {
   setTimeout(() => { ctrLoad(true); }, 500);
   setTimeout(() => { if (typeof wfIdleCheck === 'function') wfIdleCheck(); }, 900);
 }
+// 📍 ชั้นที่ขวางสรุปผล (เช่น ปิดชั้นแล้วไม่มีสแกนเลย) → ดูสินค้า + เลือก: เปิดนับใหม่ / ยืนยันไม่มีของ = 0 ทั้งชั้น (Ball 2026-11-22 · WH06)
+function _ctrMissFind(code) { return ((_ctr && _ctr.missList) || []).find(m => m.code === code); }
+function ctrMissOpen(enc) {
+  const code = decodeURIComponent(enc), m = _ctrMissFind(code);
+  if (!m) { showToast(_cL('ບໍ່ພົບ — ກົດອັບເດດ', 'ไม่พบ — กดอัปเดต'), 'warning'); return; }
+  const closed = ['done', 'judging', 'counted'].includes(m.ph);
+  const nm = it => escapeHtml((lang === 'lo' ? (it.product?.name_lo || it.product?.name_th) : (it.product?.name_th || it.product?.name_lo)) || it.barcode || ('#' + it.product_id));
+  const other = it => (it.countedGons || []).filter(g => g !== code).join(', ');
+  const list = m.items.map(it => '<div style="display:flex;gap:6px;padding:6px 0;border-bottom:1px solid var(--slate-100);font-size:11px;">'
+    + '<div style="flex:1;min-width:0;"><div style="font-weight:700;color:var(--slate-800);">' + nm(it) + '</div>'
+    + '<div style="color:var(--slate-500);font-family:monospace;">' + escapeHtml(it.product?.barcode || it.barcode || '') + (other(it) ? ' · ' + _cL('ນັບແລ້ວທີ່ ', 'นับแล้วที่ ') + escapeHtml(other(it)) : '') + '</div></div>'
+    + '<div style="text-align:right;white-space:nowrap;font-family:\'Space Grotesk\',monospace;"><div style="color:var(--slate-500);">POS ' + _ctrN(it.pos_qty) + '</div><div style="font-weight:800;color:var(--slate-800);">' + _cL('ນັບໄດ້ ', 'นับได้ ') + _ctrN(it.final_qty) + '</div></div></div>').join('');
+  const bigBtn = (lbl, onclick, bg) => '<button onclick="' + onclick + '" style="width:100%;background:' + bg + ';color:white;border:none;border-radius:10px;padding:10px;font-size:12px;font-weight:800;cursor:pointer;margin-top:6px;">' + lbl + '</button>';
+  showModal('<h3 style="margin:0 0 4px;">📍 ' + escapeHtml(code) + ' <span style="font-size:12px;color:var(--slate-500);">' + _ctrPhLabel(m.ph) + '</span></h3>'
+    + '<div style="font-size:12px;color:var(--slate-700);line-height:1.55;margin-bottom:8px;">' + _cL('Pan-O-Gram ບອກວ່າສິນຄ້າ ', 'Pan-O-Gram บอกว่าสินค้า ') + '<b>' + m.n + '</b>' + _cL(' ລາຍການຢູ່ຊັ້ນນີ້ ແຕ່ບໍ່ມີໃຜສະແກນທີ່ຊັ້ນນີ້ → ສິນຄ້າເຫຼົ່ານີ້ສະຫຼຸບບໍ່ໄດ້', ' รายการอยู่ชั้นนี้ แต่ไม่มีใครสแกนที่ชั้นนี้ → สินค้าเหล่านี้สรุปไม่ได้') + '</div>'
+    + '<div style="background:var(--amber-50, #fffbeb);border:1px solid var(--amber-200, #fde68a);border-radius:10px;padding:8px 10px;font-size:11.5px;line-height:1.6;margin-bottom:8px;">'
+    + '<b>' + _cL('ໄປເບິ່ງຊັ້ນ ', 'ไปดูชั้น ') + escapeHtml(code) + _cL(' ກ່ອນ ແລ້ວເລືອກ:', ' ก่อน แล้วเลือก:') + '</b><br>'
+    + '① ' + _cL('<b>ມີຂອງ / ຍັງບໍ່ໄດ້ນັບ</b> → ເປີດນັບໃໝ່ ໃຫ້ Counter ນັບຊັ້ນນີ້', '<b>มีของ / ยังไม่ได้นับ</b> → เปิดนับใหม่ ให้ Counter นับชั้นนี้') + '<br>'
+    + '② ' + _cL('<b>ບໍ່ມີສິນຄ້າເຫຼົ່ານີ້ທີ່ຊັ້ນນີ້ແທ້</b> → ຢືນຢັນ 0 ທັງຊັ້ນ (ສິນຄ້າສະຫຼຸບຕາມຍອດທີ່ນັບໄດ້ຢູ່ຊັ້ນອື່ນ) · ຖ້າ Pan-O-Gram ຜິດ ແຈ້ງແກ້ດ້ວຍ', '<b>ไม่มีสินค้าเหล่านี้ที่ชั้นนี้จริง</b> → ยืนยัน 0 ทั้งชั้น (สินค้าสรุปตามยอดที่นับได้ชั้นอื่น) · ถ้า Pan-O-Gram ผิด แจ้งแก้ด้วย') + '</div>'
+    + '<div style="max-height:38vh;overflow-y:auto;border:1px solid var(--slate-200);border-radius:10px;padding:0 9px;">' + list + '</div>'
+    + (m.inMaster ? bigBtn('🔄 ' + _cL('① ເປີດນັບໃໝ່ (ໃຫ້ Counter)', '① เปิดนับใหม่ (ให้ Counter)'), "ctrMissReopen('" + enc + "')", 'var(--teal-600, #0d9488)') : '')
+    + bigBtn('✓ ' + _cL('② ຢືນຢັນບໍ່ມີຂອງ = 0 ທັງຊັ້ນ (', '② ยืนยันไม่มีของ = 0 ทั้งชั้น (') + m.n + _cL(' ລາຍການ)', ' รายการ)'), "ctrMissZero('" + enc + "')", 'var(--emerald-600, #059669)')
+    + '<button onclick="closeModal()" style="width:100%;background:var(--slate-100);color:var(--slate-700);border:none;border-radius:10px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-top:6px;">' + _cL('ປິດ', 'ปิด') + '</button>');
+}
+async function ctrMissReopen(enc) {
+  const code = decodeURIComponent(enc), m = _ctrMissFind(code);
+  if (!m || !confirm(_cL('ເປີດ ', 'เปิด ') + code + _cL(' ໃຫ້ Counter ນັບໃໝ່?', ' ให้ Counter นับใหม่?'))) return;
+  closeModal();
+  if (m.ph === 'notopen') await wfOpenForCounter(code); else await wfResetTo(code, 'open_for_counting');
+  setTimeout(() => { ctrLoad(true); }, 500);
+}
+async function ctrMissZero(enc) {
+  const code = decodeURIComponent(enc), m = _ctrMissFind(code);
+  if (!m || !m.items.length) return;
+  if (!['ctl', 'admin', 'scc', 'bcs', 'it'].includes(user.role)) { showToast(_cL('ບໍ່ມີສິດ', 'ไม่มีสิทธิ์'), 'error'); return; }
+  if (!confirm(_cL('ຢືນຢັນວ່າຊັ້ນ ', 'ยืนยันว่าชั้น ') + code + _cL(' ບໍ່ມີສິນຄ້າເຫຼົ່ານີ້ ', ' ไม่มีสินค้าเหล่านี้ ') + m.n + _cL(' ລາຍການ → ບັນທຶກ 0 ທີ່ຊັ້ນນີ້?', ' รายการ → บันทึก 0 ที่ชั้นนี้?'))) return;
+  const note = lang === 'lo' ? 'ສະຫຼຸບເລີຍ: ຈຸດນີ້ບໍ່ມີຂອງແລ້ວ' : 'สรุปเลย: จุดนี้ไม่มีของแล้ว';
+  const rows = m.items.map(it => ({ session_id: session.id, branch_id: branch?.id || user.branch_id, product_id: it.product_id, zone_id: it.zone_id || null,
+    location_code: code, gondola_code: code, user_id: user.id, counted_qty: 0, pos_qty_snapshot: it.pos_qty || 0, count_role: 'manager_final', is_markdown: false, note }));
+  for (let i = 0; i < rows.length; i += 300) {
+    const { error } = await sb.from('stock_counts').insert(rows.slice(i, i + 300));
+    if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  }
+  showToast('✓ ' + code + _cL(' ບັນທຶກ 0 ແລ້ວ ', ' บันทึก 0 แล้ว ') + rows.length + _cL(' ລາຍການ', ' รายการ'), 'success');
+  closeModal();
+  ctrLoad(true);
+}
+window.ctrMissOpen = ctrMissOpen; window.ctrMissReopen = ctrMissReopen; window.ctrMissZero = ctrMissZero;
+
 async function ctrOpenAllV() {
   const list = (_ctr && _ctr.counted || []).map(g => g.code);
   if (!list.length || !wfNeedSession()) return;
