@@ -37595,6 +37595,11 @@ window.wfIdleClose = wfIdleClose; window.wfIdleSnooze = wfIdleSnooze; window.wfI
 // ⚠️ หน้าใหม่ "เพิ่ม" เท่านั้น — หน้าเดิม (ควบคุมการนับ/คลาดเคลื่อน/ตัดสิน/ตามหา) ยังอยู่ครบ (Ball: ใช้ได้ดีแล้วค่อยปรับหน้าเดิม)
 // ข้อมูลชุดเดียวกับหน้าคลาดเคลื่อน (computeVarianceItems + varStage) → ตัวเลขตรงกันทุกหน้า [MEMORY 21]
 const CTR_REFRESH_MS = 120000;
+// 🙋 พนักงานว่าง (Ball 2026-11-23): ไม่มีสแกน/ส่งงานตามหาเกิน 5 นาที = ว่าง · ถืองานตามหาอยู่ = 15 นาที (เดินหาของใช้เวลา)
+const STAFF_IDLE_MIN = 5, STAFF_IDLE_HUNT_MIN = 15;
+let _ctrIdleSeen = new Set();
+// เลขเดียวกัน = คนเดียวกัน (Count14 / Ver14 / Audit14 = #14) — สลับหน้าที่ระหว่างคืนนับ
+function _staffNum(name) { const m = /^(?:count|counter|ver|verifier|audit|aud)[\s_-]*0*(\d+)$/i.exec(String(name || '').trim()); return m ? '#' + m[1] : null; }
 let _ctr = null, _ctrBusy = false, _ctrTimer = null, _ctrErr = null;
 const _ctrMore = {};   // การ์ดที่กด "ดูเพิ่ม"
 const _cL = (lo, th) => lang === 'lo' ? lo : th;
@@ -37658,16 +37663,18 @@ async function ctrLoad(quiet) {
   const opt = (p, name) => p.then(v => v, e => { partial.push(name); log('ctr ' + name + ' error', e); return null; });
   try {
     const since = new Date(now - 60 * 60000).toISOString();
-    const [gs, vAll, posIds, pogRows, recent, locRows, huntRes] = await Promise.all([
+    const [gs, vAll, posIds, pogRows, recent, locRows, huntRes, staffUsers, hlogs] = await Promise.all([
       fetchAllQuery(() => sb.from('gondola_status').select('id, location_code, status, opened_at, counting_started_at, counting_finished_at, verifying_started_at, verifying_finished_at, completed_at, active_counter_id, active_verifier_id').eq('session_id', sid).order('id')),
       computeVarianceItems('session'),
       opt(fetchAllQuery(() => sb.from('products').select('id').eq('branch_id', branch.id).eq('is_active', true).gt('pos_qty', 0).order('id')), _cL('ສິນຄ້າບໍ່ໄດ້ນັບ', 'สินค้าไม่ได้นับ')),
       opt(fetchAllQuery(() => sb.from('pan_o_grams').select('product_id, location_code').eq('branch_id', branch.id).order('id')), 'Pan-O-Gram'),
       opt(fetchAllQuery(() => sb.from('stock_counts').select('id, user_id, count_role, location_code, counted_at').eq('session_id', sid).gte('counted_at', since).order('id')), _cL('ພະນັກງານ', 'พนักงาน')),
       opt(fetchAllQuery(() => sb.from('location_master').select('location_code').eq('branch_id', branch.id).eq('is_active', true).order('id')), _cL('ລາຍຊື່ຊັ້ນວາງ', 'รายชื่อชั้นวาง')),
-      (async () => { try { return { data: await fetchAllQuery(() => sb.from('count_hunts').select('id, status').eq('session_id', sid).order('id')), error: null }; } catch (e) { return { data: null, error: e }; } })()   // เกิน 1,000 งานได้ (SUPERMART) → fetchAll
+      (async () => { try { return { data: await fetchAllQuery(() => sb.from('count_hunts').select('id, status, assigned_to').eq('session_id', sid).order('id')), error: null }; } catch (e) { return { data: null, error: e }; } })(),   // เกิน 1,000 งานได้ (SUPERMART) → fetchAll
+      opt((async () => { const r = await sb.from('users').select('id, username, role').in('role', ['counter', 'verifier', 'audit']).limit(1000); if (r.error) throw r.error; return r.data; })(), _cL('ລາຍຊື່ພະນັກງານ', 'รายชื่อพนักงาน')),
+      opt(fetchAllQuery(() => sb.from('activity_logs').select('username, action, created_at').eq('branch_id', branch.id).in('action', ['hunt_submit', 'hunt_notfound']).gte('created_at', since).order('id')), _cL('ງານຕາມຫາ (ຄົນ)', 'งานตามหา (คน)'))
     ]);
-    _ctr = ctrCompute({ gs, vAll, posIds, pogRows, recent, locRows, huntRes, now });
+    _ctr = ctrCompute({ gs, vAll, posIds, pogRows, recent, locRows, huntRes, staffUsers, hlogs, now });
     _ctr.partial = partial;
     _ctr.at = now;
     _ctrErr = null;
@@ -37785,7 +37792,31 @@ function ctrCompute(x) {
   }
 
   const ppl = Object.values(people).sort((a, b) => (a.last < b.last ? 1 : -1));
+  // 🙋 ต่อคน: รวม Count/Ver/Audit เลขเดียวกัน · กิจกรรม = สแกนนับ (C/V) + ส่งงานตามหา (60 นาทีล่าสุด)
+  const uName = {}, uByName = {};
+  (x.staffUsers || []).forEach(u => { uName[u.id] = u.username; uByName[u.username] = u.id; });
+  const staff = {};
+  const touch = (name, uid, ts, what, loc) => {
+    const k = _staffNum(name); if (!k || !ts) return;
+    const t = new Date(ts).getTime();
+    const s = staff[k] = staff[k] || { key: k, ids: {}, t: 0, last: null, what: '', loc: '', uid: null, name: '', n30: 0, hold: 0 };
+    s.ids[name] = uid || s.ids[name] || null;
+    if (t > s.t) { s.t = t; s.last = ts; s.what = what; s.loc = loc || ''; if (uid) { s.uid = uid; s.name = name; } }
+    if (now - t <= 30 * 60000) s.n30++;
+  };
+  (x.recent || []).forEach(r => { const nm = uName[r.user_id]; if (nm) touch(nm, r.user_id, r.counted_at, ['verifier', 'audit'].includes(r.count_role) ? 'V' : 'C', r.location_code); });
+  (x.hlogs || []).forEach(l => touch(l.username, uByName[l.username] || null, l.created_at, 'H', ''));
+  const holdBy = {}; ((x.huntRes || {}).data || []).forEach(hh => { if (hh.status === 'claimed' && hh.assigned_to) holdBy[hh.assigned_to] = (holdBy[hh.assigned_to] || 0) + 1; });
+  const staffList = Object.values(staff).map(s => {
+    s.ids = Object.keys(s.ids).sort();
+    s.hold = s.ids.reduce((a, n) => a + (holdBy[uByName[n]] || 0), 0);
+    if (!s.uid) { const n0 = s.ids.find(n => uByName[n]); if (n0) { s.uid = uByName[n0]; s.name = n0; } }
+    s.idle = _ctrMin(s.last, now);
+    s.isIdle = s.idle >= (s.hold ? STAFF_IDLE_HUNT_MIN : STAFF_IDLE_MIN);
+    return s;
+  }).sort((a, b) => (b.idle || 0) - (a.idle || 0));
   return {
+    staff: staffList, staffIdle: staffList.filter(s => s.isIdle),
     G, phaseCnt, notOpen, total: G.length + notOpen.length, startTs: G.map(g => g.opened_at).filter(Boolean).sort()[0] || null,
     counted: byPhase('counted'), waitstart: byPhase('waitstart'), waitv: byPhase('waitv'),
     idleC: byPhase('counting').filter(g => (g.idle || 0) >= WF_IDLE_MIN), idleV: byPhase('verifying').filter(g => (g.idle || 0) >= WF_IDLE_MIN),
@@ -37872,6 +37903,26 @@ function ctrRender() {
   h += '</div><div class="ctrMain">';
   // ===== 2) ต้องทำตอนนี้ (เรียงตามความด่วน) =====
   const cards = [];
+  // 2.0 🙋 พนักงานว่าง ≥5 นาที → แจกงานต่อทันที (Ball 2026-11-23: ทุกสาขามีช่วงคนว่าง 20–50 นาทีตรงรอยต่อ)
+  const SI = d.staffIdle || [], Hq = d.hunt && !d.hunt.err ? d.hunt : null;
+  if (SI.length) {
+    const work = [];
+    if (d.counted.length) work.push(_cL('ເປີດ V ໄດ້ ', 'เปิด V ได้ ') + d.counted.length + _cL(' ຊັ້ນ', ' ชั้น'));
+    if (d.v2List.length) work.push(_cL('V ຮອບ 2 ', 'V รอบ 2 ') + d.v2List.length + _cL(' ຊັ້ນ', ' ชั้น'));
+    if (d.notOpen.length) work.push(_cL('ຍັງບໍ່ເປີດນັບ ', 'ยังไม่เปิดนับ ') + d.notOpen.length + _cL(' ຊັ້ນ', ' ชั้น'));
+    if (Hq && Hq.open) work.push(_cL('ງານຕາມຫາວ່າງ ', 'งานตามหาว่าง ') + Hq.open + _cL(' ງານ', ' งาน'));
+    const whatTxt = s => s.what === 'H' ? _cL('ສົ່ງງານຕາມຫາ', 'ส่งงานตามหา') : (s.what === 'V' ? _cL('ກວດ (V)', 'ตรวจ (V)') : _cL('ນັບ (C)', 'นับ (C)')) + (s.loc ? ' ' + _ctrCode(s.loc) : '');
+    cards.push(_ctrCard('staffIdle', 'bad', '🙋', _cL('ພະນັກງານຫວ່າງ ', 'พนักงานว่าง ') + STAFF_IDLE_MIN + _cL('+ ນາທີ', '+ นาที'), SI.length,
+      (work.length ? '💡 ' + _cL('ງານທີ່ແຈກໄດ້ຕອນນີ້: ', 'งานที่แจกได้ตอนนี้: ') + work.join(' · ') : _cL('ຍັງບໍ່ມີງານລໍຖ້າ — ກວດວ່າມີຊັ້ນທີ່ຍັງບໍ່ໄດ້ເພີ່ມໃນລາຍຊື່ບໍ', 'ยังไม่มีงานรอ — ตรวจว่ามีชั้นที่ยังไม่ได้เพิ่มในรายชื่อไหม'))
+        + '<br>' + _cL('ເລກດຽວກັນ = ຄົນດຽວກັນ (Count14 = Ver14) · ຖືງານຕາມຫາຢູ່ = ນັບວ່າຫວ່າງເມື່ອເກີນ ', 'เลขเดียวกัน = คนเดียวกัน (Count14 = Ver14) · ถืองานตามหาอยู่ = นับว่าว่างเมื่อเกิน ') + STAFF_IDLE_HUNT_MIN + _cL(' ນາທີ', ' นาที'),
+      SI.map(s => _ctrRow('<b>' + escapeHtml(s.key) + '</b> <span style="font-size:11px;font-weight:600;color:var(--slate-500);">' + escapeHtml(s.ids.join(' · ')) + '</span>',
+        '<span style="color:var(--rose-600);">' + _cL('ຫວ່າງ ', 'ว่าง ') + (s.idle >= 60 ? '60+' : s.idle) + _cL(' ນາທີ', ' นาที') + '</span> · ' + _cL('ລ່າສຸດ: ', 'ล่าสุด: ') + whatTxt(s) + (s.hold ? ' · 🔎 ' + _cL('ຖືງານ ', 'ถืองาน ') + s.hold : ''),
+        (Hq && Hq.open && s.uid && !s.hold ? _ctrBtn('🎯 ' + _cL('ໃຫ້ຕາມຫາ ', 'ให้ตามหา ') + HUNT_LOT, "ctrHuntLot('" + escapeHtml(s.uid) + "','" + encodeURIComponent(s.name || s.key).replace(/'/g, '%27') + "')", 'var(--violet-600, #7c3aed)') : '')))));
+  }
+  // แจ้งเตือนเมื่อมีคนว่างใหม่ (ครั้งเดียวต่อคน จนกว่าจะกลับมาทำงาน)
+  const newIdle = SI.filter(s => !_ctrIdleSeen.has(s.key));
+  _ctrIdleSeen = new Set(SI.map(s => s.key));
+  if (newIdle.length) showToast('🙋 ' + _cL('ພະນັກງານຫວ່າງ: ', 'พนักงานว่าง: ') + newIdle.map(s => s.key).join(', '), 'warning');
   // 2.1 นับเสร็จ → เปิดให้ Verifier
   if (d.counted.length) cards.push(_ctrCard('counted', 'bad', '🔍', _cL('Counter ນັບແລ້ວ — ເປີດໃຫ້ Verifier', 'Counter นับเสร็จ — เปิดให้ Verifier'), d.counted.length,
     _cL('ຊັ້ນເຫຼົ່ານີ້ Verifier ຍັງເຂົ້າບໍ່ໄດ້ ຈົນກວ່າຈະກົດເປີດ', 'ชั้นเหล่านี้ Verifier ยังเข้าไม่ได้จนกว่าจะกดเปิด'),
@@ -37955,22 +38006,29 @@ function ctrRender() {
     + (H && H.missing ? '<br>• <span style="color:var(--amber-700);">' + _cL('ງານຕາມຫາ: ຍັງບໍ່ໄດ້ຣັນ SQL count_hunts', 'งานตามหา: ยังไม่ได้รัน SQL count_hunts') + '</span>' : '')
     + '</div></div>';
 
-  // ===== 4) พนักงาน (สแกนใน 60 นาทีล่าสุด) =====
-  const act = d.ppl.filter(p => _ctrMin(p.last, now) < WF_IDLE_MIN), idl = d.ppl.filter(p => _ctrMin(p.last, now) >= WF_IDLE_MIN);
-  const pRow = p => { const m = _ctrMin(p.last, now), idleP = m >= WF_IDLE_MIN;
+  // ===== 4) พนักงาน: ต่อคน (เลขเดียวกัน = คนเดียวกัน) · กิจกรรม 60 นาทีล่าสุด (สแกน + งานตามหา) =====
+  const ST = d.staff || [], stAct = ST.filter(s => !s.isIdle), stIdl = ST.filter(s => s.isIdle);
+  const mgrP = d.ppl.filter(p => p.grp === 'CTL' || p.grp === 'BCS');
+  const sRow = s => '<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid var(--slate-100);font-size:11px;">'
+    + '<span style="background:var(--slate-100);border-radius:5px;padding:1px 5px;font-weight:800;font-size:10px;color:var(--slate-600);min-width:30px;text-align:center;">' + (s.what === 'H' ? '🔎' : s.what) + '</span>'
+    + '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><b style="color:var(--slate-800);">' + escapeHtml(s.key) + '</b> <span style="color:var(--slate-500);">' + escapeHtml(s.ids.join(' · ')) + '</span></span>'
+    + '<span style="color:var(--slate-500);font-family:\'Space Grotesk\',monospace;">' + escapeHtml(s.loc || (s.hold ? '🔎' + s.hold : '')) + '</span>'
+    + '<span style="min-width:62px;text-align:right;font-weight:800;color:' + (s.isIdle ? 'var(--amber-700)' : 'var(--emerald-600)') + ';">' + (s.idle >= STAFF_IDLE_MIN ? s.idle + _cL(' ນ. ກ່ອນ', ' น.ก่อน') : _cL('ກຳລັງເຮັດ', 'กำลังทำ')) + '</span>'
+    + '<span style="min-width:34px;text-align:right;color:var(--slate-500);">' + s.n30 + '</span></div>';
+  const mRow = p => { const m = _ctrMin(p.last, now);
     return '<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid var(--slate-100);font-size:11px;">'
       + '<span style="background:var(--slate-100);border-radius:5px;padding:1px 5px;font-weight:800;font-size:10px;color:var(--slate-600);min-width:30px;text-align:center;">' + p.grp + '</span>'
       + '<span style="flex:1;min-width:0;font-weight:700;color:var(--slate-800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _whoSpan([p.uid], true) + '</span>'
       + '<span style="color:var(--slate-500);font-family:\'Space Grotesk\',monospace;">' + escapeHtml(p.loc || '') + '</span>'
-      + '<span style="min-width:62px;text-align:right;font-weight:800;color:' + (idleP ? 'var(--amber-700)' : 'var(--emerald-600)') + ';">' + (idleP ? m + _cL(' ນ. ກ່ອນ', ' น.ก่อน') : _cL('ກຳລັງເຮັດ', 'กำลังทำ')) + '</span>'
-      + '<span style="min-width:34px;text-align:right;color:var(--slate-500);" title="' + _cL('ສະແກນ 30 ນາທີ', 'สแกน 30 นาที') + '">' + p.n30 + '</span></div>'; };
+      + '<span style="min-width:62px;text-align:right;color:var(--slate-500);">' + m + _cL(' ນ. ກ່ອນ', ' น.ก่อน') + '</span>'
+      + '<span style="min-width:34px;text-align:right;color:var(--slate-500);">' + p.n30 + '</span></div>'; };
   h += '<div style="background:white;border:1px solid var(--slate-200);border-radius:12px;padding:10px 12px;margin-bottom:10px;">'
-    + '<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:3px;"><span style="font-size:12px;font-weight:800;color:var(--slate-700);">👥 ' + _cL('ພະນັກງານ', 'พนักงาน') + '</span>'
-    + '<span style="font-size:11px;color:var(--emerald-600);font-weight:800;">' + _cL('ກຳລັງເຮັດ ', 'กำลังทำ ') + act.length + '</span>'
-    + '<span style="font-size:11px;color:var(--amber-700);font-weight:800;">' + _cL('· ຫວ່າງ/ຢຸດ ', '· ว่าง/หยุด ') + idl.length + '</span>'
-    + '<span style="margin-left:auto;font-size:10px;color:var(--slate-400);">' + _cL('ໂຕເລກຂວາ = ສະແກນ 30 ນາທີ', 'เลขขวา = สแกนใน 30 นาที') + '</span></div>'
-    + (idl.length && (d.counted.length || noStart.length || (H && !H.err && H.open)) ? '<div style="font-size:11px;color:var(--amber-700);font-weight:700;margin-bottom:3px;">💡 ' + _cL('ມີຄົນຫວ່າງ — ສົ່ງໄປຊັ້ນທີ່ລໍຖ້າ ຫຼື ໃຫ້ຮັບງານຕາມຫາ', 'มีคนว่าง — ส่งไปชั้นที่รอ หรือให้รับงานตามหา') + '</div>' : '')
-    + (d.ppl.length ? idl.concat(act).map(pRow).join('') : '<div style="font-size:11px;color:var(--slate-400);padding:4px 0;">' + _cL('ບໍ່ມີການສະແກນໃນ 60 ນາທີ', 'ไม่มีการสแกนใน 60 นาที') + '</div>')
+    + '<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:3px;flex-wrap:wrap;"><span style="font-size:12px;font-weight:800;color:var(--slate-700);">👥 ' + _cL('ພະນັກງານ', 'พนักงาน') + '</span>'
+    + '<span style="font-size:11px;color:var(--emerald-600);font-weight:800;">' + _cL('ກຳລັງເຮັດ ', 'กำลังทำ ') + stAct.length + '</span>'
+    + '<span style="font-size:11px;color:var(--amber-700);font-weight:800;">' + _cL('· ຫວ່າງ ', '· ว่าง ') + stIdl.length + '</span>'
+    + '<span style="margin-left:auto;font-size:10px;color:var(--slate-400);">' + _cL('ເລກດຽວກັນ = ຄົນດຽວກັນ · ໂຕເລກຂວາ = ວຽກໃນ 30 ນາທີ', 'เลขเดียวกัน = คนเดียวกัน · เลขขวา = งานใน 30 นาที') + '</span></div>'
+    + (ST.length ? stIdl.concat(stAct).map(sRow).join('') : '<div style="font-size:11px;color:var(--slate-400);padding:4px 0;">' + _cL('ບໍ່ມີການເຮັດວຽກໃນ 60 ນາທີ', 'ไม่มีการทำงานใน 60 นาที') + '</div>')
+    + (mgrP.length ? '<div style="font-size:10px;font-weight:800;color:var(--slate-500);margin-top:6px;">CTL / BCS</div>' + mgrP.map(mRow).join('') : '')
     + '</div>';
 
   // ===== 5) ลิงก์หน้าเดิม =====
@@ -38413,30 +38471,46 @@ function _huntStaffHtml() {
   return html + _huntArrange(_huntSort(mine)).map(e => e.hdr ? _huntHdr(e) : _huntCard(e.h, _huntBtn('🔎 ' + _hL('ໄປຫາ / ໃສ່ຍອດ', 'ไปหา / ใส่ยอด'), 'huntOpenWork(' + e.h.id + ')', 'var(--violet-600, #7c3aed)'))).join('');
 }
 // 🎯 ขอล็อตใหม่: ดึงงานว่างแบบคอลัมน์น้อย เฉพาะตอนกด → เลือก 10 งาน (มูลค่าสูงก่อน · B จัดกลุ่มยี่ห้อ) → รับแบบกันชน (เฉพาะที่ยังว่าง)
+// แกนกลาง: เลือก 10 งาน (มูลค่าสูงก่อน · B ยี่ห้อเดียวกันติดกัน) แล้วรับแบบกันชนให้ uid · ใช้ทั้งพนักงานขอเอง + หัวหน้าแจกจากศูนย์ควบคุม
+async function _huntClaimLot(uid, name) {
+  const cand = await fetchAllQuery(() => sb.from('count_hunts').select('id, kind, product_id, diff_val, diff_qty, notfound_by').eq('session_id', session.id).eq('status', 'open').order('id'));
+  const c = (cand || []).filter(h => !_huntNf(h).some(x => x && x.id === uid));
+  if (!c.length) return 0;
+  const need = [...new Set(c.filter(h => h.kind === 'unc_b').map(h => h.product_id))].filter(id => !_huntProd[id]);
+  for (let i = 0; i < need.length; i += 300) {
+    const ps = await _sbSel(() => sb.from('products').select('id, barcode, name_th, name_lo').in('id', need.slice(i, i + 300)));
+    (ps || []).forEach(p => { _huntProd[p.id] = p; });
+  }
+  const order = _huntArrange(_huntSort(c)).filter(e => e.h).map(e => e.h.id);
+  let pos = 0, got = 0;
+  for (let t = 0; t < 4 && got < HUNT_LOT && pos < order.length; t++) {
+    const pick = order.slice(pos, pos + (HUNT_LOT - got)); pos += pick.length;
+    const now = new Date().toISOString();
+    const { data, error } = await sb.from('count_hunts').update({ status: 'claimed', assigned_to: uid, assigned_name: name, assigned_by: user.id, claimed_at: now, updated_at: now })
+      .in('id', pick).eq('status', 'open').select('id');
+    if (error) throw error;
+    got += (data || []).length;   // คนอื่นรับตัดหน้า → ไปตัวถัดไป
+  }
+  return got;
+}
+// 🎯 หัวหน้าแจกล็อตตามหาให้คนที่ว่าง (การ์ด "พนักงานว่าง" ในศูนย์ควบคุม · Ball 2026-11-23)
+async function ctrHuntLot(uid, encName) {
+  const name = decodeURIComponent(encName);
+  if (!confirm(_cL('ແຈກງານຕາມຫາ ', 'แจกงานตามหา ') + HUNT_LOT + _cL(' ງານໃຫ້ ', ' งานให้ ') + name + '?')) return;
+  try {
+    const got = await _huntClaimLot(uid, name);
+    showToast(got ? '🎯 ' + name + ' ' + _cL('ໄດ້ຮັບ ', 'ได้รับ ') + got + _cL(' ງານ', ' งาน') : _cL('ບໍ່ມີງານວ່າງ', 'ไม่มีงานว่าง'), got ? 'success' : 'info');
+  } catch (e) { showToast('Error: ' + (e.message || e), 'error'); }
+  ctrLoad(true);
+}
+window.ctrHuntLot = ctrHuntLot;
+// 🎯 พนักงานขอล็อตใหม่เอง
 async function huntRequestLot() {
   if (_huntLotBusy) return;
   if (_huntRows.some(h => h.assigned_to === user.id && h.status === 'claimed')) { showToast(_hL('ຫາງານເກົ່າໃຫ້ຄົບກ່ອນ', 'หางานเดิมให้ครบก่อน'), 'warning'); return; }
   _huntLotBusy = true; huntRender();
-  let got = 0;
   try {
-    const cand = await fetchAllQuery(() => sb.from('count_hunts').select('id, kind, product_id, diff_val, diff_qty, notfound_by').eq('session_id', session.id).eq('status', 'open').order('id'));
-    const c = (cand || []).filter(h => !_huntNf(h).some(x => x && x.id === user.id));
-    if (!c.length) { showToast(_hL('ບໍ່ມີງານວ່າງ', 'ไม่มีงานว่าง'), 'info'); return; }
-    const need = [...new Set(c.filter(h => h.kind === 'unc_b').map(h => h.product_id))].filter(id => !_huntProd[id]);
-    for (let i = 0; i < need.length; i += 300) {
-      const ps = await _sbSel(() => sb.from('products').select('id, barcode, name_th, name_lo').in('id', need.slice(i, i + 300)));
-      (ps || []).forEach(p => { _huntProd[p.id] = p; });
-    }
-    const order = _huntArrange(_huntSort(c)).filter(e => e.h).map(e => e.h.id);
-    let pos = 0;
-    for (let t = 0; t < 4 && got < HUNT_LOT && pos < order.length; t++) {
-      const pick = order.slice(pos, pos + (HUNT_LOT - got)); pos += pick.length;
-      const now = new Date().toISOString();
-      const { data, error } = await sb.from('count_hunts').update({ status: 'claimed', assigned_to: user.id, assigned_name: user.username || user.full_name || '', assigned_by: user.id, claimed_at: now, updated_at: now })
-        .in('id', pick).eq('status', 'open').select('id');
-      if (error) throw error;
-      got += (data || []).length;   // คนอื่นรับตัดหน้า → ไปตัวถัดไป
-    }
+    const got = await _huntClaimLot(user.id, user.username || user.full_name || '');
     showToast(got ? '🎯 ' + _hL('ໄດ້ຮັບ ', 'ได้รับ ') + got + _hL(' ງານ', ' งาน') : _hL('ບໍ່ມີງານວ່າງ', 'ไม่มีงานว่าง'), got ? 'success' : 'info');
   } catch (e) { showToast('Error: ' + (e.message || e), 'error'); }
   finally { _huntLotBusy = false; _huntFullAt = 0; await huntReload(false); }
