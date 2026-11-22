@@ -38038,9 +38038,9 @@ function _huntGateNote() {
   const g = _huntGateInfo;
   if (!g || g.bOpen) return '';
   return '<div style="background:var(--sky-50, #f0f9ff);border:1px solid var(--sky-200, #bae6fd);border-radius:10px;padding:8px 10px;margin-bottom:8px;font-size:11px;color:var(--sky-800, #075985);font-weight:700;line-height:1.5;">⏳ '
-    + _hL('ສິນຄ້າ "ບໍ່ໄດ້ນັບ" ຍັງບໍ່ເຂົ້າຄິວ ຈົນກວ່າຈະນັບຮອບທຳອິດຄົບ: ', 'สินค้า "ไม่ได้นับ" ยังไม่เข้าคิว จนกว่าจะนับรอบแรกครบ: ')
+    + _hL('ງານຕາມຫາລໍຖ້າ Counter ນັບຮອບທຳອິດຄົບທັງຮ້ານ (ຍົກເວັ້ນງານລໍຖ້າ CTL ຕັດສິນ ເຮັດໄດ້ເລີຍ): ', 'งานตามหารอ Counter นับรอบแรกครบทั้งร้าน (ยกเว้นงานรอ CTL ตัดสิน ทำได้เลย): ')
     + _hL('ຍັງບໍ່ເປີດ ', 'ยังไม่เปิด ') + g.notOpen.length + _hL(' ຊັ້ນ · ກຳລັງນັບ ', ' ชั้น · กำลังนับ ') + g.counting.length + _hL(' ຊັ້ນ', ' ชั้น')
-    + '<br><span style="font-weight:600;color:var(--slate-600);">' + _hL('ກຸ່ມ A ເຂົ້າຄິວເມື່ອ Verifier ປິດຊັ້ນນັ້ນແລ້ວ', 'กลุ่ม A เข้าคิวเมื่อ Verifier ปิดชั้นนั้นแล้ว') + '</span></div>';
+    + '<br><span style="font-weight:600;color:var(--slate-600);">' + _hL('ຫຼັງນັບຄົບ: ບໍ່ໄດ້ນັບ A ເຂົ້າຄິວເມື່ອ Verifier ປິດຊັ້ນນັ້ນແລ້ວ', 'หลังนับครบ: ไม่ได้นับ A เข้าคิวเมื่อ Verifier ปิดชั้นนั้นแล้ว') + '</span></div>';
 }
 
 // ---- คิว: สร้าง/ปิด จากผลรายงานคลาดเคลื่อน (เครื่องหัวหน้า) ----
@@ -38060,17 +38060,19 @@ async function huntSync(quiet) {
   const min = Number(_huntMin) || 0;
   const recent = s => { if (!s) return false; const t = new Date(s).getTime(); return isFinite(t) && Date.now() - t < 30 * 86400000; };
   const cand = [];
-  (d.done || []).forEach(r => {
-    if (!r.diff || !KINDS.includes(r.stageKey) || Math.abs(r.diffV || 0) < min || r.noCost) return;
-    cand.push({ pid: r.pid, kind: r.stageKey, pos: r.pos, cur: r.fin, diff: r.diff, val: r.diffV, name: r.name, hint: { gons: r.gons, buy: r.lastBuy || '', buyNew: r.diff < 0 && recent(r.lastBuy) } });
-  });
-  // ⏳ สินค้า "ไม่ได้นับ" ยังไม่เข้าคิวระหว่างนับรอบแรก (Ball 2026-11-22 · เดิม SUPERMART ขึ้น 1,499 งานตั้งแต่ยังไม่เปิด 63 ชั้น)
-  //    A = ทุกชั้นที่ควรอยู่ (Pan-O-Gram) Verifier ปิดชั้นแล้ว · B = ทุกชั้นในรายชื่อชั้นวางเปิดแล้ว + ไม่มีชั้นไหนกำลังนับ
+  // ⏳ ทุกงานรอ Counter นับรอบแรกครบทั้งร้าน — ยกเว้นงาน "รอ CTL ตัดสิน" (C≠V · V/C ข้าม) ทำได้เลย (Ball 2026-11-22)
   const gate = await _huntGate();
   _huntGateInfo = gate;
+  const NOW_KINDS = ['need_ctl', 'v_skip', 'c_skip'];
+  (d.done || []).forEach(r => {
+    if (!r.diff || !KINDS.includes(r.stageKey) || Math.abs(r.diffV || 0) < min || r.noCost) return;
+    if (!NOW_KINDS.includes(r.stageKey) && !gate.bOpen) return;
+    cand.push({ pid: r.pid, kind: r.stageKey, pos: r.pos, cur: r.fin, diff: r.diff, val: r.diffV, name: r.name, hint: { gons: r.gons, buy: r.lastBuy || '', buyNew: r.diff < 0 && recent(r.lastBuy) } });
+  });
+  // ⏳ สินค้า "ไม่ได้นับ": รอนับรอบแรกครบทั้งร้าน (เดิม SALAKHAM ขึ้น 1,499 งานตั้งแต่ยังไม่เปิด 59 ชั้น) · A ต้องให้ Verifier ปิดชั้นที่ควรอยู่ด้วย
   (d.uncA || []).concat(d.uncB || []).forEach(r => {
     if (!(r.pos > 0) || r.posV < min || r.noCost) return;
-    if (r.grpKey === 'A' ? !(r.hitGons || []).every(g => gate.vDone.has(g)) : !gate.bOpen) return;
+    if (!gate.bOpen || (r.grpKey === 'A' && !(r.hitGons || []).every(g => gate.vDone.has(g)))) return;
     cand.push({ pid: r.pid, kind: r.grpKey === 'A' ? 'unc_a' : 'unc_b', pos: r.pos, cur: null, diff: -r.pos, val: -r.posV, name: r.name, hint: { pog: (r.grpKey === 'A' ? r.hitGons.join(', ') : r.pogGons) || '', buy: r.lastBuy || '', buyNew: recent(r.lastBuy) } });
   });
   // 🔀 ขายสลับรหัส: ขาด X = เกิน X ของอีกตัว (ชื่อขึ้นต้นเหมือนกัน)
@@ -38089,7 +38091,9 @@ async function huntSync(quiet) {
   }
   // ♻️ งานที่ระบบเอาออกจากคิวไว้ (closed · ยังไม่ถึงเวลา/ตัดสินทางอื่น) แล้วกลับมาเข้าเกณฑ์ → เปิดกลับพร้อมยอดล่าสุด (Ball 2026-11-22)
   const nowIso = new Date().toISOString();
-  const reopen = cand.filter(c => byPid[c.pid] && byPid[c.pid].status === 'closed').map(c => Object.assign(toRow(c), { updated_at: nowIso }));
+  //    + งานที่ยังว่าง (open) แต่ประเภท/ยอดเปลี่ยนไปแล้ว (เช่น ไม่ได้นับ B → ตอนนี้นับแล้ว = Verifier ข้าม) → อัปเดตให้ตรงล่าสุด
+  const _chg = (o, c) => o.status === 'open' && (o.kind !== c.kind || Number(o.diff_qty) !== Number(c.diff) || Number(o.pos_qty) !== Number(c.pos) || (o.cur_qty == null ? null : Number(o.cur_qty)) !== (c.cur == null ? null : Number(c.cur)));
+  const reopen = cand.filter(c => byPid[c.pid] && (byPid[c.pid].status === 'closed' || _chg(byPid[c.pid], c))).map(c => Object.assign(toRow(c), { updated_at: nowIso }));
   for (let i = 0; i < reopen.length; i += 300) {
     const { error } = await sb.from('count_hunts').upsert(reopen.slice(i, i + 300), { onConflict: 'session_id,product_id' });
     if (error) throw error;
