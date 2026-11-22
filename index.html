@@ -37560,7 +37560,7 @@ async function ctrLoad(quiet) {
       opt(fetchAllQuery(() => sb.from('pan_o_grams').select('product_id, location_code').eq('branch_id', branch.id).order('id')), 'Pan-O-Gram'),
       opt(fetchAllQuery(() => sb.from('stock_counts').select('id, user_id, count_role, location_code, counted_at').eq('session_id', sid).gte('counted_at', since).order('id')), _cL('ພະນັກງານ', 'พนักงาน')),
       opt(fetchAllQuery(() => sb.from('location_master').select('location_code').eq('branch_id', branch.id).eq('is_active', true).order('id')), _cL('ລາຍຊື່ຊັ້ນວາງ', 'รายชื่อชั้นวาง')),
-      (async () => { try { return await sb.from('count_hunts').select('id, status, product_id, diff_val, assigned_name, submitted_at').eq('session_id', sid); } catch (e) { return { data: null, error: e }; } })()
+      (async () => { try { return { data: await fetchAllQuery(() => sb.from('count_hunts').select('id, status').eq('session_id', sid).order('id')), error: null }; } catch (e) { return { data: null, error: e }; } })()   // เกิน 1,000 งานได้ (SUPERMART) → fetchAll
     ]);
     _ctr = ctrCompute({ gs, vAll, posIds, pogRows, recent, locRows, huntRes, now });
     _ctr.partial = partial;
@@ -37722,8 +37722,8 @@ function ctrRender() {
   const d = _ctr, I = d.items, now = Date.now();
   const canJ = typeof varCanJudge === 'function' && varCanJudge();
   const isBcsUp = ['bcs', 'admin', 'scc'].includes(user.role);
-  // 🖥️ desktop: ซ้าย = ภาพรวม/รอตามปกติ/พนักงาน · ขวา = การ์ดงานเรียงข้างกัน (Ball 2026-11-22) · มือถือเรียงเหมือนเดิม (display สลับใน <style> ไม่ใส่ inline · MEMORY 31)
-  let h = '<style>@media (min-width:1000px){.ctrWrap{display:grid;grid-template-columns:minmax(300px,340px) 1fr;grid-template-areas:"ov main" "rest main";grid-template-rows:auto 1fr;gap:0 14px;align-items:start}.ctrOv{grid-area:ov}.ctrMain{grid-area:main}.ctrRest{grid-area:rest}.ctrGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;align-items:start}.ctrGrid>div{margin-bottom:0 !important}}</style><div class="ctrWrap"><div class="ctrOv">';
+  // 🖥️ desktop: ภาพรวม = เต็มความกว้าง (Ball 2026-11-22) · ล่างซ้าย = รอตามปกติ/พนักงาน · ขวา = การ์ดงานเรียงข้างกัน (Ball 2026-11-22) · มือถือเรียงเหมือนเดิม (display สลับใน <style> ไม่ใส่ inline · MEMORY 31)
+  let h = '<style>@media (min-width:1000px){.ctrWrap{display:grid;grid-template-columns:minmax(300px,340px) 1fr;grid-template-areas:"ov ov" "rest main";grid-template-rows:auto 1fr;gap:0 14px;align-items:start}.ctrOv{grid-area:ov}.ctrMain{grid-area:main}.ctrRest{grid-area:rest}.ctrGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;align-items:start}.ctrGrid>div{margin-bottom:0 !important}}</style><div class="ctrWrap"><div class="ctrOv">';
 
   // ===== 1) ภาพรวม =====
   const elapsed = _ctrMin(d.startTs || session.started_at, now);   // รอบนี้เริ่มจากชั้นแรกที่เปิด (session อาจใช้ต่อเนื่องหลายเดือน)
