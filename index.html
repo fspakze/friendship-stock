@@ -37766,7 +37766,7 @@ function ctrRender() {
   // ===== 1) ภาพรวม =====
   const elapsed = _ctrMin(d.startTs || session.started_at, now);   // รอบนี้เริ่มจากชั้นแรกที่เปิด (session อาจใช้ต่อเนื่องหลายเดือน)
   const doneG = d.phaseCnt.done || 0, pctG = d.total ? Math.round(doneG / d.total * 100) : 0;
-  const itemsLeft = I.judgeCtl.length + I.judgeBcs.length + I.waitV.length + I.waitC.length + I.pending;
+  const itemsLeft = I.judgeCtl.length + I.judgeBcs.length + I.waitV.length + I.waitC.length + I.pending + (d.v2Wait || 0) + (d.v2Need || 0);
   h += '<div style="background:white;border:1px solid var(--slate-200);border-radius:12px;padding:11px 12px;margin-bottom:10px;">'
     + '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px;">'
     + '<span style="font-size:26px;font-weight:800;color:var(--emerald-600);font-family:\'Space Grotesk\',monospace;">' + pctG + '%</span>'
@@ -37786,6 +37786,7 @@ function ctrRender() {
     + chip(_cL('Diff ຈິງ', 'Diff จริง'), I.real, 'var(--violet-600)', "ctrGo('variance','stage:real')")
     + chip(_cL('⏳ ລໍຖ້າ V', '⏳ รอ V'), I.waitV.length, 'var(--sky-600)', "ctrGo('variance','stage:wait')")
     + chip(_cL('⏳ ລໍຖ້າ C', '⏳ รอ C'), I.waitC.length, 'var(--sky-600)', "ctrGo('variance','stage:wait')")
+    + chip(_cL('🔁 V ຮອບ 2', '🔁 V รอบ 2'), (d.v2Wait || 0) + (d.v2Need || 0), 'var(--violet-600)', "ctrGo('variance','stage:wait')")
     + chip(_cL('⏳ ນັບບໍ່ຄົບຈຸດ', '⏳ นับไม่ครบจุด'), I.pending, 'var(--amber-600)', "ctrGo('variance')")
     + chip(_cL('⚖️ ລໍຖ້າ CTL', '⚖️ รอ CTL'), I.judgeCtl.length, 'var(--amber-600)', "ctrGo('variance','stage:ctl')")
     + chip(_cL('🚨 BCS', '🚨 BCS'), I.judgeBcs.length, 'var(--rose-500)', "ctrGo('variance','stage:bcs')")
