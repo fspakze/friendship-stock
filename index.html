@@ -27729,11 +27729,11 @@ async function computeVarianceItems(periodOverride) {
           const locs = await fetchAllQuery(() => sb.from('location_master').select('location_code').eq('branch_id', branch.id).eq('is_active', true).order('id'));
           const master = new Set((locs || []).map(r => floorBaseCode(String(r.location_code || '').toUpperCase().trim())).filter(b => b && b !== '?'));
           _varCntDone = ![...master].some(b => !stB[b]) && !Object.values(stB).some(s => s === 'open_for_counting' || s === 'counting');
-          _varV2Open = new Set(await _v2Load(sessionFilter));
+          _varV2Open = new Map(Object.entries(await _v2Load(sessionFilter)));
         }
       } catch (e) {}
     }
-    if (_vp === 'round') { _varCntDone = true; _varV2Open = new Set(); }
+    if (_vp === 'round') { _varCntDone = true; _varV2Open = new Map(); }
     const _gonDone = g => _gonCounted.has(g) && !_gonOpen.has(g);
     // 🏁 รอบเก่า: POS = สำเนาตอนปิดรอบ (ไม่ใช่ POS ปัจจุบัน) · ไม่มีในสำเนา = 0
     const _snap = (_vp === 'round' && _viewRound) ? await cntRoundSnapMap(_viewRound.id) : null;
@@ -28602,7 +28602,8 @@ function renderVarianceList() {
 let _varStageFilter = 'all';          // all | wait | ctl | bcs | real | done
 const _varOpenGons = new Set();       // Gondola ที่กางอยู่
 function _varStageGroup(k) {
-  if (k === 'wait_v' || k === 'wait_c' || k === 'none' || k === 'v2_wait' || k === 'v2_need') return 'wait';
+  if (k === 'v2_wait' || k === 'v2_need') return 'v2';
+  if (k === 'wait_v' || k === 'wait_c' || k === 'none') return 'wait';
   if (k === 'need_ctl' || k === 'v_skip' || k === 'c_skip') return 'ctl';
   if (k === 'need_bcs') return 'bcs';
   if (k === 'cv_real') return 'real';
@@ -28612,6 +28613,7 @@ function _varStageChipsHtml(cnt, total, isLao) {
   const defs = [
     ['all', isLao ? 'ທັງໝົດ' : 'ทั้งหมด', 'var(--slate-700)'],
     ['wait', isLao ? '⏳ ລໍຖ້ານັບ' : '⏳ รอนับ', 'var(--sky-600)'],
+    ['v2', isLao ? '🔁 ລໍຖ້າ V ຮອບ 2' : '🔁 รอ V รอบ 2', 'var(--violet-600)'],
     ['ctl', isLao ? '⚖️ ລໍຖ້າ CTL' : '⚖️ รอ CTL', 'var(--amber-600)'],
     ['bcs', isLao ? '🚨 BCS ລົງກວດ' : '🚨 BCS ลงตรวจ', 'var(--rose-500)'],
     ['real', isLao ? 'Diff ຈິງ' : 'Diff จริง', 'var(--violet-600)'],
@@ -28652,7 +28654,13 @@ window.varSetStage = varSetStage; window.varToggleGon = varToggleGon; window.var
 //    ยอดต่อ role = ผลรวมล่าสุดทุกจุด (เหมือน computeVarianceItems) · null = role นั้นยังไม่นับ
 let _varVDone = new Set();   // ชั้นที่ Verifier ปิดแล้ว (จาก computeVarianceItems รอบล่าสุด)
 let _varCntDone = true;      // Counter นับรอบแรกครบทั้งร้านแล้ว (ชั้นในรายชื่อเปิดครบ + ไม่มีชั้นกำลังนับ)
-let _varV2Open = new Set();  // ชั้นที่เปิดให้ Verifier รอบ 2 แล้ว (app_settings count_v2_<sid>)
+let _varV2Open = new Map();  // ชั้นที่เปิดให้ Verifier รอบ 2 แล้ว → 'early' | 'full' (app_settings count_v2_<sid>)
+// ชั้นของสินค้านี้ที่ยังต้องเปิด V รอบ 2: ตัว "รอ" ต้องเปิดหลังนับครบ (full) · ตัวที่ V ต้องนับแต่ข้าม = เปิดเมื่อไหร่ก็ได้
+function _v2PendingBases(p) {
+  const wc = _vfWaitClass(p);
+  return (p.cvRows || []).filter(r => r.st === 'wait_v' && _varVDone.has(r.base)).map(r => r.base)
+    .filter(b => wc ? _varV2Open.get(b) !== 'full' : !_varV2Open.has(b));
+}
 // สินค้าที่ Verifier รอบแรกเห็นเป็น "รอ" (ไม่บังคับนับ): Counter ได้น้อยกว่า POS + ไม่มี Pan-O-Gram (อาจอยู่ชั้นอื่น) — ตรงกับ vfClassify
 function _vfWaitClass(p) { return !p.hasPog && (Number(p.counter_qty) || 0) < (Number(p.pos_qty) || 0); }
 function varStage(p) {
@@ -28666,9 +28674,10 @@ function varStage(p) {
     if (!rows.some(r => r.st === 'wait_c') && rows.some(r => r.st === 'wait_v') && !vfRequired(p))
       return rows.some(r => r.v !== null) ? { key: 'cv_match', tone: 'ok' } : { key: 'c_match', tone: 'ok' };
     if (p.diff !== 0 && rows.some(r => r.st === 'wait_v' && _varVDone.has(r.base))) {
-      // 🔁 ตัว "รอ" ที่ V รอบแรกไม่ต้องนับ → ไม่ส่ง CTL · รอนับครบทั้งร้าน → V รอบ 2 (เปิดรอบ 2 แล้วยังไม่นับ = V ข้ามจริง → CTL)
-      const vb = rows.filter(r => r.st === 'wait_v' && _varVDone.has(r.base)).map(r => r.base);
-      if (_vfWaitClass(p) && !vb.every(b => _varV2Open.has(b))) return { key: _varCntDone ? 'v2_need' : 'v2_wait', tone: 'wait' };
+      // 🔁 V ปิดชั้นแล้วยังไม่นับ → V รอบ 2 (ไม่ส่ง CTL) · ตัว "รอ" รอ Counter นับครบทั้งร้านก่อน · ตัวที่ต้องนับแต่ข้าม = เปิดรอบ 2 ได้ทันที
+      //    เปิดรอบ 2 แล้ว V ยังไม่นับ = ข้ามจริง → CTL (Ball 2026-11-22 เลือก ก)
+      if (_vfWaitClass(p) && !_varCntDone) return { key: 'v2_wait', tone: 'wait' };
+      if (_v2PendingBases(p).length) return { key: 'v2_need', tone: 'wait' };
       return { key: 'v_skip', tone: 'warn' };
     }
     if (p.diff !== 0 && rows.some(r => r.st === 'wait_c' && _varVDone.has(r.base))) return { key: 'c_skip', tone: 'warn' };   // V นับแล้ว Counter ข้าม + ปิดจุดแล้ว → CTL   // Verifier ปิดจุดแล้วไม่ได้นับ → CTL
@@ -28694,7 +28703,7 @@ function varStageHtml(p, isLao) {
     c_skip:   isLao ? '⚠️ Counter ຂ້າມ (ປິດຈຸດແລ້ວ) → CTL ນັບ/ຕັດສິນ' : '⚠️ Counter ข้าม (ปิดจุดแล้ว) → CTL นับ/ตัดสิน',
     v_skip:   isLao ? '⚠️ Verifier ຂ້າມ (ປິດຈຸດແລ້ວ) → CTL ນັບ/ຕັດສິນ' : '⚠️ Verifier ข้าม (ปิดจุดแล้ว) → CTL นับ/ตัดสิน',
     v2_wait:  isLao ? '⏳ ລໍຖ້າ Verifier ຮອບ 2 (ຫຼັງ Counter ນັບຄົບທັງຮ້ານ)' : '⏳ รอ Verifier รอบ 2 (หลัง Counter นับครบทั้งร้าน)',
-    v2_need:  isLao ? '🔁 ຕ້ອງ Verifier ຮອບ 2 → CTL ເປີດຊັ້ນໃຫ້ V' : '🔁 ต้อง Verifier รอบ 2 → CTL เปิดชั้นให้ V',
+    v2_need:  isLao ? '🔁 ຕ້ອງ Verifier ຮອບ 2 (V ຍັງບໍ່ໄດ້ນັບ) → CTL ເປີດຊັ້ນໃຫ້ V' : '🔁 ต้อง Verifier รอบ 2 (V ยังไม่ได้นับ) → CTL เปิดชั้นให้ V',
     wait_v:   isLao ? '⏳ ລໍຖ້າ Verifier' : '⏳ รอ Verifier',
     wait_c:   isLao ? '⏳ ລໍຖ້າ Counter' : '⏳ รอ Counter',
     none:     isLao ? '⏳ ຍັງບໍ່ນັບ' : '⏳ ยังไม่นับ'
@@ -36078,9 +36087,7 @@ async function wfResetTo(locCode, targetStatus) {
   // 🔁 เปิดกลับให้ Verifier = นับเป็น V รอบ 2 (ปุ่มนี้กับปุ่มในศูนย์ควบคุมผลเหมือนกัน · Ball 2026-11-22)
   if (targetStatus === 'open_for_verify') {
     try {
-      const code = floorBaseCode(String(locCode || '').toUpperCase().trim());
-      const cur = new Set(await _v2Load(session.id)); cur.add(code);
-      await sb.from('app_settings').upsert({ key: 'count_v2_' + session.id, value: JSON.stringify([...cur]), updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: 'key' });
+      await _v2Mark(floorBaseCode(String(locCode || '').toUpperCase().trim()));
     } catch (e) {}
   }
   if (typeof loadWorkflowList === 'function') loadWorkflowList();
@@ -37676,7 +37683,7 @@ function ctrCompute(x) {
   const waitV = L('wait_v'), waitC = L('wait_c').concat(L('none'));
   // 🔁 V รอบ 2: ชั้นที่มีสินค้า "รอ" ค้างอยู่ (หลัง Counter นับครบทั้งร้าน)
   const v2G = {};
-  L('v2_need').forEach(it => (it.cvRows || []).filter(r => r.st === 'wait_v' && _varVDone.has(r.base) && !_varV2Open.has(r.base)).forEach(r => { const b = _ctrBase(r.base); v2G[b] = (v2G[b] || 0) + 1; }));
+  L('v2_need').forEach(it => _v2PendingBases(it).forEach(base => { const b = _ctrBase(base); v2G[b] = (v2G[b] || 0) + 1; }));
   const v2List = Object.keys(v2G).map(code => ({ code, n: v2G[code] })).sort((a, b) => b.n - a.n);
   const doneN = ['cv_match', 'c_match', 'tb_done', 'bcs_done'].reduce((s, k) => s + L(k).length, 0);
 
@@ -37786,7 +37793,7 @@ function ctrRender() {
     + chip(_cL('Diff ຈິງ', 'Diff จริง'), I.real, 'var(--violet-600)', "ctrGo('variance','stage:real')")
     + chip(_cL('⏳ ລໍຖ້າ V', '⏳ รอ V'), I.waitV.length, 'var(--sky-600)', "ctrGo('variance','stage:wait')")
     + chip(_cL('⏳ ລໍຖ້າ C', '⏳ รอ C'), I.waitC.length, 'var(--sky-600)', "ctrGo('variance','stage:wait')")
-    + chip(_cL('🔁 V ຮອບ 2', '🔁 V รอบ 2'), (d.v2Wait || 0) + (d.v2Need || 0), 'var(--violet-600)', "ctrGo('variance','stage:wait')")
+    + chip(_cL('🔁 V ຮອບ 2', '🔁 V รอบ 2'), (d.v2Wait || 0) + (d.v2Need || 0), 'var(--violet-600)', "ctrGo('variance','stage:v2')")
     + chip(_cL('⏳ ນັບບໍ່ຄົບຈຸດ', '⏳ นับไม่ครบจุด'), I.pending, 'var(--amber-600)', "ctrGo('variance')")
     + chip(_cL('⚖️ ລໍຖ້າ CTL', '⚖️ รอ CTL'), I.judgeCtl.length, 'var(--amber-600)', "ctrGo('variance','stage:ctl')")
     + chip(_cL('🚨 BCS', '🚨 BCS'), I.judgeBcs.length, 'var(--rose-500)', "ctrGo('variance','stage:bcs')")
@@ -37814,7 +37821,7 @@ function ctrRender() {
       _ctrBtn('✓ ' + (c ? _cL('ປິດ Counter', 'ปิด Counter') : _cL('ປິດ Verifier', 'ปิด Verifier')), "ctrDo('" + (c ? 'closeC' : 'closeV') + "','" + _ctrEnc(g.code) + "')", 'var(--amber-500, #f59e0b)')); })));
   // 2.2b 🔁 Verifier รอบ 2 (หลัง Counter นับครบทั้งร้าน)
   if (d.v2List.length) cards.push(_ctrCard('v2', 'bad', '🔁', _cL('ຊັ້ນທີ່ຕ້ອງ Verifier ຮອບ 2', 'ชั้นที่ต้อง Verifier รอบ 2'), d.v2List.length,
-    _cL('Counter ນັບຄົບທັງຮ້ານແລ້ວ ແຕ່ສິນຄ້າທີ່ V ຮອບທຳອິດ "ລໍຖ້າ" ຍັງບໍ່ກົງ POS → ເປີດໃຫ້ V ນັບສະເພາະລາຍການນີ້', 'Counter นับครบทั้งร้านแล้ว แต่สินค้าที่ V รอบแรก "รอ" ยังไม่ตรง POS → เปิดให้ V นับเฉพาะรายการนี้'),
+    _cL('V ປິດຊັ້ນແລ້ວ ແຕ່ຍັງມີສິນຄ້າທີ່ V ບໍ່ໄດ້ນັບ (V ຂ້າມ · ໂຕ "ລໍຖ້າ" ຫຼັງ Counter ນັບຄົບທັງຮ້ານ) → ເປີດໃຫ້ V ກັບໄປນັບ · ເປີດແລ້ວຍັງຂ້າມ = ໄປ CTL', 'V ปิดชั้นแล้ว แต่ยังมีสินค้าที่ V ไม่ได้นับ (V ข้าม · ตัว "รอ" หลัง Counter นับครบทั้งร้าน) → เปิดให้ V กลับไปนับ · เปิดแล้วยังข้าม = ไป CTL'),
     d.v2List.map(g => _ctrRow(_ctrCode(g.code), _cL('ສິນຄ້າ ', 'สินค้า ') + g.n + _cL(' ລາຍການ', ' รายการ'), _ctrBtn('🔁 ' + _cL('ເປີດ V ຮອບ 2', 'เปิด V รอบ 2'), "ctrDo('openV2','" + _ctrEnc(g.code) + "')", 'var(--violet-600, #7c3aed)'))),
     d.v2List.length > 1 ? _ctrBtn('🔁 ' + _cL('ເປີດ V ຮອບ 2 ທັງໝົດ ', 'เปิด V รอบ 2 ทั้งหมด ') + d.v2List.length + _cL(' ຊັ້ນ', ' ชั้น'), 'ctrOpenAllV2()', 'var(--violet-600, #7c3aed)') : ''));
   // 2.3 รอ CTL ตัดสิน (รวม V/C ข้าม)
@@ -38652,20 +38659,25 @@ Object.assign(window, { huntInit, huntSetTab, huntSyncNow, huntSetMin, huntClaim
 
 
 // 🔁 Verifier รอบ 2 (Ball 2026-11-22): ชั้นที่เปิดรอบ 2 แล้ว เก็บใน app_settings 'count_v2_<sid>' (JSON array)
-async function _v2Load(sid) {
+async function _v2Load(sid) {   // → { ชั้น: 'early' | 'full' }  (full = เปิดหลัง Counter นับครบทั้งร้าน)
   try {
     const { data } = await sb.from('app_settings').select('value').eq('key', 'count_v2_' + sid).maybeSingle();
-    const a = data && data.value ? JSON.parse(data.value) : [];
-    return Array.isArray(a) ? a : [];
-  } catch (e) { return []; }
+    const a = data && data.value ? JSON.parse(data.value) : {};
+    if (Array.isArray(a)) { const o = {}; a.forEach(c => { o[c] = 'full'; }); return o; }
+    return (a && typeof a === 'object') ? a : {};
+  } catch (e) { return {}; }
+}
+async function _v2Mark(code) {
+  const cur = await _v2Load(session.id);
+  if (cur[code] !== 'full') cur[code] = _varCntDone ? 'full' : 'early';
+  return sb.from('app_settings').upsert({ key: 'count_v2_' + session.id, value: JSON.stringify(cur), updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: 'key' });
 }
 async function wfOpenForVerifierV2(locCode, quiet) {
   if (!wfNeedSession()) return false;
   const code = floorBaseCode(String(locCode || '').toUpperCase().trim());
   const L = (lo, th) => lang === 'lo' ? lo : th;
   // 1) บันทึกว่าชั้นนี้เปิด V รอบ 2 แล้ว (รอบ 2 ปิดแล้วยังไม่นับ = V ข้ามจริง → CTL)
-  const cur = new Set(await _v2Load(session.id)); cur.add(code);
-  const { error: se } = await sb.from('app_settings').upsert({ key: 'count_v2_' + session.id, value: JSON.stringify([...cur]), updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: 'key' });
+  const { error: se } = await _v2Mark(code);
   if (se) { showToast('Error: ' + se.message, 'error'); return false; }
   // 2) เปิดชั้นให้ Verifier — RPC reopen_gondola (ตัวเดียวกับปุ่ม "⟲ กลับไป Verify ใหม่" ในแผนผัง) · สำรอง: open_gondola_for_verifier → update ตรง
   let { error } = await sb.rpc('reopen_gondola', { p_session_id: session.id, p_location_code: code, p_ctl_user_id: user.id, p_target_status: 'open_for_verify' });
