@@ -37991,15 +37991,39 @@ async function huntReload(doSync) {
   } finally { _huntBusy = false; }
 }
 async function huntFetch() {
-  const res = await sb.from('count_hunts').select('*').eq('session_id', session.id).order('id').limit(2000);
-  if (res.error) { _huntMissing = /count_hunts|PGRST205|42P01/i.test(String(res.error.code || '') + ' ' + String(res.error.message || '')); throw res.error; }
+  let rowsAll;
+  try { rowsAll = await fetchAllQuery(() => sb.from('count_hunts').select('*').eq('session_id', session.id).order('id')); }   // เกิน 1,000 งานได้ → fetchAll
+  catch (e) { _huntMissing = /count_hunts|PGRST205|42P01/i.test(String(e && e.code || '') + ' ' + String(e && e.message || e)); throw e; }
   _huntMissing = false;
-  _huntRows = res.data || [];
+  _huntRows = rowsAll || [];
   const need = [...new Set(_huntRows.map(h => h.product_id))].filter(id => !_huntProd[id]);
   for (let i = 0; i < need.length; i += 300) {
     const ps = await _sbSel(() => sb.from('products').select('id, barcode, name_th, name_lo').in('id', need.slice(i, i + 300)));
     (ps || []).forEach(p => { _huntProd[p.id] = p; });
   }
+}
+
+// ⏳ เงื่อนไขปล่อยสินค้า "ไม่ได้นับ" เข้าคิว — สถานะชั้นล่าสุดต่อ location (gondola_status) + รายชื่อชั้นวาง (location_master)
+let _huntGateInfo = null;
+async function _huntGate() {
+  const gs = await fetchAllQuery(() => sb.from('gondola_status').select('id, location_code, status').eq('session_id', session.id).order('id'));
+  const st = {};
+  (gs || []).forEach(g => { const k = floorBaseCode(String(g.location_code || '').toUpperCase().trim()); if (k) st[k] = g.status; });
+  Object.keys(st).forEach(k => { if (st[k] === 'closed') delete st[k]; });
+  const locs = await fetchAllQuery(() => sb.from('location_master').select('location_code').eq('branch_id', branch.id).eq('is_active', true).order('id'));
+  const master = new Set((locs || []).map(r => floorBaseCode(String(r.location_code || '').toUpperCase().trim())).filter(b => b && b !== '?'));
+  const vDone = new Set(Object.keys(st).filter(k => _COV_VERIFIER_DONE.includes(st[k])));
+  const notOpen = [...master].filter(b => !st[b]);
+  const counting = Object.keys(st).filter(k => ['open_for_counting', 'counting'].includes(st[k]));
+  return { vDone, notOpen, counting, bOpen: !notOpen.length && !counting.length };
+}
+function _huntGateNote() {
+  const g = _huntGateInfo;
+  if (!g || g.bOpen) return '';
+  return '<div style="background:var(--sky-50, #f0f9ff);border:1px solid var(--sky-200, #bae6fd);border-radius:10px;padding:8px 10px;margin-bottom:8px;font-size:11px;color:var(--sky-800, #075985);font-weight:700;line-height:1.5;">⏳ '
+    + _hL('ສິນຄ້າ "ບໍ່ໄດ້ນັບ" ຍັງບໍ່ເຂົ້າຄິວ ຈົນກວ່າຈະນັບຮອບທຳອິດຄົບ: ', 'สินค้า "ไม่ได้นับ" ยังไม่เข้าคิว จนกว่าจะนับรอบแรกครบ: ')
+    + _hL('ຍັງບໍ່ເປີດ ', 'ยังไม่เปิด ') + g.notOpen.length + _hL(' ຊັ້ນ · ກຳລັງນັບ ', ' ชั้น · กำลังนับ ') + g.counting.length + _hL(' ຊັ້ນ', ' ชั้น')
+    + '<br><span style="font-weight:600;color:var(--slate-600);">' + _hL('ກຸ່ມ A ເຂົ້າຄິວເມື່ອ Verifier ປິດຊັ້ນນັ້ນແລ້ວ', 'กลุ่ม A เข้าคิวเมื่อ Verifier ปิดชั้นนั้นแล้ว') + '</span></div>';
 }
 
 // ---- คิว: สร้าง/ปิด จากผลรายงานคลาดเคลื่อน (เครื่องหัวหน้า) ----
@@ -38022,8 +38046,13 @@ async function huntSync(quiet) {
     if (!r.diff || !KINDS.includes(r.stageKey) || Math.abs(r.diffV || 0) < min || r.noCost) return;
     cand.push({ pid: r.pid, kind: r.stageKey, pos: r.pos, cur: r.fin, diff: r.diff, val: r.diffV, name: r.name, hint: { gons: r.gons, buy: r.lastBuy || '', buyNew: r.diff < 0 && recent(r.lastBuy) } });
   });
+  // ⏳ สินค้า "ไม่ได้นับ" ยังไม่เข้าคิวระหว่างนับรอบแรก (Ball 2026-11-22 · เดิม SUPERMART ขึ้น 1,499 งานตั้งแต่ยังไม่เปิด 63 ชั้น)
+  //    A = ทุกชั้นที่ควรอยู่ (Pan-O-Gram) Verifier ปิดชั้นแล้ว · B = ทุกชั้นในรายชื่อชั้นวางเปิดแล้ว + ไม่มีชั้นไหนกำลังนับ
+  const gate = await _huntGate();
+  _huntGateInfo = gate;
   (d.uncA || []).concat(d.uncB || []).forEach(r => {
     if (!(r.pos > 0) || r.posV < min || r.noCost) return;
+    if (r.grpKey === 'A' ? !(r.hitGons || []).every(g => gate.vDone.has(g)) : !gate.bOpen) return;
     cand.push({ pid: r.pid, kind: r.grpKey === 'A' ? 'unc_a' : 'unc_b', pos: r.pos, cur: null, diff: -r.pos, val: -r.posV, name: r.name, hint: { pog: (r.grpKey === 'A' ? r.hitGons.join(', ') : r.pogGons) || '', buy: r.lastBuy || '', buyNew: recent(r.lastBuy) } });
   });
   // 🔀 ขายสลับรหัส: ขาด X = เกิน X ของอีกตัว (ชื่อขึ้นต้นเหมือนกัน)
@@ -38146,6 +38175,7 @@ function _huntMgrHtml() {
     }).join('');
   }
   if (_huntTab === 'queue') {
+    html += _huntGateNote();
     if (!q.length) return html + '<div style="text-align:center;padding:26px;color:var(--emerald-600);font-size:12px;font-weight:700;">✅ ' + _hL('ບໍ່ມີງານໃນຄິວ', 'ไม่มีงานในคิว') + '</div>';
     return html + q.slice(0, 200).map(h => {
       const m = _huntMins(h.claimed_at), late = h.status === 'claimed' && m >= HUNT_STALE_MIN;
