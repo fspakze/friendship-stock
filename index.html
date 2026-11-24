@@ -27900,7 +27900,8 @@ async function _varProdMap(ids) {
   return _varProd.map;
 }
 
-async function loadVarianceReport() {
+async function loadVarianceReport(opts) {
+  const _keep = !!(opts && opts.keepCsum);
   if (!session && _varianceFilter.period === 'session') {
     document.getElementById('varianceList').innerHTML = `
       <div style="text-align:center;padding:40px 20px;color:var(--slate-400);">
@@ -27921,10 +27922,11 @@ async function loadVarianceReport() {
     const _valid = items.filter(it => !it.isOrphan);
     _varianceData = _valid.filter(it => it.isComplete);
     _variancePending = _valid.filter(it => !it.isComplete);
-    _csum = null; _csumView = null;   // 📊 ข้อมูลเปลี่ยน → สรุปผลต้องคำนวณใหม่
+    _csum = null; if (!_keep) _csumView = null;   // 📊 ข้อมูลเปลี่ยน → สรุปผลต้องคำนวณใหม่ (keepCsum = แก้ยอดจากหน้าสรุป → อยู่หน้าเดิม)
 
     renderVarianceSummary();
     renderAdvancedKPI();
+    if (_keep) return;   // ผู้เรียก (csumRefresh) สรุปใหม่แล้ววาดมุมมองเดิมเอง
     renderVarianceList();
     // 🎛️ มาจาก Dashboard → เปิดมุมมองที่กดมา
     const _da = window._dashAfter; window._dashAfter = null;
@@ -29175,7 +29177,7 @@ async function varJudgeSave(productId) {
   logActivity('bcs_judge', _role + ' · product ' + productId + ' · ' + entries.map(e => e.loc + '=' + e.qty).join(', '));
   showToast(L('✓ ບັນທຶກຍອດຕັດສິນແລ້ວ', '✓ บันทึกยอดตัดสินแล้ว'), 'success');
   closeModal();
-  if (document.getElementById('ctrRoot')) ctrLoad(true); else if (document.getElementById('tbList')) loadTiebreakerList(); else loadVarianceReport();
+  if (document.getElementById('ctrRoot')) ctrLoad(true); else if (document.getElementById('tbList')) loadTiebreakerList(); else if (_csumView && _csumView !== 'time') csumRefresh(true); else { const _y = window.scrollY; await loadVarianceReport(); requestAnimationFrame(() => window.scrollTo(0, _y)); }
 }
 window.varJudgeOpen = varJudgeOpen; window.varJudgeSave = varJudgeSave;
 
@@ -29484,6 +29486,7 @@ function _csumHint(r) {
   return '';
 }
 
+let _csumRef = null;   // { key, at, posProds, negProds, pog, M, ST, costs, got:Set } ข้อมูลอ้างอิงทั้งสาขา (ใช้ซ้ำตอนแก้ยอด · 10 นาที)
 async function csumLoad(force) {
   if (_csum && !force) return _csum;
   if (_csumBusy) return null;
@@ -29497,16 +29500,20 @@ async function csumLoad(force) {
     valid.forEach(it => [it.counterLocs, it.verifierLocs, it.ctlLocs, it.managerLocs].forEach(m =>
       Object.keys(m || {}).forEach(k => { const b = floorBaseCode(String(k || '').toUpperCase().trim()); if (b && b !== '?') countedGons.add(b); })));
 
+    const _rk = [branch.id, _varianceFilter.period, _viewRound ? _viewRound.id : '', session ? session.id : ''].join('|');
+    const _soft = force === 'soft' && _csumRef && _csumRef.key === _rk && Date.now() - _csumRef.at < 600000;
+    let posProds, negProds, pog;
+    if (_soft) { posProds = _csumRef.posProds; negProds = _csumRef.negProds; pog = _csumRef.pog; }
+    else {
     // 1) สินค้า POS > 0 ที่ไม่มีใครนับ
     // 🏁 รอบเก่า: ใช้สำเนา POS วันปิดรอบ (ชื่อสินค้าดึงจาก products ปัจจุบัน)
-    const posProds = (_varianceFilter.period === 'round' && _viewRound)
+    posProds = (_varianceFilter.period === 'round' && _viewRound)
       ? await cntRoundUncountedBase(_viewRound.id)
       : await fetchAllQuery(() => sb.from('products')
       .select('id, barcode, name_th, name_lo, pos_qty, cost_price, sell_price')
       .eq('branch_id', branch.id).eq('is_active', true).gt('pos_qty', 0).order('id'));
-    const unc = (posProds || []).filter(p => !countedIds.has(p.id));
     // ⚠️ POS ติดลบ (active · pos<0) — ทั้งนับแล้ว/ไม่ได้นับ (Ball 2026-11-16 · เดิมไม่อยู่รายงานไหนถ้าไม่ได้นับ)
-    const negProds = (_varianceFilter.period === 'round' && _viewRound)
+    negProds = (_varianceFilter.period === 'round' && _viewRound)
       ? await cntRoundUncountedBase(_viewRound.id, true)
       : await fetchAllQuery(() => sb.from('products')
         .select('id, barcode, name_th, name_lo, pos_qty, cost_price, sell_price')
@@ -29514,16 +29521,22 @@ async function csumLoad(force) {
 
     // 2) Pan-O-Gram ทั้งสาขา
     const pogRows = await fetchAllQuery(() => sb.from('pan_o_grams').select('product_id, location_code').eq('branch_id', branch.id).order('id'));
-    const pog = {};
+    pog = {};
     (pogRows || []).forEach(r => { const b = floorBaseCode(String(r.location_code || '').toUpperCase().trim()); if (r.product_id && b) (pog[r.product_id] = pog[r.product_id] || new Set()).add(b); });
+    _csumRef = { key: _rk, at: Date.now(), posProds, negProds, pog, M: {}, ST: {}, costs: {}, got: new Set() };
+    }
+    const unc = (posProds || []).filter(p => !countedIds.has(p.id));
 
     // 3) ข้อมูลประกอบ: ประเภท/กลุ่ม · ซื้อ/ขายล่าสุด · ต้นทุน
     const bcs = [...new Set(valid.map(it => it.product?.barcode).concat(unc.map(p => p.barcode), (negProds || []).map(p => p.barcode)).filter(Boolean))];
-    const mRows = await _csumChunks(bcs, 300, part => _sbSel(() => sb.from('master_products').select('barcode, category, product_group, brand, sell_price').in('barcode', part)));
-    const sRows = await _csumChunks(bcs, 300, part => _sbSel(() => sb.from('product_status').select('barcode, buyer, branch_avg, last_buy, last_sale, aging').in('barcode', part)));
-    const costs = await _csumCosts(bcs);
-    const M = {}; mRows.forEach(r => { M[r.barcode] = r; });
-    const ST = {}; sRows.forEach(r => { ST[r.barcode] = r; });
+    const R = _csumRef, need = bcs.filter(b => !R.got.has(b));   // ดึงเฉพาะบาร์โค้ดที่ยังไม่มีในแคช
+    const mRows = await _csumChunks(need, 300, part => _sbSel(() => sb.from('master_products').select('barcode, category, product_group, brand, sell_price').in('barcode', part)));
+    const sRows = await _csumChunks(need, 300, part => _sbSel(() => sb.from('product_status').select('barcode, buyer, branch_avg, last_buy, last_sale, aging').in('barcode', part)));
+    Object.assign(R.costs, await _csumCosts(need));
+    mRows.forEach(r => { R.M[r.barcode] = r; });
+    sRows.forEach(r => { R.ST[r.barcode] = r; });
+    need.forEach(b => R.got.add(b));
+    const M = R.M, ST = R.ST, costs = R.costs;
     const info = (bc, prodCost, prodSell) => {
       const m = M[bc] || {}, s = ST[bc] || {};
       const lc = costs[bc];
@@ -29840,7 +29853,18 @@ function _csumTrackUncHtml(d, uncAll, isLao) {
 }
 
 function csumClose() { _csumView = null; renderVarianceList(); }
-async function csumRefresh() { const v = _csumView; await loadVarianceReport(); const d = await csumLoad(true); if (d && v) { _csumView = v; renderVarianceList(); } }
+// แก้ยอด/ยืนยันจากหน้าสรุป → อยู่หน้าเดิม + ตำแหน่งเลื่อนเดิม (Ball 2026-11-25 · เดิมเด้งกลับรายการหลักทุกครั้ง)
+//   soft = ใช้ข้อมูลอ้างอิงที่แคชไว้ (POS ทั้งสาขา/Pan-O-Gram/ต้นทุน/ประเภท) ไม่ดึงใหม่ทั้งสาขา · ปุ่ม 🔄 = ดึงใหม่หมด
+async function csumRefresh(soft) {
+  const v = _csumView, y = window.scrollY;
+  if (!v || v === 'time') { await loadVarianceReport(); return; }
+  if (soft === true) showToast(_csumL('⏳ ກຳລັງອັບເດດ...', '⏳ กำลังอัปเดต...'), 'info');
+  await loadVarianceReport({ keepCsum: true });
+  const d = await csumLoad(soft === true ? 'soft' : true);
+  _csumView = d ? v : null;
+  renderVarianceList();
+  if (d) requestAnimationFrame(() => window.scrollTo(0, y));
+}
 
 function csumRenderView() {
   const d = _csum; if (!d) return '';
@@ -30243,11 +30267,11 @@ async function csumConfirmZero(mode, pid) {
   });
   for (let i = 0; i < rows.length; i += 500) {
     const { error } = await sb.from('stock_counts').insert(rows.slice(i, i + 500));
-    if (error) { showToast('Error: ' + error.message + (i ? ' (' + i + '/' + rows.length + ')' : ''), 'error'); await csumRefresh(); return; }
+    if (error) { showToast('Error: ' + error.message + (i ? ' (' + i + '/' + rows.length + ')' : ''), 'error'); await csumRefresh(true); return; }
   }
   logActivity('count_confirm_notfound', targets.length + ' SKU');
   showToast('✓ ' + targets.length + ' SKU', 'success');
-  await csumRefresh();
+  await csumRefresh(true);
 }
 
 // ⬇ Excel สรุปผลนับ
