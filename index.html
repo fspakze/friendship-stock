@@ -5782,6 +5782,9 @@ function wtFilterMenuCfg(cfg, role) {
       drawerGroups = drawerGroups.concat([{ titleTh: 'จัดซื้อ (PO)', titleLo: 'ຈັດຊື້ (PO)', items: ['potrack'] }]);
     }
   }
+  // ⚖️ เลิกใช้หน้า "ตัดสิน" (Ball 2026-11-25) — C≠V ไปที่งานตามหา / ปุ่มตัดสินในรายงานคลาดเคลื่อนแทน
+  bottomTabs = bottomTabs.filter(x => x !== 'tiebreaker');
+  drawerGroups = drawerGroups.map(g => ({ ...g, items: (g.items || []).filter(x => x !== 'tiebreaker') })).filter(g => g.items.length > 0);
   return { bottomTabs, drawerGroups };
 }
 // เมนูนี้ถูกปิดสำหรับ role นี้ไหม (_menuOff[page] = true/'all' = ปิดทุกคน | array = ปิดเฉพาะ role ในลิสต์)
@@ -27243,7 +27246,7 @@ async function loadHealthAlerts() {
         icon: '⚠️',
         title: isLao ? `${tbCount} Gondola ຕ້ອງນັບຊ້ຳ` : `${tbCount} Gondola ต้องนับซ้ำ`,
         text: isLao ? 'ມີສິນຄ້ານັບບໍ່ກົງກັນ ຕ້ອງຕັດສິນ' : 'มีสินค้านับไม่ตรงกัน ต้องตัดสิน',
-        action: () => goPage('tiebreaker')
+        action: () => _dashGo('variance', 'stage:ctl')
       });
     }
     
@@ -27426,7 +27429,7 @@ async function loadDashboard() {
       + (active && onclick ? '<span style="color:var(--slate-400);">›</span>' : '') + '</div>';
   };
   const todoHtml = (aCount) =>
-      todo('⚖️', L('ລໍຖ້າ CTL ຕັດສິນ (Counter ≠ Verifier)', 'รอ CTL ตัดสิน (Counter ≠ Verifier)'), stCount.ctl || 0, 'var(--amber-600)', "_dashGo('tiebreaker')")
+      todo('⚖️', L('ລໍຖ້າ CTL ຕັດສິນ (Counter ≠ Verifier)', 'รอ CTL ตัดสิน (Counter ≠ Verifier)'), stCount.ctl || 0, 'var(--amber-600)', "_dashGo('variance','stage:ctl')")
     + todo('🚨', L('3 ຄົນນັບບໍ່ກົງ → BCS ລົງກວດ', '3 คนนับไม่ตรง → BCS ลงตรวจ'), stCount.bcs || 0, 'var(--rose-500)', "_dashGo('variance','stage:bcs')")
     + todo('⚠️', L('ນັບຂ້າມຈຸດ (ຂ້າມຈິງ)', 'นับข้ามจุด (ข้ามจริง)'), realGap, 'var(--rose-500)', canWf ? "_dashGo('workflow')" : '')
     + todo('⏳', L('ລໍຖ້ານັບໃຫ້ຄົບທຸກຈຸດ', 'รอนับให้ครบทุกจุด'), pending.length, 'var(--amber-600)', "_dashGo('variance')")
@@ -28738,7 +28741,7 @@ function varStage(p) {
   if (t !== null && t !== undefined) return (t === c || t === v) ? { key: 'tb_done', tone: 'ok' } : { key: 'need_bcs', tone: 'bad' };
   const rows = p.cvRows;
   if (rows && rows.length) {
-    if (rows.some(r => r.st === 'diff')) return { key: 'need_ctl', tone: 'warn' };
+    if (rows.some(r => r.st === 'diff')) return (p.diff === 0 && p.isComplete !== false) ? { key: 'v_pos', tone: 'ok' } : { key: 'need_ctl', tone: 'warn' };   // V ตรง POS = ไม่มีของขาด/เกิน ไม่ต้องตัดสิน (Ball 2026-11-25)
     // ✅ Counter ตรง POS + ไม่ถูกสุ่ม → ไม่ต้องรอ Verifier (Ball 2026-11-17 · นับ V เฉพาะ Diff + สุ่ม 10%)
     if (!rows.some(r => r.st === 'wait_c') && rows.some(r => r.st === 'wait_v') && !vfRequired(p))
       return rows.some(r => r.v !== null) ? { key: 'cv_match', tone: 'ok' } : { key: 'c_match', tone: 'ok' };
@@ -28754,7 +28757,7 @@ function varStage(p) {
     if (rows.some(r => r.st === 'wait_c')) return { key: 'wait_c', tone: 'wait' };
     return { key: (p.diff === 0 ? 'cv_match' : 'cv_real'), tone: 'ok' };
   }
-  if (c !== null && v !== null) return c === v ? { key: (p.diff === 0 ? 'cv_match' : 'cv_real'), tone: 'ok' } : { key: 'need_ctl', tone: 'warn' };
+  if (c !== null && v !== null) return c === v ? { key: (p.diff === 0 ? 'cv_match' : 'cv_real'), tone: 'ok' } : ((p.diff === 0 && p.isComplete !== false) ? { key: 'v_pos', tone: 'ok' } : { key: 'need_ctl', tone: 'warn' });
   if (c !== null) return { key: 'wait_v', tone: 'wait' };
   if (v !== null) return { key: 'wait_c', tone: 'wait' };
   return { key: 'none', tone: 'wait' };
@@ -28766,6 +28769,7 @@ function varStageHtml(p, isLao) {
     tb_done:  isLao ? '✅ ຕັດສິນແລ້ວ (2 ໃນ 3 ກົງ)' : '✅ ตัดสินแล้ว (2 ใน 3 ตรง)',
     need_bcs: isLao ? '🚨 3 ຄົນນັບບໍ່ກົງ → BCS ລົງກວດ' : '🚨 3 คนนับไม่ตรง → BCS ลงตรวจ',
     cv_match: isLao ? '✅ ນັບກົງກັນ' : '✅ นับตรงกัน',
+    v_pos:    isLao ? '✅ C≠V ແຕ່ຍອດສຸດທ້າຍກົງ POS (ບໍ່ຕ້ອງຕັດສິນ)' : '✅ C≠V แต่ยอดสุดท้ายตรง POS (ไม่ต้องตัดสิน)',
     c_match:  isLao ? '✅ Counter ກົງ POS (ບໍ່ຕ້ອງ Verify)' : '✅ Counter ตรง POS (ไม่ต้อง Verify)',
     cv_real:  isLao ? '✅ Counter=Verifier → Diff ຈິງ' : '✅ Counter=Verifier → Diff จริง',
     need_ctl: isLao ? '⚖️ ບໍ່ກົງ → ລໍຖ້າ CTL ຕັດສິນ' : '⚖️ ไม่ตรง → รอ CTL ตัดสิน',
@@ -29991,7 +29995,7 @@ window.csumDiffSet = csumDiffSet;
 function _csumDiffStage(k) {
   if (k === 'uncA') return { done: false, unc: true, t: _csumL('🔍 ບໍ່ໄດ້ນັບ (A)', '🔍 ไม่ได้นับ (A)'), c: 'var(--amber-700, #b45309)', b: 'var(--amber-50, #fffbeb)' };
   if (k === 'uncB') return { done: false, unc: true, t: _csumL('🔍 ບໍ່ໄດ້ນັບ (B)', '🔍 ไม่ได้นับ (B)'), c: 'var(--amber-700, #b45309)', b: 'var(--amber-50, #fffbeb)' };
-  if (['bcs_done', 'tb_done', 'cv_match', 'cv_real', 'c_match'].includes(k)) return { done: true, t: _csumL('✅ ຢືນຢັນແລ້ວ', '✅ ยืนยันแล้ว'), c: 'var(--emerald-700, #047857)', b: 'var(--emerald-50, #ecfdf5)' };
+  if (['bcs_done', 'tb_done', 'cv_match', 'cv_real', 'c_match', 'v_pos'].includes(k)) return { done: true, t: _csumL('✅ ຢືນຢັນແລ້ວ', '✅ ยืนยันแล้ว'), c: 'var(--emerald-700, #047857)', b: 'var(--emerald-50, #ecfdf5)' };
   if (k === 'need_bcs' || k === 'need_ctl' || k === 'v_skip' || k === 'c_skip') return { done: false, t: _csumL('⚖️ ລໍຖ້າຕັດສິນ', '⚖️ รอตัดสิน'), c: 'var(--rose-700, #be123c)', b: 'var(--rose-50, #fff1f2)' };
   return { done: false, t: _csumL('⏳ ນັບຍັງບໍ່ຄົບ', '⏳ นับยังไม่ครบ'), c: 'var(--sky-700, #0369a1)', b: 'var(--sky-50, #f0f9ff)' };
 }
@@ -30525,7 +30529,7 @@ async function csumExport() {
     add(L('ຕາມກຸ່ມສິນຄ້າ', 'ตามกลุ่มสินค้า'), [[L('ປະເພດ', 'ประเภท'), L('ກຸ່ມສິນຄ້າ', 'กลุ่มสินค้า')].concat(gh)].concat(
       _csumGroup(d.done, r => r.cat + '\u0001' + r.grp).map(g => g.key.split('\u0001').concat(gv(g)))), [26, 32].concat(gh.map(() => 11)));
     // 4-7) รายการ
-    const stTxt = k => ({ bcs_done: L('BCS ຢືນຢັນແລ້ວ', 'BCS ยืนยันแล้ว'), tb_done: L('ຕັດສິນແລ້ວ', 'ตัดสินแล้ว'), need_bcs: L('3 ຄົນບໍ່ກົງ → BCS', '3 คนไม่ตรง → BCS'), cv_match: L('ນັບກົງກັນ', 'นับตรงกัน'), c_match: L('Counter ກົງ POS', 'Counter ตรง POS'), cv_real: L('C=V → Diff ຈິງ', 'C=V → Diff จริง'), need_ctl: L('ລໍຖ້າ CTL', 'รอ CTL'), c_skip: L('Counter ຂ້າມ → CTL', 'Counter ข้าม → CTL'), v_skip: L('Verifier ຂ້າມ → CTL', 'Verifier ข้าม → CTL'), wait_v: L('ລໍຖ້າ Verifier', 'รอ Verifier'), v2_wait: L('ລໍຖ້າ V ຮອບ 2', 'รอ V รอบ 2'), v2_need: L('ຕ້ອງ V ຮອບ 2', 'ต้อง V รอบ 2'), wait_c: L('ລໍຖ້າ Counter', 'รอ Counter'), none: '-' }[k] || k);
+    const stTxt = k => ({ bcs_done: L('BCS ຢືນຢັນແລ້ວ', 'BCS ยืนยันแล้ว'), tb_done: L('ຕັດສິນແລ້ວ', 'ตัดสินแล้ว'), need_bcs: L('3 ຄົນບໍ່ກົງ → BCS', '3 คนไม่ตรง → BCS'), cv_match: L('ນັບກົງກັນ', 'นับตรงกัน'), v_pos: L('C≠V ກົງ POS', 'C≠V ตรง POS'), c_match: L('Counter ກົງ POS', 'Counter ตรง POS'), cv_real: L('C=V → Diff ຈິງ', 'C=V → Diff จริง'), need_ctl: L('ລໍຖ້າ CTL', 'รอ CTL'), c_skip: L('Counter ຂ້າມ → CTL', 'Counter ข้าม → CTL'), v_skip: L('Verifier ຂ້າມ → CTL', 'Verifier ข้าม → CTL'), wait_v: L('ລໍຖ້າ Verifier', 'รอ Verifier'), v2_wait: L('ລໍຖ້າ V ຮອບ 2', 'รอ V รอบ 2'), v2_need: L('ຕ້ອງ V ຮອບ 2', 'ต้อง V รอบ 2'), wait_c: L('ລໍຖ້າ Counter', 'รอ Counter'), none: '-' }[k] || k);
     const ih = ['Barcode', L('ຊື່ສິນຄ້າ', 'ชื่อสินค้า'), L('ປະເພດ', 'ประเภท'), L('ກຸ່ມສິນຄ້າ', 'กลุ่มสินค้า'), L('ຍີ່ຫໍ້', 'ยี่ห้อ'), 'Gondola', 'POS', L('ນັບໄດ້', 'นับได้'), 'Diff', 'Diff %', L('ຕົ້ນທຶນ ₭', 'ต้นทุน ₭'), 'POS ₭', L('ນັບໄດ້ ₭', 'นับได้ ₭'), 'Diff ₭', L('Diff ₭ (ລາຄາຂາຍ)', 'Diff ₭ (ราคาขาย)'), 'Level', 'Counter', 'Verifier', 'CTL', 'BCS', L('ຂັ້ນຕອນ', 'ขั้นตอน'), L('ປິດຂາຍໃນ POS', 'ปิดขายใน POS'), 'Buyer', L('ຊື້ລ່າສຸດ', 'ซื้อล่าสุด'), L('ຂາຍລ່າສຸດ', 'ขายล่าสุด'), 'AVG/' + L('ເດືອນ', 'เดือน'), 'Aging', L('ແນະນຳຫາສາເຫດ', 'แนะนำหาสาเหตุ')];
     const iv = r => [r.bc, r.name, r.cat, r.grp, r.brand, r.gons, r.pos, r.fin, r.diff, Number(r.pct.toFixed(1)), r.cost, Math.round(r.posV), Math.round(r.finV), Math.round(r.diffV), Math.round(r.diffSellV), r.level,
       r.c ?? '', r.v ?? '', r.t ?? '', r.mgr ?? '', stTxt(r.stageKey), r.posClosed ? '⛔' : '', r.buyer, r.lastBuy, r.lastSale, r.avgM, r.aging, r.hint];
@@ -37821,7 +37825,7 @@ function ctrCompute(x) {
   const v2G = {};
   L('v2_need').forEach(it => _v2PendingBases(it).forEach(base => { const b = _ctrBase(base); v2G[b] = (v2G[b] || 0) + 1; }));
   const v2List = Object.keys(v2G).map(code => ({ code, n: v2G[code] })).sort((a, b) => b.n - a.n);
-  const doneN = ['cv_match', 'c_match', 'tb_done', 'bcs_done'].reduce((s, k) => s + L(k).length, 0);
+  const doneN = ['cv_match', 'c_match', 'v_pos', 'tb_done', 'bcs_done'].reduce((s, k) => s + L(k).length, 0);
 
   // ---- สินค้ารอนับครบทุกจุด → ชั้นที่ยังขาด ----
   const missG = {};
@@ -38412,7 +38416,7 @@ async function huntSync(quiet) {
   _huntGateInfo = gate;
   const NOW_KINDS = ['need_ctl', 'v_skip', 'c_skip'];
   (d.done || []).forEach(r => {
-    if (!r.diff || !KINDS.includes(r.stageKey) || Math.abs(r.diffV || 0) < min || r.noCost) return;
+    if (!r.diff || !KINDS.includes(r.stageKey) || (!r.noCost && Math.abs(r.diffV || 0) < min)) return;   // ไม่มีต้นทุน = เข้าคิวด้วย (เดิมตัดทิ้ง · Ball 2026-11-25 เลิกใช้หน้าตัดสิน)
     if (!NOW_KINDS.includes(r.stageKey) && !gate.bOpen) return;
     cand.push({ pid: r.pid, kind: r.stageKey, pos: r.pos, cur: r.fin, diff: r.diff, val: r.diffV, name: r.name, hint: { gons: r.gons, buy: r.lastBuy || '', buyNew: r.diff < 0 && recent(r.lastBuy) } });
   });
@@ -38478,7 +38482,7 @@ function _huntCard(h, actions, extra) {
     + '<div style="text-align:right;flex-shrink:0;font-family:\'Space Grotesk\',monospace;">'
     + '<div style="font-size:16px;font-weight:800;color:' + col + ';">' + (neg ? '' : '+') + _huntN(h.diff_qty) + '</div>'
     + '<div style="font-size:10px;color:var(--slate-500);">POS ' + _huntN(h.pos_qty) + ' → ' + (h.cur_qty == null ? '0' : _huntN(h.cur_qty)) + '</div>'
-    + '<div style="font-size:11px;font-weight:800;color:' + col + ';">₭' + _huntN(h.diff_val) + '</div></div></div>'
+    + '<div style="font-size:11px;font-weight:800;color:' + col + ';">' + (Number(h.diff_val) ? '₭' + _huntN(h.diff_val) : _hL('ບໍ່ມີທຶນ', 'ไม่มีทุน')) + '</div></div></div>'
     + _huntHint(h).map(t => '<div style="font-size:11px;color:var(--slate-600);margin-top:2px;">' + escapeHtml(t) + '</div>').join('')
     + (extra || '')
     + (actions ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;">' + actions + '</div>' : '')
