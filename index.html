@@ -28799,7 +28799,8 @@ function varStageHtml(p, isLao) {
       const w = r.who || {};
       let txt = lbl + ': C ' + q(r.c) + _whoSpan(w.c) + ' · V ' + q(r.v) + _whoSpan(w.v) + (r.t !== null ? ' · CTL ' + r.t + _whoSpan(w.t) : '') + (r.m !== null ? ' · BCS ' + r.m + _whoSpan(w.m) : '');
       let sty = 'background:white;color:var(--slate-700);border:1px solid var(--slate-300);';
-      if (r.st === 'diff') { txt += ' ⚠️'; sty = 'background:var(--amber-50);color:var(--amber-700);border:1px solid var(--amber-500);'; }
+      if (r.st === 'diff' && st.key !== 'need_ctl') txt += ' ≠';
+      else if (r.st === 'diff') { txt += ' ⚠️'; sty = 'background:var(--amber-50);color:var(--amber-700);border:1px solid var(--amber-500);'; }
       else if (r.st === 'wait_v' || r.st === 'wait_c') sty = 'background:transparent;color:var(--slate-500);border:1px dashed var(--slate-300);';
       else if (r.st === 'ok') txt += ' ✓';
       return '<span style="padding:1px 6px;border-radius:4px;font-weight:700;' + sty + '">' + txt + '</span>';
@@ -28828,7 +28829,7 @@ function renderVarianceItem(p, fmt, isLao) {
   const diffSign = p.diff > 0 ? '+' : '';
   
   // Recount badge
-  const recountBadge = p.needsRecount 
+  const recountBadge = (p.needsRecount && varStage(p).key === 'need_ctl') 
     ? `<span style="background:var(--amber-500);color:white;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;margin-left:5px;">🔁 R</span>` 
     : '';
   
@@ -29243,7 +29244,7 @@ async function exportVarianceExcel() {
       'Diff %': p.pct.toFixed(2),
       'Cost (₭)': p.cost_price,
       'Value (₭)': p.value,
-      'Needs Recount': p.needsRecount ? 'Yes' : 'No',
+      'Needs Recount': (p.needsRecount && varStage(p).key === 'need_ctl') ? 'Yes' : 'No',
       'Rounds': p.rounds
     }));
     
@@ -29702,7 +29703,7 @@ function _csumTrackBuild(d) {
     rows.forEach(r => {
       const x = { pid: it.product_id, bc, name, loc: r.loc, floor: r.floor, c: r.c, v: r.v, t: r.t, m: r.m, pos: it.pos_qty, cost };
       if (st === 'need_bcs' && r.t !== null) { x.val = Math.abs((r.t || 0) - (r.c || 0)) * cost; G(r.base).judge.push(x); }
-      else if (r.st === 'diff') { x.gap = Math.abs(r.c - r.v); x.val = x.gap * cost; G(r.base).cv.push(x); }
+      else if (r.st === 'diff') { if (st !== 'need_ctl') return; x.gap = Math.abs(r.c - r.v); x.val = x.gap * cost; G(r.base).cv.push(x); }
       else if (r.st === 'wait_v' && needV) { x.who = 'V'; x.val = Math.abs(it.diff || 0) * cost; G(r.base).wait.push(x); }
       else if (r.st === 'wait_c') { x.who = 'C'; x.val = Math.abs(it.diff || 0) * cost; G(r.base).wait.push(x); }
     });
