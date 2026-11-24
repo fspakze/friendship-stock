@@ -37748,6 +37748,8 @@ async function ctrLoad(quiet) {
     _ctr.at = now;
     _ctrErr = null;
     ctrRender();
+    if (_ctr.judgeReady && _ctr.judgeReady.length && !partial.length && ['ctl', 'admin', 'scc', 'bcs', 'it'].includes(user.role))
+      setTimeout(() => _ctrAutoComplete(_ctr.judgeReady.map(g => g.code)), 0);
   } catch (e) {
     _ctrErr = e;
     log('ctr load error', e);
@@ -37760,8 +37762,31 @@ async function ctrLoad(quiet) {
   }
 }
 
+const _ctrAutoTried = {};   // sid|code → เวลาที่สั่งปิดอัตโนมัติล่าสุด · ไม่ลองซ้ำภายใน 10 นาที (กันวนถ้าสถานะไม่เปลี่ยน)
+const _ctrAutoFail = { has: k => !!_ctrAutoTried[k] && Date.now() - _ctrAutoTried[k] < 600000 };
+let _ctrAutoBusy = false;
+async function _ctrAutoComplete(codes) {
+  if (_ctrAutoBusy || !session) return;
+  _ctrAutoBusy = true;
+  const sid = session.id;
+  let ok = 0;
+  try {
+    for (const code of codes) {
+      _ctrAutoTried[sid + '|' + code] = Date.now();
+      let error = null;
+      try { const r = await sb.rpc('complete_tiebreaker', { p_session_id: sid, p_location_code: code, p_ctl_user_id: user.id }); error = r.error; } catch (e) { error = e; }
+      if (error) { log('ctr auto complete error', code, error); } else ok++;
+    }
+  } finally { _ctrAutoBusy = false; }
+  if (ok) {
+    logActivity('gondola_auto_complete', ok + ' · ' + codes.slice(0, 30).join(', '));
+    showToast(_cL('✅ ປິດຊັ້ນທີ່ຕັດສິນຄົບແລ້ວ ', '✅ ปิดชั้นที่ตัดสินครบแล้ว ') + ok + _cL(' ຊັ້ນ', ' ชั้น'), 'success');
+    setTimeout(() => ctrLoad(true), 300);
+  }
+}
 function ctrCompute(x) {
   const now = x.now;
+  const sid0 = session ? session.id : null;
   // ---- ชั้นวาง: แถวล่าสุดต่อ location (เปิดซ้ำได้หลายแถว) ----
   const latest = {};
   (x.gs || []).forEach(g => { const k = String(g.location_code || '').toUpperCase().trim(); if (k) latest[k] = g; });
@@ -37890,6 +37915,15 @@ function ctrCompute(x) {
     counted: byPhase('counted'), waitstart: byPhase('waitstart'), waitv: byPhase('waitv'),
     idleC: byPhase('counting').filter(g => (g.idle || 0) >= WF_IDLE_MIN), idleV: byPhase('verifying').filter(g => (g.idle || 0) >= WF_IDLE_MIN),
     judgeGon: byPhase('judging').filter(g => g.status === 'tiebreaker_needed'),
+    // ✅ ชั้น "รอตัดสิน" ที่ไม่มีสินค้าค้างตัดสินแล้ว (ตัดสินผ่านงานตามหา/ปุ่ม ⚖️ ครบ) → ปิดเป็นสำเร็จอัตโนมัติ (Ball 2026-11-25 เลิกใช้หน้าตัดสิน)
+    judgeReady: (() => {
+      const busy = new Set();
+      valid.forEach(it => {
+        if (!['need_ctl', 'need_bcs', 'v_skip', 'c_skip'].includes(varStage(it).key)) return;
+        [it.counterLocs, it.verifierLocs, it.ctlLocs, it.managerLocs].forEach(m => Object.keys(m || {}).forEach(k => busy.add(_ctrBase(k))));
+      });
+      return byPhase('judging').filter(g => !busy.has(_ctrBase(g.code)) && !_ctrAutoFail.has(sid0 + '|' + g.code));
+    })(),
     v2List, v2Wait: L('v2_wait').length, v2Need: L('v2_need').length,
     items: { total: valid.length, done: doneN, real: L('cv_real').length, judgeCtl, judgeBcs, waitV, waitC, waitVs: waitSplit(waitV, 'wait_v'), waitCs: waitSplit(waitC, 'wait_c'), pending: pending.length },
     missList, uncA, uncB, uncAList, hunt, ppl
