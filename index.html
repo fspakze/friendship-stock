@@ -27367,7 +27367,7 @@ async function loadDashboard() {
   // ---------- 1) ความคืบหน้า Gondola ----------
   let wf = [];
   try {
-    const { data } = await sb.from('v_gondola_progress').select('location_code, status, opened_at').eq('session_id', session.id).order('opened_at', { ascending: false });
+    const data = await fetchAllQuery(() => sb.from('v_gondola_progress').select('id, location_code, status, opened_at').eq('session_id', session.id).order('opened_at', { ascending: false }).order('id'));
     const seen = new Set();
     wf = (data || []).filter(r => { const k = String(r.location_code || '').toUpperCase(); if (seen.has(k)) return false; seen.add(k); return true; }).filter(r => r.status !== 'closed');
   } catch (e) { log('dash wf error', e); }
@@ -27663,17 +27663,18 @@ async function computeVarianceItems(periodOverride) {
     }
     
     // โหลด stock_counts ของ branch (กับ products) — fetchAllQuery กัน limit 1000 (variance ต้องเห็นครบ)
+    // 📉 ลดข้อมูล (Ball 2026-11-24): เลือกเฉพาะคอลัมน์ที่ใช้ (เดิม * ~30 คอลัมน์) + ข้อมูลสินค้าดึงแยก แคช 10 นาที
+    //    (ศูนย์ควบคุมรีเฟรชทุก 2 นาที — เดิม join products ทุกแถวทุกครั้ง ≈ 1/3 ของข้อมูล)
     const counts = await fetchAllQuery(() => {
       let query = sb.from('stock_counts')
-        .select(`
-          *,
-          products(barcode, name_th, name_lo, unit_th, unit_lo, pos_qty, cost_price, sell_price, is_active)
-        `)
+        .select(VAR_SC_COLS)
         .eq('branch_id', branch.id);
       if (sessionFilter) query = query.eq('session_id', sessionFilter);
       if (dateFilter) query = query.gte('counted_at', dateFilter);
       return query.order('counted_at', { ascending: false }).order('id');
     });
+    const _pm = await _varProdMap([...new Set((counts || []).map(c => c.product_id).filter(x => x != null))]);
+    (counts || []).forEach(c => { c.products = _pm[c.product_id] || null; });
     
     // Pivot: รวม counts ของ product เดียวกัน (counter, verifier, ctl, manager)
     // จัด priority: manager_final > ctl_tiebreaker > verifier > counter (newest)
@@ -27734,7 +27735,7 @@ async function computeVarianceItems(periodOverride) {
     _varVDone = _vDoneNow;
     if (sessionFilter) {
       try {
-        const { data: gp } = await sb.from('v_gondola_progress').select('location_code, status, opened_at').eq('session_id', sessionFilter);
+        const gp = await fetchAllQuery(() => sb.from('v_gondola_progress').select('id, location_code, status, opened_at').eq('session_id', sessionFilter).order('id'));
         const lastSt = {};
         (gp || []).forEach(r => { const k = String(r.location_code || ''); if (!lastSt[k] || String(r.opened_at || '') > String(lastSt[k].opened_at || '')) lastSt[k] = r; });
         Object.values(lastSt).forEach(r => { if (r.status === 'open_for_counting') _gonOpen.add(floorBaseCode(String(r.location_code || '').toUpperCase().trim())); });
@@ -27859,6 +27860,23 @@ async function computeVarianceItems(periodOverride) {
   }
 }
 let _varCalc = null;   // { sid, at, items } ผลคำนวณรอบล่าสุด
+// คอลัมน์ stock_counts ที่ใช้จริง (ตัด updated_at / approved_* / sheet_serial_no / variance_level_reason / has_photo / zone — ไม่มีโค้ดอ่าน)
+const VAR_SC_COLS = 'id, product_id, session_id, branch_id, user_id, count_role, counted_qty, counted_at, location_code, gondola_code, zone_id, pos_qty_snapshot, diff, variance_level, status, workflow_status, is_markdown, note, photo_url';
+const VAR_PROD_TTL = 10 * 60000;
+let _varProd = { bid: null, at: 0, map: {} };
+// ข้อมูลสินค้า (ชื่อ/หน่วย/POS/ทุน) — แคชต่อสาขา 10 นาที · ดึงเฉพาะตัวที่ยังไม่มี · chunk fail = throw (ห้ามข้อมูลหายเงียบ · MEMORY 26)
+async function _varProdMap(ids) {
+  const now = Date.now();
+  if (_varProd.bid !== branch.id || now - _varProd.at > VAR_PROD_TTL) _varProd = { bid: branch.id, at: now, map: {}, got: new Set() };
+  const need = ids.filter(id => !_varProd.got.has(id));
+  for (let i = 0; i < need.length; i += 300) {
+    const part = need.slice(i, i + 300);
+    const rows = await _sbSel(() => sb.from('products').select('id, barcode, name_th, name_lo, unit_th, unit_lo, pos_qty, cost_price, sell_price, is_active').in('id', part));
+    rows.forEach(p => { const { id, ...rest } = p; _varProd.map[id] = rest; });
+    part.forEach(id => _varProd.got.add(id));   // ไม่เจอ = สินค้าถูกลบ (orphan) · จำไว้ ไม่ดึงซ้ำ
+  }
+  return _varProd.map;
+}
 
 async function loadVarianceReport() {
   if (!session && _varianceFilter.period === 'session') {
@@ -34008,7 +34026,7 @@ async function exportToExcel(mode = 'full') {
       `).eq('session_id', session.id).order('counted_at', { ascending: false }))
         .then(data => ({ data })),
       
-      sb.from('v_gondola_progress').select('*').eq('session_id', session.id).order('location_code'),
+      fetchAllQuery(() => sb.from('v_gondola_progress').select('*').eq('session_id', session.id).order('location_code').order('id')).then(data => ({ data })),
       
       sb.from('expiry_damage_log').select(`
         *, products(barcode, name_th, name_lo, sell_price), users(full_name)
@@ -37163,7 +37181,7 @@ async function loadCoverageGaps() {
   // สถานะ Gondola ล่าสุด
   const stOf = {};
   try {
-    const { data } = await sb.from('v_gondola_progress').select('location_code, status, opened_at').eq('session_id', session.id).order('opened_at', { ascending: false });
+    const data = await fetchAllQuery(() => sb.from('v_gondola_progress').select('id, location_code, status, opened_at').eq('session_id', session.id).order('opened_at', { ascending: false }).order('id'));
     (data || []).forEach(r => { const k = String(r.location_code || '').toUpperCase(); if (k && !(k in stOf)) stOf[k] = r.status; });
   } catch (e) { log('coverage status error', e); }
   _covData = _covBuild(items, stOf);
@@ -37247,10 +37265,10 @@ async function loadWorkflowList() {
 
   log('Loading workflow list');
   
-  const { data, error } = await sb.from('v_gondola_progress')
-    .select('*')
-    .eq('session_id', session.id)
-    .order('opened_at', { ascending: false });
+  // ⚠️ SUPERMART มี 1,114 ชั้น → ดึงทีละหน้า (เดิมได้แค่ 1,000 แถว · Ball 2026-11-24)
+  let data = null, error = null;
+  try { data = await fetchAllQuery(() => sb.from('v_gondola_progress').select('*').eq('session_id', session.id).order('opened_at', { ascending: false }).order('id')); }
+  catch (e) { error = e; }
   
   if (error) {
     log('Workflow error:', error);
