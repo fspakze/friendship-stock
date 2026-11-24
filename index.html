@@ -26159,13 +26159,35 @@ async function vfCounterPhase(sid) {
       active = true;
     } else if (r.status) done.add(b);
   });
-  return { done, active, stale };
+  // 🏁 Counter นับครบทั้งร้าน = ทุกชั้นในรายชื่อชั้นวาง (location_master) นับเสร็จแล้ว (หรือเปิดค้างไม่มีคนเริ่ม = stale)
+  //    เดิมใช้ "ไม่มีชั้นไหนกำลังนับ" → นับ WH ก่อนเปิดหน้าร้าน = เข้าใจว่าครบ → ส่งของขาดใน WH ให้ V เกือบหมด (Ball 2026-11-24 · โพนบก)
+  const busy = new Set(), seen = new Set();
+  (rows || []).forEach(r => {
+    if (r.status === 'closed') return;
+    const b = floorBaseCode(String(r.location_code || '').toUpperCase().trim());
+    seen.add(b);
+    if (VF_C_ACTIVE.includes(r.status) && !stale.includes(b)) busy.add(b);
+  });
+  let allDone = !active;
+  try {
+    const master = await _vfMasterBases();
+    if (master.size) allDone = [...master].every(b => (seen.has(b) && !busy.has(b)) || stale.includes(b));
+  } catch (e) { allDone = false; }   // ดึงรายชื่อชั้นไม่ได้ = ถือว่ายังนับไม่ครบ (พักไว้ ไม่ส่ง V เกิน)
+  return { done, active, stale, allDone };
+}
+let _vfMaster = null;   // { bid, at, set } รายชื่อชั้นวางของสาขา · แคช 10 นาที
+async function _vfMasterBases() {
+  if (_vfMaster && _vfMaster.bid === branch.id && Date.now() - _vfMaster.at < 600000) return _vfMaster.set;
+  const locs = await fetchAllQuery(() => sb.from('location_master').select('id, location_code').eq('branch_id', branch.id).eq('is_active', true).order('id'));
+  const set = new Set((locs || []).map(r => floorBaseCode(String(r.location_code || '').toUpperCase().trim())).filter(b => b && b !== '?'));
+  _vfMaster = { bid: branch.id, at: Date.now(), set };
+  return set;
 }
 // cTot = ยอด Counter รวมทุกจุด · pogSet = ชั้นตาม Pan-O-Gram · cBases = ชั้นที่ Counter นับเจอ · phase = vfCounterPhase
 function vfClassify(cTot, pos, sampled, pogSet, cBases, phase) {
   if (cTot > pos) return 'need';                          // เกินแล้ว — นับที่อื่นเพิ่มก็ยิ่งเกิน
   if (cTot === pos) return sampled ? 'need' : 'skip';
-  if (!phase || !phase.active) return 'need';             // ไม่มีชั้นไหนกำลังนับ = Counter นับครบแล้ว → ขาดจริง
+  if (!phase || phase.allDone) return 'need';             // ทุกชั้นในรายชื่อนับเสร็จแล้ว = Counter นับครบทั้งร้าน → ขาดจริง
   if (pogSet && pogSet.size && [...pogSet].every(b => cBases.has(b) || phase.done.has(b))) return 'need';   // ทุกจุดตาม Pan-O-Gram นับแล้ว
   return 'wait';
 }
