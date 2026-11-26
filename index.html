@@ -26151,7 +26151,7 @@ function vfRequired(p) { return !(p && p.diff === 0 && p.isComplete !== false &&
 //   need = นับเลย · skip = ไม่ต้องนับ · wait = รอ Counter นับที่อื่นก่อน (ย้ายขึ้น need เองเมื่อรู้ผล)
 const VF_C_ACTIVE = ['open_for_counting', 'counting'];
 async function vfCounterPhase(sid) {
-  const rows = await fetchAllQuery(() => sb.from('gondola_status').select('id, location_code, status, opened_at, counting_started_at').eq('session_id', sid).order('id'));
+  const rows = await _liveLocs(await fetchAllQuery(() => sb.from('gondola_status').select('id, location_code, status, opened_at, counting_started_at').eq('session_id', sid).order('id')));
   const done = new Set(), stale = []; let active = false;
   const now = Date.now();
   (rows || []).forEach(r => {
@@ -26177,6 +26177,15 @@ async function vfCounterPhase(sid) {
     if (master.size) allDone = [...master].every(b => (seen.has(b) && !busy.has(b)) || stale.includes(b));
   } catch (e) { allDone = false; }   // ดึงรายชื่อชั้นไม่ได้ = ถือว่ายังนับไม่ครบ (พักไว้ ไม่ส่ง V เกิน)
   return { done, active, stale, allDone };
+}
+// 🗑️ ชั้นที่ลบออกจากสาขาแล้ว = ยกเลิก (ไม่สนสถานะที่ค้างในรอบนับ · Ball 2026-11-26) — กรองแถวสถานะชั้นด้วยรายชื่อชั้นที่ใช้งานอยู่
+//    รายชื่อว่าง/ดึงไม่ได้ = ไม่กรอง (กันข้อมูลหายทั้งหมด) · ใช้กับ gondola_status / v_gondola_progress เท่านั้น (ยอดนับ stock_counts ไม่ตัด)
+async function _liveLocs(rows) {
+  if (!rows || !rows.length) return rows || [];
+  let m = null;
+  try { m = await _vfMasterBases(); } catch (e) { return rows; }
+  if (!m || !m.size) return rows;
+  return rows.filter(r => m.has(floorBaseCode(String(r.location_code || '').toUpperCase().trim())));
 }
 let _vfMaster = null;   // { bid, at, set } รายชื่อชั้นวางของสาขา · แคช 10 นาที
 async function _vfMasterBases() {
@@ -27235,10 +27244,9 @@ async function loadHealthAlerts() {
     }
     
     // 🔍 Check 3: Pending Tiebreakers
-    const { count: tbCount } = await sb.from('v_gondola_progress')
-      .select('id', { count: 'exact', head: true })
+    const tbCount = (await _liveLocs(await fetchAllQuery(() => sb.from('v_gondola_progress').select('id, location_code')
       .eq('session_id', session?.id || 0)
-      .eq('status', 'tiebreaker_needed');
+      .eq('status', 'tiebreaker_needed').order('id')))).length;
     
     if (tbCount && tbCount > 0) {
       alerts.push({
@@ -27392,7 +27400,7 @@ async function loadDashboard() {
   // ---------- 1) ความคืบหน้า Gondola ----------
   let wf = [];
   try {
-    const data = await fetchAllQuery(() => sb.from('v_gondola_progress').select('id, location_code, status, opened_at').eq('session_id', session.id).order('opened_at', { ascending: false }).order('id'));
+    const data = await _liveLocs(await fetchAllQuery(() => sb.from('v_gondola_progress').select('id, location_code, status, opened_at').eq('session_id', session.id).order('opened_at', { ascending: false }).order('id')));
     const seen = new Set();
     wf = (data || []).filter(r => { const k = String(r.location_code || '').toUpperCase(); if (seen.has(k)) return false; seen.add(k); return true; }).filter(r => r.status !== 'closed');
   } catch (e) { log('dash wf error', e); }
@@ -27760,7 +27768,7 @@ async function computeVarianceItems(periodOverride) {
     _varVDone = _vDoneNow;
     if (sessionFilter) {
       try {
-        const gp = await fetchAllQuery(() => sb.from('v_gondola_progress').select('id, location_code, status, opened_at').eq('session_id', sessionFilter).order('id'));
+        const gp = await _liveLocs(await fetchAllQuery(() => sb.from('v_gondola_progress').select('id, location_code, status, opened_at').eq('session_id', sessionFilter).order('id')));
         const lastSt = {};
         (gp || []).forEach(r => { const k = String(r.location_code || ''); if (!lastSt[k] || String(r.opened_at || '') > String(lastSt[k].opened_at || '')) lastSt[k] = r; });
         Object.values(lastSt).forEach(r => { if (r.status === 'open_for_counting') _gonOpen.add(floorBaseCode(String(r.location_code || '').toUpperCase().trim())); });
@@ -30374,9 +30382,9 @@ async function gtLoad(force) {
   const sid = (_varianceFilter && _varianceFilter.period === 'round' && _viewRound) ? _viewRound.id : (session && session.id);
   if (!sid) throw new Error(lang === 'lo' ? 'ບໍ່ມີຮອບນັບ' : 'ไม่มีรอบนับ');
   if (!force && _gt && _gt.sid === sid && Date.now() - _gt.at < 180000) return _gt;
-  const gs = await fetchAllQuery(() => sb.from('gondola_status')
+  const gs = await _liveLocs(await fetchAllQuery(() => sb.from('gondola_status')
     .select('id, location_code, status, created_at, updated_at, counting_started_at, counting_finished_at, verifying_started_at, verifying_finished_at, completed_at')
-    .eq('session_id', sid).order('id'));
+    .eq('session_id', sid).order('id')));
   const sc = await fetchAllQuery(() => sb.from('stock_counts')
     .select('id, product_id, user_id, count_role, location_code, gondola_code, counted_at').eq('session_id', sid).order('id'));
   let endTs = new Date().toISOString();
@@ -34078,7 +34086,7 @@ async function exportToExcel(mode = 'full') {
       `).eq('session_id', session.id).order('counted_at', { ascending: false }))
         .then(data => ({ data })),
       
-      fetchAllQuery(() => sb.from('v_gondola_progress').select('*').eq('session_id', session.id).order('location_code').order('id')).then(data => ({ data })),
+      fetchAllQuery(() => sb.from('v_gondola_progress').select('*').eq('session_id', session.id).order('location_code').order('id')).then(_liveLocs).then(data => ({ data })),
       
       sb.from('expiry_damage_log').select(`
         *, products(barcode, name_th, name_lo, sell_price), users(full_name)
@@ -37241,7 +37249,7 @@ async function loadCoverageGaps() {
   // สถานะ Gondola ล่าสุด
   const stOf = {};
   try {
-    const data = await fetchAllQuery(() => sb.from('v_gondola_progress').select('id, location_code, status, opened_at').eq('session_id', session.id).order('opened_at', { ascending: false }).order('id'));
+    const data = await _liveLocs(await fetchAllQuery(() => sb.from('v_gondola_progress').select('id, location_code, status, opened_at').eq('session_id', session.id).order('opened_at', { ascending: false }).order('id')));
     (data || []).forEach(r => { const k = String(r.location_code || '').toUpperCase(); if (k && !(k in stOf)) stOf[k] = r.status; });
   } catch (e) { log('coverage status error', e); }
   _covData = _covBuild(items, stOf);
@@ -37327,7 +37335,7 @@ async function loadWorkflowList() {
   
   // ⚠️ SUPERMART มี 1,114 ชั้น → ดึงทีละหน้า (เดิมได้แค่ 1,000 แถว · Ball 2026-11-24)
   let data = null, error = null;
-  try { data = await fetchAllQuery(() => sb.from('v_gondola_progress').select('*').eq('session_id', session.id).order('opened_at', { ascending: false }).order('id')); }
+  try { data = await _liveLocs(await fetchAllQuery(() => sb.from('v_gondola_progress').select('*').eq('session_id', session.id).order('opened_at', { ascending: false }).order('id'))); }
   catch (e) { error = e; }
   
   if (error) {
