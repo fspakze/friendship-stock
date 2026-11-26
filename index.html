@@ -26207,7 +26207,7 @@ async function _locBadCodes(codes) {
   let m = null;
   try { m = await _vfMasterBases(); } catch (e) { return []; }
   if (!m || !m.size) return [];
-  const norm = b => String(b).replace(/^([A-Z]+)0+(\d)/, '$1$2');
+  const norm = b => String(b).replace(/O(?=[0O]*\d)|(?<=\d)O/g, '0').replace(/^([A-Z]+)0+(\d)/, '$1$2');   // O↔0 (WHO6=WH06) + 0 นำหน้า (W009=W09)
   const out = [];
   [...new Set((codes || []).map(c => String(c || '').toUpperCase().trim()).filter(c => c && c !== '?'))].forEach(c => {
     const b = floorBaseCode(c);
@@ -26609,7 +26609,7 @@ function varDupSuspect(it) {
   Object.values(byB).forEach(a => {
     if (a.length === 2 && a.some(([lk]) => isFloorCode(lk)) && a[0][1] === a[1][1]) out.push(_cL('ຊັ້ນ = ພື້ນ ', 'ชั้น = พื้น ') + a[0][1] + ' (' + a.map(e => e[0]).join(' / ') + ')');
   });
-  const norm = b => String(b).replace(/^([A-Z]+)0+(\d)/, '$1$2');
+  const norm = b => String(b).replace(/O(?=[0O]*\d)|(?<=\d)O/g, '0').replace(/^([A-Z]+)0+(\d)/, '$1$2');   // O↔0 (WHO6=WH06) + 0 นำหน้า (W009=W09)
   const seen = {};
   Object.keys(byB).filter(b => b !== '?').forEach(b => { const n = norm(b); (seen[n] = seen[n] || []).push(b); });
   Object.values(seen).filter(a => a.length > 1).forEach(a => out.push(_cL('ລະຫັດຊັ້ນຊ້ຳ ', 'รหัสชั้นซ้ำ ') + a.join(' / ')));
