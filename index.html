@@ -38997,7 +38997,17 @@ async function _huntLocState(pid) {
   (rows || []).forEach(r => { const lk = String(r.location_code || '').toUpperCase().trim(); if (!lk) return; const k = G(r.count_role) + '|' + lk; if (!last[k] || r.counted_at > last[k].counted_at) last[k] = r; });
   const cur = {};
   const locs = [...new Set(Object.keys(last).map(k => k.split('|')[1]))];
-  locs.forEach(lk => { const r = ['M', 'T', 'V', 'C'].map(g => last[g + '|' + lk]).find(Boolean); cur[lk] = r ? Number(r.counted_qty) || 0 : 0; });
+  // 🧮 C/V นับคนละโหมด (C=พื้น · V=ชั้น หรือกลับกัน) ในฐานเดียวกัน = ของชุดเดียวกัน → ใช้ชุดจุดของ role สูงสุดอย่างเดียว ไม่บวกข้าม role (ตรง cvFinalCount · Ball 2026-11-27 Kidmania 04A01=18 + 04A01-FL=18 → อนุมัติตามหาเป็น 36)
+  const byB = {};
+  locs.forEach(lk => { const b = _cvBase(lk); (byB[b] = byB[b] || []).push(lk); });
+  Object.values(byB).forEach(ls => {
+    const set = g => ls.filter(lk => last[g + '|' + lk]).sort().join('|');
+    const cK = set('C'), vK = set('V');
+    if (cK && vK && cK !== vK) {
+      const top = ['M', 'T', 'V', 'C'].find(g => set(g));
+      ls.forEach(lk => { if (last[top + '|' + lk]) cur[lk] = Number(last[top + '|' + lk].counted_qty) || 0; });
+    } else ls.forEach(lk => { const r = ['M', 'T', 'V', 'C'].map(g => last[g + '|' + lk]).find(Boolean); cur[lk] = r ? Number(r.counted_qty) || 0 : 0; });
+  });
   return cur;
 }
 async function huntOpenWork(id) {
