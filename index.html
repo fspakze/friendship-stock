@@ -38432,7 +38432,7 @@ function _huntGateNote() {
   return '<div style="background:var(--sky-50, #f0f9ff);border:1px solid var(--sky-200, #bae6fd);border-radius:10px;padding:8px 10px;margin-bottom:8px;font-size:11px;color:var(--sky-800, #075985);font-weight:700;line-height:1.5;">⏳ '
     + _hL('ງານຕາມຫາລໍຖ້າ Counter ນັບຮອບທຳອິດຄົບທັງຮ້ານ (ຍົກເວັ້ນງານລໍຖ້າ CTL ຕັດສິນ ເຮັດໄດ້ເລີຍ): ', 'งานตามหารอ Counter นับรอบแรกครบทั้งร้าน (ยกเว้นงานรอ CTL ตัดสิน ทำได้เลย): ')
     + _hL('ຍັງບໍ່ເປີດ ', 'ยังไม่เปิด ') + g.notOpen.length + _hL(' ຊັ້ນ · ກຳລັງນັບ ', ' ชั้น · กำลังนับ ') + g.counting.length + _hL(' ຊັ້ນ', ' ชั้น')
-    + '<br><span style="font-weight:600;color:var(--slate-600);">' + _hL('ຫຼັງນັບຄົບ: ບໍ່ໄດ້ນັບ A ເຂົ້າຄິວເມື່ອ Verifier ປິດຊັ້ນນັ້ນແລ້ວ', 'หลังนับครบ: ไม่ได้นับ A เข้าคิวเมื่อ Verifier ปิดชั้นนั้นแล้ว') + '</span></div>';
+    + '<br><span style="font-weight:600;color:var(--slate-600);">' + _hL('ຫຼັງນັບຄົບ: ບໍ່ໄດ້ນັບ A/B ເຂົ້າຄິວທັນທີ', 'หลังนับครบ: ไม่ได้นับ A/B เข้าคิวทันที') + '</span></div>';
 }
 
 // 🚫 งานว่างที่มีคน "ไม่พบ" ครบตามเกณฑ์ (ตอนนี้ 1 คน) → รออนุมัติ · เรียกทุกครั้งที่หัวหน้าโหลดหน้า (ไม่ต้องรอ sync 3 นาที · Ball 2026-11-23)
@@ -38477,7 +38477,7 @@ async function huntSync(quiet) {
   // ⏳ สินค้า "ไม่ได้นับ": รอนับรอบแรกครบทั้งร้าน (เดิม SALAKHAM ขึ้น 1,499 งานตั้งแต่ยังไม่เปิด 59 ชั้น) · A ต้องให้ Verifier ปิดชั้นที่ควรอยู่ด้วย
   (d.uncA || []).concat(d.uncB || []).forEach(r => {
     if (!(r.pos > 0)) return;   // 📦 ไม่ได้นับ = ตามหาทุกตัวที่มีสต๊อก ไม่ดูเกณฑ์มูลค่า/ต้นทุน (Ball 2026-11-22)
-    if (!gate.bOpen || (r.grpKey === 'A' && !(r.hitGons || []).every(g => gate.vDone.has(g)))) return;
+    if (!gate.bOpen) return;   // A ไม่ต้องรอ Verifier ปิดชั้น — รายการของ V มีแค่สินค้าที่ C นับเจอในชั้นนั้น (ไม่ได้นับ = V ไม่ได้นับให้อยู่แล้ว · Ball 2026-11-26)
     cand.push({ pid: r.pid, kind: r.grpKey === 'A' ? 'unc_a' : 'unc_b', pos: r.pos, cur: null, diff: -r.pos, val: -r.posV, name: r.name, hint: { pog: (r.grpKey === 'A' ? r.hitGons.join(', ') : r.pogGons) || '', buy: r.lastBuy || '', buyNew: recent(r.lastBuy) } });
   });
   // 🔀 ขายสลับรหัส: ขาด X = เกิน X ของอีกตัว (ชื่อขึ้นต้นเหมือนกัน)
