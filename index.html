@@ -26565,6 +26565,38 @@ function cvFinalCount(roleLocs) {
   });
   return total;
 }
+// ⚠️ สงสัยยอดเบิ้ล (Ball 2026-11-27 · ท่าหลวง 38 ตัว) — ดูจากจุดที่ใช้คิดยอดสุดท้ายจริง (ตรรกะเดียวกับ cvFinalCount) → คืนเหตุผล หรือ ''
+//    (1) มีจุด "?" (นับไม่เลือกชั้น) ร่วมกับชั้นจริง (2) ชั้นกับพื้นของฐานเดียวกันยอดเท่ากันเป๊ะ (3) รหัสชั้นซ้ำแบบพิมพ์ผิด (W10 / W010)
+function varDupSuspect(it) {
+  const roleLocs = { manager: it.managerLocs, ctl: it.ctlLocs, verifier: it.verifierLocs, counter: it.counterLocs };
+  const byBase = {};
+  _CV_ORDER.forEach(r => Object.entries(roleLocs[r] || {}).forEach(([lk, row]) => {
+    const q = (row && typeof row === 'object') ? (Number(row.counted_qty) || 0) : (Number(row) || 0);
+    const x = byBase[_cvBase(lk)] = byBase[_cvBase(lk)] || {};
+    (x[r] = x[r] || {})[lk] = q;
+  }));
+  const used = {};
+  Object.values(byBase).forEach(x => {
+    const cK = x.counter ? Object.keys(x.counter).sort().join('|') : null;
+    const vK = x.verifier ? Object.keys(x.verifier).sort().join('|') : null;
+    if (cK !== null && vK !== null && cK !== vK) { const r = _CV_ORDER.find(k => x[k]); Object.assign(used, x[r]); }
+    else new Set(_CV_ORDER.flatMap(k => Object.keys(x[k] || {}))).forEach(lk => { const r = _CV_ORDER.find(k => x[k] && x[k][lk] !== undefined); used[lk] = x[r][lk]; });
+  });
+  const pos = Object.entries(used).filter(([, q]) => q > 0);
+  const out = [];
+  const noLoc = pos.find(([lk]) => lk === '?' || lk === '');
+  if (noLoc && pos.length > 1) out.push(_cL('ມີຈຸດ "?" (ນັບບໍ່ເລືອກຊັ້ນ) ', 'มีจุด "?" (นับไม่เลือกชั้น) ') + noLoc[1]);
+  const byB = {};
+  pos.forEach(([lk, q]) => { (byB[_cvBase(lk)] = byB[_cvBase(lk)] || []).push([lk, q]); });
+  Object.values(byB).forEach(a => {
+    if (a.length === 2 && a.some(([lk]) => isFloorCode(lk)) && a[0][1] === a[1][1]) out.push(_cL('ຊັ້ນ = ພື້ນ ', 'ชั้น = พื้น ') + a[0][1] + ' (' + a.map(e => e[0]).join(' / ') + ')');
+  });
+  const norm = b => String(b).replace(/^([A-Z]+)0+(\d)/, '$1$2');
+  const seen = {};
+  Object.keys(byB).filter(b => b !== '?').forEach(b => { const n = norm(b); (seen[n] = seen[n] || []).push(b); });
+  Object.values(seen).filter(a => a.length > 1).forEach(a => out.push(_cL('ລະຫັດຊັ້ນຊ້ຳ ', 'รหัสชั้นซ้ำ ') + a.join(' / ')));
+  return out.join(' · ');
+}
 // 📍 C/V แยกรายจุด (Ball 2026-11-16 · SOMERSBY: C 54 vs V 10 เพราะ V ยังไม่นับ 2 จุด — ต้องเห็นรายจุด)
 //   ต่อฐาน gondola: นับโหมดเดียวกัน → แยกทีละจุด (ชั้น / พื้น) · คนละโหมด → 1 แถวยอดรวมชั้น+พื้น (floor = null)
 //   st: ok = C=V · diff = C≠V (รอ CTL) · wait_v / wait_c = อีกคนยังไม่นับจุดนี้ · judged = CTL/BCS นับแล้ว
@@ -29601,7 +29633,8 @@ async function csumLoad(force) {
         gonN: new Set(gons.map(k => floorBaseCode(String(k || '').toUpperCase().trim())).filter(b => b && b !== '?')).size,
         c: it.counter_qty, v: it.verifier_qty, t: it.ctl_qty, mgr: it.manager_qty
       }, f);
-      r.hint = _csumHint(r);
+      r.dup = it.diff > 0 ? varDupSuspect(it) : '';
+      r.hint = r.dup ? '⚠️ ' + _csumL('ສົງໄສຍອດຊ້ຳ: ', 'สงสัยยอดเบิ้ล: ') + r.dup + _csumL(' → ກວດຂອງຈິງ ແລ້ວຕັດສິນໃໝ່', ' → ดูของจริง แล้วตัดสินใหม่') : _csumHint(r);
       return r;
     });
 
@@ -30092,8 +30125,9 @@ function _csumDiffHtml(d, isLao) {
       + '<div style="font-size:9px;color:var(--slate-500);margin-top:2px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">'
       + '<span style="background:' + st.b + ';color:' + st.c + ';border-radius:5px;padding:0 5px;font-weight:800;">' + st.t + '</span>'
       + (r.unc ? '' : '<span>C ' + q(r.c) + ' · V ' + q(r.v) + (r.t != null ? ' · CTL ' + r.t : '') + (r.mgr != null ? ' · BCS ' + r.mgr : '') + '</span>')
-      + (r.posClosed ? '<span style="color:var(--rose-600, #e11d48);font-weight:700;">⛔ ' + L('ປິດຂາຍ', 'ปิดขาย') + '</span>' : '') + '</div>'
-      + (r.hint ? '<div style="font-size:9px;color:var(--amber-700, #b45309);margin-top:2px;">💡 ' + escapeHtml(r.hint) + '</div>' : '') + '</div>'
+      + (r.posClosed ? '<span style="color:var(--rose-600, #e11d48);font-weight:700;">⛔ ' + L('ປິດຂາຍ', 'ปิดขาย') + '</span>' : '')
+      + (r.dup ? '<span style="background:var(--rose-100, #ffe4e6);color:var(--rose-700, #be123c);border-radius:5px;padding:0 5px;font-weight:800;">⚠️ ' + L('ສົງໄສຍອດຊ້ຳ', 'สงสัยยอดเบิ้ล') + '</span>' : '') + '</div>'
+      + (r.hint ? '<div style="font-size:9px;color:' + (r.dup ? 'var(--rose-700, #be123c);font-weight:700' : 'var(--amber-700, #b45309)') + ';margin-top:2px;">' + (r.dup ? '' : '💡 ') + escapeHtml(r.hint) + '</div>' : '') + '</div>'
       + '<div style="text-align:right;flex-shrink:0;font-family:\'Space Grotesk\',monospace;">'
       + '<div style="font-size:14px;font-weight:800;color:' + col + ';">' + (neg ? '' : '+') + N(r.diff) + '</div>'
       + '<div style="font-size:10px;color:var(--slate-500);">POS ' + N(r.pos) + ' → ' + N(r.fin) + '</div>'
