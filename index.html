@@ -25081,7 +25081,7 @@ async function saveCount() {
   }
 
   // ⭐ ตอนเปิดรอบนับสต๊อก + Counter/Verifier บนสาขาปิดโซน → ห้ามบันทึกถ้ายังไม่เลือก Gondola (กันเลี่ยงด้วยการล้าง location) (Ball 2026-07-08)
-  if (_countMenuEnabled && branch?.use_zones === false && !loc) {   // ทุกตำแหน่ง (เดิมเฉพาะ C/V/Audit · 2026-11-27 Suea นับไม่เลือกชั้น → ยอดลงจุด "?" บวกซ้ำกับชั้นจริง)
+  if ((_countMenuEnabled || (session && session.id && ['bcs', 'admin', 'scc', 'ctl', 'it'].includes(user.role))) && branch?.use_zones === false && !loc) {   // BCS/ผจก. = ต้องเลือกชั้นทุกครั้งที่มีรอบนับ   // ทุกตำแหน่ง (เดิมเฉพาะ C/V/Audit · 2026-11-27 Suea นับไม่เลือกชั้น → ยอดลงจุด "?" บวกซ้ำกับชั้นจริง)
     showToast(lang === 'lo' ? '⚠️ ກະລຸນາເລືອກ Gondola ກ່ອນບັນທຶກ' : '⚠️ กรุณาเลือก Gondola ก่อนบันทึก', 'warning');
     openQuickLocPicker(true);
     return;
@@ -26201,6 +26201,24 @@ async function _liveLocs(rows) {
   try { m = await _vfMasterBases(); } catch (e) { return rows; }
   if (!m || !m.size) return rows;
   return rows.filter(r => m.has(floorBaseCode(String(r.location_code || '').toUpperCase().trim())));
+}
+// 🔤 ตรวจรหัสชั้นที่พิมพ์เอง (Ball 2026-11-27 · W09 พิมพ์เป็น W009) → คืน [{ code, hint }] ตัวที่ไม่มีในรายชื่อชั้นของสาขา · รายชื่อดึงไม่ได้/ว่าง = ไม่ตรวจ
+async function _locBadCodes(codes) {
+  let m = null;
+  try { m = await _vfMasterBases(); } catch (e) { return []; }
+  if (!m || !m.size) return [];
+  const norm = b => String(b).replace(/^([A-Z]+)0+(\d)/, '$1$2');
+  const out = [];
+  [...new Set((codes || []).map(c => String(c || '').toUpperCase().trim()).filter(c => c && c !== '?'))].forEach(c => {
+    const b = floorBaseCode(c);
+    if (m.has(b)) return;
+    const near = [...m].find(x => norm(x) === norm(b));
+    out.push({ code: c, hint: near ? near + (isFloorCode(c) ? FLOOR_SUFFIX : '') : '' });
+  });
+  return out;
+}
+function _locBadMsg(bad) {
+  return '❌ ' + _cL('ບໍ່ມີຊັ້ນ ', 'ไม่มีชั้น ') + bad.map(b => b.code + (b.hint ? ' (' + _cL('ແມ່ນ ', 'ใช่ ') + b.hint + '?)' : '')).join(', ') + _cL(' ໃນສາຂານີ້ — ກວດລະຫັດຊັ້ນອີກຄັ້ງ', ' ในสาขานี้ — ตรวจรหัสชั้นอีกครั้ง');
 }
 let _vfMaster = null;   // { bid, at, set } รายชื่อชั้นวางของสาขา · แคช 10 นาที
 async function _vfMasterBases() {
@@ -29224,6 +29242,7 @@ async function varJudgeSave(productId) {
   else if (exLoc || exQty !== '') { showToast(L('ຈຸດອື່ນ: ໃສ່ທັງລະຫັດຈຸດ ແລະ ຈຳນວນ', 'จุดอื่น: ใส่ทั้งรหัสจุดและจำนวน'), 'warning'); return; }
   if (!entries.length) { showToast(L('ໃສ່ຍອດຢ່າງໜ້ອຍ 1 ຈຸດ', 'ใส่ยอดอย่างน้อย 1 จุด'), 'warning'); return; }
   if (entries.some(e => isNaN(e.qty) || e.qty < 0)) { showToast(L('ຈຳນວນບໍ່ຖືກ', 'จำนวนไม่ถูก'), 'warning'); return; }
+  if (exLoc) { const bl = await _locBadCodes([exLoc]); if (bl.length) { showToast(_locBadMsg(bl), 'error'); return; } }
   const btn = document.getElementById('vjSaveBtn'); if (btn) btn.disabled = true;
   const _role = _ccMyRole();   // ctl → ctl_tiebreaker · admin/scc/bcs → manager_final
   const note = (_role === 'ctl_tiebreaker' ? 'CTL ' : 'BCS ') + L('ຕັດສິນຈາກລາຍງານ', 'ตัดสินจากรายงาน');
@@ -39185,6 +39204,7 @@ async function huntSubmit() {
   if (bad.length) { showToast(_hL('ຈຸດອື່ນ: ໃສ່ທັງລະຫັດຈຸດ ແລະ ຈຳນວນ', 'จุดอื่น: ใส่ทั้งรหัสจุดและจำนวน'), 'warning'); return; }
   if (!list.length) { showToast(_hL('ໃສ່ຍອດຢ່າງໜ້ອຍ 1 ຈຸດ', 'ใส่ยอดอย่างน้อย 1 จุด'), 'warning'); return; }
   if (list.some(e => isNaN(e.qty) || e.qty < 0)) { showToast(_hL('ຈຳນວນບໍ່ຖືກ', 'จำนวนไม่ถูก'), 'warning'); return; }
+  { const bl = await _locBadCodes(list.filter(e => !(e.loc in w.cur) && !(w.locs || []).includes(e.loc)).map(e => e.loc)); if (bl.length) { showToast(_locBadMsg(bl), 'error'); return; } }
   const btn = document.getElementById('hwSubmit'); if (btn) btn.disabled = true;
   const ok = await _huntUpdate(w.h.id, { status: 'submitted', found: list, found_total: _huntNewTotal(list), submitted_at: new Date().toISOString(), review_note: w.manualConfirm ? 'NOSCAN' : (w.noScan && !w.scanned ? 'NOSCAN_A' : null) }, ['claimed']);
   if (btn) btn.disabled = false;
@@ -39334,6 +39354,7 @@ async function huntApprove(id) {
   if (!list.length && h.status === 'notfound') list.push({ loc: '', qty: 0 });   // ไม่พบ + ไม่มีจุด → บันทึก 0 ไม่ระบุจุด (แบบ csumConfirmZero)
   if (!list.length) { showToast(_hL('ໃສ່ຍອດຢ່າງໜ້ອຍ 1 ຈຸດ', 'ใส่ยอดอย่างน้อย 1 จุด'), 'warning'); return; }
   if (list.some(e => isNaN(e.qty) || e.qty < 0)) { showToast(_hL('ຈຳນວນບໍ່ຖືກ', 'จำนวนไม่ถูก'), 'warning'); return; }
+  { const w0 = _huntWork || {}; const bl = await _locBadCodes(list.filter(e => e.loc && !(e.loc in (w0.cur || {})) && !(w0.locs || []).includes(e.loc)).map(e => e.loc)); if (bl.length) { showToast(_locBadMsg(bl), 'error'); return; } }
   const btn = document.getElementById('hwApprove'); if (btn) btn.disabled = true;
   const ok = await _huntWrite(h, list);
   if (btn) btn.disabled = false;
