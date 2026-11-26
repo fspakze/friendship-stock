@@ -29193,7 +29193,7 @@ function varJudgeOpen(productId, pOverride, blind) {
     + '<div style="font-size:13px;font-weight:700;">' + escapeHtml(name) + '</div>'
     + '<div style="font-size:11px;color:var(--slate-500);font-family:monospace;margin-bottom:8px;">' + escapeHtml(p.product?.barcode || '') + (blind ? '' : ' · POS ' + (p.pos_qty || 0) + (p.final_qty != null ? ' · ' + L('ຍອດຕອນນີ້ ', 'ยอดตอนนี้ ') + p.final_qty : '')) + '</div>'
     + '<div style="font-size:11px;color:var(--slate-600);background:var(--slate-50);border-radius:8px;padding:7px 9px;margin-bottom:6px;line-height:1.5;">'
-    + L('ນັບເອງແລ້ວໃສ່ຍອດ <b>ທຸກຈຸດທີ່ມີຂອງ</b> · ຈຸດທີ່ບໍ່ມີຂອງ ໃສ່ 0 · ເວັ້ນວ່າງ = ບໍ່ປ່ຽນຈຸດນັ້ນ', 'นับเองแล้วใส่ยอด <b>ทุกจุดที่มีของ</b> · จุดที่ไม่มีของ ใส่ 0 · เว้นว่าง = ไม่เปลี่ยนจุดนั้น') + '</div>'
+    + L('ນັບເອງແລ້ວໃສ່ຍອດ <b>ທຸກຈຸດທີ່ມີຂອງ</b> · ຈຸດທີ່ບໍ່ມີຂອງ ໃສ່ 0 ຫຼື ເວັ້ນວ່າງ (ເວັ້ນວ່າງ = 0)', 'นับเองแล้วใส่ยอด <b>ทุกจุดที่มีของ</b> · จุดที่ไม่มีของ ใส่ 0 หรือเว้นว่าง (เว้นว่าง = 0)') + '</div>'
     + '<div style="max-height:44vh;overflow-y:auto;">' + rows
     + '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;">'
     + '<input id="vjExtraLoc" type="text" placeholder="' + L('+ ຈຸດອື່ນ (ເຊັ່ນ WH05)', '+ จุดอื่น (เช่น WH05)') + '" style="flex:1;min-width:0;padding:10px;border:1px dashed var(--slate-300);border-radius:9px;font-size:13px;text-transform:uppercase;font-family:\'Space Grotesk\',monospace;">'
@@ -29205,7 +29205,7 @@ function varJudgeOpen(productId, pOverride, blind) {
   _vjFillWho();
   const upd = () => {
     let s = 0, n = 0;
-    document.querySelectorAll('.vjQty').forEach(i => { if (i.value !== '') { s += Number(i.value) || 0; n++; } });
+    document.querySelectorAll('.vjQty').forEach(i => { s += Number(i.value) || 0; n++; });   // ช่องว่าง = 0
     const ex = document.getElementById('vjExtraQty'); if (ex && ex.value !== '') { s += Number(ex.value) || 0; n++; }
     const el = document.getElementById('vjSum');
     if (el) el.innerHTML = (n && blind) ? (L('ລວມທີ່ໃສ່ ', 'รวมที่ใส่ ') + s) : n ? (L('ລວມທີ່ໃສ່ ', 'รวมที่ใส่ ') + s + ' · POS ' + (p.pos_qty || 0) + ' → ' + L('ຕ່າງ ', 'ต่าง ') + (s - (p.pos_qty || 0) > 0 ? '+' : '') + (s - (p.pos_qty || 0))) : '';
@@ -29217,7 +29217,7 @@ async function varJudgeSave(productId) {
   if (!varCanJudge()) return;
   const p = (window._vjCur && Number(window._vjCur.product_id) === Number(productId)) ? window._vjCur : (_varianceAllData || []).find(x => Number(x.product_id) === Number(productId)); if (!p) return;
   const entries = [];
-  document.querySelectorAll('.vjQty').forEach(i => { if (i.value !== '') entries.push({ loc: i.dataset.loc, qty: parseInt(i.value, 10) }); });
+  document.querySelectorAll('.vjQty').forEach(i => { entries.push({ loc: i.dataset.loc, qty: i.value === '' ? 0 : parseInt(i.value, 10) }); });   // ช่องว่าง = 0 (Ball 2026-11-27 · เดิมว่าง = ไม่เปลี่ยน → ลบเลขแล้วยอดเก่าค้าง)
   const exLoc = ((document.getElementById('vjExtraLoc') || {}).value || '').toUpperCase().trim();
   const exQty = (document.getElementById('vjExtraQty') || {}).value;
   if (exLoc && exQty !== '') entries.push({ loc: exLoc, qty: parseInt(exQty, 10) });
