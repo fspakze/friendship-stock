@@ -27772,6 +27772,7 @@ async function computeVarianceItems(periodOverride) {
           Object.values(lastSt).forEach(r => { const b = floorBaseCode(String(r.location_code || '').toUpperCase().trim()); if (b && r.status !== 'closed') stB[b] = r.status; });
           const locs = await fetchAllQuery(() => sb.from('location_master').select('location_code').eq('branch_id', branch.id).eq('is_active', true).order('id'));
           const master = new Set((locs || []).map(r => floorBaseCode(String(r.location_code || '').toUpperCase().trim())).filter(b => b && b !== '?'));
+          if (master.size) Object.keys(stB).forEach(b => { if (!master.has(b)) delete stB[b]; });   // ชั้นที่ลบออกจากรายชื่อแล้ว (สถานะเปิดค้าง) ไม่ถือว่ายังนับอยู่ (Ball 2026-11-26 ท่าหลวง WH09)
           _varCntDone = ![...master].some(b => !stB[b]) && !Object.values(stB).some(s => s === 'open_for_counting' || s === 'counting');
           _varV2Open = new Map(Object.entries(await _v2Load(sessionFilter)));
         }
@@ -36157,6 +36158,14 @@ async function executeDeleteGondola(locationCode) {
     const { error: le } = await sb.from('location_master').delete()
       .eq('branch_id', branch.id).eq('location_code', locationCode);
     if (le) throw le;
+    // 3. รอบนับที่เปิดอยู่: ปิดสถานะชั้นนี้ (กันค้าง "เปิดแล้วยังไม่มีใครเริ่ม" + บล็อกนับครบทั้งร้าน · Ball 2026-11-26)
+    if (session && session.id) {
+      try {
+        const { data: gsr } = await sb.from('gondola_status').select('id, status').eq('session_id', session.id).eq('location_code', locationCode).order('id', { ascending: false }).limit(1);
+        if (gsr && gsr[0] && gsr[0].status !== 'closed' && gsr[0].status !== 'completed')
+          await sb.rpc('reopen_gondola', { p_session_id: session.id, p_location_code: locationCode, p_ctl_user_id: user.id, p_target_status: 'closed' });
+      } catch (e) { console.warn('[FS] close status after delete:', e); }
+    }
     
     closeModal();
     showToast(`🗑️ ${isLao ? 'ລົບແລ້ວ' : 'ลบแล้ว'}: ${locationCode}`, 'success');
@@ -37790,7 +37799,8 @@ function ctrCompute(x) {
   // ---- ชั้นวาง: แถวล่าสุดต่อ location (เปิดซ้ำได้หลายแถว) ----
   const latest = {};
   (x.gs || []).forEach(g => { const k = String(g.location_code || '').toUpperCase().trim(); if (k) latest[k] = g; });
-  const G = Object.keys(latest).map(k => Object.assign({ code: k }, latest[k])).filter(g => g.status !== 'closed');
+  const _mb = new Set((x.locRows || []).map(r => _ctrBase(r.location_code)).filter(b => b && b !== '?'));
+  const G = Object.keys(latest).map(k => Object.assign({ code: k }, latest[k])).filter(g => g.status !== 'closed' && (!_mb.size || _mb.has(_ctrBase(g.code))));   // ชั้นที่ลบออกจากรายชื่อแล้ว = ไม่โชว์
   const stOf = {}, phOf = {};
   G.forEach(g => { stOf[g.code] = g.status; g.phase = _ctrPhase(g); phOf[g.code] = g.phase; });
   const masterBases = new Set((x.locRows || []).map(r => _ctrBase(r.location_code)).filter(b => b && b !== '?'));
@@ -38402,6 +38412,7 @@ async function _huntGate() {
   Object.keys(st).forEach(k => { if (st[k] === 'closed') delete st[k]; });
   const locs = await fetchAllQuery(() => sb.from('location_master').select('location_code').eq('branch_id', branch.id).eq('is_active', true).order('id'));
   const master = new Set((locs || []).map(r => floorBaseCode(String(r.location_code || '').toUpperCase().trim())).filter(b => b && b !== '?'));
+  if (master.size) Object.keys(st).forEach(k => { if (!master.has(k)) delete st[k]; });   // ชั้นที่ลบออกจากรายชื่อแล้ว = ไม่นับ
   const vDone = new Set(Object.keys(st).filter(k => _COV_VERIFIER_DONE.includes(st[k])));
   const notOpen = [...master].filter(b => !st[b]);
   const counting = Object.keys(st).filter(k => ['open_for_counting', 'counting'].includes(st[k]));
