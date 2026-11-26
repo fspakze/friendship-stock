@@ -38604,6 +38604,7 @@ function _huntStaffHtml() {
   const btnLot = (g, on, lbl, sub, col) => '<button ' + (on ? 'onclick="huntRequestLot(\'' + g + '\')"' : 'disabled') + ' style="width:100%;text-align:left;background:' + (on ? col : 'var(--slate-200)') + ';color:' + (on ? 'white' : 'var(--slate-500)') + ';border:none;border-radius:10px;padding:11px 13px;font-size:14px;font-weight:800;cursor:' + (on ? 'pointer' : 'default') + ';margin-bottom:8px;">' + lbl + '<span style="display:block;font-size:11px;font-weight:600;opacity:.9;margin-top:2px;">' + sub + '</span></button>';
   let html = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">'
     + '<div style="font-size:14px;font-weight:800;color:var(--slate-800);flex:1;">🧺 ' + _hL('ງານຂອງຂ້ອຍ ', 'งานของฉัน ') + mine.length + '</div>'
+    + '<button onclick="huntMyHistory()" style="background:white;color:var(--slate-700);border:1px solid var(--slate-300);border-radius:9px;padding:6px 10px;font-size:12px;font-weight:800;cursor:pointer;">📜 ' + _hL('ປະຫວັດຂອງຂ້ອຍ', 'ประวัติของฉัน') + '</button>'
     + (_huntOpenN ? '<div style="font-size:11px;color:var(--slate-500);">' + _hL('ງານວ່າງໃນຄິວ ', 'งานว่างในคิว ') + _huntN(_huntOpenN.all) + '</div>' : '') + '</div>'
     + (wait.length ? '<div style="font-size:11px;color:var(--sky-700, #0369a1);font-weight:700;margin-bottom:8px;">⏳ ' + _hL('ສົ່ງຍອດແລ້ວ ລໍຖ້າອະນຸມັດ ', 'ส่งยอดแล้ว รออนุมัติ ') + wait.length + '</div>' : '');
   if (!mine.length) {
@@ -38618,6 +38619,85 @@ function _huntStaffHtml() {
   html += '<div style="font-size:11px;color:var(--slate-500);margin-bottom:7px;">' + _hL('ເຫຼືອ ', 'เหลือ ') + mine.length + _hL(' ງານ — ຫາໃຫ້ຄົບກ່ອນ ຈຶ່ງຂໍລັອດໃໝ່ໄດ້ (ຫາບໍ່ເຈີ ກົດ "ບໍ່ພົບ")', ' งาน — หาให้ครบก่อน จึงขอล็อตใหม่ได้ (หาไม่เจอ กด "ไม่พบ")') + '</div>';
   return html + _huntArrange(_huntSort(mine)).map(e => e.hdr ? _huntHdr(e) : _huntCard(e.h, _huntBtn('🔎 ' + _hL('ໄປຫາ / ໃສ່ຍອດ', 'ไปหา / ใส่ยอด'), 'huntOpenWork(' + e.h.id + ')', 'var(--violet-600, #7c3aed)'))).join('');
 }
+// 📜 ประวัติงานตามหาของฉัน (Ball 2026-11-27) — โหลดเฉพาะตอนกด (ไม่ poll · MEMORY 40)
+//    แหล่ง = activity_logs (hunt_submit / hunt_notfound ของคนนี้ ตั้งแต่เริ่มรอบ) เพราะงานที่ถูกส่งกลับ count_hunts ล้างชื่อคนหาไปแล้ว
+//    + สถานะล่าสุดจาก count_hunts ของรอบนี้ (กรองเฉพาะสินค้าที่อยู่ในรอบนี้จริง)
+async function huntMyHistory() {
+  if (!session || !user) return;
+  showModal('<div style="padding:18px;text-align:center;color:var(--slate-500);font-size:13px;">⏳ ' + _hL('ກຳລັງໂຫຼດປະຫວັດ...', 'กำลังโหลดประวัติ...') + '</div>');
+  let logs, H = {}, P = {};
+  try {
+    const from = session.started_at || session.created_at || new Date(Date.now() - 30 * 86400000).toISOString();
+    logs = await fetchAllQuery(() => sb.from('activity_logs').select('id, action, detail, created_at')
+      .eq('user_id', user.id).in('action', ['hunt_submit', 'hunt_notfound']).gte('created_at', from).order('id'));
+    const ev = {};
+    (logs || []).forEach(l => {
+      const m = /product\s+(\d+)\s*·?\s*(.*)$/.exec(String(l.detail || ''));
+      if (!m) return;
+      const pid = Number(m[1]);
+      const e = ev[pid] = ev[pid] || { pid, n: 0 };
+      e.n++;
+      if (!e.at || l.created_at > e.at) { e.at = l.created_at; e.act = l.action; e.txt = m[2] || ''; }
+    });
+    const pids = Object.keys(ev).map(Number);
+    for (let i = 0; i < pids.length; i += 300) {
+      const part = pids.slice(i, i + 300);
+      const hs = await _sbSel(() => sb.from('count_hunts').select('id, product_id, kind, status, assigned_to, notfound_by, found_total, pos_qty, review_note, reviewed_at, reviewed_name')
+        .eq('session_id', session.id).in('product_id', part));
+      (hs || []).forEach(h => { H[h.product_id] = h; });
+      const need = part.filter(id => !_huntProd[id]);
+      if (need.length) {
+        const ps = await _sbSel(() => sb.from('products').select('id, barcode, name_th, name_lo').in('id', need));
+        (ps || []).forEach(p => { _huntProd[p.id] = p; });
+      }
+    }
+    _huntHist = Object.values(ev).filter(e => H[e.pid]).map(e => Object.assign(e, { h: H[e.pid] })).sort((a, b) => (b.at > a.at ? 1 : -1));
+  } catch (e) { showModal('<div style="padding:14px;color:var(--rose-600);font-size:13px;">Error: ' + escapeHtml(e.message || String(e)) + '</div>'); return; }
+  _huntHistRender();
+}
+let _huntHist = [];
+function _huntHistSt(e) {
+  const h = e.h, me = user.id, nfMe = _huntNf(h).some(x => x && x.id === me);
+  const later = h.reviewed_at && h.reviewed_at > e.at;
+  if (h.status === 'approved' && (h.assigned_to === me || nfMe)) return ['ok', '✅ ' + _hL('ອະນຸມັດແລ້ວ', 'อนุมัติแล้ว'), 'var(--emerald-700, #047857)'];
+  if (h.status === 'submitted' && h.assigned_to === me) return ['wait', '⏳ ' + _hL('ລໍຖ້າອະນຸມັດ', 'รออนุมัติ'), 'var(--sky-700, #0369a1)'];
+  if (h.status === 'notfound' && nfMe) return ['wait', '⏳ ' + _hL('ລໍຖ້າຢືນຢັນບໍ່ພົບ', 'รอยืนยันไม่พบ'), 'var(--sky-700, #0369a1)'];
+  if (h.status === 'claimed' && h.assigned_to === me) return ['wait', '🔎 ' + _hL('ກຳລັງຫາອີກຮອບ', 'กำลังหาอีกรอบ'), 'var(--violet-700, #6d28d9)'];
+  if (h.status === 'closed') return ['closed', '⚪ ' + _hL('ລະບົບປິດງານ (ຕັດສິນທາງອື່ນແລ້ວ)', 'ระบบปิดงาน (ตัดสินทางอื่นแล้ว)'), 'var(--slate-500)'];
+  return ['back', '🔁 ' + _hL('ຖືກສົ່ງກັບ', 'ถูกส่งกลับ') + (later && h.reviewed_name ? ' · ' + h.reviewed_name : ''), 'var(--amber-700, #b45309)'];
+}
+function _huntHistRender() {
+  const L = _huntHist || [];
+  const c = { ok: 0, wait: 0, back: 0, closed: 0 };
+  let nf = 0;
+  L.forEach(e => { c[_huntHistSt(e)[0]]++; if (e.act === 'hunt_notfound') nf++; });
+  const chip = (lbl, n, col) => '<div style="flex:1;min-width:70px;background:var(--slate-50, #f8fafc);border-radius:9px;padding:7px 8px;"><div style="font-size:17px;font-weight:800;color:' + col + ';font-family:\'Space Grotesk\',monospace;">' + n + '</div><div style="font-size:10px;color:var(--slate-500);font-weight:700;">' + lbl + '</div></div>';
+  const row = e => {
+    const p = _huntProd[e.pid] || {}, st = _huntHistSt(e), h = e.h;
+    const nm = (lang === 'lo' ? (p.name_lo || p.name_th) : (p.name_th || p.name_lo)) || ('#' + e.pid);
+    const what = e.act === 'hunt_notfound' ? '🚫 ' + _hL('ບໍ່ພົບ', 'ไม่พบ')
+      : (/no more/i.test(e.txt) ? '➖ ' + _hL('ບໍ່ເຈີເພີ່ມ', 'ไม่เจอเพิ่ม') : '📤 ' + escapeHtml(e.txt));
+    const note = (st[0] === 'back' && h.review_note && !/^NOSCAN/.test(h.review_note)) ? '<div style="font-size:11px;color:var(--amber-800, #92400e);margin-top:2px;">💬 ' + escapeHtml(h.review_note) + '</div>' : '';
+    return '<div style="padding:8px 2px;border-bottom:1px solid var(--slate-100);">'
+      + '<div style="display:flex;gap:8px;align-items:flex-start;"><div style="flex:1;min-width:0;font-size:12.5px;font-weight:800;line-height:1.3;">' + escapeHtml(nm) + '</div>'
+      + '<div style="font-size:10px;color:var(--slate-500);white-space:nowrap;font-family:monospace;">' + escapeHtml(_gtClock(e.at)) + '</div></div>'
+      + '<div style="font-size:10.5px;color:var(--slate-500);font-family:monospace;">' + escapeHtml(p.barcode || '') + ' · POS ' + _huntN(h.pos_qty) + (e.n > 1 ? ' · ' + e.n + _hL(' ຄັ້ງ', ' ครั้ง') : '') + '</div>'
+      + '<div style="font-size:11.5px;margin-top:2px;">' + what + '</div>'
+      + '<div style="font-size:11.5px;font-weight:800;color:' + st[2] + ';margin-top:2px;">' + st[1] + (st[0] === 'ok' ? ' · ' + _hL('ຍອດ ', 'ยอด ') + _huntN(h.found_total) : '') + '</div>'
+      + note + '</div>';
+  };
+  showModal('<h3 style="font-size:16px;margin:0 0 8px;">📜 ' + _hL('ປະຫວັດຕາມຫາຂອງຂ້ອຍ', 'ประวัติตามหาของฉัน') + '</h3>'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">'
+    + chip(_hL('ຫາແລ້ວ', 'หาแล้ว'), L.length, 'var(--slate-800)') + chip(_hL('ອະນຸມັດ', 'อนุมัติ'), c.ok, 'var(--emerald-700, #047857)')
+    + chip(_hL('ລໍຖ້າ', 'รอ'), c.wait, 'var(--sky-700, #0369a1)') + chip(_hL('ສົ່ງກັບ', 'ส่งกลับ'), c.back, 'var(--amber-700, #b45309)')
+    + chip(_hL('ກົດບໍ່ພົບ', 'กดไม่พบ'), nf, 'var(--rose-600)') + '</div>'
+    + (L.length ? '<div style="max-height:55vh;overflow-y:auto;">' + L.map(row).join('') + '</div>'
+      : '<div style="text-align:center;padding:20px;color:var(--slate-500);font-size:12px;">' + _hL('ຍັງບໍ່ມີງານທີ່ຫາໃນຮອບນີ້', 'ยังไม่มีงานที่หาในรอบนี้') + '</div>')
+    + '<div style="display:flex;gap:6px;margin-top:10px;">'
+    + _huntBtn('🔄 ' + _hL('ໂຫຼດໃໝ່', 'โหลดใหม่'), 'huntMyHistory()', 'white', 'var(--slate-700)', '1px solid var(--slate-300)')
+    + _huntBtn(_hL('ປິດ', 'ปิด'), 'closeModal()', 'var(--slate-100)', 'var(--slate-700)', '1px solid var(--slate-200)') + '</div>');
+}
+window.huntMyHistory = huntMyHistory;
 // 🎯 ขอล็อตใหม่: ดึงงานว่างแบบคอลัมน์น้อย เฉพาะตอนกด → เลือก 10 งาน (มูลค่าสูงก่อน · B จัดกลุ่มยี่ห้อ) → รับแบบกันชน (เฉพาะที่ยังว่าง)
 // แกนกลาง: เลือก 10 งาน (มูลค่าสูงก่อน · B ยี่ห้อเดียวกันติดกัน) แล้วรับแบบกันชนให้ uid · ใช้ทั้งพนักงานขอเอง + หัวหน้าแจกจากศูนย์ควบคุม
 async function _huntClaimLot(uid, name, grp) {
