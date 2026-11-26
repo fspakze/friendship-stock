@@ -39118,7 +39118,7 @@ async function huntRelease(id) {
 async function huntSendBack(id) {
   const note = prompt(_hL('ເຫດຜົນ / ສິ່ງທີ່ໃຫ້ຫາເພີ່ມ (ບໍ່ບັງຄັບ)', 'เหตุผล / สิ่งที่ให้หาเพิ่ม (ไม่บังคับ)'), '');
   if (note === null) return;
-  const ok = await _huntUpdate(id, { status: 'open', assigned_to: null, assigned_name: null, claimed_at: null, review_note: note || null, reviewed_by: user.id, reviewed_name: user.username || '', reviewed_at: new Date().toISOString() }, ['submitted', 'notfound']);
+  const ok = await _huntUpdate(id, { status: 'open', notfound_by: [], assigned_to: null, assigned_name: null, claimed_at: null, review_note: note || null, reviewed_by: user.id, reviewed_name: user.username || '', reviewed_at: new Date().toISOString() }, ['submitted', 'notfound']);
   if (ok) { showToast('🔁 ' + _hL('ສົ່ງກັບເຂົ້າຄິວແລ້ວ', 'ส่งกลับเข้าคิวแล้ว'), 'info'); huntReload(false); }
 }
 async function huntReview(id) {
