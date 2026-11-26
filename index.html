@@ -25081,7 +25081,7 @@ async function saveCount() {
   }
 
   // ⭐ ตอนเปิดรอบนับสต๊อก + Counter/Verifier บนสาขาปิดโซน → ห้ามบันทึกถ้ายังไม่เลือก Gondola (กันเลี่ยงด้วยการล้าง location) (Ball 2026-07-08)
-  if (_countMenuEnabled && ['counter', 'verifier', 'audit'].includes(user.role) && branch?.use_zones === false && !loc) {
+  if (_countMenuEnabled && branch?.use_zones === false && !loc) {   // ทุกตำแหน่ง (เดิมเฉพาะ C/V/Audit · 2026-11-27 Suea นับไม่เลือกชั้น → ยอดลงจุด "?" บวกซ้ำกับชั้นจริง)
     showToast(lang === 'lo' ? '⚠️ ກະລຸນາເລືອກ Gondola ກ່ອນບັນທຶກ' : '⚠️ กรุณาเลือก Gondola ก่อนบันทึก', 'warning');
     openQuickLocPicker(true);
     return;
