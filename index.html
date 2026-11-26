@@ -29137,7 +29137,7 @@ async function openVarianceDetail(productId) {
 function varCanJudge() { return !!user && ['admin', 'scc', 'bcs', 'ctl', 'it'].includes(user.role) && !(_varianceFilter && _varianceFilter.period === 'round') && !!session; }
 function _vjLocs(p) {
   const set = new Set();
-  [p.counterLocs, p.verifierLocs, p.ctlLocs, p.managerLocs].forEach(m => Object.keys(m || {}).forEach(k => { if (k && k !== '?') set.add(String(k).toUpperCase().trim()); }));
+  [p.counterLocs, p.verifierLocs, p.ctlLocs, p.managerLocs].forEach(m => Object.keys(m || {}).forEach(k => { if (k) set.add(String(k).toUpperCase().trim()); }));   // รวมจุด "?" (นับไม่เลือกชั้น) → แก้เป็น 0 ได้ (Ball 2026-11-27 BJC)
   (p.missingGons || []).forEach(g => { if (g) set.add(String(g).toUpperCase().trim()); });
   return [...set].sort((a, b) => floorBaseCode(a).localeCompare(floorBaseCode(b)) || (isFloorCode(a) ? 1 : 0) - (isFloorCode(b) ? 1 : 0));
 }
@@ -29184,7 +29184,7 @@ function varJudgeOpen(productId, pOverride, blind) {
     const _mine = _ccMyRole() === 'ctl_tiebreaker' ? p.ctlLocs : p.managerLocs;
     const cur = _mine && _mine[loc] ? _mine[loc].counted_qty : '';
     return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--slate-100);">'
-      + '<div style="flex:1;min-width:0;"><div style="font-weight:800;font-size:13px;font-family:\'Space Grotesk\',monospace;">📍 ' + escapeHtml(loc) + (isFloorCode(loc) ? ' <span style="font-size:10px;color:var(--amber-700);">(' + floorTag() + ')</span>' : '') + '</div>'
+      + '<div style="flex:1;min-width:0;"><div style="font-weight:800;font-size:13px;font-family:\'Space Grotesk\',monospace;">📍 ' + escapeHtml(loc) + (loc === '?' ? ' <span style="font-size:10px;color:var(--rose-600, #e11d48);">(' + L('ບໍ່ມີຊັ້ນ — ນັບບໍ່ເລືອກຊັ້ນ', 'ไม่มีชั้น — นับไม่เลือกชั้น') + ')</span>' : '') + (isFloorCode(loc) ? ' <span style="font-size:10px;color:var(--amber-700);">(' + floorTag() + ')</span>' : '') + '</div>'
       + '<div style="font-size:10px;color:var(--slate-500);">' + (blind ? (counted ? L('✓ ມີຄົນນັບຈຸດນີ້ແລ້ວ', '✓ มีคนนับจุดนี้แล้ว') : L('⏳ ຍັງບໍ່ມີຄົນນັບຈຸດນີ້', '⏳ ยังไม่มีคนนับจุดนี้')) : counted ? 'C ' + q(p.counterLocs, loc) + _vjWho(p.counterLocs, loc) + ' · V ' + q(p.verifierLocs, loc) + _vjWho(p.verifierLocs, loc) + ' · CTL ' + q(p.ctlLocs, loc) + _vjWho(p.ctlLocs, loc) + ' · BCS ' + q(p.managerLocs, loc) + _vjWho(p.managerLocs, loc) : L('⏳ ຍັງບໍ່ມີຄົນນັບຈຸດນີ້', '⏳ ยังไม่มีคนนับจุดนี้')) + '</div></div>'
       + '<input class="vjQty" data-loc="' + escapeHtml(loc) + '" type="number" inputmode="numeric" min="0" value="' + escapeHtml(String(cur)) + '" placeholder="—" style="width:86px;padding:10px;border:2px solid var(--slate-300);border-radius:9px;font-size:16px;font-weight:800;text-align:center;font-family:\'Space Grotesk\',monospace;">'
       + '</div>';
@@ -29229,7 +29229,7 @@ async function varJudgeSave(productId) {
   const note = (_role === 'ctl_tiebreaker' ? 'CTL ' : 'BCS ') + L('ຕັດສິນຈາກລາຍງານ', 'ตัดสินจากรายงาน');
   const rows = entries.map(e => ({
     session_id: session.id, branch_id: branch?.id || user.branch_id, product_id: productId, zone_id: p.zone_id || null,
-    location_code: e.loc, gondola_code: floorBaseCode(e.loc), user_id: user.id, counted_qty: e.qty,
+    location_code: e.loc === '?' ? null : e.loc, gondola_code: e.loc === '?' ? null : floorBaseCode(e.loc), user_id: user.id, counted_qty: e.qty,
     pos_qty_snapshot: p.pos_qty || 0, count_role: _role, is_markdown: false, note
   }));
   let error = null;
@@ -30045,7 +30045,7 @@ let _csumDiffSt = 'all';      // all | open | done | unc (ไม่ได้น�
 function csumDiffSet(k, v) {
   if (k === 'dir') _csumDiffDir = ['plus', 'all'].includes(v) ? v : 'minus';
   else if (k === 'sort') _csumDiffSort = ['qty', 'pct'].includes(v) ? v : 'val';
-  else if (k === 'st') _csumDiffSt = ['open', 'done', 'unc'].includes(v) ? v : 'all';
+  else if (k === 'st') _csumDiffSt = ['open', 'done', 'unc', 'dup'].includes(v) ? v : 'all';
   else if (k === 'hide') _csumDiffHideDone = !_csumDiffHideDone;
   renderVarianceList();
 }
@@ -30069,6 +30069,7 @@ function _csumDiffAll(d) {
 }
 function _csumDiffList(d) {
   let list = _csumDiffAll(d);
+  if (_csumDiffSt === 'dup') return list.filter(r => r.dup).sort((x, y) => Math.abs(y.diffV || 0) - Math.abs(x.diffV || 0));   // ⚠️ สงสัยยอดเบิ้ล: ไม่สนแท็บขาด/เกิน + ซ่อนยืนยันแล้ว
   if (_csumDiffDir === 'minus') list = list.filter(r => r.diff < 0);
   else if (_csumDiffDir === 'plus') list = list.filter(r => r.diff > 0);
   if (_csumDiffHideDone && _csumDiffSt !== 'done') list = list.filter(r => r.unc || !_csumDiffStage(r.stageKey).done);
@@ -30106,6 +30107,7 @@ function _csumDiffHtml(d, isLao) {
     + pill('st', 'open', _csumDiffSt, L('ຍັງບໍ່ຈົບ', 'ยังไม่จบ'), 'var(--sky-700, #0369a1)')
     + pill('st', 'done', _csumDiffSt, L('ຢືນຢັນແລ້ວ', 'ยืนยันแล้ว'), 'var(--emerald-700, #047857)')
     + pill('st', 'unc', _csumDiffSt, '🔍 ' + L('ບໍ່ໄດ້ນັບ', 'ไม่ได้นับ') + ' ' + un.length, 'var(--amber-600, #d97706)')
+    + pill('st', 'dup', _csumDiffSt, '⚠️ ' + L('ສົງໄສຍອດຊ້ຳ', 'สงสัยยอดเบิ้ล') + ' ' + (d.done || []).filter(r => r.dup).length, 'var(--rose-600, #e11d48)')
     + '<button onclick="csumDiffSet(\'hide\',1)" style="background:' + (_csumDiffHideDone ? 'var(--slate-700)' : 'white') + ';color:' + (_csumDiffHideDone ? 'white' : 'var(--slate-600)') + ';border:1px dashed var(--slate-400);border-radius:14px;padding:5px 11px;font-size:11px;font-weight:800;cursor:pointer;">' + (_csumDiffHideDone ? '🙈 ' + L('ເຊື່ອງ ຢືນຢັນແລ້ວ', 'ซ่อน ยืนยันแล้ว') : '👁 ' + L('ສະແດງ ຢືນຢັນແລ້ວ', 'แสดง ยืนยันแล้ว')) + '</button>'
     + '<span style="flex:1;"></span><button onclick="csumDiffExport()" style="background:var(--emerald-500);color:white;border:none;border-radius:8px;padding:6px 11px;font-size:11px;font-weight:800;cursor:pointer;">⬇ Excel</button></div>'
     + '</div>';
