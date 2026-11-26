@@ -5771,7 +5771,22 @@ function wtFilterMenuCfg(cfg, role) {
       const present = new Set(bottomTabs.concat(drawerGroups.reduce((a, g) => a.concat(g.items), [])));
       const granted = keys.filter(k => ovr[k] === true && !present.has(k) && PAGE_META[k]);
       if (granted.length) {
-        drawerGroups = drawerGroups.concat([{ titleTh: 'สิทธิ์เพิ่มเติม', titleLo: 'ສິດເພີ່ມເຕີມ', items: granted }]);
+        // 📂 วางเมนูที่เปิดเพิ่มไว้ในหัวข้อของมันเอง (ตามเมนู admin/scc/it) · หัวข้อที่ role นี้ไม่มี = สร้างใหม่ก่อน "บัญชี" · หาไม่เจอ = "สิทธิ์เพิ่มเติม" (Ball 2026-11-27)
+        drawerGroups = drawerGroups.map(g => ({ ...g, items: (g.items || []).slice() }));
+        const _home = k => { for (const rk of ['admin', 'scc', 'it', 'bcs', 'ctl']) { const gg = ((MENU_CONFIG[rk] || {}).drawerGroups || []).find(g => (g.items || []).includes(k)); if (gg) return gg; } return null; };
+        const _extra = [];
+        granted.forEach(k => {
+          const h = _home(k);
+          if (!h) { _extra.push(k); return; }
+          let g = drawerGroups.find(x => x.titleTh === h.titleTh);
+          if (!g) {
+            g = { titleTh: h.titleTh, titleLo: h.titleLo, items: [] };
+            const ai = drawerGroups.findIndex(x => (x.items || []).includes('_logout'));
+            if (ai >= 0) drawerGroups.splice(ai, 0, g); else drawerGroups.push(g);
+          }
+          g.items.push(k);
+        });
+        if (_extra.length) drawerGroups = drawerGroups.concat([{ titleTh: 'สิทธิ์เพิ่มเติม', titleLo: 'ສິດເພີ່ມເຕີມ', items: _extra }]);
       }
     }
   }
