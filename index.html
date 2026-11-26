@@ -38684,7 +38684,10 @@ function _huntHistRender() {
       + '<div style="font-size:10.5px;color:var(--slate-500);font-family:monospace;">' + escapeHtml(p.barcode || '') + ' · POS ' + _huntN(h.pos_qty) + (e.n > 1 ? ' · ' + e.n + _hL(' ຄັ້ງ', ' ครั้ง') : '') + '</div>'
       + '<div style="font-size:11.5px;margin-top:2px;">' + what + '</div>'
       + '<div style="font-size:11.5px;font-weight:800;color:' + st[2] + ';margin-top:2px;">' + st[1] + (st[0] === 'ok' ? ' · ' + _hL('ຍອດ ', 'ยอด ') + _huntN(h.found_total) : '') + '</div>'
-      + note + '</div>';
+      + note
+      + (_huntCanEdit(e) ? '<button onclick="huntEditMine(' + h.id + ')" style="margin-top:6px;background:white;color:var(--violet-700, #6d28d9);border:1px solid var(--violet-300, #c4b5fd);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">✏️ ' + _hL('ແກ້ໄຂ (ຊັ້ນ/ຈຳນວນ)', 'แก้ไข (ชั้น/จำนวน)') + '</button>'
+        : (st[0] === 'ok' ? '<div style="font-size:10.5px;color:var(--slate-500);margin-top:2px;">' + _hL('ອະນຸມັດແລ້ວ ແກ້ເອງບໍ່ໄດ້ — ແຈ້ງຫົວໜ້າ', 'อนุมัติแล้ว แก้เองไม่ได้ — แจ้งหัวหน้า') + '</div>' : ''))
+      + '</div>';
   };
   showModal('<h3 style="font-size:16px;margin:0 0 8px;">📜 ' + _hL('ປະຫວັດຕາມຫາຂອງຂ້ອຍ', 'ประวัติตามหาของฉัน') + '</h3>'
     + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">'
@@ -38698,6 +38701,27 @@ function _huntHistRender() {
     + _huntBtn(_hL('ປິດ', 'ปิด'), 'closeModal()', 'var(--slate-100)', 'var(--slate-700)', '1px solid var(--slate-200)') + '</div>');
 }
 window.huntMyHistory = huntMyHistory;
+// ✏️ พนักงานแก้ยอดที่ส่งไปแล้วได้ ระหว่าง "รออนุมัติ" (ชั้นผิด/จำนวนผิด · Ball 2026-11-27) → ดึงงานกลับมาเป็น "กำลังหา" ของตัวเอง แล้วเปิดหน้าใส่ยอดพร้อมยอดเดิม
+//    กันชน: เปลี่ยนได้เฉพาะสถานะยังรออนุมัติ (หัวหน้าอนุมัติไปก่อน = แก้ไม่ได้ · หัวหน้าเปิดอนุมัติค้างอยู่ = กดอนุมัติไม่ติด)
+function _huntCanEdit(e) {
+  const h = e.h, me = user.id;
+  return (h.status === 'submitted' && h.assigned_to === me) || (h.status === 'notfound' && _huntNf(h).some(x => x && x.id === me));
+}
+async function huntEditMine(id) {
+  const e = (_huntHist || []).find(x => x.h && x.h.id === id); if (!e || !_huntCanEdit(e)) return;
+  const now = new Date().toISOString();
+  const patch = e.h.status === 'notfound'
+    ? { status: 'claimed', assigned_to: user.id, assigned_name: user.username || user.full_name || '', claimed_at: now, notfound_by: _huntNf(e.h).filter(x => x && x.id !== user.id) }
+    : { status: 'claimed', claimed_at: now };
+  const ok = await _huntUpdate(id, patch, [e.h.status]);
+  if (!ok) { huntMyHistory(); return; }
+  logActivity('hunt_edit', 'product ' + e.pid + ' · ' + e.h.status);
+  closeModal();
+  try { await huntFetch(true); } catch (er) { showToast('Error: ' + (er.message || er), 'error'); return; }
+  huntRender();
+  huntOpenWork(id);
+}
+window.huntEditMine = huntEditMine;
 // 🎯 ขอล็อตใหม่: ดึงงานว่างแบบคอลัมน์น้อย เฉพาะตอนกด → เลือก 10 งาน (มูลค่าสูงก่อน · B จัดกลุ่มยี่ห้อ) → รับแบบกันชน (เฉพาะที่ยังว่าง)
 // แกนกลาง: เลือก 10 งาน (มูลค่าสูงก่อน · B ยี่ห้อเดียวกันติดกัน) แล้วรับแบบกันชนให้ uid · ใช้ทั้งพนักงานขอเอง + หัวหน้าแจกจากศูนย์ควบคุม
 async function _huntClaimLot(uid, name, grp) {
@@ -38983,9 +39007,15 @@ async function huntOpenWork(id) {
   let hint = {}; try { hint = JSON.parse(h.hint || '{}') || {}; } catch (e) {}
   const set = new Set(Object.keys(cur));
   String(hint.pog || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean).forEach(g => set.add(g));
+  const _prev = (h.status === 'claimed' && Array.isArray(h.found)) ? h.found.filter(e => e && e.loc) : [];   // ✏️ ดึงกลับมาแก้ → ยอดที่เคยส่ง
+  _prev.forEach(e => set.add(String(e.loc).toUpperCase().trim()));
   const locs = [...set].sort((a, b) => floorBaseCode(a).localeCompare(floorBaseCode(b)) || (isFloorCode(a) ? 1 : 0) - (isFloorCode(b) ? 1 : 0));
   _huntWork = { h, cur, locs, scanned: false, extra: 1, noScan: h.kind === 'unc_a' };   // 📍 A: รู้ชั้นตาม Pan-O-Gram → ไม่บังคับสแกน (Ball 2026-11-23)
   _huntWorkRender();
+  if (_prev.length) setTimeout(() => {
+    document.querySelectorAll('.hwQty').forEach(i => { const e = _prev.find(x => String(x.loc).toUpperCase().trim() === i.dataset.loc); if (e) i.value = e.qty; });
+    if (typeof _huntSum === 'function') _huntSum();
+  }, 60);
 }
 function _huntWorkRender() {
   const w = _huntWork; if (!w) return;
