@@ -33336,6 +33336,7 @@ async function executeMultiBranchImport() {
   // Process each branch
   const BATCH_SIZE = 500;
   let completedBranches = 0;
+  const _mbWarn = [];
   const aggStats = { new: 0, updated: 0, errors: 0 };
   
   for (const bId of branchIds) {
@@ -33359,7 +33360,7 @@ async function executeMultiBranchImport() {
       const isLastBatch = (i === numBatches - 1);
       
       try {
-        const { data, error } = await sb.rpc('import_pos_products_batch', {
+        const { data, error } = await _posRpc({
           p_branch_id: bId,
           p_user_id: user.id,
           p_products: chunk,
@@ -33367,7 +33368,8 @@ async function executeMultiBranchImport() {
           p_snapshot_name: isLastBatch ? `${snapName} (${branchName})` : null,
           p_session_id: null,
           p_total_count: products.length
-        });
+        }, { p_is_first_batch: i === 0, p_allow_mass_deactivate: !!(_mbGuard[bId] && _mbGuard[bId].forced) });
+        if (data && data.deactivate_blocked) _mbWarn.push(branchName + ': ' + (isLao ? 'ລະບົບບໍ່ປິດຂາຍ ' : 'ระบบไม่ปิดขาย ') + data.deactivate_blocked + (isLao ? ' ຕົວ (ຫຼາຍຜິດປົກກະຕິ)' : ' ตัว (เยอะผิดปกติ)'));
         if (error) throw error;
         const r = data || {};
         branchNew += (r.new_products || 0);
@@ -33387,6 +33389,7 @@ async function executeMultiBranchImport() {
       statuses[bId].new = branchNew;
       statuses[bId].updated = branchUpdated;
       posLogImport(bId, products.length, { new: branchNew, updated: branchUpdated }, _mbGuard[bId], 'multi');
+      { const vw = await _posVerifyActive(bId, products); if (vw) _mbWarn.push(branchName + ': ' + vw); }
       aggStats.new += branchNew;
       aggStats.updated += branchUpdated;
     }
@@ -33403,6 +33406,7 @@ async function executeMultiBranchImport() {
   // Final summary
   await new Promise(r => setTimeout(r, 500));
   closeModal();
+  if (_mbWarn.length) { logActivity('pos_import_warn', _mbWarn.join(' | ')); alert('⚠️ ' + (isLao ? 'ກວດຫຼັງນຳເຂົ້າ ພົບຜິດປົກກະຕິ:' : 'ตรวจหลังนำเข้า พบผิดปกติ:') + '\n\n' + _mbWarn.join('\n') + '\n\n' + (isLao ? 'ກະລຸນາແຈ້ງ Admin ກ່ອນໃຊ້ຂໍ້ມູນ' : 'กรุณาแจ้ง Admin ก่อนใช้ข้อมูล')); }
   
   showModal(`
     <div style="text-align:center;margin-bottom:14px;">
@@ -33468,7 +33472,34 @@ async function applyMasterPriceToImport(products) {
   } catch (e) { console.warn('[FS] applyMasterPriceToImport failed:', e); }
 }
 
+// 🔒 กันนำเข้า POS ซ้อนกัน (Ball 2026-11-28) — 27/11 กดนำเข้าซ้ำระหว่างรอตรวจสาขา → 3 รอบวิ่งพร้อมกัน
+//    RPC เก็บบาร์โค้ดสะสมใน _import_session_state ต่อ (สาขา, คน) · รอบแรกจบลบ state → อีก 2 รอบสะสมใหม่แค่ชุดท้าย → ปิดขายเหลือ ~500 ตัวทุกสาขา
+let _posImportBusy = false;
 async function executeImport() {
+  const isLao0 = lang === 'lo';
+  if (_posImportBusy) { showToast(isLao0 ? '⏳ ກຳລັງນຳເຂົ້າຢູ່ — ລໍຖ້າໃຫ້ຈົບກ່ອນ' : '⏳ กำลังนำเข้าอยู่ — รอให้จบก่อน', 'warning'); return; }
+  _posImportBusy = true;
+  const _btn = document.getElementById('importBtn'); if (_btn) _btn.disabled = true;
+  try { return await _executeImportInner(); }
+  finally { _posImportBusy = false; const b2 = document.getElementById('importBtn'); if (b2) b2.disabled = false; }
+}
+// RPC นำเข้า + พารามิเตอร์ใหม่ (รีเซ็ต state ชุดแรก · ยอมให้ปิดขายเยอะเมื่อยืนยันรหัสสาขาแล้ว) — ยังไม่ได้รัน SQL ใหม่ (PGRST202) = เรียกแบบเดิม
+async function _posRpc(args, extra) {
+  let r = await sb.rpc('import_pos_products_batch', Object.assign({}, args, extra));
+  if (r.error && (r.error.code === 'PGRST202' || /Could not find the function/i.test(r.error.message || ''))) r = await sb.rpc('import_pos_products_batch', args);
+  return r;
+}
+// ✅ หลังนำเข้า: สินค้าเปิดขายต้องเท่าจำนวนบาร์โค้ดในไฟล์ → ไม่เท่า = คืนข้อความเตือน
+async function _posVerifyActive(bId, products) {
+  const want = new Set((products || []).map(p => String(p.barcode || '').trim()).filter(Boolean)).size;
+  try {
+    const { count, error } = await sb.from('products').select('id', { count: 'exact', head: true }).eq('branch_id', bId).eq('is_active', true);
+    if (error || count == null) return '';
+    if (count < want * 0.97) return (lang === 'lo' ? 'ເປີດຂາຍ ' : 'เปิดขาย ') + count.toLocaleString() + (lang === 'lo' ? ' ຈາກໄຟລ໌ ' : ' จากไฟล์ ') + want.toLocaleString();
+  } catch (e) {}
+  return '';
+}
+async function _executeImportInner() {
   if (!_pendingImport || !_pendingImport.length) {
     showToast(T('no_products_found'), 'error');
     return;
@@ -33591,7 +33622,8 @@ async function executeImport() {
       
       // ส่ง batch นี้ — ไม่ส่ง snapshot_name ถ้าไม่ใช่ batch สุดท้าย
       // (snapshot จะถูกบันทึกใน batch สุดท้ายเท่านั้น)
-      const { data, error } = await sb.rpc('import_pos_products_batch', {
+      const _xa = { p_is_first_batch: i === 0, p_allow_mass_deactivate: !!(_posGuard && _posGuard.forced) };
+      const { data, error } = await _posRpc({
         p_branch_id: destBranchId,
         p_user_id: user.id,
         p_products: chunk,
@@ -33599,13 +33631,13 @@ async function executeImport() {
         p_snapshot_name: isLast ? snapName : null,
         p_session_id: session?.id || null,
         p_total_count: total
-      });
+      }, _xa);
       
       if (error) {
         // Retry ครั้งเดียว ถ้า fail
         log('Batch', i + 1, 'failed, retrying...', error.message);
         await new Promise(r => setTimeout(r, 1000));
-        const { data: retryData, error: retryError } = await sb.rpc('import_pos_products_batch', {
+        const { data: retryData, error: retryError } = await _posRpc({
           p_branch_id: destBranchId,
           p_user_id: user.id,
           p_products: chunk,
@@ -33613,7 +33645,7 @@ async function executeImport() {
           p_snapshot_name: isLast ? snapName : null,
           p_session_id: session?.id || null,
           p_total_count: total
-        });
+        }, Object.assign({}, _xa, { p_is_first_batch: false }));
         if (retryError) throw retryError;
         const r = retryData || {};
         aggStats.total_processed += (r.total_processed || 0);
@@ -33621,6 +33653,7 @@ async function executeImport() {
         aggStats.updated_products += (r.updated_products || 0);
         aggStats.deactivated_products += (r.deactivated_products || 0);
         aggStats.total_value += (r.total_value || 0);
+        if (r.deactivate_blocked) aggStats._blocked = r.deactivate_blocked;
       } else {
         const r = data || {};
         aggStats.total_processed += (r.total_processed || 0);
@@ -33628,6 +33661,7 @@ async function executeImport() {
         aggStats.updated_products += (r.updated_products || 0);
         aggStats.deactivated_products += (r.deactivated_products || 0);
         aggStats.total_value += (r.total_value || 0);
+        if (r.deactivate_blocked) aggStats._blocked = r.deactivate_blocked;
       }
     }
     
@@ -33679,6 +33713,12 @@ async function executeImport() {
     `);
     
     posLogImport(destBranchId, total, aggStats, _posGuard, 'single');
+    {
+      const vw = await _posVerifyActive(destBranchId, _pendingImport);
+      const blk = aggStats._blocked ? ((lang === 'lo' ? 'ລະບົບບໍ່ປິດຂາຍ ' : 'ระบบไม่ปิดขาย ') + aggStats._blocked + (lang === 'lo' ? ' ຕົວ (ຫຼາຍຜິດປົກກະຕິ)' : ' ตัว (เยอะผิดปกติ)')) : '';
+      const ws = [vw, blk].filter(Boolean);
+      if (ws.length) { logActivity('pos_import_warn', 'branch ' + destBranchId + ' · ' + ws.join(' · ')); alert('⚠️ ' + (lang === 'lo' ? 'ກວດຫຼັງນຳເຂົ້າ ພົບຜິດປົກກະຕິ:' : 'ตรวจหลังนำเข้า พบผิดปกติ:') + '\n\n' + ws.join('\n') + '\n\n' + (lang === 'lo' ? 'ກະລຸນາແຈ້ງ Admin ກ່ອນໃຊ້ຂໍ້ມູນ' : 'กรุณาแจ้ง Admin ก่อนใช้ข้อมูล')); }
+    }
     _pendingImport = null;
     markDataUpdated('last_update_pos');
     
