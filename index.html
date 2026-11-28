@@ -33323,6 +33323,7 @@ async function executeMultiBranchImport() {
             ${s.status === 'done' ? `<div style="color:var(--emerald-600);font-family:'Space Grotesk',monospace;">+${s.new || 0} / ↻${s.updated || 0}</div>` : ''}
           </div>
         </div>
+        ${s.err ? `<div style="font-size:10px;color:var(--rose-600);background:var(--rose-50);border-radius:5px;padding:4px 8px;margin:-2px 0 4px;word-break:break-word;">⚠️ ${escapeHtml(s.err)}</div>` : ''}
       `;
     });
     listEl.innerHTML = html;
@@ -33376,7 +33377,9 @@ async function executeMultiBranchImport() {
         branchUpdated += (r.updated_products || 0);
       } catch (e) {
         console.error('[FS] Multi-branch import error:', branchName, e);
-        branchError = e.message || String(e);
+        branchError = (e.message || String(e)) + (e.code ? ' [' + e.code + ']' : '') + (e.details ? ' · ' + e.details : '');
+        statuses[bId].err = (isLao ? 'ຊຸດ ' : 'ชุด ') + (i + 1) + '/' + numBatches + ' (' + (isLao ? 'ແຖວ ' : 'แถว ') + (i * BATCH_SIZE + 1) + '-' + Math.min((i + 1) * BATCH_SIZE, products.length) + '): ' + branchError;
+        logActivity('pos_import_error', 'branch ' + bId + ' · ' + statuses[bId].err.slice(0, 400) + ' · first ' + String((chunk[0] || {}).barcode || ''));
         break;
       }
     }
@@ -33384,6 +33387,7 @@ async function executeMultiBranchImport() {
     if (branchError) {
       statuses[bId].status = 'error';
       aggStats.errors++;
+      _mbWarn.push(branchName + ': ❌ ' + (statuses[bId].err || branchError));
     } else {
       statuses[bId].status = 'done';
       statuses[bId].new = branchNew;
